@@ -1,0 +1,148 @@
+# fluent-wp-client
+
+Runtime-agnostic TypeScript client for the WordPress REST API.
+
+Canonical repository: `git@github.com:JUVOJustin/fluent-wp-client.git`
+
+## Highlights
+
+- Typed read + CRUD helpers for posts, pages, media, terms, users, comments, and settings
+- Generic `content(resource)` and `terms(resource)` APIs for CPTs and custom taxonomies
+- WordPress Abilities API support with metadata helpers and fluent execution
+- Built-in auth utilities for Basic, JWT, cookie+nonce browser auth, prebuilt headers, and request-aware signing
+- JWT workflow helpers (`loginWithJwt`, `validateJwtToken`)
+- Fluent relation API (`client.post('slug').with('author', 'terms').get()`)
+- Standard Schema-compatible validation interfaces (works with Zod and other compliant schema libraries)
+- Uses only web-standard APIs (`fetch`, `URL`, `Blob`) for Node, Deno, Bun, and browser compatibility
+
+## Install
+
+```bash
+npm install fluent-wp-client
+```
+
+## Development Testing
+
+This repository ships the full WordPress integration test environment for the client.
+
+- `.wp-env.json` configures the local WordPress test site
+- `tests/wp-env/` contains mu-plugins and seed data
+- `tests/setup/` bootstraps app-password, JWT, and cookie+nonce auth for Vitest
+
+From the repository root run:
+
+```bash
+npm run wp:start
+npm test
+npm run wp:stop
+```
+
+## Basic Usage
+
+```ts
+import { WordPressClient } from 'fluent-wp-client';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+});
+
+const posts = await wp.getPosts();
+const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
+```
+
+## WPAPI-Compatible Syntax
+
+`fluent-wp-client` now includes a fluent request builder inspired by `node-wpapi`:
+
+```ts
+const posts = await wp.posts().perPage(10).page(1).embed().get();
+const post = await wp.posts().slug('hello-world').get();
+
+const created = await wp.posts().create({
+  title: 'WPAPI style create',
+  status: 'draft',
+});
+
+await wp.posts().id((created as { id: number }).id).update({ title: 'Updated' });
+```
+
+Custom namespaces and route registration are supported as well:
+
+```ts
+const books = await wp.namespace('wp/v2').route('books').slug('test-book-001').get();
+
+const customRoute = wp.registerRoute('my-plugin/v1', '/authors/(?P<id>)');
+const authorUrl = customRoute().id(7).toString();
+```
+
+## Browser Cookie + Nonce Auth
+
+```ts
+const browserClient = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: {
+    nonce: window.wpApiSettings.nonce,
+    credentials: 'include',
+  },
+});
+
+const me = await browserClient.getCurrentUser();
+```
+
+## Standard Schema Validation
+
+```ts
+import { z } from 'zod';
+
+const created = await wp.createPost(
+  { title: 'Schema validated', status: 'draft' },
+  z.object({ id: z.number(), slug: z.string() }),
+);
+```
+
+## Abilities
+
+```ts
+const definitions = await wp.getAbilities();
+const siteTitleAbility = await wp.getAbility('test/get-site-title');
+
+const result = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
+console.log(result.title);
+```
+
+Use the fluent builder when you want local input and output validation:
+
+```ts
+import { z } from 'zod';
+
+const processAbility = wp
+  .ability<
+    { name: string; settings: { theme: string } },
+    { processed: boolean; echo: { name: string } }
+  >('test/process-complex')
+  .inputSchema(z.object({
+    name: z.string(),
+    settings: z.object({
+      theme: z.string(),
+    }),
+  }))
+  .outputSchema(z.object({
+    processed: z.boolean(),
+    echo: z.object({
+      name: z.string(),
+    }),
+  }));
+
+const processed = await processAbility.run({
+  name: 'demo',
+  settings: { theme: 'dark' },
+});
+```
+
+## Docs
+
+- Usage (full syntax + CRUD): `docs/usage.md`
+- Abilities: `docs/abilities.md`
+- Custom endpoints: `docs/custom-endpoints.md`
+- Legacy usage link: `docs/client-usage.md`
+- Migration from `node-wpapi`: `docs/migration-from-node-wpapi.md`

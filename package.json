@@ -1,0 +1,55 @@
+{
+  "name": "fluent-wp-client",
+  "version": "0.1.1",
+  "description": "Runtime-agnostic TypeScript WordPress REST API client with typed CRUD, auth, abilities, and relation helpers",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/JUVOJustin/fluent-wp-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JUVOJustin/fluent-wp-client/issues"
+  },
+  "homepage": "https://github.com/JUVOJustin/fluent-wp-client#readme",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "npm run build && vitest run",
+    "test:watch": "npm run build && vitest",
+    "wp:start": "wp-env start",
+    "wp:stop": "wp-env stop",
+    "wp:clean": "wp-env clean all",
+    "wp:status": "wp-env status"
+  },
+  "keywords": [
+    "wordpress",
+    "wp-rest-api",
+    "headless",
+    "typescript",
+    "deno",
+    "bun",
+    "node"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@standard-schema/spec": "^1.0.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@wordpress/env": "^11.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.18"
+  }
+}

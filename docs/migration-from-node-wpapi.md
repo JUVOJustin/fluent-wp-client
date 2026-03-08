@@ -1,0 +1,88 @@
+# Migrate from `node-wpapi` to `fluent-wp-client`
+
+This guide maps common `node-wpapi` patterns to the new WPAPI-compatible syntax in `fluent-wp-client`.
+
+## Why migrate
+
+- Web-standard transport (`fetch`, `URL`, `Blob`) across Node, Bun, Deno, and browsers.
+- Native TypeScript-first client with typed resource helpers.
+- Standard Schema-compatible validation support for mutation responses.
+- Built-in cookie+nonce browser auth and JWT/basic auth support.
+
+## Quick mapping
+
+```ts
+import { WordPressClient } from 'fluent-wp-client';
+
+const wp = new WordPressClient({ baseUrl: 'https://example.com' });
+```
+
+| `node-wpapi` | `fluent-wp-client` |
+|---|---|
+| `wp.posts().get()` | `wp.posts().get()` |
+| `wp.posts().id(42).get()` | `wp.posts().id(42).get()` |
+| `wp.posts().slug('hello').get()` | `wp.posts().slug('hello').get()` |
+| `wp.posts().perPage(10).page(2).get()` | `wp.posts().perPage(10).page(2).get()` |
+| `wp.posts().create(payload)` | `wp.posts().create(payload)` |
+| `wp.posts().id(42).update(payload)` | `wp.posts().id(42).update(payload)` |
+| `wp.posts().id(42).delete()` | `wp.posts().id(42).delete({ force: true })` |
+| `wp.namespace('my/v1').authors().get()` | `wp.namespace('my/v1').route('authors').get()` |
+| `wp.registerRoute('my/v1', '/authors/(?P<id>)')` | `wp.registerRoute('my/v1', '/authors/(?P<id>)')` |
+| `wp.posts().toString()` | `wp.posts().toString()` |
+
+## Auth migration
+
+### Basic/JWT
+
+```ts
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: 'app-password' },
+});
+```
+
+```ts
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { token: 'jwt-token' },
+});
+```
+
+### Cookie + nonce (front-end browser)
+
+```ts
+const wp = new WordPressClient({
+  baseUrl: window.WP_API_Settings.endpoint,
+  auth: {
+    nonce: window.WP_API_Settings.nonce,
+    credentials: 'include',
+  },
+});
+```
+
+## Differences vs `node-wpapi`
+
+- `namespace(...).route('resource')` replaces dynamic namespace method generation.
+- `registerRoute()` is supported, but route capture regex is normalized to a typed fluent builder.
+- Global headers are configured with `wp.setHeaders(...)`.
+- For strict typing and explicit behavior, resource helper methods (`getPosts`, `createPost`, `content('books')`) remain available and can be mixed with WPAPI-style chains.
+
+## Migration path from older `fluent-wp-client` style
+
+You can migrate incrementally:
+
+```ts
+// Existing explicit helper
+const posts = await wp.getPosts({ perPage: 10 });
+
+// New WPAPI-style syntax
+const posts2 = await wp.posts().perPage(10).get();
+```
+
+Both styles can live side-by-side while you migrate endpoints gradually.
+
+## Related docs
+
+- Full usage reference: `docs/usage.md`
+- Custom endpoint patterns: `docs/custom-endpoints.md`
+- Abilities: `docs/abilities.md`

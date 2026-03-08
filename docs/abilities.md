@@ -1,0 +1,91 @@
+# Abilities
+
+`fluent-wp-client` supports the WordPress Abilities API exposed at `/wp-json/wp-abilities/v1`.
+
+Use it to inspect registered abilities, list categories, and execute ability `run` endpoints with optional local validation.
+
+## Metadata
+
+```ts
+const abilities = await wp.getAbilities();
+const ability = await wp.getAbility('test/get-site-title');
+const categories = await wp.getAbilityCategories();
+const category = await wp.getAbilityCategory('test');
+```
+
+## Direct execution helpers
+
+Choose the helper that matches the ability annotations:
+
+- `executeGetAbility()` for `readonly: true`
+- `executeRunAbility()` for regular POST abilities
+- `executeDeleteAbility()` for `destructive: true`
+
+```ts
+const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
+
+const updated = await wp.executeRunAbility<{ previous: string; current: string }>(
+  'test/update-option',
+  { value: 'hello' },
+);
+
+const deleted = await wp.executeDeleteAbility<{ deleted: boolean }>('test/delete-option');
+```
+
+## Fluent execution
+
+Use `client.ability(name)` when you want reusable local input and output validation.
+
+```ts
+import { z } from 'zod';
+
+const processComplex = wp
+  .ability<
+    { name: string; settings: { theme: string } },
+    { processed: boolean; echo: { name: string } }
+  >('test/process-complex')
+  .inputSchema(z.object({
+    name: z.string(),
+    settings: z.object({
+      theme: z.string(),
+    }),
+  }))
+  .outputSchema(z.object({
+    processed: z.boolean(),
+    echo: z.object({
+      name: z.string(),
+    }),
+  }));
+
+const result = await processComplex.run({
+  name: 'demo',
+  settings: { theme: 'dark' },
+});
+```
+
+Builder methods:
+
+- `inputSchema(schema)`
+- `outputSchema(schema)`
+- `getDefinition()`
+- `get(input?)`
+- `run(input?)`
+- `delete(input?)`
+
+## Schemas
+
+The package exports these base schemas for ability metadata:
+
+- `abilityAnnotationsSchema`
+- `abilitySchema`
+- `abilityCategorySchema`
+
+They all use `.passthrough()` so plugin-added fields stay available.
+
+## Validation model
+
+- Ability metadata is parsed with the exported ability schemas
+- Direct execution helpers validate the response only when you pass `responseSchema`
+- Fluent execution validates input before the request and output after the response when you configure schemas
+- Failed REST responses throw `WordPressApiError`
+- Failed local validation throws `WordPressSchemaValidationError`

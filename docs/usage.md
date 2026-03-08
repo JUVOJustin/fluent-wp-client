@@ -28,6 +28,8 @@ npm test
 npm run wp:stop
 ```
 
+`node_modules/`, `dist/`, and `.wp-env/` are local generated artifacts and are not tracked.
+
 ## Create a client
 
 ```ts

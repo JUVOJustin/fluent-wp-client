@@ -28,6 +28,7 @@ This repository ships the full WordPress integration test environment for the cl
 - `.wp-env.json` configures the local WordPress test site
 - `tests/wp-env/` contains mu-plugins and seed data
 - `tests/setup/` bootstraps app-password, JWT, and cookie+nonce auth for Vitest
+- `node_modules/`, `dist/`, and `.wp-env/` are local generated artifacts and stay ignored
 
 From the repository root run:
 

@@ -165,3 +165,54 @@ Follow the global coding rules already provided to the agent. Additionally:
 - `fluent-wp-client` publishes `dist/`.
 - Test files, wp-env config, and contributor instruction files are repository-side assets and should not be part of the published package.
 - When changing package contents, verify the published payload with `npm pack --dry-run`.
+
+## Documentation Standards
+
+### Format
+
+- All documentation files must use MDX format (`.mdx` extension) with Astro Starlight frontmatter support.
+- Frontmatter is optional, but best practice is to include `title`, `short_title`, and `description` so tooling can parse docs consistently.
+- `sidebar` is optional and can configure `order`, `label`, `hidden`, and `badge`.
+- Use relative links with `.mdx` extension for internal documentation references.
+
+### Plugin docs conventions
+
+- Use the `docs/` folder for all plugin documentation.
+- Structure is flexible. Group docs by feature, workflow, or integration, and create subfolders when they improve discovery.
+- Do not repeat the frontmatter `title` as an H1 in the body. Start with a short intro paragraph or an H2 such as `## Overview`.
+- Use fenced code blocks with Expressive Code attributes. Always include a language. Add `title="..."` when the snippet maps to a terminal session or a concrete file.
+- Use the Starlight `FileTree` component for folder structure documentation.
+
+Example frontmatter:
+
+```mdx
+---
+title: Configuration
+description: Configure webhook behavior using methods, filters, and the registry.
+sidebar:
+  order: 2
+---
+```
+
+See Astro Starlight Frontmatter Reference for all available options.
+
+Plugin documentation frontmatter example:
+
+```mdx
+---
+title: Plugin Documentation
+short_title: Documentation
+description: Guidance for writing plugin docs with structured front matter metadata.
+---
+```
+
+FileTree example:
+
+```mdx
+import { FileTree } from '@astrojs/starlight/components';
+
+<FileTree>
+- src/
+  - ...
+</FileTree>
+```

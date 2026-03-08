@@ -1,4 +1,10 @@
-# Usage
+---
+title: Usage
+short_title: Usage
+description: Primary developer guide for fluent-wp-client covering CRUD, auth, abilities, and WPAPI-compatible syntax.
+sidebar:
+  order: 1
+---
 
 This is the primary developer guide for `fluent-wp-client`.
 
@@ -22,7 +28,7 @@ npm install fluent-wp-client
 
 This repository owns the WordPress integration suite for the client.
 
-For npm release steps and the automated deploy workflow, see `docs/publishing.md`.
+For npm release steps and the automated deploy workflow, see [Publishing](./publishing.mdx).
 
 ```bash
 npm run wp:start
@@ -384,6 +390,6 @@ const created = await wp.createPost(
 
 ## Next docs
 
-- Custom endpoints: `docs/custom-endpoints.md`
-- Abilities: `docs/abilities.md`
-- node-wpapi migration: `docs/migration-from-node-wpapi.md`
+- Custom endpoints: [Custom endpoints](./custom-endpoints.mdx)
+- Abilities: [Abilities](./abilities.mdx)
+- node-wpapi migration: [Migrate from node-wpapi](./migration-from-node-wpapi.mdx)

@@ -1,4 +1,12 @@
-# Abilities
+---
+title: Abilities
+short_title: Abilities
+description: Inspect and execute WordPress abilities with optional schema validation.
+sidebar:
+  order: 4
+---
+
+## Overview
 
 `fluent-wp-client` supports the WordPress Abilities API exposed at `/wp-json/wp-abilities/v1`.
 
@@ -6,7 +14,7 @@ Use it to inspect registered abilities, list categories, and execute ability `ru
 
 ## Metadata
 
-```ts
+```ts title="Ability metadata"
 const abilities = await wp.getAbilities();
 const ability = await wp.getAbility('test/get-site-title');
 const categories = await wp.getAbilityCategories();
@@ -21,7 +29,7 @@ Choose the helper that matches the ability annotations:
 - `executeRunAbility()` for regular POST abilities
 - `executeDeleteAbility()` for `destructive: true`
 
-```ts
+```ts title="Direct execution helpers"
 const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
 
 const updated = await wp.executeRunAbility<{ previous: string; current: string }>(
@@ -36,7 +44,7 @@ const deleted = await wp.executeDeleteAbility<{ deleted: boolean }>('test/delete
 
 Use `client.ability(name)` when you want reusable local input and output validation.
 
-```ts
+```ts title="Fluent ability execution with schemas"
 import { z } from 'zod';
 
 const processComplex = wp

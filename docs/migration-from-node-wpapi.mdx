@@ -1,4 +1,12 @@
-# Migrate from `node-wpapi` to `fluent-wp-client`
+---
+title: Migrate from node-wpapi
+short_title: Migration
+description: Map common node-wpapi patterns to fluent-wp-client's WPAPI-compatible syntax.
+sidebar:
+  order: 5
+---
+
+## Overview
 
 This guide maps common `node-wpapi` patterns to the new WPAPI-compatible syntax in `fluent-wp-client`.
 
@@ -11,7 +19,7 @@ This guide maps common `node-wpapi` patterns to the new WPAPI-compatible syntax 
 
 ## Quick mapping
 
-```ts
+```ts title="Create the client"
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({ baseUrl: 'https://example.com' });
@@ -34,14 +42,14 @@ const wp = new WordPressClient({ baseUrl: 'https://example.com' });
 
 ### Basic/JWT
 
-```ts
+```ts title="Basic auth"
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
   auth: { username: 'admin', password: 'app-password' },
 });
 ```
 
-```ts
+```ts title="JWT auth"
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
   auth: { token: 'jwt-token' },
@@ -50,7 +58,7 @@ const wp = new WordPressClient({
 
 ### Cookie + nonce (front-end browser)
 
-```ts
+```ts title="Cookie and nonce auth"
 const wp = new WordPressClient({
   baseUrl: window.WP_API_Settings.endpoint,
   auth: {
@@ -71,7 +79,7 @@ const wp = new WordPressClient({
 
 You can migrate incrementally:
 
-```ts
+```ts title="Incremental migration"
 // Existing explicit helper
 const posts = await wp.getPosts({ perPage: 10 });
 
@@ -83,6 +91,6 @@ Both styles can live side-by-side while you migrate endpoints gradually.
 
 ## Related docs
 
-- Full usage reference: `docs/usage.md`
-- Custom endpoint patterns: `docs/custom-endpoints.md`
-- Abilities: `docs/abilities.md`
+- Full usage reference: [Usage](./usage.mdx)
+- Custom endpoint patterns: [Custom endpoints](./custom-endpoints.mdx)
+- Abilities: [Abilities](./abilities.mdx)

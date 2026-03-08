@@ -1,0 +1,67 @@
+---
+title: Plugin Documentation
+short_title: Documentation
+description: Guidance for writing plugin docs with structured front matter metadata.
+sidebar:
+  order: 2
+---
+
+Use the `docs/` folder for all plugin documentation. Organize files by feature, workflow, or integration, and add subfolders when they improve discoverability.
+
+## Overview
+
+Documentation structure is flexible. Keep filenames descriptive so pages can be linked directly from the README and other docs.
+
+## Frontmatter metadata
+
+Frontmatter is optional, but it is best practice to include `title`, `short_title`, and `description` when present.
+
+```yaml title="Frontmatter example"
+---
+title: Asset Bundling
+short_title: Bundling
+description: How scripts and styles are built and enqueued.
+---
+```
+
+## Headings and intro
+
+Do not repeat the frontmatter `title` as an H1 in the body. Start with a short intro paragraph, then use H2 sections such as `## Overview`.
+
+## Code blocks
+
+Use fenced code blocks with a language and Expressive Code attributes. Add `title="..."` when the snippet belongs to a file or terminal session.
+
+```bash title="Terminal"
+npm run build
+```
+
+```php title="src/Demo_Plugin.php"
+private function enqueue_entrypoint( string $entry, array $localize_data = array() ): void
+```
+
+## Folder structures
+
+Use the Starlight `FileTree` component for folder layout documentation.
+
+```mdx title="FileTree example"
+import { FileTree } from '@astrojs/starlight/components';
+
+<FileTree>
+- docs/
+  - usage.mdx
+  - plugin-documentation.mdx
+</FileTree>
+```
+
+import { FileTree } from '@astrojs/starlight/components';
+
+<FileTree>
+- docs/
+  - usage.mdx
+  - custom-endpoints.mdx
+  - abilities.mdx
+  - migration-from-node-wpapi.mdx
+  - publishing.mdx
+  - plugin-documentation.mdx
+</FileTree>

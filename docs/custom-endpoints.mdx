@@ -1,4 +1,12 @@
-# Custom endpoints
+---
+title: Custom endpoints
+short_title: Endpoints
+description: Work with custom post types, taxonomies, and plugin REST namespaces in fluent-wp-client.
+sidebar:
+  order: 3
+---
+
+## Overview
 
 This guide explains how to work with custom post types, custom taxonomies, and plugin REST namespaces.
 
@@ -13,7 +21,7 @@ This guide explains how to work with custom post types, custom taxonomies, and p
 
 Assume a CPT with `rest_base: 'books'`.
 
-```ts
+```ts title="Custom post type example"
 const books = wp.content('books');
 
 const list = await books.list({ perPage: 20, page: 1 });
@@ -22,7 +30,7 @@ const bySlug = await books.getBySlug('my-book');
 
 ### CPT CRUD
 
-```ts
+```ts title="CPT CRUD"
 const books = wp.content('books');
 
 const created = await books.create({
@@ -39,7 +47,7 @@ await books.delete(created.id, { force: true });
 
 ### CPT with response validation
 
-```ts
+```ts title="CPT with validation"
 import { z } from 'zod';
 
 const bookSchema = z.object({
@@ -57,7 +65,7 @@ const created = await books.create({ title: 'Typed book', status: 'draft' });
 
 Assume a taxonomy with `rest_base: 'genre'`.
 
-```ts
+```ts title="Custom taxonomy example"
 const genres = wp.terms('genre');
 
 const list = await genres.list({ perPage: 100 });
@@ -66,7 +74,7 @@ const bySlug = await genres.getBySlug('sci-fi');
 
 ### Custom taxonomy CRUD
 
-```ts
+```ts title="Custom taxonomy CRUD"
 const genres = wp.terms('genre');
 
 const created = await genres.create({ name: 'Science Fiction' });
@@ -78,7 +86,7 @@ await genres.delete(created.id, { force: true });
 
 For endpoints outside `wp/v2`, use namespace-scoped chains:
 
-```ts
+```ts title="Namespace route request"
 const syncResult = await wp
   .namespace('my-plugin/v1')
   .route('sync')
@@ -88,7 +96,7 @@ const syncResult = await wp
 
 You can also create/update/delete in custom namespaces:
 
-```ts
+```ts title="Namespace CRUD"
 const inventory = wp.namespace('inventory/v1').route('items');
 
 const created = await inventory.create({ sku: 'abc-123', stock: 20 });
@@ -98,7 +106,7 @@ await inventory.id((created as { id: number }).id).delete();
 
 ## node-wpapi `registerRoute` compatibility
 
-```ts
+```ts title="registerRoute compatibility"
 const authorRoute = wp.registerRoute('my-plugin/v1', '/authors/(?P<id>)');
 
 const url = authorRoute().id(7).toString();
@@ -109,7 +117,7 @@ const author = await authorRoute().id(7).get();
 
 Use `request()` if you need direct access to headers/response metadata.
 
-```ts
+```ts title="Low-level request transport"
 const { data, response } = await wp.request({
   endpoint: '/wp-json/my-plugin/v1/sync',
   method: 'POST',
@@ -132,7 +140,7 @@ Choose the same auth approach as core endpoints:
 
 If a custom endpoint requires per-request auth behavior, set auth at request-chain level:
 
-```ts
+```ts title="Per-request auth override"
 const result = await wp
   .namespace('my-plugin/v1')
   .route('secure-sync')

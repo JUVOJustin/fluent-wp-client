@@ -38,6 +38,17 @@ npm test
 npm run wp:stop
 ```
 
+## Publishing
+
+Automated npm publishing runs from `.github/workflows/deploy.yml` when you push a semver tag such as `v1.0.0`.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The repository needs an `NPM_TOKEN` secret with publish access before the workflow can release the package.
+
 ## Basic Usage
 
 ```ts
@@ -147,3 +158,4 @@ const processed = await processAbility.run({
 - Custom endpoints: `docs/custom-endpoints.md`
 - Legacy usage link: `docs/client-usage.md`
 - Migration from `node-wpapi`: `docs/migration-from-node-wpapi.md`
+- Publishing: `docs/publishing.md`

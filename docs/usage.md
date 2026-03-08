@@ -22,6 +22,8 @@ npm install fluent-wp-client
 
 This repository owns the WordPress integration suite for the client.
 
+For npm release steps and the automated deploy workflow, see `docs/publishing.md`.
+
 ```bash
 npm run wp:start
 npm test

@@ -115,7 +115,12 @@ npm run wp:clean
 Reference integration suites:
 
 - `tests/integration/posts.test.ts` — post read and CRUD coverage, including auth variants.
-- `tests/integration/crud.test.ts` — pages, CPTs, terms, and comments CRUD coverage.
+- `tests/integration/pages.test.ts` — page read and CRUD coverage.
+- `tests/integration/books.test.ts` — generic custom post type coverage through `content('books')`.
+- `tests/integration/categories.test.ts` — category read and CRUD coverage.
+- `tests/integration/tags.test.ts` — tag read and CRUD coverage.
+- `tests/integration/comments.test.ts` — comment read and CRUD coverage.
+- `tests/integration/terms.test.ts` — generic custom taxonomy coverage through `terms('genre')`.
 - `tests/integration/auth.test.ts` — JWT helper and cookie+nonce auth coverage.
 - `tests/integration/abilities.test.ts` — ability metadata plus GET, POST, and DELETE execution coverage.
 - `tests/integration/meta.test.ts` — registered REST meta coverage across posts, pages, and books.

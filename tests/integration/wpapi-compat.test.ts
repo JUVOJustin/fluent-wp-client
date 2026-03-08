@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WordPressClient } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
@@ -8,10 +8,27 @@ import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 describe('Client: WPAPI compatibility syntax', () => {
   let publicClient: WordPressClient;
   let authClient: WordPressClient;
+  const createdCategoryIds: number[] = [];
+  const createdTagIds: number[] = [];
+  const createdGenreIds: number[] = [];
 
   beforeAll(() => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
+  });
+
+  afterAll(async () => {
+    for (const id of createdCategoryIds) {
+      await authClient.deleteCategory(id, { force: true }).catch(() => undefined);
+    }
+
+    for (const id of createdTagIds) {
+      await authClient.deleteTag(id, { force: true }).catch(() => undefined);
+    }
+
+    for (const id of createdGenreIds) {
+      await authClient.deleteTerm('genre', id, { force: true }).catch(() => undefined);
+    }
   });
 
   it('supports chained collection reads with paging and embed', async () => {
@@ -51,6 +68,70 @@ describe('Client: WPAPI compatibility syntax', () => {
 
     const deleted = await authClient.posts().id(createdId).delete({ force: true });
     expect((deleted as unknown as { deleted: boolean }).deleted).toBe(true);
+  });
+
+  it('supports category and tag CRUD with chained term syntax', async () => {
+    const createdCategory = await authClient.categories().create({
+      name: 'WPAPI Chain Category',
+      description: 'Created through the categories() chain.',
+    });
+
+    const createdCategoryId = (createdCategory as { id: number }).id;
+    createdCategoryIds.push(createdCategoryId);
+    expect((createdCategory as { taxonomy: string }).taxonomy).toBe('category');
+
+    const updatedCategory = await authClient.categories().id(createdCategoryId).update({
+      name: 'WPAPI Chain Category Updated',
+    });
+
+    expect((updatedCategory as { name: string }).name).toBe('WPAPI Chain Category Updated');
+
+    const deletedCategory = await authClient.categories().id(createdCategoryId).delete({ force: true });
+    expect((deletedCategory as unknown as { deleted: boolean }).deleted).toBe(true);
+
+    const createdTag = await authClient.tags().create({
+      name: 'wpapi-chain-tag',
+      description: 'Created through the tags() chain.',
+    });
+
+    const createdTagId = (createdTag as { id: number }).id;
+    createdTagIds.push(createdTagId);
+    expect((createdTag as { taxonomy: string }).taxonomy).toBe('post_tag');
+
+    const updatedTag = await authClient.tags().id(createdTagId).update({
+      name: 'wpapi-chain-tag-updated',
+    });
+
+    expect((updatedTag as { name: string }).name).toBe('wpapi-chain-tag-updated');
+
+    const deletedTag = await authClient.tags().id(createdTagId).delete({ force: true });
+    expect((deletedTag as unknown as { deleted: boolean }).deleted).toBe(true);
+  });
+
+  it('supports custom taxonomy CRUD with generic route chains', async () => {
+    const createdGenre = await authClient.route('genre').create({
+      name: 'WPAPI Chain Genre',
+      description: 'Created through the generic route() chain.',
+    });
+
+    const createdGenreId = (createdGenre as { id: number }).id;
+    createdGenreIds.push(createdGenreId);
+    expect((createdGenre as { taxonomy: string }).taxonomy).toBe('genre');
+
+    const updatedGenre = await authClient.route('genre').id(createdGenreId).update({
+      name: 'WPAPI Chain Genre Updated',
+      slug: 'wpapi-chain-genre-updated',
+    });
+
+    expect((updatedGenre as { name: string }).name).toBe('WPAPI Chain Genre Updated');
+    expect((updatedGenre as { slug: string }).slug).toBe('wpapi-chain-genre-updated');
+
+    const listedGenres = await authClient.route('genre').slug('wpapi-chain-genre-updated').get();
+    expect(Array.isArray(listedGenres)).toBe(true);
+    expect((listedGenres as Array<{ id: number }>)[0]?.id).toBe(createdGenreId);
+
+    const deletedGenre = await authClient.route('genre').id(createdGenreId).delete({ force: true });
+    expect((deletedGenre as unknown as { deleted: boolean }).deleted).toBe(true);
   });
 
   it('supports namespace-scoped custom resource chains', async () => {

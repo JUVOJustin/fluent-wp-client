@@ -35,18 +35,19 @@ export function createMediaMethods(
      * Gets media with pagination metadata.
      */
     async getMediaPaginated(filter: MediaFilter = {}): Promise<PaginatedResponse<WordPressMedia>> {
-      const page = filter.page || 1;
-      const perPage = filter.perPage || 100;
-
       return fetchPaginatedResponse<WordPressMedia>({
         runtime: {
           fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+            const params = filterToParams({
+              ...filter,
+              ...(currentPage !== undefined ? { page: currentPage } : {}),
+              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
+            });
             return fetchAPIPaginated<WordPressMedia[]>('/media', params);
           },
         },
-        page,
-        perPage,
+        page: filter.page,
+        perPage: filter.perPage,
       });
     },
 

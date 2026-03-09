@@ -64,18 +64,20 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: QueryParams & PaginationParams = {},
   ): Promise<PaginatedResponse<TContent>> {
-    const page = typeof filter.page === 'number' ? filter.page : 1;
-    const perPage = typeof filter.perPage === 'number' ? filter.perPage : 100;
-
     return fetchPaginatedResponse<TContent>({
       runtime: {
         fetchPage: (currentPage, currentPerPage) => {
-          const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage, _embed: 'true' });
+          const params = filterToParams({
+            ...filter,
+            ...(currentPage !== undefined ? { page: currentPage } : {}),
+            ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
+            _embed: 'true',
+          });
           return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
         },
       },
-      page,
-      perPage,
+      page: typeof filter.page === 'number' ? filter.page : undefined,
+      perPage: typeof filter.perPage === 'number' ? filter.perPage : undefined,
     });
   }
 
@@ -195,18 +197,19 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: QueryParams & PaginationParams = {},
   ): Promise<PaginatedResponse<TTerm>> {
-    const page = typeof filter.page === 'number' ? filter.page : 1;
-    const perPage = typeof filter.perPage === 'number' ? filter.perPage : 100;
-
     return fetchPaginatedResponse<TTerm>({
       runtime: {
         fetchPage: (currentPage, currentPerPage) => {
-          const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+          const params = filterToParams({
+            ...filter,
+            ...(currentPage !== undefined ? { page: currentPage } : {}),
+            ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
+          });
           return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
         },
       },
-      page,
-      perPage,
+      page: typeof filter.page === 'number' ? filter.page : undefined,
+      perPage: typeof filter.perPage === 'number' ? filter.perPage : undefined,
     });
   }
 

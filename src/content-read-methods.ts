@@ -76,20 +76,21 @@ export function createPostLikeReadMethods<
    * Lists one page of post-like content with pagination metadata.
    */
   async function listPaginated(filter: TFilter = {} as TFilter): Promise<PaginatedResponse<WordPressContentRecord<TContent>>> {
-    const page = filter.page || 1;
-    const perPage = filter.perPage || 100;
-
     const result = await fetchPaginatedResponse<TContent>({
       runtime: {
         fetchPage: (currentPage, currentPerPage) => {
           const params = filterToParams(
-            withDefaultFilter({ ...filter, page: currentPage, perPage: currentPerPage } as TFilter & PaginationParams),
+            withDefaultFilter({
+              ...filter,
+              ...(currentPage !== undefined ? { page: currentPage } : {}),
+              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
+            } as TFilter & PaginationParams),
           );
           return config.fetchAPIPaginated<TContent[]>(`/${config.resource}`, params);
         },
       },
-      page,
-      perPage,
+      page: filter.page,
+      perPage: filter.perPage,
     });
 
     return {

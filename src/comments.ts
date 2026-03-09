@@ -35,18 +35,19 @@ export function createCommentsMethods(
      * Gets comments with pagination metadata.
      */
     async getCommentsPaginated(filter: CommentsFilter = {}): Promise<PaginatedResponse<WordPressComment>> {
-      const page = filter.page || 1;
-      const perPage = filter.perPage || 100;
-
       return fetchPaginatedResponse<WordPressComment>({
         runtime: {
           fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+            const params = filterToParams({
+              ...filter,
+              ...(currentPage !== undefined ? { page: currentPage } : {}),
+              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
+            });
             return fetchAPIPaginated<WordPressComment[]>('/comments', params);
           },
         },
-        page,
-        perPage,
+        page: filter.page,
+        perPage: filter.perPage,
       });
     },
 

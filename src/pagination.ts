@@ -4,7 +4,7 @@ import type { FetchResult, PaginatedResponse } from './types.js';
  * Runtime contract for fetching one paginated WordPress resource page.
  */
 export interface PaginatedFetchRuntime<TItem> {
-  fetchPage: (page: number, perPage: number) => Promise<FetchResult<TItem[]>>;
+  fetchPage: (page?: number, perPage?: number) => Promise<FetchResult<TItem[]>>;
 }
 
 /**
@@ -33,16 +33,20 @@ export async function fetchAllPaginatedItems<TItem>(
  */
 export async function fetchPaginatedResponse<TItem>(config: {
   runtime: PaginatedFetchRuntime<TItem>;
-  page: number;
-  perPage: number;
+  page?: number;
+  perPage?: number;
+  defaultPage?: number;
+  defaultPerPage?: number;
 }): Promise<PaginatedResponse<TItem>> {
   const result = await config.runtime.fetchPage(config.page, config.perPage);
+  const page = config.page ?? config.defaultPage ?? 1;
+  const perPage = config.perPage ?? config.defaultPerPage ?? 100;
 
   return {
     data: result.data,
     total: result.total,
     totalPages: result.totalPages,
-    page: config.page,
-    perPage: config.perPage,
+    page,
+    perPage,
   };
 }

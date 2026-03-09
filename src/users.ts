@@ -36,18 +36,19 @@ export function createUsersMethods(
      * Gets users with pagination metadata.
      */
     async getUsersPaginated(filter: UsersFilter = {}): Promise<PaginatedResponse<WordPressAuthor>> {
-      const page = filter.page || 1;
-      const perPage = filter.perPage || 100;
-
       return fetchPaginatedResponse<WordPressAuthor>({
         runtime: {
           fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+            const params = filterToParams({
+              ...filter,
+              ...(currentPage !== undefined ? { page: currentPage } : {}),
+              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
+            });
             return fetchAPIPaginated<WordPressAuthor[]>('/users', params);
           },
         },
-        page,
-        perPage,
+        page: filter.page,
+        perPage: filter.perPage,
       });
     },
 

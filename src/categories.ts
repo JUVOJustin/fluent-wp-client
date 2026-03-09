@@ -35,18 +35,19 @@ export function createCategoriesMethods(
      * Gets categories with pagination metadata.
      */
     async getCategoriesPaginated(filter: CategoriesFilter = {}): Promise<PaginatedResponse<WordPressCategory>> {
-      const page = filter.page || 1;
-      const perPage = filter.perPage || 100;
-
       return fetchPaginatedResponse<WordPressCategory>({
         runtime: {
           fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+            const params = filterToParams({
+              ...filter,
+              ...(currentPage !== undefined ? { page: currentPage } : {}),
+              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
+            });
             return fetchAPIPaginated<WordPressCategory[]>('/categories', params);
           },
         },
-        page,
-        perPage,
+        page: filter.page,
+        perPage: filter.perPage,
       });
     },
 

@@ -35,18 +35,19 @@ export function createTagsMethods(
      * Gets tags with pagination metadata.
      */
     async getTagsPaginated(filter: TagsFilter = {}): Promise<PaginatedResponse<WordPressTag>> {
-      const page = filter.page || 1;
-      const perPage = filter.perPage || 100;
-
       return fetchPaginatedResponse<WordPressTag>({
         runtime: {
           fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+            const params = filterToParams({
+              ...filter,
+              ...(currentPage !== undefined ? { page: currentPage } : {}),
+              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
+            });
             return fetchAPIPaginated<WordPressTag[]>('/tags', params);
           },
         },
-        page,
-        perPage,
+        page: filter.page,
+        perPage: filter.perPage,
       });
     },
 

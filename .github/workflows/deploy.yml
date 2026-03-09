@@ -3,7 +3,7 @@ name: Deploy
 on:
   push:
     tags:
-      - ‚*‘
+      - '*'
 
 
 jobs:
@@ -22,8 +22,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ’24’
-          registry-url: 'https://registry.npmjs.org‘
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
 
 
       - name: Extract tag version
@@ -45,7 +45,7 @@ jobs:
           file-path: |
             package.json 
             package-lock.json
-          commit-msg: "chore: update package.json version to ${{ steps.version.outputs.VERSION }}“
+          commit-msg: "chore: update package.json version to ${{ steps.version.outputs.VERSION }}"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
 

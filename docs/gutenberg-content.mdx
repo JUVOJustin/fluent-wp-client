@@ -1,0 +1,138 @@
+---
+title: Gutenberg content
+short_title: Gutenberg
+description: Work with rendered post content and parse raw Gutenberg blocks with fluent-wp-client.
+sidebar:
+  order: 2
+---
+
+## Overview
+
+This guide shows two Gutenberg-focused workflows:
+
+- read rendered content for display
+- parse serialized block markup into structured block trees
+
+`fluent-wp-client` exposes both through post/page query helpers.
+
+## Rendered content
+
+Use `get()` when you need the normal REST payload (`context=view`), including `content.rendered`.
+
+```ts title="Rendered post content"
+const postQuery = wp.getPostBySlug('hello-world');
+const post = await postQuery;
+
+if (!post) {
+  throw new Error('Post not found.');
+}
+
+const html = post.content.rendered;
+```
+
+Use this for front-end rendering, previews, and feeds where you want WordPress to return already rendered HTML.
+
+## Raw + rendered content together
+
+Use `getContent()` when you need both:
+
+- `rendered` for immediate HTML output
+- `raw` for block-aware transforms
+
+```ts title="Get raw and rendered content"
+const postQuery = wp.getPostBySlug('hello-world');
+const content = await postQuery.getContent();
+
+if (!content) {
+  throw new Error('Post not found.');
+}
+
+console.log(content.rendered);
+console.log(content.raw);
+console.log(content.protected);
+```
+
+`getContent()` uses `context=edit`, so the caller must have edit capabilities for the resource.
+
+## Block parsing with query helpers
+
+Use `getBlocks()` to parse Gutenberg blocks from `content.raw`.
+
+```ts title="Parse blocks from one post"
+const postQuery = wp.getPostBySlug('hello-world');
+const blocks = await postQuery.getBlocks();
+
+if (!blocks) {
+  throw new Error('Post not found.');
+}
+
+for (const block of blocks) {
+  console.log(block.blockName, block.attrs);
+}
+```
+
+The returned block shape includes:
+
+- `blockName`
+- `attrs`
+- `innerBlocks`
+- `innerHTML`
+- `innerContent`
+
+## Block parsing from list records
+
+Post and page collection helpers also return records with `getContent()` and `getBlocks()`.
+
+```ts title="Parse blocks from a posts list"
+const posts = await wp.getPosts({ perPage: 5 });
+const first = posts[0];
+
+if (!first) {
+  throw new Error('No posts returned.');
+}
+
+const firstBlocks = await first.getBlocks();
+console.log(firstBlocks.length);
+```
+
+## Custom parser example
+
+You can provide a custom parser globally in the client config or per call.
+
+```ts title="Custom block parser"
+import type { WordPressBlockParser } from 'fluent-wp-client';
+
+const parser: WordPressBlockParser = (rawContent) => {
+  // Plug in your own parser implementation here.
+  return [];
+};
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  blockParser: parser,
+});
+
+const blocks = await wp.getPostBySlug('hello-world').getBlocks({
+  parser,
+});
+```
+
+You can also parse already-fetched raw content directly:
+
+```ts title="Parse raw content directly"
+import { parseWordPressBlocks } from 'fluent-wp-client';
+
+const content = await wp.getPostBySlug('hello-world').getContent();
+
+if (!content) {
+  throw new Error('Post not found.');
+}
+
+const blocks = await parseWordPressBlocks(content.raw);
+```
+
+## Capability and error behavior
+
+- `get()` works with public view access and returns `content.rendered`.
+- `getContent()` and `getBlocks()` require `context=edit` access.
+- If auth/capabilities are missing, WordPress returns an auth/capability REST error.

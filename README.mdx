@@ -80,6 +80,8 @@ const blocks = await postQuery.getBlocks();
 `getBlocks()` performs one `context=edit` request and parses `content.raw` lazily.
 If the caller does not have edit capabilities, WordPress returns an auth/capability error.
 
+For a dedicated guide covering rendered content and block parsing workflows, see [Gutenberg content](./docs/gutenberg-content.mdx).
+
 `getBlocks()` is available on single-resource post/page queries:
 
 - `getPost(id)`
@@ -189,6 +191,7 @@ const processed = await processAbility.run({
 ## Docs
 
 - Usage (full syntax + CRUD): [Usage](./docs/usage.mdx)
+- Gutenberg content (rendered + block parsing): [Gutenberg content](./docs/gutenberg-content.mdx)
 - Abilities: [Abilities](./docs/abilities.mdx)
 - Custom endpoints: [Custom endpoints](./docs/custom-endpoints.mdx)
 - Migration from `node-wpapi`: [Migrate from node-wpapi](./docs/migration-from-node-wpapi.mdx)

@@ -61,6 +61,47 @@ const books = wp.content('books', bookSchema);
 const created = await books.create({ title: 'Typed book', status: 'draft' });
 ```
 
+### CPT typing from the shared post base
+
+Use `WordPressPostBase` as the common shape for post-like resources, and extend with `WordPressCustomPost<TExtra>`.
+
+```ts title="CPT typing from post base"
+import type { WordPressCustomPost } from 'fluent-wp-client';
+
+type Book = WordPressCustomPost<{
+  type: 'book';
+  acf?: {
+    acf_subtitle?: string;
+  };
+}>;
+
+const books = await wp.getContentCollection<Book>('books');
+const firstBook = books[0];
+```
+
+### Parse Gutenberg blocks for custom post types
+
+`getBlocks()` is currently available on post/page helpers. For custom post types, request edit context and parse `content.raw` with `parseWordPressBlocks()`.
+
+```ts title="CPT block parsing"
+import { parseWordPressBlocks, type WordPressCustomPost } from 'fluent-wp-client';
+
+type Book = WordPressCustomPost<{ type: 'book' }>;
+
+const books = await wp.getContentCollection<Book>('books', {
+  slug: 'test-book-001',
+  context: 'edit',
+});
+
+const book = books[0];
+
+if (!book?.content.raw) {
+  throw new Error('Raw content unavailable. Ensure edit capabilities are present.');
+}
+
+const blocks = await parseWordPressBlocks(book.content.raw);
+```
+
 ## Custom taxonomies
 
 Assume a taxonomy with `rest_base: 'genre'`.

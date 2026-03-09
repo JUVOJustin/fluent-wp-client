@@ -162,6 +162,8 @@ Post/page list helpers also return post-like records with the same block methods
 - `getPosts()`, `getAllPosts()`, `getPostsPaginated().data`
 - `getPages()`, `getAllPages()`, `getPagesPaginated().data`
 
+Media uses a different schema (`description`/`caption`, no `content.raw`), so media helpers do not expose `getBlocks()`.
+
 ### Generic resource helpers
 
 - Content collections: `getContentCollection`, `getAllContentCollection`, `getContentCollectionPaginated`, `getContent`, `getContentBySlug`

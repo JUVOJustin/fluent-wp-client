@@ -1,5 +1,6 @@
 import type { WordPressMedia } from './schemas.js';
 import type { FetchResult, MediaFilter, PaginatedResponse } from './types.js';
+import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -22,35 +23,31 @@ export function createMediaMethods(
      * Gets all media items by paginating every page.
      */
     async getAllMedia(filter: Omit<MediaFilter, 'page'> = {}): Promise<WordPressMedia[]> {
-      const allMedia: WordPressMedia[] = [];
-      let page = 1;
-      let totalPages = 1;
-
-      do {
-        const params = filterToParams({ ...filter, page, perPage: 100 });
-        const result = await fetchAPIPaginated<WordPressMedia[]>('/media', params);
-        allMedia.push(...result.data);
-        totalPages = result.totalPages;
-        page += 1;
-      } while (page <= totalPages);
-
-      return allMedia;
+      return fetchAllPaginatedItems<WordPressMedia>({
+        fetchPage: (page, perPage) => {
+          const params = filterToParams({ ...filter, page, perPage });
+          return fetchAPIPaginated<WordPressMedia[]>('/media', params);
+        },
+      });
     },
 
     /**
      * Gets media with pagination metadata.
      */
     async getMediaPaginated(filter: MediaFilter = {}): Promise<PaginatedResponse<WordPressMedia>> {
-      const params = filterToParams(filter);
-      const result = await fetchAPIPaginated<WordPressMedia[]>('/media', params);
+      const page = filter.page || 1;
+      const perPage = filter.perPage || 100;
 
-      return {
-        data: result.data,
-        total: result.total,
-        totalPages: result.totalPages,
-        page: filter.page || 1,
-        perPage: filter.perPage || 100,
-      };
+      return fetchPaginatedResponse<WordPressMedia>({
+        runtime: {
+          fetchPage: (currentPage, currentPerPage) => {
+            const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+            return fetchAPIPaginated<WordPressMedia[]>('/media', params);
+          },
+        },
+        page,
+        perPage,
+      });
     },
 
     /**

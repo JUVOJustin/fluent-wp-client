@@ -1,5 +1,6 @@
 import type { WordPressTag } from './schemas.js';
 import type { FetchResult, PaginatedResponse, TagsFilter } from './types.js';
+import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -22,35 +23,31 @@ export function createTagsMethods(
      * Gets all tags by paginating every page.
      */
     async getAllTags(filter: Omit<TagsFilter, 'page'> = {}): Promise<WordPressTag[]> {
-      const allTags: WordPressTag[] = [];
-      let page = 1;
-      let totalPages = 1;
-
-      do {
-        const params = filterToParams({ ...filter, page, perPage: 100 });
-        const result = await fetchAPIPaginated<WordPressTag[]>('/tags', params);
-        allTags.push(...result.data);
-        totalPages = result.totalPages;
-        page += 1;
-      } while (page <= totalPages);
-
-      return allTags;
+      return fetchAllPaginatedItems<WordPressTag>({
+        fetchPage: (page, perPage) => {
+          const params = filterToParams({ ...filter, page, perPage });
+          return fetchAPIPaginated<WordPressTag[]>('/tags', params);
+        },
+      });
     },
 
     /**
      * Gets tags with pagination metadata.
      */
     async getTagsPaginated(filter: TagsFilter = {}): Promise<PaginatedResponse<WordPressTag>> {
-      const params = filterToParams(filter);
-      const result = await fetchAPIPaginated<WordPressTag[]>('/tags', params);
+      const page = filter.page || 1;
+      const perPage = filter.perPage || 100;
 
-      return {
-        data: result.data,
-        total: result.total,
-        totalPages: result.totalPages,
-        page: filter.page || 1,
-        perPage: filter.perPage || 100,
-      };
+      return fetchPaginatedResponse<WordPressTag>({
+        runtime: {
+          fetchPage: (currentPage, currentPerPage) => {
+            const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+            return fetchAPIPaginated<WordPressTag[]>('/tags', params);
+          },
+        },
+        page,
+        perPage,
+      });
     },
 
     /**

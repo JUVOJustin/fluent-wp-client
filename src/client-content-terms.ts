@@ -1,6 +1,7 @@
 import type { WordPressCategory, WordPressContent } from './schemas.js';
 import type { WordPressRequestOptions, WordPressRequestResult } from './client-types.js';
 import type { WordPressStandardSchema } from './validation.js';
+import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
 import {
   compactPayload,
   filterToParams,
@@ -48,19 +49,12 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: Omit<QueryParams, 'page'> = {},
   ): Promise<TContent[]> {
-    const allItems: TContent[] = [];
-    let page = 1;
-    let totalPages = 1;
-
-    do {
-      const params = filterToParams({ ...filter, page, perPage: 100, _embed: 'true' });
-      const result = await dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
-      allItems.push(...result.data);
-      totalPages = result.totalPages;
-      page += 1;
-    } while (page <= totalPages);
-
-    return allItems;
+    return fetchAllPaginatedItems<TContent>({
+      fetchPage: (page, perPage) => {
+        const params = filterToParams({ ...filter, page, perPage, _embed: 'true' });
+        return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
+      },
+    });
   }
 
   /**
@@ -70,16 +64,19 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: QueryParams & PaginationParams = {},
   ): Promise<PaginatedResponse<TContent>> {
-    const params = filterToParams({ ...filter, _embed: 'true' });
-    const result = await dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
+    const page = typeof filter.page === 'number' ? filter.page : 1;
+    const perPage = typeof filter.perPage === 'number' ? filter.perPage : 100;
 
-    return {
-      data: result.data,
-      total: result.total,
-      totalPages: result.totalPages,
-      page: typeof filter.page === 'number' ? filter.page : 1,
-      perPage: typeof filter.perPage === 'number' ? filter.perPage : 100,
-    };
+    return fetchPaginatedResponse<TContent>({
+      runtime: {
+        fetchPage: (currentPage, currentPerPage) => {
+          const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage, _embed: 'true' });
+          return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
+        },
+      },
+      page,
+      perPage,
+    });
   }
 
   /**
@@ -183,19 +180,12 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: Omit<QueryParams, 'page'> = {},
   ): Promise<TTerm[]> {
-    const allItems: TTerm[] = [];
-    let page = 1;
-    let totalPages = 1;
-
-    do {
-      const params = filterToParams({ ...filter, page, perPage: 100 });
-      const result = await dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
-      allItems.push(...result.data);
-      totalPages = result.totalPages;
-      page += 1;
-    } while (page <= totalPages);
-
-    return allItems;
+    return fetchAllPaginatedItems<TTerm>({
+      fetchPage: (page, perPage) => {
+        const params = filterToParams({ ...filter, page, perPage });
+        return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
+      },
+    });
   }
 
   /**
@@ -205,16 +195,19 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: QueryParams & PaginationParams = {},
   ): Promise<PaginatedResponse<TTerm>> {
-    const params = filterToParams(filter);
-    const result = await dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
+    const page = typeof filter.page === 'number' ? filter.page : 1;
+    const perPage = typeof filter.perPage === 'number' ? filter.perPage : 100;
 
-    return {
-      data: result.data,
-      total: result.total,
-      totalPages: result.totalPages,
-      page: typeof filter.page === 'number' ? filter.page : 1,
-      perPage: typeof filter.perPage === 'number' ? filter.perPage : 100,
-    };
+    return fetchPaginatedResponse<TTerm>({
+      runtime: {
+        fetchPage: (currentPage, currentPerPage) => {
+          const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+          return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
+        },
+      },
+      page,
+      perPage,
+    });
   }
 
   /**

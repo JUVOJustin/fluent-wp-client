@@ -1,5 +1,6 @@
 import type { WordPressComment } from './schemas.js';
 import type { CommentsFilter, FetchResult, PaginatedResponse } from './types.js';
+import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -22,35 +23,31 @@ export function createCommentsMethods(
      * Gets all comments by paginating every page.
      */
     async getAllComments(filter: Omit<CommentsFilter, 'page'> = {}): Promise<WordPressComment[]> {
-      const allComments: WordPressComment[] = [];
-      let page = 1;
-      let totalPages = 1;
-
-      do {
-        const params = filterToParams({ ...filter, page, perPage: 100 });
-        const result = await fetchAPIPaginated<WordPressComment[]>('/comments', params);
-        allComments.push(...result.data);
-        totalPages = result.totalPages;
-        page += 1;
-      } while (page <= totalPages);
-
-      return allComments;
+      return fetchAllPaginatedItems<WordPressComment>({
+        fetchPage: (page, perPage) => {
+          const params = filterToParams({ ...filter, page, perPage });
+          return fetchAPIPaginated<WordPressComment[]>('/comments', params);
+        },
+      });
     },
 
     /**
      * Gets comments with pagination metadata.
      */
     async getCommentsPaginated(filter: CommentsFilter = {}): Promise<PaginatedResponse<WordPressComment>> {
-      const params = filterToParams(filter);
-      const result = await fetchAPIPaginated<WordPressComment[]>('/comments', params);
+      const page = filter.page || 1;
+      const perPage = filter.perPage || 100;
 
-      return {
-        data: result.data,
-        total: result.total,
-        totalPages: result.totalPages,
-        page: filter.page || 1,
-        perPage: filter.perPage || 100,
-      };
+      return fetchPaginatedResponse<WordPressComment>({
+        runtime: {
+          fetchPage: (currentPage, currentPerPage) => {
+            const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+            return fetchAPIPaginated<WordPressComment[]>('/comments', params);
+          },
+        },
+        page,
+        perPage,
+      });
     },
 
     /**

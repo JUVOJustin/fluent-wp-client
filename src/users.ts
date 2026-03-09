@@ -1,5 +1,6 @@
 import type { WordPressAuthor } from './schemas.js';
 import type { FetchResult, PaginatedResponse, UsersFilter } from './types.js';
+import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -23,35 +24,31 @@ export function createUsersMethods(
      * Gets all users by paginating every page.
      */
     async getAllUsers(filter: Omit<UsersFilter, 'page'> = {}): Promise<WordPressAuthor[]> {
-      const allUsers: WordPressAuthor[] = [];
-      let page = 1;
-      let totalPages = 1;
-
-      do {
-        const params = filterToParams({ ...filter, page, perPage: 100 });
-        const result = await fetchAPIPaginated<WordPressAuthor[]>('/users', params);
-        allUsers.push(...result.data);
-        totalPages = result.totalPages;
-        page += 1;
-      } while (page <= totalPages);
-
-      return allUsers;
+      return fetchAllPaginatedItems<WordPressAuthor>({
+        fetchPage: (page, perPage) => {
+          const params = filterToParams({ ...filter, page, perPage });
+          return fetchAPIPaginated<WordPressAuthor[]>('/users', params);
+        },
+      });
     },
 
     /**
      * Gets users with pagination metadata.
      */
     async getUsersPaginated(filter: UsersFilter = {}): Promise<PaginatedResponse<WordPressAuthor>> {
-      const params = filterToParams(filter);
-      const result = await fetchAPIPaginated<WordPressAuthor[]>('/users', params);
+      const page = filter.page || 1;
+      const perPage = filter.perPage || 100;
 
-      return {
-        data: result.data,
-        total: result.total,
-        totalPages: result.totalPages,
-        page: filter.page || 1,
-        perPage: filter.perPage || 100,
-      };
+      return fetchPaginatedResponse<WordPressAuthor>({
+        runtime: {
+          fetchPage: (currentPage, currentPerPage) => {
+            const params = filterToParams({ ...filter, page: currentPage, perPage: currentPerPage });
+            return fetchAPIPaginated<WordPressAuthor[]>('/users', params);
+          },
+        },
+        page,
+        perPage,
+      });
     },
 
     /**

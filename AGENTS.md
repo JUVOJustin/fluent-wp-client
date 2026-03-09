@@ -122,6 +122,7 @@ Reference integration suites:
 - `tests/integration/comments.test.ts` — comment read and CRUD coverage.
 - `tests/integration/terms.test.ts` — generic custom taxonomy coverage through `terms('genre')`.
 - `tests/integration/auth.test.ts` — JWT helper and cookie+nonce auth coverage.
+- `tests/integration/cookie-auth-crud.test.ts` — full CRUD coverage across all auth methods (cookie+nonce, browser-style cookie, basic, JWT).
 - `tests/integration/abilities.test.ts` — ability metadata plus GET, POST, and DELETE execution coverage.
 - `tests/integration/meta.test.ts` — registered REST meta coverage across posts, pages, and books.
 - `tests/integration/acf.test.ts` — ACF REST field coverage across seeded and mutated content.

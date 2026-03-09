@@ -262,6 +262,38 @@ export const postWriteBaseSchema = updatePostFieldsSchema.extend({
 });
 
 /**
+ * Schema for successful JWT token responses from the WP JWT auth plugin.
+ */
+export const jwtAuthTokenResponseSchema = z.object({
+  token: z.string().trim().min(1),
+  user_email: z.string().trim().min(1).optional(),
+  user_nicename: z.string().trim().min(1).optional(),
+  user_display_name: z.string().trim().min(1).optional(),
+}).passthrough();
+
+/**
+ * Schema for JWT auth plugin error responses.
+ */
+export const jwtAuthErrorResponseSchema = z.object({
+  code: z.string().trim().min(1).optional(),
+  message: z.string().trim().min(1),
+  statusCode: z.number().int().optional(),
+  data: z.object({
+    status: z.number().int().optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
+/**
+ * Schema for JWT token validation responses from `/jwt-auth/v1/token/validate`.
+ */
+export const jwtAuthValidationResponseSchema = z.object({
+  code: z.string().trim().min(1),
+  data: z.object({
+    status: z.number().int().optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
+/**
  * Schema for WordPress REST API error responses.
  */
 export const wordPressErrorSchema = z.object({

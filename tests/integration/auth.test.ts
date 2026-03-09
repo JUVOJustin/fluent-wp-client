@@ -63,4 +63,25 @@ describe('Client: Auth', () => {
     const me = await browserClient.getCurrentUser();
     expect(me.slug).toBe('admin');
   });
+
+  it('supports browser-style public reads without auth headers', async () => {
+    const browserPublicClient = new WordPressClient({
+      baseUrl: getBaseUrl(),
+      fetch: async (input, init) => {
+        const requestInit = init ?? {};
+        const headers = new Headers(requestInit.headers ?? {});
+
+        expect(requestInit.credentials).toBeUndefined();
+        expect(headers.get('Authorization')).toBeNull();
+        expect(headers.get('X-WP-Nonce')).toBeNull();
+
+        return fetch(input, requestInit);
+      },
+    });
+
+    const posts = await browserPublicClient.getPosts({ perPage: 5 });
+
+    expect(Array.isArray(posts)).toBe(true);
+    expect(posts.length).toBeGreaterThan(0);
+  });
 });

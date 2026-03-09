@@ -114,13 +114,35 @@ describe('Client: Gutenberg block parsing', () => {
     });
   });
 
-  it('supports getBlocks() from getPosts() list results', async () => {
-    const posts = await authClient.getPosts({ perPage: 1, page: 1 });
+  it('throws auth/capability error when public list results call getBlocks()', async () => {
+    const posts = await publicClient.getPosts({ perPage: 1, page: 1 });
 
     expect(posts.length).toBeGreaterThan(0);
 
     const firstPost = posts[0] as unknown as { getBlocks: () => Promise<unknown[]> };
-    const blocks = await firstPost.getBlocks();
+
+    await expect(firstPost.getBlocks()).rejects.toMatchObject({
+      name: 'WordPressApiError',
+    });
+  });
+
+  it('supports getBlocks() from getPosts() list results', async () => {
+    const slug = `client-blocks-list-post-${Date.now()}`;
+    const created = await authClient.createPost({
+      title: 'Client Blocks: list post',
+      slug,
+      status: 'publish',
+      content: '<!-- wp:paragraph --><p>List post block body.</p><!-- /wp:paragraph -->',
+    });
+
+    createdPostIds.push(created.id);
+
+    const posts = await authClient.getPosts({ perPage: 100, page: 1 });
+    const createdFromList = posts.find((post) => post.id === created.id) as unknown as { getBlocks: () => Promise<unknown[]> } | undefined;
+
+    expect(createdFromList).toBeDefined();
+
+    const blocks = await createdFromList!.getBlocks();
 
     expect(Array.isArray(blocks)).toBe(true);
     expect((blocks as unknown[]).length).toBeGreaterThan(0);

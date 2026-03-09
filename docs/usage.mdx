@@ -95,6 +95,7 @@ The client exposes five complementary styles.
 ```ts
 const posts = await wp.getPosts({ perPage: 10, page: 1 });
 const post = await wp.getPostBySlug('hello-world');
+const blocks = await wp.getPostBySlug('hello-world').getBlocks();
 ```
 
 ### 2) Generic resource helpers for CPTs/taxonomies
@@ -148,6 +149,13 @@ console.log(definitions.length, siteTitle.title, processed.processed);
 - `getUsers`, `getAllUsers`, `getUsersPaginated`, `getUser`, `getCurrentUser`
 - `getComments`, `getAllComments`, `getCommentsPaginated`, `getComment`
 - `getSettings`
+
+`getPost`, `getPostBySlug`, `getPage`, and `getPageBySlug` return promise-like queries.
+You can still `await` them directly, and you can also call:
+
+- `.get()` for explicit resource resolution
+- `.getContent()` for `{ raw, rendered, protected }` via `context=edit`
+- `.getBlocks()` for parsed Gutenberg blocks
 
 ### Generic resource helpers
 
@@ -212,6 +220,19 @@ const updatedPost = await wp.updatePost(createdPost.id, {
 
 await wp.deletePost(createdPost.id, { force: true });
 ```
+
+### Gutenberg block parsing
+
+```ts
+const postQuery = wp.getPostBySlug('hello-world');
+const pageQuery = wp.getPageBySlug('about');
+
+const postBlocks = await postQuery.getBlocks();
+const pageBlocks = await pageQuery.getBlocks();
+```
+
+`getBlocks()` requires edit capabilities because it reads `content.raw` using `context=edit`.
+When credentials cannot access edit context, WordPress returns the expected auth/capability error.
 
 ### Pages
 

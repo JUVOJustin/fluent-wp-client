@@ -4,6 +4,7 @@ import type {
   WordPressAuthHeadersProvider,
   WordPressAuthInput,
 } from './auth.js';
+import type { WordPressBlockParser } from './blocks.js';
 
 /**
  * WordPress client configuration.
@@ -16,6 +17,7 @@ export interface WordPressClientConfig {
   cookies?: string;
   credentials?: RequestCredentials;
   fetch?: typeof fetch;
+  blockParser?: WordPressBlockParser;
 }
 
 /**

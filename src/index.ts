@@ -131,3 +131,16 @@ export {
   type PostRelation,
   type SelectedPostRelations,
 } from './relations.js';
+
+export {
+  WordPressContentQuery,
+  type WordPressGetBlocksOptions,
+  type WordPressRawContentResult,
+} from './content-query.js';
+
+export {
+  loadDefaultWordPressBlockParser,
+  parseWordPressBlocks,
+  type WordPressBlockParser,
+  type WordPressParsedBlock,
+} from './blocks.js';

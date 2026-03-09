@@ -1,5 +1,7 @@
 import type { WordPressPage } from './schemas.js';
+import type { WordPressBlockParser } from './blocks.js';
 import type { FetchResult, PaginatedResponse, PagesFilter } from './types.js';
+import { WordPressContentQuery } from './content-query.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -8,6 +10,7 @@ import { filterToParams } from './types.js';
 export function createPagesMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
+  defaultBlockParser?: WordPressBlockParser,
 ) {
   return {
     /**
@@ -56,16 +59,59 @@ export function createPagesMethods(
     /**
      * Gets one page by ID.
      */
-    async getPage(id: number): Promise<WordPressPage> {
-      return fetchAPI<WordPressPage>(`/pages/${id}`, { _embed: 'true' });
+    getPage(id: number): WordPressContentQuery<WordPressPage> {
+      return new WordPressContentQuery<WordPressPage>(
+        () => fetchAPI<WordPressPage>(`/pages/${id}`, { _embed: 'true' }),
+        () => fetchAPI<WordPressPage>(`/pages/${id}`, { _embed: 'true', context: 'edit' }),
+        (page) => {
+          if (page.content.raw === undefined) {
+            throw new Error(
+              'Raw page content is unavailable. The current credentials may not have edit capabilities for this page.',
+            );
+          }
+
+          return {
+            raw: page.content.raw,
+            rendered: page.content.rendered,
+            protected: page.content.protected,
+          };
+        },
+        defaultBlockParser,
+      );
     },
 
     /**
      * Gets one page by slug.
      */
-    async getPageBySlug(slug: string): Promise<WordPressPage | undefined> {
-      const pages = await fetchAPI<WordPressPage[]>('/pages', { slug, _embed: 'true' });
-      return pages[0];
+    getPageBySlug(slug: string): WordPressContentQuery<WordPressPage | undefined> {
+      return new WordPressContentQuery<WordPressPage | undefined>(
+        async () => {
+          const pages = await fetchAPI<WordPressPage[]>('/pages', { slug, _embed: 'true' });
+          return pages[0];
+        },
+        async () => {
+          const pages = await fetchAPI<WordPressPage[]>('/pages', { slug, _embed: 'true', context: 'edit' });
+          return pages[0];
+        },
+        (page) => {
+          if (!page) {
+            return undefined;
+          }
+
+          if (page.content.raw === undefined) {
+            throw new Error(
+              'Raw page content is unavailable. The current credentials may not have edit capabilities for this page.',
+            );
+          }
+
+          return {
+            raw: page.content.raw,
+            rendered: page.content.rendered,
+            protected: page.content.protected,
+          };
+        },
+        defaultBlockParser,
+      );
     },
   };
 }

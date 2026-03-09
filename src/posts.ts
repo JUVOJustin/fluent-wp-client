@@ -1,5 +1,7 @@
 import type { WordPressPost } from './schemas.js';
+import type { WordPressBlockParser } from './blocks.js';
 import type { FetchResult, PaginatedResponse, PostsFilter } from './types.js';
+import { WordPressContentQuery } from './content-query.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -8,6 +10,7 @@ import { filterToParams } from './types.js';
 export function createPostsMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
+  defaultBlockParser?: WordPressBlockParser,
 ) {
   return {
     /**
@@ -56,16 +59,59 @@ export function createPostsMethods(
     /**
      * Gets one post by ID.
      */
-    async getPost(id: number): Promise<WordPressPost> {
-      return fetchAPI<WordPressPost>(`/posts/${id}`, { _embed: 'true' });
+    getPost(id: number): WordPressContentQuery<WordPressPost> {
+      return new WordPressContentQuery<WordPressPost>(
+        () => fetchAPI<WordPressPost>(`/posts/${id}`, { _embed: 'true' }),
+        () => fetchAPI<WordPressPost>(`/posts/${id}`, { _embed: 'true', context: 'edit' }),
+        (post) => {
+          if (post.content.raw === undefined) {
+            throw new Error(
+              'Raw post content is unavailable. The current credentials may not have edit capabilities for this post.',
+            );
+          }
+
+          return {
+            raw: post.content.raw,
+            rendered: post.content.rendered,
+            protected: post.content.protected,
+          };
+        },
+        defaultBlockParser,
+      );
     },
 
     /**
      * Gets one post by slug.
      */
-    async getPostBySlug(slug: string): Promise<WordPressPost | undefined> {
-      const posts = await fetchAPI<WordPressPost[]>('/posts', { slug, _embed: 'true' });
-      return posts[0];
+    getPostBySlug(slug: string): WordPressContentQuery<WordPressPost | undefined> {
+      return new WordPressContentQuery<WordPressPost | undefined>(
+        async () => {
+          const posts = await fetchAPI<WordPressPost[]>('/posts', { slug, _embed: 'true' });
+          return posts[0];
+        },
+        async () => {
+          const posts = await fetchAPI<WordPressPost[]>('/posts', { slug, _embed: 'true', context: 'edit' });
+          return posts[0];
+        },
+        (post) => {
+          if (!post) {
+            return undefined;
+          }
+
+          if (post.content.raw === undefined) {
+            throw new Error(
+              'Raw post content is unavailable. The current credentials may not have edit capabilities for this post.',
+            );
+          }
+
+          return {
+            raw: post.content.raw,
+            rendered: post.content.rendered,
+            protected: post.content.protected,
+          };
+        },
+        defaultBlockParser,
+      );
     },
   };
 }

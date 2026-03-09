@@ -30,10 +30,12 @@ export const baseWordPressSchema = z.object({
 export const contentWordPressSchema = baseWordPressSchema.extend({
   content: z.object({
     rendered: z.string(),
+    raw: z.string().optional(),
     protected: z.boolean(),
   }),
   excerpt: z.object({
     rendered: z.string(),
+    raw: z.string().optional(),
     protected: z.boolean(),
   }),
   featured_media: z.number().optional(),

@@ -231,14 +231,14 @@ export class WordPressClient {
     this.executeRunAbility = abilityMethods.executeRunAbility;
     this.executeDeleteAbility = abilityMethods.executeDeleteAbility;
 
-    const posts = createPostsMethods(fetchAPI, fetchAPIPaginated);
+    const posts = createPostsMethods(fetchAPI, fetchAPIPaginated, config.blockParser);
     this.getPosts = posts.getPosts;
     this.getAllPosts = posts.getAllPosts;
     this.getPostsPaginated = posts.getPostsPaginated;
     this.getPost = posts.getPost;
     this.getPostBySlug = posts.getPostBySlug;
 
-    const pages = createPagesMethods(fetchAPI, fetchAPIPaginated);
+    const pages = createPagesMethods(fetchAPI, fetchAPIPaginated, config.blockParser);
     this.getPages = pages.getPages;
     this.getAllPages = pages.getAllPages;
     this.getPagesPaginated = pages.getPagesPaginated;

@@ -1,6 +1,6 @@
 {
   "name": "fluent-wp-client",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Runtime-agnostic TypeScript WordPress REST API client with typed CRUD, auth, abilities, and relation helpers",
   "type": "module",
   "repository": {

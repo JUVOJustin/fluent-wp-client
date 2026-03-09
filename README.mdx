@@ -4,9 +4,9 @@ short_title: Fluent WP Client
 description: Runtime-agnostic TypeScript client for the WordPress REST API with typed CRUD, auth, and abilities.
 ---
 
-Runtime-agnostic TypeScript client for the WordPress REST API.
-
 import { CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Runtime-agnostic TypeScript client for the WordPress REST API.
 
 ## Highlights
 
@@ -43,7 +43,7 @@ npm test
 npm run wp:stop
 ```
 
-## Basic Usage ([Full guide](./docs/usage.mdx))
+## Basic Usage
 
 ```ts
 import { WordPressClient } from 'fluent-wp-client';
@@ -58,7 +58,7 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 const blocks = await wp.getPostBySlug('hello-world').getBlocks();
 ```
 
-## Authentication ([Full guide](./docs/usage.mdx#authentication-patterns))
+## Authentication
 
 <Tabs>
   <TabItem label="Public">
@@ -90,6 +90,8 @@ const jwtClient = new WordPressClient({
   auth: { token: 'jwt-token' },
 });
 ```
+
+Requires the [JWT Authentication for WP REST API](https://wordpress.org/plugins/jwt-authentication-for-wp-rest-api/) plugin.
 
   </TabItem>
 
@@ -140,7 +142,7 @@ const signedClient = new WordPressClient({
   />
 </CardGrid>
 
-## Gutenberg blocks ([In-depth guide](./docs/gutenberg-content.mdx))
+## Gutenberg blocks
 
 ```ts
 const postQuery = wp.getPostBySlug('hello-world');
@@ -178,7 +180,7 @@ const posts = await wp.getPosts({ perPage: 5 });
 const blocks = await posts[0].getBlocks();
 ```
 
-## WPAPI-Compatible Syntax ([Migration guide](./docs/migration-from-node-wpapi.mdx))
+## WPAPI-Compatible Syntax
 
 `fluent-wp-client` now includes a fluent request builder inspired by `node-wpapi`:
 
@@ -227,7 +229,7 @@ const created = await wp.createPost(
 );
 ```
 
-## Abilities ([In-depth guide](./docs/abilities.mdx))
+## Abilities
 
 ```ts
 const wp = new WordPressClient({

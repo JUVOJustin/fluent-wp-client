@@ -6,6 +6,8 @@ sidebar:
   order: 1
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 This is the primary developer guide for `fluent-wp-client`.
 
 Canonical repository: `git@github.com:JUVOJustin/fluent-wp-client.git`
@@ -50,34 +52,66 @@ const wp = new WordPressClient({
 
 ## Authentication patterns
 
-```ts
-import { WordPressClient } from 'fluent-wp-client';
+<Tabs>
+  <TabItem label="Public">
 
-// Basic auth (application password)
+```ts
+const publicClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+});
+```
+
+  </TabItem>
+
+  <TabItem label="Basic">
+
+```ts
 const basicClient = new WordPressClient({
   baseUrl: 'https://your-wordpress-site.com',
   auth: { username: 'admin', password: 'app-password' },
 });
+```
 
-// JWT auth
+  </TabItem>
+
+  <TabItem label="JWT">
+
+```ts
 const jwtClient = new WordPressClient({
   baseUrl: 'https://your-wordpress-site.com',
   auth: { token: 'jwt-token' },
 });
+```
 
-// Prebuilt Authorization header
-const headerClient = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-  authHeader: 'Bearer jwt-token',
-});
+Requires the [JWT Authentication for WP REST API](https://wordpress.org/plugins/jwt-authentication-for-wp-rest-api/) plugin.
 
-// Cookie + nonce browser auth
+  </TabItem>
+
+  <TabItem label="Cookie + nonce">
+
+```ts
 const cookieNonceClient = new WordPressClient({
   baseUrl: 'https://your-wordpress-site.com',
   auth: { nonce: 'wp-rest-nonce', credentials: 'include' },
 });
+```
 
-// Request-aware signing
+  </TabItem>
+
+  <TabItem label="Auth header">
+
+```ts
+const headerClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  authHeader: 'Bearer jwt-token',
+});
+```
+
+  </TabItem>
+
+  <TabItem label="Request signing">
+
+```ts
 const signedClient = new WordPressClient({
   baseUrl: 'https://your-wordpress-site.com',
   authHeaders: ({ method, url, body }) => ({
@@ -85,6 +119,9 @@ const signedClient = new WordPressClient({
   }),
 });
 ```
+
+  </TabItem>
+</Tabs>
 
 ## API styles
 
@@ -441,10 +478,3 @@ const created = await wp.createPost(
 - API errors throw `WordPressApiError`.
 - Validation errors throw `WordPressSchemaValidationError`.
 - Cross-origin absolute URLs are rejected before requests are sent.
-
-## Next docs
-
-- Gutenberg content: [Gutenberg content](./gutenberg-content.mdx)
-- Custom endpoints: [Custom endpoints](./custom-endpoints.mdx)
-- Abilities: [Abilities](./abilities.mdx)
-- node-wpapi migration: [Migrate from node-wpapi](./migration-from-node-wpapi.mdx)

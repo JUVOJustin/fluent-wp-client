@@ -6,6 +6,8 @@ description: Runtime-agnostic TypeScript client for the WordPress REST API with 
 
 Runtime-agnostic TypeScript client for the WordPress REST API.
 
+import { CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
 ## Highlights
 
 - Typed read + CRUD helpers for posts, pages, media, terms, users, comments, and settings
@@ -41,18 +43,7 @@ npm test
 npm run wp:stop
 ```
 
-## Publishing
-
-Automated npm publishing runs from `.github/workflows/deploy.yml` when you push a semver tag such as `v1.0.0`.
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-The repository needs an `NPM_TOKEN` secret with publish access before the workflow can release the package.
-
-## Basic Usage
+## Basic Usage ([Full guide](./docs/usage.mdx))
 
 ```ts
 import { WordPressClient } from 'fluent-wp-client';
@@ -67,7 +58,89 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 const blocks = await wp.getPostBySlug('hello-world').getBlocks();
 ```
 
-## Gutenberg blocks
+## Authentication ([Full guide](./docs/usage.mdx#authentication-patterns))
+
+<Tabs>
+  <TabItem label="Public">
+
+```ts
+const publicClient = new WordPressClient({
+  baseUrl: 'https://example.com',
+});
+```
+
+  </TabItem>
+
+  <TabItem label="Basic">
+
+```ts
+const basicClient = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: 'app-password' },
+});
+```
+
+  </TabItem>
+
+  <TabItem label="JWT">
+
+```ts
+const jwtClient = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { token: 'jwt-token' },
+});
+```
+
+  </TabItem>
+
+  <TabItem label="Cookie + nonce">
+
+```ts
+const browserClient = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: {
+    nonce: window.wpApiSettings.nonce,
+    credentials: 'include',
+  },
+});
+```
+
+  </TabItem>
+
+  <TabItem label="Auth header">
+
+```ts
+const headerClient = new WordPressClient({
+  baseUrl: 'https://example.com',
+  authHeader: 'Bearer jwt-token',
+});
+```
+
+  </TabItem>
+
+  <TabItem label="Request signing">
+
+```ts
+const signedClient = new WordPressClient({
+  baseUrl: 'https://example.com',
+  authHeaders: ({ method, url, body }) => ({
+    Authorization: createSignedAuthHeader({ method, url: url.toString(), body }),
+  }),
+});
+```
+
+  </TabItem>
+</Tabs>
+
+<CardGrid>
+  <LinkCard
+    title="Authentication patterns"
+    href="./docs/usage.mdx#authentication-patterns"
+    description="See all supported auth options and when to use each one."
+  />
+</CardGrid>
+
+## Gutenberg blocks ([In-depth guide](./docs/gutenberg-content.mdx))
 
 ```ts
 const postQuery = wp.getPostBySlug('hello-world');
@@ -80,7 +153,13 @@ const blocks = await postQuery.getBlocks();
 `getBlocks()` performs one `context=edit` request and parses `content.raw` lazily.
 If the caller does not have edit capabilities, WordPress returns an auth/capability error.
 
-For a dedicated guide covering rendered content and block parsing workflows, see [Gutenberg content](./docs/gutenberg-content.mdx).
+<CardGrid>
+  <LinkCard
+    title="Gutenberg content"
+    href="./docs/gutenberg-content.mdx"
+    description="Rendered content, raw content, and block parsing workflows."
+  />
+</CardGrid>
 
 `getBlocks()` is available on single-resource post/page queries:
 
@@ -99,7 +178,7 @@ const posts = await wp.getPosts({ perPage: 5 });
 const blocks = await posts[0].getBlocks();
 ```
 
-## WPAPI-Compatible Syntax
+## WPAPI-Compatible Syntax ([Migration guide](./docs/migration-from-node-wpapi.mdx))
 
 `fluent-wp-client` now includes a fluent request builder inspired by `node-wpapi`:
 
@@ -124,19 +203,18 @@ const customRoute = wp.registerRoute('my-plugin/v1', '/authors/(?P<id>)');
 const authorUrl = customRoute().id(7).toString();
 ```
 
-## Browser Cookie + Nonce Auth
-
-```ts
-const browserClient = new WordPressClient({
-  baseUrl: 'https://example.com',
-  auth: {
-    nonce: window.wpApiSettings.nonce,
-    credentials: 'include',
-  },
-});
-
-const me = await browserClient.getCurrentUser();
-```
+<CardGrid>
+  <LinkCard
+    title="Migrate from node-wpapi"
+    href="./docs/migration-from-node-wpapi.mdx"
+    description="Map familiar WPAPI chains to fluent-wp-client methods."
+  />
+  <LinkCard
+    title="Custom endpoints"
+    href="./docs/custom-endpoints.mdx"
+    description="Use namespaces, routes, and plugin endpoints with typed requests."
+  />
+</CardGrid>
 
 ## Standard Schema Validation
 
@@ -149,49 +227,22 @@ const created = await wp.createPost(
 );
 ```
 
-## Abilities
+## Abilities ([In-depth guide](./docs/abilities.mdx))
 
 ```ts
-const definitions = await wp.getAbilities();
-const siteTitleAbility = await wp.getAbility('test/get-site-title');
-
-const result = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
-console.log(result.title);
-```
-
-Use the fluent builder when you want local input and output validation:
-
-```ts
-import { z } from 'zod';
-
-const processAbility = wp
-  .ability<
-    { name: string; settings: { theme: string } },
-    { processed: boolean; echo: { name: string } }
-  >('test/process-complex')
-  .inputSchema(z.object({
-    name: z.string(),
-    settings: z.object({
-      theme: z.string(),
-    }),
-  }))
-  .outputSchema(z.object({
-    processed: z.boolean(),
-    echo: z.object({
-      name: z.string(),
-    }),
-  }));
-
-const processed = await processAbility.run({
-  name: 'demo',
-  settings: { theme: 'dark' },
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: 'app-password' },
 });
+
+const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
+console.log(siteTitle.title);
 ```
 
-## Docs
-
-- Usage (full syntax + CRUD): [Usage](./docs/usage.mdx)
-- Gutenberg content (rendered + block parsing): [Gutenberg content](./docs/gutenberg-content.mdx)
-- Abilities: [Abilities](./docs/abilities.mdx)
-- Custom endpoints: [Custom endpoints](./docs/custom-endpoints.mdx)
-- Migration from `node-wpapi`: [Migrate from node-wpapi](./docs/migration-from-node-wpapi.mdx)
+<CardGrid>
+  <LinkCard
+    title="Abilities"
+    href="./docs/abilities.mdx"
+    description="Discover ability metadata, categories, and typed execution patterns."
+  />
+</CardGrid>

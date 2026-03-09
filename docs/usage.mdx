@@ -170,6 +170,14 @@ Media uses a different schema (`description`/`caption`, no `content.raw`), so me
 - Term collections: `getTermCollection`, `getAllTermCollection`, `getTermCollectionPaginated`, `getTerm`, `getTermBySlug`
 - Builders: `content(resource, schema?)`, `terms(resource, schema?)`
 
+`content(resource)` and `terms(resource)` also expose unified pagination helpers:
+
+- `.list(filter?)`
+- `.listAll(filter?)`
+- `.listPaginated(filter?)`
+
+If `page`/`perPage` are omitted, endpoint defaults are preserved.
+
 ### Post base typing
 
 Use `WordPressPostBase` as the shared post-like foundation for pages and custom post types.

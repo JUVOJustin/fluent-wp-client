@@ -1,5 +1,6 @@
 import type { WordPressCategory } from './schemas.js';
 import type { CategoriesFilter, FetchResult, PaginatedResponse } from './types.js';
+import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -9,6 +10,13 @@ export function createCategoriesMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<CategoriesFilter, WordPressCategory>({
+    fetchPage: (filter) => {
+      const params = filterToParams(filter);
+      return fetchAPIPaginated<WordPressCategory[]>('/categories', params);
+    },
+  });
+
   return {
     /**
      * Gets categories with optional filtering.
@@ -22,35 +30,14 @@ export function createCategoriesMethods(
      * Gets all categories by paginating every page.
      */
     async getAllCategories(filter: Omit<CategoriesFilter, 'page'> = {}): Promise<WordPressCategory[]> {
-      const allCategories: WordPressCategory[] = [];
-      let page = 1;
-      let totalPages = 1;
-
-      do {
-        const params = filterToParams({ ...filter, page, perPage: 100 });
-        const result = await fetchAPIPaginated<WordPressCategory[]>('/categories', params);
-        allCategories.push(...result.data);
-        totalPages = result.totalPages;
-        page += 1;
-      } while (page <= totalPages);
-
-      return allCategories;
+      return paginator.listAll(filter);
     },
 
     /**
      * Gets categories with pagination metadata.
      */
     async getCategoriesPaginated(filter: CategoriesFilter = {}): Promise<PaginatedResponse<WordPressCategory>> {
-      const params = filterToParams(filter);
-      const result = await fetchAPIPaginated<WordPressCategory[]>('/categories', params);
-
-      return {
-        data: result.data,
-        total: result.total,
-        totalPages: result.totalPages,
-        page: filter.page || 1,
-        perPage: filter.perPage || 100,
-      };
+      return paginator.listPaginated(filter);
     },
 
     /**

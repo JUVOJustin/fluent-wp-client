@@ -11,6 +11,7 @@ import {
   type PaginatedResponse,
   type PaginationParams,
 } from './types.js';
+import { createWordPressPaginator } from './pagination.js';
 
 /**
  * Runtime dependencies required for post-like resource read methods.
@@ -35,6 +36,12 @@ export function createPostLikeReadMethods<
   TFilter extends PaginationParams,
 >(config: PostLikeReadMethodConfig<TContent, TFilter>) {
   const withDefaultFilter = config.withDefaultFilter ?? ((filter) => ({ ...filter, _embed: 'true' }));
+  const paginator = createWordPressPaginator<TFilter, TContent>({
+    fetchPage: (filter) => {
+      const params = filterToParams(withDefaultFilter(filter));
+      return config.fetchAPIPaginated<TContent[]>(`/${config.resource}`, params);
+    },
+  });
 
   /**
    * Wraps one post-like response item with block helper methods.
@@ -61,34 +68,20 @@ export function createPostLikeReadMethods<
    * Lists all post-like content by paging through the entire resource.
    */
   async function listAll(filter: Omit<TFilter, 'page'> = {} as Omit<TFilter, 'page'>): Promise<Array<WordPressContentRecord<TContent>>> {
-    const allItems: Array<WordPressContentRecord<TContent>> = [];
-    let page = 1;
-    let totalPages = 1;
+    const items = await paginator.listAll(filter);
 
-    do {
-      const params = filterToParams(withDefaultFilter({ ...filter, page, perPage: 100 } as TFilter & PaginationParams));
-      const result = await config.fetchAPIPaginated<TContent[]>(`/${config.resource}`, params);
-      allItems.push(...result.data.map((item) => wrapRecord(item)));
-      totalPages = result.totalPages;
-      page += 1;
-    } while (page <= totalPages);
-
-    return allItems;
+    return items.map((item) => wrapRecord(item));
   }
 
   /**
    * Lists one page of post-like content with pagination metadata.
    */
   async function listPaginated(filter: TFilter = {} as TFilter): Promise<PaginatedResponse<WordPressContentRecord<TContent>>> {
-    const params = filterToParams(withDefaultFilter(filter));
-    const result = await config.fetchAPIPaginated<TContent[]>(`/${config.resource}`, params);
+    const result = await paginator.listPaginated(filter);
 
     return {
+      ...result,
       data: result.data.map((item) => wrapRecord(item)),
-      total: result.total,
-      totalPages: result.totalPages,
-      page: filter.page || 1,
-      perPage: filter.perPage || 100,
     };
   }
 

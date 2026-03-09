@@ -1,6 +1,7 @@
 import type { WordPressCategory, WordPressContent } from './schemas.js';
 import type { WordPressRequestOptions, WordPressRequestResult } from './client-types.js';
 import type { WordPressStandardSchema } from './validation.js';
+import { createWordPressPaginator } from './pagination.js';
 import {
   compactPayload,
   filterToParams,
@@ -48,19 +49,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: Omit<QueryParams, 'page'> = {},
   ): Promise<TContent[]> {
-    const allItems: TContent[] = [];
-    let page = 1;
-    let totalPages = 1;
+    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TContent>({
+      fetchPage: (currentFilter) => {
+        const params = filterToParams({ ...currentFilter, _embed: 'true' });
+        return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
+      },
+    });
 
-    do {
-      const params = filterToParams({ ...filter, page, perPage: 100, _embed: 'true' });
-      const result = await dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
-      allItems.push(...result.data);
-      totalPages = result.totalPages;
-      page += 1;
-    } while (page <= totalPages);
-
-    return allItems;
+    return paginator.listAll(filter);
   }
 
   /**
@@ -70,16 +66,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: QueryParams & PaginationParams = {},
   ): Promise<PaginatedResponse<TContent>> {
-    const params = filterToParams({ ...filter, _embed: 'true' });
-    const result = await dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
+    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TContent>({
+      fetchPage: (currentFilter) => {
+        const params = filterToParams({ ...currentFilter, _embed: 'true' });
+        return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
+      },
+    });
 
-    return {
-      data: result.data,
-      total: result.total,
-      totalPages: result.totalPages,
-      page: typeof filter.page === 'number' ? filter.page : 1,
-      perPage: typeof filter.perPage === 'number' ? filter.perPage : 100,
-    };
+    return paginator.listPaginated(filter);
   }
 
   /**
@@ -183,19 +177,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: Omit<QueryParams, 'page'> = {},
   ): Promise<TTerm[]> {
-    const allItems: TTerm[] = [];
-    let page = 1;
-    let totalPages = 1;
+    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TTerm>({
+      fetchPage: (currentFilter) => {
+        const params = filterToParams(currentFilter);
+        return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
+      },
+    });
 
-    do {
-      const params = filterToParams({ ...filter, page, perPage: 100 });
-      const result = await dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
-      allItems.push(...result.data);
-      totalPages = result.totalPages;
-      page += 1;
-    } while (page <= totalPages);
-
-    return allItems;
+    return paginator.listAll(filter);
   }
 
   /**
@@ -205,16 +194,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: QueryParams & PaginationParams = {},
   ): Promise<PaginatedResponse<TTerm>> {
-    const params = filterToParams(filter);
-    const result = await dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
+    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TTerm>({
+      fetchPage: (currentFilter) => {
+        const params = filterToParams(currentFilter);
+        return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
+      },
+    });
 
-    return {
-      data: result.data,
-      total: result.total,
-      totalPages: result.totalPages,
-      page: typeof filter.page === 'number' ? filter.page : 1,
-      perPage: typeof filter.perPage === 'number' ? filter.perPage : 100,
-    };
+    return paginator.listPaginated(filter);
   }
 
   /**

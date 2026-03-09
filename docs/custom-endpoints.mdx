@@ -25,8 +25,30 @@ Assume a CPT with `rest_base: 'books'`.
 const books = wp.content('books');
 
 const list = await books.list({ perPage: 20, page: 1 });
+const allBooks = await books.listAll();
+const pagedBooks = await books.listPaginated({ page: 2, perPage: 25 });
 const bySlug = await books.getBySlug('my-book');
 ```
+
+### Pagination for CPT and custom taxonomies
+
+All `content(...)` and `terms(...)` collections use the same core paginator internally.
+
+- `list(filter)` fetches one page.
+- `listAll(filter)` auto-paginates every page (uses `perPage: 100` by default).
+- `listPaginated(filter)` returns `{ data, total, totalPages, page, perPage }`.
+
+```ts title="Pagination patterns"
+const books = wp.content('books');
+
+const firstPage = await books.list({ page: 1, perPage: 20 });
+const everything = await books.listAll();
+const pagination = await books.listPaginated({ page: 3, perPage: 10 });
+
+console.log(pagination.total, pagination.totalPages);
+```
+
+If you omit `page`/`perPage`, WordPress endpoint defaults are preserved.
 
 ### CPT CRUD
 
@@ -110,6 +132,8 @@ Assume a taxonomy with `rest_base: 'genre'`.
 const genres = wp.terms('genre');
 
 const list = await genres.list({ perPage: 100 });
+const allGenres = await genres.listAll();
+const pagedGenres = await genres.listPaginated({ page: 1, perPage: 25 });
 const bySlug = await genres.getBySlug('sci-fi');
 ```
 

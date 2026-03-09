@@ -1,7 +1,7 @@
 import type { WordPressCategory, WordPressContent } from './schemas.js';
 import type { WordPressRequestOptions, WordPressRequestResult } from './client-types.js';
 import type { WordPressStandardSchema } from './validation.js';
-import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
+import { createWordPressPaginator } from './pagination.js';
 import {
   compactPayload,
   filterToParams,
@@ -49,12 +49,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: Omit<QueryParams, 'page'> = {},
   ): Promise<TContent[]> {
-    return fetchAllPaginatedItems<TContent>({
-      fetchPage: (page, perPage) => {
-        const params = filterToParams({ ...filter, page, perPage, _embed: 'true' });
+    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TContent>({
+      fetchPage: (currentFilter) => {
+        const params = filterToParams({ ...currentFilter, _embed: 'true' });
         return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
       },
     });
+
+    return paginator.listAll(filter);
   }
 
   /**
@@ -64,21 +66,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: QueryParams & PaginationParams = {},
   ): Promise<PaginatedResponse<TContent>> {
-    return fetchPaginatedResponse<TContent>({
-      runtime: {
-        fetchPage: (currentPage, currentPerPage) => {
-          const params = filterToParams({
-            ...filter,
-            ...(currentPage !== undefined ? { page: currentPage } : {}),
-            ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
-            _embed: 'true',
-          });
-          return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
-        },
+    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TContent>({
+      fetchPage: (currentFilter) => {
+        const params = filterToParams({ ...currentFilter, _embed: 'true' });
+        return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params);
       },
-      page: typeof filter.page === 'number' ? filter.page : undefined,
-      perPage: typeof filter.perPage === 'number' ? filter.perPage : undefined,
     });
+
+    return paginator.listPaginated(filter);
   }
 
   /**
@@ -182,12 +177,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: Omit<QueryParams, 'page'> = {},
   ): Promise<TTerm[]> {
-    return fetchAllPaginatedItems<TTerm>({
-      fetchPage: (page, perPage) => {
-        const params = filterToParams({ ...filter, page, perPage });
+    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TTerm>({
+      fetchPage: (currentFilter) => {
+        const params = filterToParams(currentFilter);
         return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
       },
     });
+
+    return paginator.listAll(filter);
   }
 
   /**
@@ -197,20 +194,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     filter: QueryParams & PaginationParams = {},
   ): Promise<PaginatedResponse<TTerm>> {
-    return fetchPaginatedResponse<TTerm>({
-      runtime: {
-        fetchPage: (currentPage, currentPerPage) => {
-          const params = filterToParams({
-            ...filter,
-            ...(currentPage !== undefined ? { page: currentPage } : {}),
-            ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
-          });
-          return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
-        },
+    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TTerm>({
+      fetchPage: (currentFilter) => {
+        const params = filterToParams(currentFilter);
+        return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params);
       },
-      page: typeof filter.page === 'number' ? filter.page : undefined,
-      perPage: typeof filter.perPage === 'number' ? filter.perPage : undefined,
     });
+
+    return paginator.listPaginated(filter);
   }
 
   /**

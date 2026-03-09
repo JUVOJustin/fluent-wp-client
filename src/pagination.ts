@@ -1,52 +1,57 @@
-import type { FetchResult, PaginatedResponse } from './types.js';
+import type { FetchResult, PaginatedResponse, PaginationParams } from './types.js';
 
 /**
- * Runtime contract for fetching one paginated WordPress resource page.
+ * Generic paginator options for one WordPress collection resource.
  */
-export interface PaginatedFetchRuntime<TItem> {
-  fetchPage: (page?: number, perPage?: number) => Promise<FetchResult<TItem[]>>;
-}
-
-/**
- * Loads all pages from one WordPress paginated endpoint.
- */
-export async function fetchAllPaginatedItems<TItem>(
-  runtime: PaginatedFetchRuntime<TItem>,
-  perPage: number = 100,
-): Promise<TItem[]> {
-  const allItems: TItem[] = [];
-  let page = 1;
-  let totalPages = 1;
-
-  do {
-    const result = await runtime.fetchPage(page, perPage);
-    allItems.push(...result.data);
-    totalPages = result.totalPages;
-    page += 1;
-  } while (page <= totalPages);
-
-  return allItems;
-}
-
-/**
- * Loads one page and normalizes WordPress pagination metadata.
- */
-export async function fetchPaginatedResponse<TItem>(config: {
-  runtime: PaginatedFetchRuntime<TItem>;
-  page?: number;
-  perPage?: number;
-  defaultPage?: number;
+export interface WordPressPaginatorOptions<TFilter extends PaginationParams, TItem> {
+  fetchPage: (filter: TFilter) => Promise<FetchResult<TItem[]>>;
   defaultPerPage?: number;
-}): Promise<PaginatedResponse<TItem>> {
-  const result = await config.runtime.fetchPage(config.page, config.perPage);
-  const page = config.page ?? config.defaultPage ?? 1;
-  const perPage = config.perPage ?? config.defaultPerPage ?? 100;
+}
+
+/**
+ * Creates one reusable paginator for built-in and custom endpoints.
+ */
+export function createWordPressPaginator<TFilter extends PaginationParams, TItem>(
+  options: WordPressPaginatorOptions<TFilter, TItem>,
+) {
+  const defaultPerPage = options.defaultPerPage ?? 100;
+
+  /**
+   * Loads every page for the provided base filter.
+   */
+  async function listAll(filter: Omit<TFilter, 'page'> = {} as Omit<TFilter, 'page'>): Promise<TItem[]> {
+    const allItems: TItem[] = [];
+    const perPage = (filter as PaginationParams).perPage ?? defaultPerPage;
+    let page = 1;
+    let totalPages = 1;
+
+    do {
+      const result = await options.fetchPage({ ...filter, page, perPage } as TFilter);
+      allItems.push(...result.data);
+      totalPages = result.totalPages;
+      page += 1;
+    } while (page <= totalPages);
+
+    return allItems;
+  }
+
+  /**
+   * Loads one page and normalizes pagination metadata.
+   */
+  async function listPaginated(filter: TFilter = {} as TFilter): Promise<PaginatedResponse<TItem>> {
+    const result = await options.fetchPage(filter);
+
+    return {
+      data: result.data,
+      total: result.total,
+      totalPages: result.totalPages,
+      page: filter.page ?? 1,
+      perPage: filter.perPage ?? defaultPerPage,
+    };
+  }
 
   return {
-    data: result.data,
-    total: result.total,
-    totalPages: result.totalPages,
-    page,
-    perPage,
+    listAll,
+    listPaginated,
   };
 }

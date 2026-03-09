@@ -1,6 +1,6 @@
 import type { WordPressTag } from './schemas.js';
 import type { FetchResult, PaginatedResponse, TagsFilter } from './types.js';
-import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
+import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -10,6 +10,13 @@ export function createTagsMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<TagsFilter, WordPressTag>({
+    fetchPage: (filter) => {
+      const params = filterToParams(filter);
+      return fetchAPIPaginated<WordPressTag[]>('/tags', params);
+    },
+  });
+
   return {
     /**
      * Gets tags with optional filtering.
@@ -23,32 +30,14 @@ export function createTagsMethods(
      * Gets all tags by paginating every page.
      */
     async getAllTags(filter: Omit<TagsFilter, 'page'> = {}): Promise<WordPressTag[]> {
-      return fetchAllPaginatedItems<WordPressTag>({
-        fetchPage: (page, perPage) => {
-          const params = filterToParams({ ...filter, page, perPage });
-          return fetchAPIPaginated<WordPressTag[]>('/tags', params);
-        },
-      });
+      return paginator.listAll(filter);
     },
 
     /**
      * Gets tags with pagination metadata.
      */
     async getTagsPaginated(filter: TagsFilter = {}): Promise<PaginatedResponse<WordPressTag>> {
-      return fetchPaginatedResponse<WordPressTag>({
-        runtime: {
-          fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({
-              ...filter,
-              ...(currentPage !== undefined ? { page: currentPage } : {}),
-              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
-            });
-            return fetchAPIPaginated<WordPressTag[]>('/tags', params);
-          },
-        },
-        page: filter.page,
-        perPage: filter.perPage,
-      });
+      return paginator.listPaginated(filter);
     },
 
     /**

@@ -1,6 +1,6 @@
 import type { WordPressMedia } from './schemas.js';
 import type { FetchResult, MediaFilter, PaginatedResponse } from './types.js';
-import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
+import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -10,6 +10,13 @@ export function createMediaMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<MediaFilter, WordPressMedia>({
+    fetchPage: (filter) => {
+      const params = filterToParams(filter);
+      return fetchAPIPaginated<WordPressMedia[]>('/media', params);
+    },
+  });
+
   return {
     /**
      * Gets media items with optional filtering.
@@ -23,32 +30,14 @@ export function createMediaMethods(
      * Gets all media items by paginating every page.
      */
     async getAllMedia(filter: Omit<MediaFilter, 'page'> = {}): Promise<WordPressMedia[]> {
-      return fetchAllPaginatedItems<WordPressMedia>({
-        fetchPage: (page, perPage) => {
-          const params = filterToParams({ ...filter, page, perPage });
-          return fetchAPIPaginated<WordPressMedia[]>('/media', params);
-        },
-      });
+      return paginator.listAll(filter);
     },
 
     /**
      * Gets media with pagination metadata.
      */
     async getMediaPaginated(filter: MediaFilter = {}): Promise<PaginatedResponse<WordPressMedia>> {
-      return fetchPaginatedResponse<WordPressMedia>({
-        runtime: {
-          fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({
-              ...filter,
-              ...(currentPage !== undefined ? { page: currentPage } : {}),
-              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
-            });
-            return fetchAPIPaginated<WordPressMedia[]>('/media', params);
-          },
-        },
-        page: filter.page,
-        perPage: filter.perPage,
-      });
+      return paginator.listPaginated(filter);
     },
 
     /**

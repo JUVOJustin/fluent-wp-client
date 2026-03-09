@@ -1,6 +1,6 @@
 import type { WordPressComment } from './schemas.js';
 import type { CommentsFilter, FetchResult, PaginatedResponse } from './types.js';
-import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
+import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -10,6 +10,13 @@ export function createCommentsMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<CommentsFilter, WordPressComment>({
+    fetchPage: (filter) => {
+      const params = filterToParams(filter);
+      return fetchAPIPaginated<WordPressComment[]>('/comments', params);
+    },
+  });
+
   return {
     /**
      * Gets comments with optional filtering.
@@ -23,32 +30,14 @@ export function createCommentsMethods(
      * Gets all comments by paginating every page.
      */
     async getAllComments(filter: Omit<CommentsFilter, 'page'> = {}): Promise<WordPressComment[]> {
-      return fetchAllPaginatedItems<WordPressComment>({
-        fetchPage: (page, perPage) => {
-          const params = filterToParams({ ...filter, page, perPage });
-          return fetchAPIPaginated<WordPressComment[]>('/comments', params);
-        },
-      });
+      return paginator.listAll(filter);
     },
 
     /**
      * Gets comments with pagination metadata.
      */
     async getCommentsPaginated(filter: CommentsFilter = {}): Promise<PaginatedResponse<WordPressComment>> {
-      return fetchPaginatedResponse<WordPressComment>({
-        runtime: {
-          fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({
-              ...filter,
-              ...(currentPage !== undefined ? { page: currentPage } : {}),
-              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
-            });
-            return fetchAPIPaginated<WordPressComment[]>('/comments', params);
-          },
-        },
-        page: filter.page,
-        perPage: filter.perPage,
-      });
+      return paginator.listPaginated(filter);
     },
 
     /**

@@ -149,3 +149,8 @@ export {
   type WordPressBlockParser,
   type WordPressParsedBlock,
 } from './blocks.js';
+
+export {
+  createWordPressPaginator,
+  type WordPressPaginatorOptions,
+} from './pagination.js';

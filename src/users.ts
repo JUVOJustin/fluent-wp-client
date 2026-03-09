@@ -1,6 +1,6 @@
 import type { WordPressAuthor } from './schemas.js';
 import type { FetchResult, PaginatedResponse, UsersFilter } from './types.js';
-import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
+import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -11,6 +11,13 @@ export function createUsersMethods(
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
   hasAuth: () => boolean,
 ) {
+  const paginator = createWordPressPaginator<UsersFilter, WordPressAuthor>({
+    fetchPage: (filter) => {
+      const params = filterToParams(filter);
+      return fetchAPIPaginated<WordPressAuthor[]>('/users', params);
+    },
+  });
+
   return {
     /**
      * Gets users with optional filtering.
@@ -24,32 +31,14 @@ export function createUsersMethods(
      * Gets all users by paginating every page.
      */
     async getAllUsers(filter: Omit<UsersFilter, 'page'> = {}): Promise<WordPressAuthor[]> {
-      return fetchAllPaginatedItems<WordPressAuthor>({
-        fetchPage: (page, perPage) => {
-          const params = filterToParams({ ...filter, page, perPage });
-          return fetchAPIPaginated<WordPressAuthor[]>('/users', params);
-        },
-      });
+      return paginator.listAll(filter);
     },
 
     /**
      * Gets users with pagination metadata.
      */
     async getUsersPaginated(filter: UsersFilter = {}): Promise<PaginatedResponse<WordPressAuthor>> {
-      return fetchPaginatedResponse<WordPressAuthor>({
-        runtime: {
-          fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({
-              ...filter,
-              ...(currentPage !== undefined ? { page: currentPage } : {}),
-              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
-            });
-            return fetchAPIPaginated<WordPressAuthor[]>('/users', params);
-          },
-        },
-        page: filter.page,
-        perPage: filter.perPage,
-      });
+      return paginator.listPaginated(filter);
     },
 
     /**

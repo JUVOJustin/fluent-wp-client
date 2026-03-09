@@ -1,6 +1,6 @@
 import type { WordPressCategory } from './schemas.js';
 import type { CategoriesFilter, FetchResult, PaginatedResponse } from './types.js';
-import { fetchAllPaginatedItems, fetchPaginatedResponse } from './pagination.js';
+import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -10,6 +10,13 @@ export function createCategoriesMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<CategoriesFilter, WordPressCategory>({
+    fetchPage: (filter) => {
+      const params = filterToParams(filter);
+      return fetchAPIPaginated<WordPressCategory[]>('/categories', params);
+    },
+  });
+
   return {
     /**
      * Gets categories with optional filtering.
@@ -23,32 +30,14 @@ export function createCategoriesMethods(
      * Gets all categories by paginating every page.
      */
     async getAllCategories(filter: Omit<CategoriesFilter, 'page'> = {}): Promise<WordPressCategory[]> {
-      return fetchAllPaginatedItems<WordPressCategory>({
-        fetchPage: (page, perPage) => {
-          const params = filterToParams({ ...filter, page, perPage });
-          return fetchAPIPaginated<WordPressCategory[]>('/categories', params);
-        },
-      });
+      return paginator.listAll(filter);
     },
 
     /**
      * Gets categories with pagination metadata.
      */
     async getCategoriesPaginated(filter: CategoriesFilter = {}): Promise<PaginatedResponse<WordPressCategory>> {
-      return fetchPaginatedResponse<WordPressCategory>({
-        runtime: {
-          fetchPage: (currentPage, currentPerPage) => {
-            const params = filterToParams({
-              ...filter,
-              ...(currentPage !== undefined ? { page: currentPage } : {}),
-              ...(currentPerPage !== undefined ? { perPage: currentPerPage } : {}),
-            });
-            return fetchAPIPaginated<WordPressCategory[]>('/categories', params);
-          },
-        },
-        page: filter.page,
-        perPage: filter.perPage,
-      });
+      return paginator.listPaginated(filter);
     },
 
     /**

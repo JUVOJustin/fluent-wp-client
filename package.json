@@ -42,8 +42,9 @@
     "bun",
     "node"
   ],
-  "license": "MIT",
+  "license": "GPL-2.0-or-later",
   "dependencies": {
+    "@wordpress/block-serialization-default-parser": "^5.41.0",
     "@standard-schema/spec": "^1.0.0",
     "zod": "^3.25.76"
   },

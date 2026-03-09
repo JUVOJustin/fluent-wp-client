@@ -18,6 +18,7 @@ Canonical repository: `git@github.com:JUVOJustin/fluent-wp-client.git`
 - Built-in auth utilities for Basic, JWT, cookie+nonce browser auth, prebuilt headers, and request-aware signing
 - JWT workflow helpers (`loginWithJwt`, `validateJwtToken`)
 - Fluent relation API (`client.post('slug').with('author', 'terms').get()`)
+- Gutenberg block parsing via post/page queries and list records (for example, `getPostBySlug(...).getBlocks()`)
 - Standard Schema-compatible validation interfaces (works with Zod and other compliant schema libraries)
 - Uses only web-standard APIs (`fetch`, `URL`, `Blob`) for Node, Deno, Bun, and browser compatibility
 
@@ -66,6 +67,38 @@ const wp = new WordPressClient({
 
 const posts = await wp.getPosts();
 const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
+
+const blocks = await wp.getPostBySlug('hello-world').getBlocks();
+```
+
+## Gutenberg blocks
+
+```ts
+const postQuery = wp.getPostBySlug('hello-world');
+
+const post = await postQuery;
+const content = await postQuery.getContent();
+const blocks = await postQuery.getBlocks();
+```
+
+`getBlocks()` performs one `context=edit` request and parses `content.raw` lazily.
+If the caller does not have edit capabilities, WordPress returns an auth/capability error.
+
+`getBlocks()` is available on single-resource post/page queries:
+
+- `getPost(id)`
+- `getPostBySlug(slug)`
+- `getPage(id)`
+- `getPageBySlug(slug)`
+
+Post and page collection methods now return arrays of post-like records that keep all original fields and also expose block helpers:
+
+- `getPosts()`, `getAllPosts()`, `getPostsPaginated().data`
+- `getPages()`, `getAllPages()`, `getPagesPaginated().data`
+
+```ts
+const posts = await wp.getPosts({ perPage: 5 });
+const blocks = await posts[0].getBlocks();
 ```
 
 ## WPAPI-Compatible Syntax

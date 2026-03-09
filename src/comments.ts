@@ -1,5 +1,6 @@
 import type { WordPressComment } from './schemas.js';
 import type { CommentsFilter, FetchResult, PaginatedResponse } from './types.js';
+import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -9,6 +10,13 @@ export function createCommentsMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<CommentsFilter, WordPressComment>({
+    fetchPage: (filter) => {
+      const params = filterToParams(filter);
+      return fetchAPIPaginated<WordPressComment[]>('/comments', params);
+    },
+  });
+
   return {
     /**
      * Gets comments with optional filtering.
@@ -22,35 +30,14 @@ export function createCommentsMethods(
      * Gets all comments by paginating every page.
      */
     async getAllComments(filter: Omit<CommentsFilter, 'page'> = {}): Promise<WordPressComment[]> {
-      const allComments: WordPressComment[] = [];
-      let page = 1;
-      let totalPages = 1;
-
-      do {
-        const params = filterToParams({ ...filter, page, perPage: 100 });
-        const result = await fetchAPIPaginated<WordPressComment[]>('/comments', params);
-        allComments.push(...result.data);
-        totalPages = result.totalPages;
-        page += 1;
-      } while (page <= totalPages);
-
-      return allComments;
+      return paginator.listAll(filter);
     },
 
     /**
      * Gets comments with pagination metadata.
      */
     async getCommentsPaginated(filter: CommentsFilter = {}): Promise<PaginatedResponse<WordPressComment>> {
-      const params = filterToParams(filter);
-      const result = await fetchAPIPaginated<WordPressComment[]>('/comments', params);
-
-      return {
-        data: result.data,
-        total: result.total,
-        totalPages: result.totalPages,
-        page: filter.page || 1,
-        perPage: filter.perPage || 100,
-      };
+      return paginator.listPaginated(filter);
     },
 
     /**

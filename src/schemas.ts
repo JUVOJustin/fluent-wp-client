@@ -30,10 +30,12 @@ export const baseWordPressSchema = z.object({
 export const contentWordPressSchema = baseWordPressSchema.extend({
   content: z.object({
     rendered: z.string(),
+    raw: z.string().optional(),
     protected: z.boolean(),
   }),
   excerpt: z.object({
     rendered: z.string(),
+    raw: z.string().optional(),
     protected: z.boolean(),
   }),
   featured_media: z.number().optional(),
@@ -298,6 +300,18 @@ export const settingsSchema = z.object({
 
 export type WordPressBase = z.infer<typeof baseWordPressSchema>;
 export type WordPressContent = z.infer<typeof contentWordPressSchema>;
+
+/**
+ * Core post-shaped content type used as the base for pages and custom post types.
+ */
+export type WordPressPostBase = WordPressContent;
+
+/**
+ * Generic custom post type shape that extends the shared post base fields.
+ */
+export type WordPressCustomPost<TExtra extends Record<string, unknown> = Record<string, never>> =
+  WordPressPostBase & TExtra;
+
 export type WordPressPost = z.infer<typeof postSchema>;
 export type WordPressPage = z.infer<typeof pageSchema>;
 export type WordPressMedia = z.infer<typeof mediaSchema>;

@@ -1,5 +1,6 @@
 import type { WordPressMedia } from './schemas.js';
 import type { FetchResult, MediaFilter, PaginatedResponse } from './types.js';
+import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './types.js';
 
 /**
@@ -9,6 +10,13 @@ export function createMediaMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<MediaFilter, WordPressMedia>({
+    fetchPage: (filter) => {
+      const params = filterToParams(filter);
+      return fetchAPIPaginated<WordPressMedia[]>('/media', params);
+    },
+  });
+
   return {
     /**
      * Gets media items with optional filtering.
@@ -22,35 +30,14 @@ export function createMediaMethods(
      * Gets all media items by paginating every page.
      */
     async getAllMedia(filter: Omit<MediaFilter, 'page'> = {}): Promise<WordPressMedia[]> {
-      const allMedia: WordPressMedia[] = [];
-      let page = 1;
-      let totalPages = 1;
-
-      do {
-        const params = filterToParams({ ...filter, page, perPage: 100 });
-        const result = await fetchAPIPaginated<WordPressMedia[]>('/media', params);
-        allMedia.push(...result.data);
-        totalPages = result.totalPages;
-        page += 1;
-      } while (page <= totalPages);
-
-      return allMedia;
+      return paginator.listAll(filter);
     },
 
     /**
      * Gets media with pagination metadata.
      */
     async getMediaPaginated(filter: MediaFilter = {}): Promise<PaginatedResponse<WordPressMedia>> {
-      const params = filterToParams(filter);
-      const result = await fetchAPIPaginated<WordPressMedia[]>('/media', params);
-
-      return {
-        data: result.data,
-        total: result.total,
-        totalPages: result.totalPages,
-        page: filter.page || 1,
-        perPage: filter.perPage || 100,
-      };
+      return paginator.listPaginated(filter);
     },
 
     /**

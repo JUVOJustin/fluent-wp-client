@@ -15,8 +15,8 @@ export type PostRelation = 'author' | 'categories' | 'tags' | 'terms' | 'feature
  * Client surface required by the post relation hydrator.
  */
 export interface PostRelationClient {
-  getPost: (id: number) => Promise<WordPressPost>;
-  getPostBySlug: (slug: string) => Promise<WordPressPost | undefined>;
+  getPost: (id: number) => PromiseLike<WordPressPost>;
+  getPostBySlug: (slug: string) => PromiseLike<WordPressPost | undefined>;
   getUser: (id: number) => Promise<WordPressAuthor>;
   getUsers?: (filter?: { include?: number[]; perPage?: number }) => Promise<WordPressAuthor[]>;
   getCategories: (filter?: { include?: number[] }) => Promise<WordPressCategory[]>;

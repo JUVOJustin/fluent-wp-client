@@ -47,6 +47,7 @@ export {
   type JwtAuthTokenResponse,
   type JwtAuthValidationResponse,
   type JwtLoginCredentials,
+  type RequestAuthResolver,
   type ResolvableWordPressAuth,
   type WordPressAuthorizationInput,
   type WordPressAuthConfig,
@@ -55,6 +56,7 @@ export {
   type WordPressAuthInput,
   type WordPressAuthRequest,
   type WordPressAuthResolver,
+  createAuthResolver,
 } from './auth.js';
 
 export {

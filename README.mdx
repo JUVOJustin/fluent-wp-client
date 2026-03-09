@@ -18,7 +18,7 @@ Canonical repository: `git@github.com:JUVOJustin/fluent-wp-client.git`
 - Built-in auth utilities for Basic, JWT, cookie+nonce browser auth, prebuilt headers, and request-aware signing
 - JWT workflow helpers (`loginWithJwt`, `validateJwtToken`)
 - Fluent relation API (`client.post('slug').with('author', 'terms').get()`)
-- Gutenberg block parsing via `getPostBySlug(...).getBlocks()` and `getPageBySlug(...).getBlocks()`
+- Gutenberg block parsing via post/page queries and list records (for example, `getPostBySlug(...).getBlocks()`)
 - Standard Schema-compatible validation interfaces (works with Zod and other compliant schema libraries)
 - Uses only web-standard APIs (`fetch`, `URL`, `Blob`) for Node, Deno, Bun, and browser compatibility
 

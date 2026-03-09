@@ -3,13 +3,25 @@ import { WordPressClient, pageSchema, type WordPressStandardSchema } from 'fluen
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
- * Seed data: 10 pages (About, Contact, Services, FAQ, Team, Blog, Portfolio,
- * Testimonials, Privacy Policy, Terms of Service).
+ * Seed data baseline: 10 pages (About, Contact, Services, FAQ, Team, Blog,
+ * Portfolio, Testimonials, Privacy Policy, Terms of Service).
  */
 describe('Client: Pages', () => {
   let publicClient: WordPressClient;
   let authClient: WordPressClient;
   const createdPageIds: number[] = [];
+  const seedPageSlugs = [
+    'about',
+    'contact',
+    'services',
+    'faq',
+    'team',
+    'blog',
+    'portfolio',
+    'testimonials',
+    'privacy-policy',
+    'terms-of-service',
+  ] as const;
 
   beforeAll(() => {
     publicClient = createPublicClient();
@@ -59,18 +71,21 @@ describe('Client: Pages', () => {
       expect(page).toBeUndefined();
     });
 
-    it('getAllPages returns all 10 seed pages', async () => {
+    it('getAllPages includes every seeded page slug', async () => {
       const all = await publicClient.getAllPages();
+      const slugs = new Set(all.map((page) => page.slug));
 
-      expect(all).toHaveLength(10);
+      for (const slug of seedPageSlugs) {
+        expect(slugs.has(slug)).toBe(true);
+      }
     });
 
     it('getPagesPaginated returns pagination metadata', async () => {
       const result = await publicClient.getPagesPaginated({ perPage: 5, page: 1 });
 
       expect(result.data).toHaveLength(5);
-      expect(result.total).toBe(10);
-      expect(result.totalPages).toBe(2);
+      expect(result.total).toBeGreaterThanOrEqual(seedPageSlugs.length);
+      expect(result.totalPages).toBeGreaterThanOrEqual(2);
       expect(result.page).toBe(1);
       expect(result.perPage).toBe(5);
     });

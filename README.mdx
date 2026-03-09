@@ -84,6 +84,23 @@ const blocks = await postQuery.getBlocks();
 `getBlocks()` performs one `context=edit` request and parses `content.raw` lazily.
 If the caller does not have edit capabilities, WordPress returns an auth/capability error.
 
+`getBlocks()` is available on single-resource post/page queries:
+
+- `getPost(id)`
+- `getPostBySlug(slug)`
+- `getPage(id)`
+- `getPageBySlug(slug)`
+
+Post and page collection methods now return arrays of post-like records that keep all original fields and also expose block helpers:
+
+- `getPosts()`, `getAllPosts()`, `getPostsPaginated().data`
+- `getPages()`, `getAllPages()`, `getPagesPaginated().data`
+
+```ts
+const posts = await wp.getPosts({ perPage: 5 });
+const blocks = await posts[0].getBlocks();
+```
+
 ## WPAPI-Compatible Syntax
 
 `fluent-wp-client` now includes a fluent request builder inspired by `node-wpapi`:

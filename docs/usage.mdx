@@ -157,11 +157,31 @@ You can still `await` them directly, and you can also call:
 - `.getContent()` for `{ raw, rendered, protected }` via `context=edit`
 - `.getBlocks()` for parsed Gutenberg blocks
 
+Post/page list helpers also return post-like records with the same block methods:
+
+- `getPosts()`, `getAllPosts()`, `getPostsPaginated().data`
+- `getPages()`, `getAllPages()`, `getPagesPaginated().data`
+
 ### Generic resource helpers
 
 - Content collections: `getContentCollection`, `getAllContentCollection`, `getContentCollectionPaginated`, `getContent`, `getContentBySlug`
 - Term collections: `getTermCollection`, `getAllTermCollection`, `getTermCollectionPaginated`, `getTerm`, `getTermBySlug`
 - Builders: `content(resource, schema?)`, `terms(resource, schema?)`
+
+### Post base typing
+
+Use `WordPressPostBase` as the shared post-like foundation for pages and custom post types.
+
+```ts
+import type { WordPressCustomPost, WordPressPostBase } from 'fluent-wp-client';
+
+type Book = WordPressCustomPost<{
+  type: 'book';
+  book_genre?: string;
+}>;
+
+type PageLike = WordPressPostBase;
+```
 
 ### Mutation helpers
 
@@ -229,6 +249,9 @@ const pageQuery = wp.getPageBySlug('about');
 
 const postBlocks = await postQuery.getBlocks();
 const pageBlocks = await pageQuery.getBlocks();
+
+const postList = await wp.getPosts({ perPage: 5 });
+const firstListItemBlocks = await postList[0].getBlocks();
 ```
 
 `getBlocks()` requires edit capabilities because it reads `content.raw` using `context=edit`.

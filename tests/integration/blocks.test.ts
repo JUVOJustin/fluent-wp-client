@@ -113,4 +113,28 @@ describe('Client: Gutenberg block parsing', () => {
       name: 'WordPressApiError',
     });
   });
+
+  it('supports getBlocks() from getPosts() list results', async () => {
+    const posts = await authClient.getPosts({ perPage: 1, page: 1 });
+
+    expect(posts.length).toBeGreaterThan(0);
+
+    const firstPost = posts[0] as unknown as { getBlocks: () => Promise<unknown[]> };
+    const blocks = await firstPost.getBlocks();
+
+    expect(Array.isArray(blocks)).toBe(true);
+    expect((blocks as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  it('supports getBlocks() from getPages() list results', async () => {
+    const pages = await authClient.getPages({ perPage: 1, page: 1 });
+
+    expect(pages.length).toBeGreaterThan(0);
+
+    const firstPage = pages[0] as unknown as { getBlocks: () => Promise<unknown[]> };
+    const blocks = await firstPage.getBlocks();
+
+    expect(Array.isArray(blocks)).toBe(true);
+    expect((blocks as unknown[]).length).toBeGreaterThan(0);
+  });
 });

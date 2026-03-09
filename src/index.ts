@@ -94,6 +94,7 @@ export {
   type WordPressCategory,
   type WordPressComment,
   type WordPressContent,
+  type WordPressCustomPost,
   type WordPressEmbeddedMedia,
   type WordPressError,
   type WordPressAbilityAnnotations,
@@ -101,6 +102,7 @@ export {
   type WordPressAbilityCategory,
   type WordPressMedia,
   type WordPressPage,
+  type WordPressPostBase,
   type WordPressPost,
   type WordPressPostWriteBase,
   type WordPressPostWriteFields,
@@ -134,7 +136,10 @@ export {
 
 export {
   WordPressContentQuery,
+  createWordPressContentRecord,
   type WordPressGetBlocksOptions,
+  type WordPressContentMethods,
+  type WordPressContentRecord,
   type WordPressRawContentResult,
 } from './content-query.js';
 

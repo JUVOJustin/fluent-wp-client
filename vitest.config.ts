@@ -16,6 +16,7 @@ export default defineConfig({
     environment: 'node',
     globalSetup: './tests/setup/global-setup.ts',
     setupFiles: ['./tests/setup/env-loader.ts'],
+    fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 60_000,
     reporters: ['verbose'],

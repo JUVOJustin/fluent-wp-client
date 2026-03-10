@@ -97,6 +97,11 @@ export type ResolvableWordPressAuth<TContext = void> =
   | WordPressAuthResolver<TContext>;
 
 /**
+ * Auth resolver for server handlers that receive a standard Request object.
+ */
+export type RequestAuthResolver = WordPressAuthResolver<Request>;
+
+/**
  * Normalized request details passed to advanced auth header providers.
  */
 export interface WordPressAuthRequest {
@@ -116,6 +121,15 @@ export type WordPressAuthHeaders = Record<string, string>;
 export type WordPressAuthHeadersProvider = (
   request: WordPressAuthRequest
 ) => WordPressAuthHeaders | Promise<WordPressAuthHeaders>;
+
+/**
+ * Creates a typed auth resolver while preserving context inference.
+ */
+export function createAuthResolver<TContext>(
+  resolver: WordPressAuthResolver<TContext>
+): WordPressAuthResolver<TContext> {
+  return resolver;
+}
 
 /**
  * Identifies basic auth credentials from a generic auth union.

@@ -35,6 +35,8 @@ import {
   categorySchema,
   commentSchema,
   contentWordPressSchema,
+  jwtAuthTokenResponseSchema,
+  jwtAuthValidationResponseSchema,
   mediaSchema,
   pageSchema,
   postSchema,
@@ -1034,11 +1036,14 @@ export class WordPressClient {
    * Performs username/password JWT login against the WP JWT plugin endpoint.
    */
   async loginWithJwt(credentials: JwtLoginCredentials): Promise<JwtAuthTokenResponse> {
-    return this.executeMutation<JwtAuthTokenResponse>({
-      endpoint: '/wp-json/jwt-auth/v1/token',
-      method: 'POST',
-      body: credentials,
-    });
+    return this.executeMutation<JwtAuthTokenResponse>(
+      {
+        endpoint: '/wp-json/jwt-auth/v1/token',
+        method: 'POST',
+        body: credentials,
+      },
+      jwtAuthTokenResponseSchema,
+    );
   }
 
   /**
@@ -1049,11 +1054,14 @@ export class WordPressClient {
       ? createJwtAuthHeader(typeof token === 'string' ? token : token.token)
       : undefined;
 
-    return this.executeMutation<JwtAuthValidationResponse>({
-      endpoint: '/wp-json/jwt-auth/v1/token/validate',
-      method: 'POST',
-      auth: authHeader,
-    });
+    return this.executeMutation<JwtAuthValidationResponse>(
+      {
+        endpoint: '/wp-json/jwt-auth/v1/token/validate',
+        method: 'POST',
+        auth: authHeader,
+      },
+      jwtAuthValidationResponseSchema,
+    );
   }
 
   /**

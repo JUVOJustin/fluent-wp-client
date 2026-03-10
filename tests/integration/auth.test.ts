@@ -1,5 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
+import {
+  WordPressApiError,
+  WordPressClient,
+  jwtAuthErrorResponseSchema,
+  jwtAuthTokenResponseSchema,
+  jwtAuthValidationResponseSchema,
+} from 'fluent-wp-client';
 import { createCookieAuthClient, getBaseUrl } from '../helpers/wp-client';
 
 /**
@@ -17,12 +23,33 @@ describe('Client: Auth', () => {
       username: 'admin',
       password: 'password',
     });
+    const parsedTokenResponse = jwtAuthTokenResponseSchema.parse(tokenResponse);
 
-    expect(typeof tokenResponse.token).toBe('string');
-    expect(tokenResponse.token.length).toBeGreaterThan(20);
+    expect(typeof parsedTokenResponse.token).toBe('string');
+    expect(parsedTokenResponse.token.length).toBeGreaterThan(20);
 
     const validationResponse = await publicClient.validateJwtToken(tokenResponse.token);
-    expect(validationResponse.code).toBe('jwt_auth_valid_token');
+    const parsedValidationResponse = jwtAuthValidationResponseSchema.parse(validationResponse);
+
+    expect(parsedValidationResponse.code).toBe('jwt_auth_valid_token');
+  });
+
+  it('exports one runtime schema for JWT plugin error responses', async () => {
+    try {
+      await publicClient.loginWithJwt({
+        username: 'admin',
+        password: 'not-the-right-password',
+      });
+      throw new Error('Expected JWT login to fail with invalid credentials.');
+    } catch (error) {
+      expect(error).toBeInstanceOf(WordPressApiError);
+
+      const parsedErrorResponse = jwtAuthErrorResponseSchema.parse(
+        (error as WordPressApiError).responseBody,
+      );
+
+      expect(parsedErrorResponse.message.length).toBeGreaterThan(0);
+    }
   });
 
   it('supports cookie nonce auth for authenticated REST endpoints', async () => {

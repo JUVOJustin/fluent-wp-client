@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 This is the primary developer guide for `fluent-wp-client`.
 
@@ -50,78 +50,13 @@ const wp = new WordPressClient({
 });
 ```
 
-## Authentication patterns
-
-<Tabs>
-  <TabItem label="Public">
-
-```ts
-const publicClient = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-});
-```
-
-  </TabItem>
-
-  <TabItem label="Basic">
-
-```ts
-const basicClient = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-  auth: { username: 'admin', password: 'app-password' },
-});
-```
-
-  </TabItem>
-
-  <TabItem label="JWT">
-
-```ts
-const jwtClient = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-  auth: { token: 'jwt-token' },
-});
-```
-
-Requires the [JWT Authentication for WP REST API](https://wordpress.org/plugins/jwt-authentication-for-wp-rest-api/) plugin.
-
-  </TabItem>
-
-  <TabItem label="Cookie + nonce">
-
-```ts
-const cookieNonceClient = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-  auth: { nonce: 'wp-rest-nonce', credentials: 'include' },
-});
-```
-
-  </TabItem>
-
-  <TabItem label="Auth header">
-
-```ts
-const headerClient = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-  authHeader: 'Bearer jwt-token',
-});
-```
-
-  </TabItem>
-
-  <TabItem label="Request signing">
-
-```ts
-const signedClient = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-  authHeaders: ({ method, url, body }) => ({
-    Authorization: createSignedAuthHeader({ method, url: url.toString(), body }),
-  }),
-});
-```
-
-  </TabItem>
-</Tabs>
+<CardGrid>
+  <LinkCard
+    title="Authentication guide"
+    href="./auth.mdx"
+    description="Choose the right auth strategy, including request-aware resolver helpers."
+  />
+</CardGrid>
 
 ## API styles
 

@@ -1,17 +1,9 @@
 import type { WordPressBlockParser } from './blocks.js';
-import {
-  WordPressContentQuery,
-  createWordPressContentRecord,
-  type WordPressContentRecord,
-} from './content-query.js';
+import { WordPressContentQuery } from './content-query.js';
 import type { WordPressPostBase } from './schemas.js';
-import {
-  filterToParams,
-  type FetchResult,
-  type PaginatedResponse,
-  type PaginationParams,
-} from './types.js';
-import { createWordPressPaginator } from './pagination.js';
+import { filterToParams } from './core/params.js';
+import type { FetchResult, PaginatedResponse, PaginationParams } from './types/resources.js';
+import { createWordPressPaginator } from './core/pagination.js';
 
 /**
  * Runtime dependencies required for post-like resource read methods.
@@ -30,6 +22,9 @@ export interface PostLikeReadMethodConfig<
 
 /**
  * Shared read methods for post-like resources such as posts and pages.
+ *
+ * List methods return plain serializable DTO arrays. Single-item getters
+ * return `WordPressContentQuery` instances with Gutenberg block helpers.
  */
 export function createPostLikeReadMethods<
   TContent extends WordPressPostBase,
@@ -44,49 +39,29 @@ export function createPostLikeReadMethods<
   });
 
   /**
-   * Wraps one post-like response item with block helper methods.
+   * Lists one page of post-like content as plain serializable DTOs.
    */
-  function wrapRecord(item: TContent): WordPressContentRecord<TContent> {
-    return createWordPressContentRecord<TContent>({
-      value: item,
-      loadEdit: () => config.fetchAPI<TContent>(`/${config.resource}/${item.id}`, { _embed: 'true', context: 'edit' }),
-      missingRawMessage: config.missingRawMessage,
-      defaultBlockParser: config.defaultBlockParser,
-    });
-  }
-
-  /**
-   * Lists one page of post-like content.
-   */
-  async function list(filter: TFilter = {} as TFilter): Promise<Array<WordPressContentRecord<TContent>>> {
+  async function list(filter: TFilter = {} as TFilter): Promise<TContent[]> {
     const params = filterToParams(withDefaultFilter(filter));
-    const items = await config.fetchAPI<TContent[]>(`/${config.resource}`, params);
-    return items.map((item) => wrapRecord(item));
+    return config.fetchAPI<TContent[]>(`/${config.resource}`, params);
   }
 
   /**
-   * Lists all post-like content by paging through the entire resource.
+   * Lists all post-like content as plain serializable DTOs by paging through every page.
    */
-  async function listAll(filter: Omit<TFilter, 'page'> = {} as Omit<TFilter, 'page'>): Promise<Array<WordPressContentRecord<TContent>>> {
-    const items = await paginator.listAll(filter);
-
-    return items.map((item) => wrapRecord(item));
+  async function listAll(filter: Omit<TFilter, 'page'> = {} as Omit<TFilter, 'page'>): Promise<TContent[]> {
+    return paginator.listAll(filter);
   }
 
   /**
-   * Lists one page of post-like content with pagination metadata.
+   * Lists one page of post-like content as plain serializable DTOs with pagination metadata.
    */
-  async function listPaginated(filter: TFilter = {} as TFilter): Promise<PaginatedResponse<WordPressContentRecord<TContent>>> {
-    const result = await paginator.listPaginated(filter);
-
-    return {
-      ...result,
-      data: result.data.map((item) => wrapRecord(item)),
-    };
+  async function listPaginated(filter: TFilter = {} as TFilter): Promise<PaginatedResponse<TContent>> {
+    return paginator.listPaginated(filter);
   }
 
   /**
-   * Gets one post-like record by numeric ID.
+   * Gets one post-like record by numeric ID as a content query with block helpers.
    */
   function getById(id: number): WordPressContentQuery<TContent> {
     return new WordPressContentQuery<TContent>(
@@ -98,7 +73,7 @@ export function createPostLikeReadMethods<
   }
 
   /**
-   * Gets one post-like record by slug.
+   * Gets one post-like record by slug as a content query with block helpers.
    */
   function getBySlug(slug: string): WordPressContentQuery<TContent | undefined> {
     return new WordPressContentQuery<TContent | undefined>(

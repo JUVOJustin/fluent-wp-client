@@ -11,6 +11,64 @@
 - Validate and require only the minimum data needed for a feature to work. Keep optional and custom fields extensible so projects can layer in ACF fields, meta, relations, and plugin data without fighting the package.
 - Avoid hard-coded assumptions that only fit default posts and pages. Always leave room for custom post types, taxonomies, fields, actions, and REST namespaces.
 
+## Serialization
+
+- All terminal read methods return plain serializable DTOs by default. Returned data must survive `structuredClone()`, `JSON.stringify()`, and cross-boundary transport (SSR, RSC, `postMessage`, cache).
+- No fetched DTO should contain functions, `then`, `PromiseLike`, or hidden closures. Never mutate API response objects with runtime helpers via `Object.assign` or similar.
+- Runtime query helpers (`WordPressContentQuery`, `WordPressRequestBuilder`, `PostRelationQueryBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
+- Standalone utility functions (like `parseWordPressBlocks`) handle stateless transforms on already-fetched DTOs.
+- List methods (`getPosts`, `getPages`, `getAllPosts`, etc.) return plain DTO arrays. Single-item getters (`getPost`, `getPostBySlug`, etc.) return `WordPressContentQuery` instances (thenable, with `.getBlocks()` / `.getContent()`).
+- When adding new resource helpers, follow the same contract: collections return plain arrays, single-item getters return query wrappers only when block/content helpers are needed.
+
+## File Structure
+
+```
+src/
+  index.ts                     # Public exports barrel
+  client.ts                    # WordPressClient class
+  client-types.ts              # Client config and request option types
+  schemas.ts                   # Zod schemas and inferred DTO types
+  auth.ts                      # Auth types, helpers, resolvers
+  blocks.ts                    # Block parser types and parseWordPressBlocks
+  abilities.ts                 # Ability methods and builder
+  content-query.ts             # WordPressContentQuery class
+  content-read-methods.ts      # Shared post-like read method factory
+  types.ts                     # Re-export barrel for types/ subdirectory
+
+  core/                        # Core infrastructure
+    errors.ts                  # WordPressApiError, throwIfWordPressError
+    pagination.ts              # createWordPressPaginator
+    validation.ts              # Standard Schema validation helpers
+    params.ts                  # filterToParams, compactPayload
+
+  types/                       # Pure type definitions (no runtime)
+    filters.ts                 # PostsFilter, PagesFilter, MediaFilter, etc.
+    payloads.ts                # WordPressWritePayload, TermWriteInput, DeleteOptions, etc.
+    resources.ts               # ContentResourceClient, PaginatedResponse, FetchResult, etc.
+
+  resources/                   # Resource method factories
+    posts.ts                   # createPostsMethods
+    pages.ts                   # createPagesMethods
+    media.ts                   # createMediaMethods
+    categories.ts              # createCategoriesMethods
+    tags.ts                    # createTagsMethods
+    users.ts                   # createUsersMethods
+    comments.ts                # createCommentsMethods
+    settings.ts                # createSettingsMethods
+    content-terms.ts           # Generic content/terms builders
+
+  builders/                    # Fluent query/request builders
+    wpapi-request.ts           # WordPressRequestBuilder (WPAPI compat chain)
+    relations.ts               # PostRelationQueryBuilder
+```
+
+When adding new files:
+- Resource-specific method factories go in `resources/`.
+- Fluent builder/query classes go in `builders/`.
+- Pure type definitions (no runtime code) go in `types/`.
+- Runtime utilities shared across resources go in `core/`.
+- Root `src/` files are reserved for top-level concerns (client, schemas, auth, blocks).
+
 ## Testing
 
 ### Philosophy
@@ -128,6 +186,7 @@ Reference integration suites:
 - `tests/integration/acf.test.ts` — ACF REST field coverage across seeded and mutated content.
 - `tests/integration/relations.test.ts` — fluent post relation hydration coverage.
 - `tests/integration/wpapi-compat.test.ts` — WPAPI-compatible request builder coverage.
+- `tests/integration/serialization.test.ts` — DTO serialization safety (`structuredClone`, `JSON.stringify`, no helper leakage).
 
 ### What to test when adding new features
 

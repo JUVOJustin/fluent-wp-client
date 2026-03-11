@@ -22,23 +22,6 @@ export interface WordPressGetBlocksOptions {
 }
 
 /**
- * Shared method surface exposed by query and record wrappers.
- */
-export interface WordPressContentMethods<TContent extends WordPressPostBase> {
-  get: () => Promise<TContent>;
-  getContent: () => Promise<WordPressRawContentResult>;
-  getBlocks: (options?: WordPressGetBlocksOptions) => Promise<WordPressParsedBlock[]>;
-}
-
-/**
- * Post-like record instance that keeps original fields and adds block helpers.
- */
-export type WordPressContentRecord<TContent extends WordPressPostBase> =
-  TContent
-  & WordPressContentMethods<TContent>
-  & PromiseLike<TContent>;
-
-/**
  * Resolves raw and rendered content from one post-like API response.
  */
 export function resolveWordPressRawContent(
@@ -54,51 +37,6 @@ export function resolveWordPressRawContent(
     rendered: value.content.rendered,
     protected: value.content.protected,
   };
-}
-
-/**
- * Builds one post-like record wrapper from already loaded view-context data.
- */
-export function createWordPressContentRecord<TContent extends WordPressPostBase>(config: {
-  value: TContent;
-  loadEdit: () => Promise<TContent>;
-  missingRawMessage: string;
-  defaultBlockParser?: WordPressBlockParser;
-}): WordPressContentRecord<TContent> {
-  let editPromise: Promise<TContent> | undefined;
-
-  const get = async (): Promise<TContent> => {
-    return config.value;
-  };
-
-  const getContent = async (): Promise<WordPressRawContentResult> => {
-    if (config.value.content.raw !== undefined) {
-      return resolveWordPressRawContent(config.value, config.missingRawMessage);
-    }
-
-    if (!editPromise) {
-      editPromise = config.loadEdit();
-    }
-
-    const editValue = await editPromise;
-    return resolveWordPressRawContent(editValue, config.missingRawMessage);
-  };
-
-  const getBlocks = async (options: WordPressGetBlocksOptions = {}): Promise<WordPressParsedBlock[]> => {
-    const content = await getContent();
-    return parseWordPressBlocks(content.raw, options.parser ?? config.defaultBlockParser);
-  };
-
-  const then: PromiseLike<TContent>['then'] = (onfulfilled, onrejected) => {
-    return get().then(onfulfilled, onrejected);
-  };
-
-  return Object.assign(config.value, {
-    get,
-    getContent,
-    getBlocks,
-    then,
-  });
 }
 
 /**

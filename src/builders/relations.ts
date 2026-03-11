@@ -4,7 +4,7 @@ import type {
   WordPressMedia,
   WordPressPost,
   WordPressTag,
-} from './schemas.js';
+} from '../schemas.js';
 
 /**
  * Supported relation names for fluent post hydration.

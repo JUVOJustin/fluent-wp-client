@@ -95,21 +95,18 @@ If the caller does not have edit capabilities, WordPress returns an auth/capabil
   />
 </CardGrid>
 
-`getBlocks()` is available on single-resource post/page queries:
+`getBlocks()` and `getContent()` are available on single-resource post/page queries:
 
 - `getPost(id)`
 - `getPostBySlug(slug)`
 - `getPage(id)`
 - `getPageBySlug(slug)`
 
-Post and page collection methods now return arrays of post-like records that keep all original fields and also expose block helpers:
-
-- `getPosts()`, `getAllPosts()`, `getPostsPaginated().data`
-- `getPages()`, `getAllPages()`, `getPagesPaginated().data`
+List methods (`getPosts`, `getAllPosts`, `getPages`, etc.) return plain serializable DTO arrays. For block parsing on a specific item, use the single-item query:
 
 ```ts
 const posts = await wp.getPosts({ perPage: 5 });
-const blocks = await posts[0].getBlocks();
+const blocks = await wp.getPost(posts[0].id).getBlocks();
 ```
 
 ## WPAPI-Compatible Syntax

@@ -79,9 +79,9 @@ The returned block shape includes:
 - `innerHTML`
 - `innerContent`
 
-## Block parsing from list records
+## Block parsing from list items
 
-Post and page collection helpers also return records with `getContent()` and `getBlocks()`.
+List methods return plain serializable DTO arrays without block helpers. Use a single-item query on a known ID for block access:
 
 ```ts title="Parse blocks from a posts list"
 const posts = await wp.getPosts({ perPage: 5 });
@@ -91,7 +91,7 @@ if (!first) {
   throw new Error('No posts returned.');
 }
 
-const firstBlocks = await first.getBlocks();
+const firstBlocks = await wp.getPost(first.id).getBlocks();
 console.log(firstBlocks.length);
 ```
 

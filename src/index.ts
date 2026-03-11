@@ -31,7 +31,7 @@ export {
 export {
   WordPressRequestBuilder,
   type WordPressRequestDeleteOptions,
-} from './wpapi-request.js';
+} from './builders/wpapi-request.js';
 
 export {
   createBasicAuthHeader,
@@ -65,14 +65,14 @@ export {
   validateWithStandardSchema,
   type WordPressSchemaIssue,
   type WordPressStandardSchema,
-} from './validation.js';
+} from './core/validation.js';
 
 export {
   WordPressApiError,
   createWordPressApiError,
   throwIfWordPressError,
   type WordPressErrorPayload,
-} from './errors.js';
+} from './core/errors.js';
 
 export {
   baseWordPressSchema,
@@ -118,33 +118,33 @@ export {
 export {
   filterToParams,
   compactPayload,
-  type ContentResourceClient,
-  type DeleteOptions,
-  type FetchResult,
-  type PaginatedResponse,
-  type PaginationParams,
-  type QueryParamPrimitive,
-  type QueryParams,
-  type TermsResourceClient,
-  type TermWriteInput,
-  type UserDeleteOptions,
-  type UserWriteInput,
-  type WordPressDeleteResult,
-  type WordPressWritePayload,
+} from './core/params.js';
+
+export type {
+  ContentResourceClient,
+  DeleteOptions,
+  FetchResult,
+  PaginatedResponse,
+  PaginationParams,
+  QueryParamPrimitive,
+  QueryParams,
+  TermsResourceClient,
+  TermWriteInput,
+  UserDeleteOptions,
+  UserWriteInput,
+  WordPressDeleteResult,
+  WordPressWritePayload,
 } from './types.js';
 
 export {
   PostRelationQueryBuilder,
   type PostRelation,
   type SelectedPostRelations,
-} from './relations.js';
+} from './builders/relations.js';
 
 export {
   WordPressContentQuery,
-  createWordPressContentRecord,
   type WordPressGetBlocksOptions,
-  type WordPressContentMethods,
-  type WordPressContentRecord,
   type WordPressRawContentResult,
 } from './content-query.js';
 
@@ -158,4 +158,4 @@ export {
 export {
   createWordPressPaginator,
   type WordPressPaginatorOptions,
-} from './pagination.js';
+} from './core/pagination.js';

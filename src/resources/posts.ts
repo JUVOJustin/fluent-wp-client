@@ -1,7 +1,8 @@
-import type { WordPressBlockParser } from './blocks.js';
-import { createPostLikeReadMethods } from './content-read-methods.js';
-import type { WordPressPost } from './schemas.js';
-import type { FetchResult, PostsFilter } from './types.js';
+import type { WordPressBlockParser } from '../blocks.js';
+import { createPostLikeReadMethods } from '../content-read-methods.js';
+import type { WordPressPost } from '../schemas.js';
+import type { FetchResult } from '../types/resources.js';
+import type { PostsFilter } from '../types/filters.js';
 
 const missingRawPostMessage =
   'Raw post content is unavailable. The current credentials may not have edit capabilities for this post.';

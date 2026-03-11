@@ -4,6 +4,12 @@ import { createAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-
 
 /**
  * Integration coverage for Gutenberg block parsing helpers.
+ *
+ * Single-item queries (`getPost`, `getPostBySlug`, `getPage`, `getPageBySlug`)
+ * return `WordPressContentQuery` instances with `.getBlocks()` and `.getContent()`.
+ *
+ * List methods (`getPosts`, `getPages`, etc.) return plain serializable DTOs
+ * without block helpers. Use a single-item query on a known ID for block access.
  */
 describe('Client: Gutenberg block parsing', () => {
   let authClient: WordPressClient;
@@ -114,49 +120,50 @@ describe('Client: Gutenberg block parsing', () => {
     });
   });
 
-  it('throws auth/capability error when public list results call getBlocks()', async () => {
-    const posts = await publicClient.getPosts({ perPage: 1, page: 1 });
-
-    expect(posts.length).toBeGreaterThan(0);
-
-    const firstPost = posts[0] as unknown as { getBlocks: () => Promise<unknown[]> };
-
-    await expect(firstPost.getBlocks()).rejects.toMatchObject({
-      name: 'WordPressApiError',
-    });
-  });
-
-  it('supports getBlocks() from getPosts() list results', async () => {
-    const slug = `client-blocks-list-post-${Date.now()}`;
+  it('retrieves blocks from list items via single-item query', async () => {
+    const slug = `client-blocks-list-query-${Date.now()}`;
     const created = await authClient.createPost({
-      title: 'Client Blocks: list post',
+      title: 'Client Blocks: list to query',
       slug,
       status: 'publish',
-      content: '<!-- wp:paragraph --><p>List post block body.</p><!-- /wp:paragraph -->',
+      content: '<!-- wp:paragraph --><p>List-to-query block body.</p><!-- /wp:paragraph -->',
     });
 
     createdPostIds.push(created.id);
 
     const posts = await authClient.getPosts({ perPage: 100, page: 1 });
-    const createdFromList = posts.find((post) => post.id === created.id) as unknown as { getBlocks: () => Promise<unknown[]> } | undefined;
+    const match = posts.find((post) => post.id === created.id);
 
-    expect(createdFromList).toBeDefined();
+    expect(match).toBeDefined();
 
-    const blocks = await createdFromList!.getBlocks();
+    const blocks = await authClient.getPost(match!.id).getBlocks();
 
-    expect(Array.isArray(blocks)).toBe(true);
-    expect((blocks as unknown[]).length).toBeGreaterThan(0);
+    expect(blocks).toBeDefined();
+    expect(blocks!.length).toBeGreaterThan(0);
+    expect(blocks![0].blockName).toBe('core/paragraph');
+    expect(blocks![0].innerHTML).toContain('<p>List-to-query block body.</p>');
   });
 
-  it('supports getBlocks() from getPages() list results', async () => {
-    const pages = await authClient.getPages({ perPage: 1, page: 1 });
+  it('retrieves blocks from page list items via single-item query', async () => {
+    const slug = `client-blocks-list-page-${Date.now()}`;
+    const created = await authClient.createPage({
+      title: 'Client Blocks: page list to query',
+      slug,
+      status: 'publish',
+      content: '<!-- wp:paragraph --><p>Page list block body.</p><!-- /wp:paragraph -->',
+    });
 
-    expect(pages.length).toBeGreaterThan(0);
+    createdPageIds.push(created.id);
 
-    const firstPage = pages[0] as unknown as { getBlocks: () => Promise<unknown[]> };
-    const blocks = await firstPage.getBlocks();
+    const pages = await authClient.getPages({ perPage: 100, page: 1 });
+    const match = pages.find((page) => page.id === created.id);
 
-    expect(Array.isArray(blocks)).toBe(true);
-    expect((blocks as unknown[]).length).toBeGreaterThan(0);
+    expect(match).toBeDefined();
+
+    const blocks = await authClient.getPage(match!.id).getBlocks();
+
+    expect(blocks).toBeDefined();
+    expect(blocks!.length).toBeGreaterThan(0);
+    expect(blocks![0].innerHTML).toContain('<p>Page list block body.</p>');
   });
 });

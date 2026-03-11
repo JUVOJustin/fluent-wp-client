@@ -294,10 +294,12 @@ You can still `await` them directly, and you can also call:
 - `.getContent()` for `{ raw, rendered, protected }` via `context=edit`
 - `.getBlocks()` for parsed Gutenberg blocks
 
-Post/page list helpers also return post-like records with the same block methods:
+Post/page list methods (`getPosts`, `getAllPosts`, `getPages`, etc.) return plain serializable DTO arrays without block helpers. Use a single-item query for block access:
 
-- `getPosts()`, `getAllPosts()`, `getPostsPaginated().data`
-- `getPages()`, `getAllPages()`, `getPagesPaginated().data`
+```ts
+const posts = await wp.getPosts({ perPage: 5 });
+const blocks = await wp.getPost(posts[0].id).getBlocks();
+```
 
 Media uses a different schema (`description`/`caption`, no `content.raw`), so media helpers do not expose `getBlocks()`.
 

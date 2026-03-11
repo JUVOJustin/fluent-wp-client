@@ -1,7 +1,8 @@
-import type { WordPressTag } from './schemas.js';
-import type { FetchResult, PaginatedResponse, TagsFilter } from './types.js';
-import { createWordPressPaginator } from './pagination.js';
-import { filterToParams } from './types.js';
+import type { WordPressTag } from '../schemas.js';
+import type { TagsFilter } from '../types/filters.js';
+import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import { createWordPressPaginator } from '../core/pagination.js';
+import { filterToParams } from '../core/params.js';
 
 /**
  * Tags API methods factory for typed read operations.

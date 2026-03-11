@@ -2,9 +2,9 @@ import {
   type WordPressAuthHeaders,
   type WordPressAuthHeadersProvider,
   type WordPressAuthInput,
-} from './auth.js';
-import { throwIfWordPressError } from './errors.js';
-import type { WordPressRequestOptions, WordPressRequestResult } from './client-types.js';
+} from '../auth.js';
+import { throwIfWordPressError } from '../core/errors.js';
+import type { WordPressRequestOptions, WordPressRequestResult } from '../client-types.js';
 
 /**
  * Runtime hooks used by the WPAPI-style request builder.

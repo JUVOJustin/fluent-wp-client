@@ -98,10 +98,11 @@ describe('Client: DTO serialization', () => {
 
   describe('single-item query resolution', () => {
     it('getPost() resolves to a structuredClone-safe DTO', async () => {
-      const post = await publicClient.getPost(1);
+      const lookup = await publicClient.getPostBySlug('test-post-001');
 
-      expect(post).toBeDefined();
+      expect(lookup).toBeDefined();
 
+      const post = await publicClient.getPost(lookup!.id);
       const cloned = structuredClone(post);
 
       expect(cloned.id).toBe(post.id);

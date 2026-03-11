@@ -20,16 +20,16 @@ import type {
   WordPressRequestOptions,
   WordPressRequestResult,
 } from './client-types.js';
-import { createPostsMethods } from './posts.js';
-import { createPagesMethods } from './pages.js';
-import { createMediaMethods } from './media.js';
-import { createCategoriesMethods } from './categories.js';
-import { createTagsMethods } from './tags.js';
-import { createUsersMethods } from './users.js';
-import { createSettingsMethods } from './settings.js';
-import { createCommentsMethods } from './comments.js';
-import { createContentTermMethods } from './client-content-terms.js';
-import { throwIfWordPressError } from './errors.js';
+import { createPostsMethods } from './resources/posts.js';
+import { createPagesMethods } from './resources/pages.js';
+import { createMediaMethods } from './resources/media.js';
+import { createCategoriesMethods } from './resources/categories.js';
+import { createTagsMethods } from './resources/tags.js';
+import { createUsersMethods } from './resources/users.js';
+import { createSettingsMethods } from './resources/settings.js';
+import { createCommentsMethods } from './resources/comments.js';
+import { createContentTermMethods } from './resources/content-terms.js';
+import { throwIfWordPressError } from './core/errors.js';
 import {
   authorSchema,
   categorySchema,
@@ -56,32 +56,36 @@ import {
   PostRelationQueryBuilder,
   type PostRelation,
   type SelectedPostRelations,
-} from './relations.js';
-import { WordPressRequestBuilder } from './wpapi-request.js';
+} from './builders/relations.js';
+import { WordPressRequestBuilder } from './builders/wpapi-request.js';
 import {
   validateWithStandardSchema,
   type WordPressStandardSchema,
-} from './validation.js';
-import {
-  compactPayload,
-  type CategoriesFilter,
-  type CommentsFilter,
-  type ContentResourceClient,
-  type DeleteOptions,
-  type FetchResult,
-  type MediaFilter,
-  type PaginatedResponse,
-  type PagesFilter,
-  type PostsFilter,
-  type TagsFilter,
-  type TermWriteInput,
-  type TermsResourceClient,
-  type UserDeleteOptions,
-  type UsersFilter,
-  type UserWriteInput,
-  type WordPressDeleteResult,
-  type WordPressWritePayload,
-} from './types.js';
+} from './core/validation.js';
+import { compactPayload } from './core/params.js';
+import type {
+  CategoriesFilter,
+  CommentsFilter,
+  MediaFilter,
+  PagesFilter,
+  PostsFilter,
+  TagsFilter,
+  UsersFilter,
+} from './types/filters.js';
+import type {
+  DeleteOptions,
+  TermWriteInput,
+  UserDeleteOptions,
+  UserWriteInput,
+  WordPressWritePayload,
+} from './types/payloads.js';
+import type {
+  ContentResourceClient,
+  FetchResult,
+  PaginatedResponse,
+  TermsResourceClient,
+  WordPressDeleteResult,
+} from './types/resources.js';
 
 export type {
   WordPressClientConfig,

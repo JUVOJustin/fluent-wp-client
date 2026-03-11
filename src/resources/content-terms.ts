@@ -1,21 +1,22 @@
-import type { WordPressCategory, WordPressContent } from './schemas.js';
-import type { WordPressRequestOptions, WordPressRequestResult } from './client-types.js';
-import type { WordPressStandardSchema } from './validation.js';
-import { createWordPressPaginator } from './pagination.js';
-import {
-  compactPayload,
-  filterToParams,
-  type ContentResourceClient,
-  type DeleteOptions,
-  type FetchResult,
-  type PaginatedResponse,
-  type PaginationParams,
-  type QueryParams,
-  type TermsResourceClient,
-  type TermWriteInput,
-  type WordPressDeleteResult,
-  type WordPressWritePayload,
-} from './types.js';
+import type { WordPressCategory, WordPressContent } from '../schemas.js';
+import type { WordPressRequestOptions, WordPressRequestResult } from '../client-types.js';
+import type { WordPressStandardSchema } from '../core/validation.js';
+import { createWordPressPaginator } from '../core/pagination.js';
+import { compactPayload, filterToParams } from '../core/params.js';
+import type {
+  ContentResourceClient,
+  FetchResult,
+  PaginatedResponse,
+  PaginationParams,
+  QueryParams,
+  TermsResourceClient,
+  WordPressDeleteResult,
+} from '../types/resources.js';
+import type {
+  DeleteOptions,
+  TermWriteInput,
+  WordPressWritePayload,
+} from '../types/payloads.js';
 
 /**
  * Runtime hooks required for generic content and term method groups.

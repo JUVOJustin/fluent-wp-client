@@ -1,7 +1,8 @@
-import type { WordPressComment } from './schemas.js';
-import type { CommentsFilter, FetchResult, PaginatedResponse } from './types.js';
-import { createWordPressPaginator } from './pagination.js';
-import { filterToParams } from './types.js';
+import type { WordPressComment } from '../schemas.js';
+import type { CommentsFilter } from '../types/filters.js';
+import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import { createWordPressPaginator } from '../core/pagination.js';
+import { filterToParams } from '../core/params.js';
 
 /**
  * Comments API methods factory for typed read operations.

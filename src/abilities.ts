@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { WordPressRequestOptions, WordPressRequestResult } from './client-types.js';
-import { throwIfWordPressError } from './errors.js';
+import { throwIfWordPressError } from './core/errors.js';
 import {
   abilityCategorySchema,
   abilitySchema,
@@ -10,7 +10,7 @@ import {
 import {
   validateWithStandardSchema,
   type WordPressStandardSchema,
-} from './validation.js';
+} from './core/validation.js';
 
 const ABILITIES_BASE_ENDPOINT = '/wp-json/wp-abilities/v1';
 const abilitiesSchema = z.array(abilitySchema);

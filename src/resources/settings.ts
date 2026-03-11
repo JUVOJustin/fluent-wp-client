@@ -1,4 +1,4 @@
-import type { WordPressSettings } from './schemas.js';
+import type { WordPressSettings } from '../schemas.js';
 
 /**
  * Settings API methods factory for typed read operations.

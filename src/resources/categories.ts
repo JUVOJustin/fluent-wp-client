@@ -1,7 +1,8 @@
-import type { WordPressCategory } from './schemas.js';
-import type { CategoriesFilter, FetchResult, PaginatedResponse } from './types.js';
-import { createWordPressPaginator } from './pagination.js';
-import { filterToParams } from './types.js';
+import type { WordPressCategory } from '../schemas.js';
+import type { CategoriesFilter } from '../types/filters.js';
+import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import { createWordPressPaginator } from '../core/pagination.js';
+import { filterToParams } from '../core/params.js';
 
 /**
  * Categories API methods factory for typed read operations.

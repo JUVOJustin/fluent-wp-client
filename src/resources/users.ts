@@ -1,7 +1,8 @@
-import type { WordPressAuthor } from './schemas.js';
-import type { FetchResult, PaginatedResponse, UsersFilter } from './types.js';
-import { createWordPressPaginator } from './pagination.js';
-import { filterToParams } from './types.js';
+import type { WordPressAuthor } from '../schemas.js';
+import type { UsersFilter } from '../types/filters.js';
+import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import { createWordPressPaginator } from '../core/pagination.js';
+import { filterToParams } from '../core/params.js';
 
 /**
  * Users API methods factory for typed read operations.

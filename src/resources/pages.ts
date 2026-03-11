@@ -1,7 +1,8 @@
-import type { WordPressBlockParser } from './blocks.js';
-import { createPostLikeReadMethods } from './content-read-methods.js';
-import type { WordPressPage } from './schemas.js';
-import type { FetchResult, PagesFilter } from './types.js';
+import type { WordPressBlockParser } from '../blocks.js';
+import { createPostLikeReadMethods } from '../content-read-methods.js';
+import type { WordPressPage } from '../schemas.js';
+import type { FetchResult } from '../types/resources.js';
+import type { PagesFilter } from '../types/filters.js';
 
 const missingRawPageMessage =
   'Raw page content is unavailable. The current credentials may not have edit capabilities for this page.';

@@ -1,4 +1,4 @@
-import type { FetchResult, PaginatedResponse, PaginationParams } from './types.js';
+import type { FetchResult, PaginatedResponse, PaginationParams } from '../types/resources.js';
 
 /**
  * Generic paginator options for one WordPress collection resource.

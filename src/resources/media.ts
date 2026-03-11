@@ -1,7 +1,8 @@
-import type { WordPressMedia } from './schemas.js';
-import type { FetchResult, MediaFilter, PaginatedResponse } from './types.js';
-import { createWordPressPaginator } from './pagination.js';
-import { filterToParams } from './types.js';
+import type { WordPressMedia } from '../schemas.js';
+import type { MediaFilter } from '../types/filters.js';
+import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import { createWordPressPaginator } from '../core/pagination.js';
+import { filterToParams } from '../core/params.js';
 
 /**
  * Media API methods factory for typed read operations.

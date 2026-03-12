@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       'fluent-wp-client': fileURLToPath(new URL('./dist/index.js', import.meta.url)),
+      'fluent-wp-client/zod': fileURLToPath(new URL('./dist/zod.js', import.meta.url)),
     },
   },
   test: {

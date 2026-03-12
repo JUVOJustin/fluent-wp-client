@@ -13,13 +13,13 @@ import {
 } from './core/validation.js';
 
 const ABILITIES_BASE_ENDPOINT = '/wp-json/wp-abilities/v1';
-const abilitiesSchema = z.array(abilitySchema);
-const abilityCategoriesSchema = z.array(abilityCategorySchema);
+const zodAbilitiesSchema = z.array(abilitySchema);
+const zodAbilityCategoriesSchema = z.array(abilityCategorySchema);
 
 /**
  * Input wrapper for executing one read-only WordPress ability via GET.
  */
-export const getAbilityInputSchema = z.object({
+export const zodGetAbilityInputSchema = z.object({
   name: z.string().trim().min(1),
   input: z.unknown().optional(),
 });
@@ -27,7 +27,7 @@ export const getAbilityInputSchema = z.object({
 /**
  * Input wrapper for executing one regular WordPress ability via POST.
  */
-export const runAbilityInputSchema = z.object({
+export const zodRunAbilityInputSchema = z.object({
   name: z.string().trim().min(1),
   input: z.unknown().optional(),
 });
@@ -35,14 +35,14 @@ export const runAbilityInputSchema = z.object({
 /**
  * Input wrapper for executing one destructive WordPress ability via DELETE.
  */
-export const deleteAbilityInputSchema = z.object({
+export const zodDeleteAbilityInputSchema = z.object({
   name: z.string().trim().min(1),
   input: z.unknown().optional(),
 });
 
-export type GetAbilityInput = z.infer<typeof getAbilityInputSchema>;
-export type RunAbilityInput = z.infer<typeof runAbilityInputSchema>;
-export type DeleteAbilityInput = z.infer<typeof deleteAbilityInputSchema>;
+export type GetAbilityInput = z.infer<typeof zodGetAbilityInputSchema>;
+export type RunAbilityInput = z.infer<typeof zodRunAbilityInputSchema>;
+export type DeleteAbilityInput = z.infer<typeof zodDeleteAbilityInputSchema>;
 
 /**
  * Runtime hooks required for WordPress abilities support.
@@ -159,6 +159,20 @@ async function parseAbilityResponse<TOutput>(
 }
 
 /**
+ * Validates one ability metadata payload with a schema.
+ */
+async function parseAbilityMetadata<TOutput>(
+  schema: WordPressStandardSchema<TOutput>,
+  payload: unknown,
+): Promise<TOutput> {
+  return validateWithStandardSchema(
+    schema,
+    payload,
+    'WordPress ability metadata validation failed',
+  );
+}
+
+/**
  * Fluent executor for one registered WordPress ability.
  */
 export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
@@ -198,7 +212,7 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
    */
   async getDefinition(): Promise<WordPressAbility> {
     const ability = await this.runtime.fetchAPI<WordPressAbility>(createAbilityEndpoint(this.abilityName));
-    return abilitySchema.parse(ability);
+    return parseAbilityMetadata(abilitySchema, ability);
   }
 
   /**
@@ -253,7 +267,7 @@ export function createAbilityMethods(runtime: WordPressAbilityRuntime) {
    */
   async function getAbilities(): Promise<WordPressAbility[]> {
     const abilities = await runtime.fetchAPI<WordPressAbility[]>(`${ABILITIES_BASE_ENDPOINT}/abilities`);
-    return abilitiesSchema.parse(abilities);
+    return parseAbilityMetadata(zodAbilitiesSchema, abilities);
   }
 
   /**
@@ -261,7 +275,7 @@ export function createAbilityMethods(runtime: WordPressAbilityRuntime) {
    */
   async function getAbility(name: string): Promise<WordPressAbility> {
     const ability = await runtime.fetchAPI<WordPressAbility>(createAbilityEndpoint(name));
-    return abilitySchema.parse(ability);
+    return parseAbilityMetadata(abilitySchema, ability);
   }
 
   /**
@@ -269,7 +283,7 @@ export function createAbilityMethods(runtime: WordPressAbilityRuntime) {
    */
   async function getAbilityCategories(): Promise<WordPressAbilityCategory[]> {
     const categories = await runtime.fetchAPI<WordPressAbilityCategory[]>(`${ABILITIES_BASE_ENDPOINT}/categories`);
-    return abilityCategoriesSchema.parse(categories);
+    return parseAbilityMetadata(zodAbilityCategoriesSchema, categories);
   }
 
   /**
@@ -277,7 +291,7 @@ export function createAbilityMethods(runtime: WordPressAbilityRuntime) {
    */
   async function getAbilityCategory(slug: string): Promise<WordPressAbilityCategory> {
     const category = await runtime.fetchAPI<WordPressAbilityCategory>(`${ABILITIES_BASE_ENDPOINT}/categories/${slug}`);
-    return abilityCategorySchema.parse(category);
+    return parseAbilityMetadata(abilityCategorySchema, category);
   }
 
   /**

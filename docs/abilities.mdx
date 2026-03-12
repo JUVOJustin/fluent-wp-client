@@ -82,17 +82,32 @@ Builder methods:
 
 ## Schemas
 
-The package exports these base schemas for ability metadata:
+The root package exports these ability schemas as Standard Schema validators:
 
 - `abilityAnnotationsSchema`
 - `abilitySchema`
 - `abilityCategorySchema`
+- `getAbilityInputSchema`
+- `runAbilityInputSchema`
+- `deleteAbilityInputSchema`
+
+Need native Zod APIs (`.parse()`, `.shape`, `.extend()`)? Import from `fluent-wp-client/zod`:
+
+```ts title="Ability schemas as native Zod"
+import {
+  abilitySchema,
+  getAbilityInputSchema,
+} from 'fluent-wp-client/zod';
+
+const parsed = abilitySchema.parse(unknownAbility);
+const input = getAbilityInputSchema.parse({ name: 'test/get-site-title' });
+```
 
 They all use `.passthrough()` so plugin-added fields stay available.
 
 ## Validation model
 
-- Ability metadata is parsed with the exported ability schemas
+- Ability metadata helpers validate payloads with built-in ability schemas
 - Direct execution helpers validate the response only when you pass `responseSchema`
 - Fluent execution validates input before the request and output after the response when you configure schemas
 - Failed REST responses throw `WordPressApiError`

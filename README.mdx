@@ -17,7 +17,7 @@ Runtime-agnostic TypeScript client for the WordPress REST API.
 - JWT workflow helpers (`loginWithJwt`, `validateJwtToken`)
 - Fluent relation API (`client.post('slug').with('author', 'terms').get()`)
 - Gutenberg block parsing via post/page queries and list records (for example, `getPostBySlug(...).getBlocks()`)
-- Standard Schema-compatible validation interfaces (works with Zod and other compliant schema libraries)
+- Root schema exports typed as Standard Schema plus optional native Zod exports from `fluent-wp-client/zod`
 - Uses only web-standard APIs (`fetch`, `URL`, `Blob`) for Node, Deno, Bun, and browser compatibility
 
 ## Install
@@ -71,6 +71,11 @@ const blocks = await wp.getPostBySlug('hello-world').getBlocks();
     title="Full usage guide"
     href="./docs/usage.mdx#authentication-patterns"
     description="See auth examples inside the complete client workflow."
+  />
+  <LinkCard
+    title="Validation guide"
+    href="./docs/validation.mdx"
+    description="Use validator-agnostic schema exports or native Zod exports from /zod."
   />
 </CardGrid>
 
@@ -149,14 +154,31 @@ const authorUrl = customRoute().id(7).toString();
 
 ## Standard Schema Validation
 
-```ts
-import { z } from 'zod';
+Core mutation helpers validate responses with built-in schemas by default.
 
-const created = await wp.createPost(
-  { title: 'Schema validated', status: 'draft' },
-  z.object({ id: z.number(), slug: z.string() }),
-);
+Pass a schema when you want to override default validation.
+
+```ts
+import * as v from 'valibot';
+
+const postSchema = v.object({
+  id: v.number(),
+  slug: v.string(),
+  status: v.string(),
+});
+
+const created = await wp.createPost({ title: 'Hello', status: 'draft' }, postSchema);
 ```
+
+Need native Zod APIs (`.parse()`, `.shape`, `.extend()`)? Use the `/zod` entrypoint:
+
+```ts
+import { postSchema } from 'fluent-wp-client/zod';
+
+const post = postSchema.parse(payload);
+```
+
+For usage patterns and decision guidance, see [Validation guide](./docs/validation.mdx).
 
 ## Abilities
 

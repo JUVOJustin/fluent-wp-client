@@ -8,6 +8,9 @@
 - Build higher-level helpers on top of proven client primitives. If a feature needs a new REST ability, implement that ability in the client first.
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
+- Root package schema exports must be typed as Standard Schema (`WordPressStandardSchema`) to keep the default API validator-agnostic.
+- Native Zod schema exports belong in the dedicated `fluent-wp-client/zod` entrypoint only.
+- Core mutation helpers should use built-in default response validation, while schema arguments (`responseSchema`, `inputSchema`, `outputSchema`) must always allow callers to override validation behavior.
 - Validate and require only the minimum data needed for a feature to work. Keep optional and custom fields extensible so projects can layer in ACF fields, meta, relations, and plugin data without fighting the package.
 - Avoid hard-coded assumptions that only fit default posts and pages. Always leave room for custom post types, taxonomies, fields, actions, and REST namespaces.
 
@@ -28,6 +31,8 @@ src/
   client.ts                    # WordPressClient class
   client-types.ts              # Client config and request option types
   schemas.ts                   # Zod schemas and inferred DTO types
+  standard-schemas.ts          # Root Standard Schema exports mapped from Zod definitions
+  zod.ts                       # Optional native Zod export entrypoint
   auth.ts                      # Auth types, helpers, resolvers
   blocks.ts                    # Block parser types and parseWordPressBlocks
   abilities.ts                 # Ability methods and builder

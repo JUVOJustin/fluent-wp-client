@@ -550,24 +550,28 @@ await wp.posts().id(postId).delete({ force: true });
 - `namespace('my-plugin/v1').resource('sync')`
 - `registerRoute('my-plugin/v1', '/authors/(?P<id>)')`
 
-## Standard Schema validation
+## Validation
 
-Mutation helpers accept any Standard Schema-compatible validator.
+- Core mutation helpers validate responses with built-in schemas by default.
+- You can override defaults by passing any Standard Schema-compatible validator to `responseSchema`, `inputSchema`, or `outputSchema`.
 
 ```ts
-import { z } from 'zod';
+import * as v from 'valibot';
 
-const minimalPostSchema = z.object({
-  id: z.number(),
-  slug: z.string(),
-  status: z.string(),
+const postSchema = v.object({
+  id: v.number(),
+  slug: v.string(),
+  status: v.string(),
 });
 
 const created = await wp.createPost(
   { title: 'Schema validated', status: 'draft' },
-  minimalPostSchema,
+  postSchema,
 );
 ```
+
+- Use `fluent-wp-client/zod` when you need native Zod APIs like `.extend()` or `.parse()`.
+- For full patterns and decision guidance, see [Validation guide](./validation.mdx).
 
 ## Pagination guidance
 

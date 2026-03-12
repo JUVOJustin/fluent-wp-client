@@ -20,7 +20,7 @@ export const baseWordPressSchema = z.object({
     rendered: z.string(),
   }),
   author: z.number(),
-  meta: z.union([z.record(z.any()), z.array(z.any())]).optional(),
+  meta: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
   _links: z.any(),
 }).passthrough();
 
@@ -42,7 +42,7 @@ export const contentWordPressSchema = baseWordPressSchema.extend({
   comment_status: z.string(),
   ping_status: z.string(),
   template: z.string(),
-  acf: z.union([z.record(z.any()), z.array(z.any())]).optional(),
+  acf: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
   _embedded: z.any().optional(),
 });
 
@@ -85,7 +85,7 @@ export const mediaSchema = baseWordPressSchema.extend({
     height: z.number(),
     file: z.string(),
     filesize: z.number().optional(),
-    sizes: z.record(z.object({
+    sizes: z.record(z.string(), z.object({
       file: z.string(),
       width: z.number(),
       height: z.number(),
@@ -110,8 +110,8 @@ export const categorySchema = z.object({
   slug: z.string(),
   taxonomy: z.string(),
   parent: z.number().default(0),
-  meta: z.array(z.any()).or(z.record(z.any())),
-  acf: z.union([z.record(z.any()), z.array(z.any())]).optional(),
+  meta: z.array(z.any()).or(z.record(z.string(), z.any())),
+  acf: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
   _embedded: z.any().optional(),
   _links: z.any(),
 }).passthrough();
@@ -141,7 +141,7 @@ export const embeddedMediaSchema = z.object({
     height: z.number(),
     file: z.string(),
     filesize: z.number().optional(),
-    sizes: z.record(z.object({
+    sizes: z.record(z.string(), z.object({
       file: z.string(),
       width: z.number(),
       height: z.number(),
@@ -202,8 +202,8 @@ export const authorSchema = z.object({
   description: z.string().optional().default(''),
   link: z.string(),
   slug: z.string(),
-  avatar_urls: z.record(z.string()),
-  meta: z.array(z.any()).or(z.record(z.any())).optional().default([]),
+  avatar_urls: z.record(z.string(), z.string()),
+  meta: z.array(z.any()).or(z.record(z.string(), z.any())).optional().default([]),
   _links: z.any(),
 }).passthrough();
 
@@ -225,7 +225,7 @@ export const commentSchema = z.object({
   link: z.string(),
   status: z.string(),
   type: z.string(),
-  meta: z.union([z.record(z.any()), z.array(z.any())]).optional(),
+  meta: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
   _links: z.any(),
 }).passthrough();
 
@@ -243,7 +243,7 @@ export const updatePostFieldsSchema = z.object({
   comment_status: z.string().optional(),
   ping_status: z.string().optional(),
   format: z.string().optional(),
-  meta: z.record(z.any()).optional(),
+  meta: z.record(z.string(), z.any()).optional(),
   sticky: z.boolean().optional(),
   template: z.string().optional(),
   categories: z.array(z.number().int()).optional(),

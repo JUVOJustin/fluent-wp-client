@@ -1,5 +1,5 @@
 /**
- * Public exports for the standalone WordPress client package.
+ * Public exports that expose native Zod schema objects.
  */
 export {
   WordPressClient,
@@ -19,6 +19,9 @@ export {
 
 export {
   WordPressAbilityBuilder,
+  zodGetAbilityInputSchema as getAbilityInputSchema,
+  zodRunAbilityInputSchema as runAbilityInputSchema,
+  zodDeleteAbilityInputSchema as deleteAbilityInputSchema,
   type WordPressAbilityRuntime,
   type GetAbilityInput,
   type RunAbilityInput,
@@ -71,9 +74,6 @@ export {
 } from './core/errors.js';
 
 export {
-  getAbilityInputSchema,
-  runAbilityInputSchema,
-  deleteAbilityInputSchema,
   baseWordPressSchema,
   contentWordPressSchema,
   postSchema,
@@ -93,28 +93,25 @@ export {
   jwtAuthValidationResponseSchema,
   wordPressErrorSchema,
   settingsSchema,
-} from './standard-schemas.js';
-
-export type {
-  WordPressAuthor,
-  WordPressBase,
-  WordPressCategory,
-  WordPressComment,
-  WordPressContent,
-  WordPressCustomPost,
-  WordPressEmbeddedMedia,
-  WordPressError,
-  WordPressAbilityAnnotations,
-  WordPressAbility,
-  WordPressAbilityCategory,
-  WordPressMedia,
-  WordPressPage,
-  WordPressPostBase,
-  WordPressPost,
-  WordPressPostWriteBase,
-  WordPressPostWriteFields,
-  WordPressSettings,
-  WordPressTag,
+  type WordPressAuthor,
+  type WordPressBase,
+  type WordPressCategory,
+  type WordPressComment,
+  type WordPressContent,
+  type WordPressCustomPost,
+  type WordPressEmbeddedMedia,
+  type WordPressError,
+  type WordPressAbilityAnnotations,
+  type WordPressAbility,
+  type WordPressAbilityCategory,
+  type WordPressMedia,
+  type WordPressPage,
+  type WordPressPostBase,
+  type WordPressPost,
+  type WordPressPostWriteBase,
+  type WordPressPostWriteFields,
+  type WordPressSettings,
+  type WordPressTag,
 } from './schemas.js';
 
 export {

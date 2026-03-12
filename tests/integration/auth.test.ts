@@ -23,13 +23,25 @@ describe('Client: Auth', () => {
       username: 'admin',
       password: 'password',
     });
-    const parsedTokenResponse = jwtAuthTokenResponseSchema.parse(tokenResponse);
+    const tokenValidationResult = await jwtAuthTokenResponseSchema['~standard'].validate(tokenResponse);
+
+    if (tokenValidationResult.issues) {
+      throw new Error('JWT token response schema validation failed');
+    }
+
+    const parsedTokenResponse = tokenValidationResult.value;
 
     expect(typeof parsedTokenResponse.token).toBe('string');
     expect(parsedTokenResponse.token.length).toBeGreaterThan(20);
 
     const validationResponse = await publicClient.validateJwtToken(tokenResponse.token);
-    const parsedValidationResponse = jwtAuthValidationResponseSchema.parse(validationResponse);
+    const jwtValidationResult = await jwtAuthValidationResponseSchema['~standard'].validate(validationResponse);
+
+    if (jwtValidationResult.issues) {
+      throw new Error('JWT validation response schema validation failed');
+    }
+
+    const parsedValidationResponse = jwtValidationResult.value;
 
     expect(parsedValidationResponse.code).toBe('jwt_auth_valid_token');
   });
@@ -44,9 +56,15 @@ describe('Client: Auth', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(WordPressApiError);
 
-      const parsedErrorResponse = jwtAuthErrorResponseSchema.parse(
+      const errorValidationResult = await jwtAuthErrorResponseSchema['~standard'].validate(
         (error as WordPressApiError).responseBody,
       );
+
+      if (errorValidationResult.issues) {
+        throw new Error('JWT error response schema validation failed');
+      }
+
+      const parsedErrorResponse = errorValidationResult.value;
 
       expect(parsedErrorResponse.message.length).toBeGreaterThan(0);
     }

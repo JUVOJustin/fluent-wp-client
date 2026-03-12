@@ -17,6 +17,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./zod": {
+      "types": "./dist/zod.d.ts",
+      "import": "./dist/zod.js"
     }
   },
   "files": [
@@ -46,7 +50,7 @@
   "dependencies": {
     "@wordpress/block-serialization-default-parser": "^5.41.0",
     "@standard-schema/spec": "^1.0.0",
-    "zod": "^3.25.76"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@wordpress/env": "^11.0.0",

@@ -34,13 +34,14 @@ import {
   authorSchema,
   categorySchema,
   commentSchema,
-  contentWordPressSchema,
   jwtAuthTokenResponseSchema,
   jwtAuthValidationResponseSchema,
   mediaSchema,
   pageSchema,
   postSchema,
   settingsSchema,
+} from './standard-schemas.js';
+import {
   type WordPressAuthor,
   type WordPressCategory,
   type WordPressComment,
@@ -611,7 +612,7 @@ export class WordPressClient {
     return this.createContent<TPost, WordPressPostWriteBase & Record<string, unknown>>(
       'posts',
       input,
-      responseSchema ?? (postSchema as unknown as WordPressStandardSchema<TPost>),
+      responseSchema ?? (postSchema as WordPressStandardSchema<TPost>),
     );
   }
 
@@ -627,7 +628,7 @@ export class WordPressClient {
       'posts',
       id,
       input,
-      responseSchema ?? (postSchema as unknown as WordPressStandardSchema<TPost>),
+      responseSchema ?? (postSchema as WordPressStandardSchema<TPost>),
     );
   }
 
@@ -648,7 +649,7 @@ export class WordPressClient {
     return this.createContent<TPage, WordPressPostWriteBase & Record<string, unknown>>(
       'pages',
       input,
-      responseSchema ?? (pageSchema as unknown as WordPressStandardSchema<TPage>),
+      responseSchema ?? (pageSchema as WordPressStandardSchema<TPage>),
     );
   }
 
@@ -664,7 +665,7 @@ export class WordPressClient {
       'pages',
       id,
       input,
-      responseSchema ?? (pageSchema as unknown as WordPressStandardSchema<TPage>),
+      responseSchema ?? (pageSchema as WordPressStandardSchema<TPage>),
     );
   }
 
@@ -685,7 +686,7 @@ export class WordPressClient {
     return this.createTerm<TCategory, TermWriteInput>(
       'categories',
       input,
-      responseSchema ?? (categorySchema as unknown as WordPressStandardSchema<TCategory>),
+      responseSchema ?? (categorySchema as WordPressStandardSchema<TCategory>),
     );
   }
 
@@ -701,7 +702,7 @@ export class WordPressClient {
       'categories',
       id,
       input,
-      responseSchema ?? (categorySchema as unknown as WordPressStandardSchema<TCategory>),
+      responseSchema ?? (categorySchema as WordPressStandardSchema<TCategory>),
     );
   }
 
@@ -722,7 +723,7 @@ export class WordPressClient {
     return this.createTerm<TTag, TermWriteInput>(
       'tags',
       input,
-      responseSchema ?? (categorySchema as unknown as WordPressStandardSchema<TTag>),
+      responseSchema ?? (categorySchema as WordPressStandardSchema<TTag>),
     );
   }
 
@@ -738,7 +739,7 @@ export class WordPressClient {
       'tags',
       id,
       input,
-      responseSchema ?? (categorySchema as unknown as WordPressStandardSchema<TTag>),
+      responseSchema ?? (categorySchema as WordPressStandardSchema<TTag>),
     );
   }
 
@@ -762,7 +763,7 @@ export class WordPressClient {
         method: 'POST',
         body: compactPayload(input),
       },
-      responseSchema ?? (authorSchema as unknown as WordPressStandardSchema<TUser>),
+      responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
     );
   }
 
@@ -780,7 +781,7 @@ export class WordPressClient {
         method: 'POST',
         body: compactPayload(input),
       },
-      responseSchema ?? (authorSchema as unknown as WordPressStandardSchema<TUser>),
+      responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
     );
   }
 
@@ -836,7 +837,7 @@ export class WordPressClient {
         method: 'POST',
         body: compactPayload(input),
       },
-      responseSchema ?? (commentSchema as unknown as WordPressStandardSchema<TComment>),
+      responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
     );
   }
 
@@ -854,7 +855,7 @@ export class WordPressClient {
         method: 'POST',
         body: compactPayload(input),
       },
-      responseSchema ?? (commentSchema as unknown as WordPressStandardSchema<TComment>),
+      responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
     );
   }
 
@@ -903,7 +904,7 @@ export class WordPressClient {
         method: 'POST',
         body: compactPayload(input),
       },
-      responseSchema ?? (mediaSchema as unknown as WordPressStandardSchema<TMedia>),
+      responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
     );
   }
 
@@ -982,7 +983,7 @@ export class WordPressClient {
         method: 'POST',
         body: compactPayload(input),
       },
-      responseSchema ?? (mediaSchema as unknown as WordPressStandardSchema<TMedia>),
+      responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
     );
   }
 
@@ -1019,52 +1020,61 @@ export class WordPressClient {
   }
 
   /**
-   * Updates WordPress site settings.
+   * Updates WordPress site settings with optional response validation.
    */
-  async updateSettings(input: Partial<WordPressSettings> & Record<string, unknown>): Promise<WordPressSettings> {
+  async updateSettings<TSettings = WordPressSettings>(
+    input: Partial<WordPressSettings> & Record<string, unknown>,
+    responseSchema?: WordPressStandardSchema<TSettings>,
+  ): Promise<TSettings> {
     if (!this.hasAuth()) {
       throw new Error('Authentication required for /settings endpoint. Configure auth in client options.');
     }
 
-    return this.executeMutation<WordPressSettings>(
+    return this.executeMutation<TSettings>(
       {
         endpoint: '/settings',
         method: 'POST',
         body: compactPayload(input),
       },
-      settingsSchema,
+      responseSchema ?? (settingsSchema as WordPressStandardSchema<TSettings>),
     );
   }
 
   /**
    * Performs username/password JWT login against the WP JWT plugin endpoint.
    */
-  async loginWithJwt(credentials: JwtLoginCredentials): Promise<JwtAuthTokenResponse> {
-    return this.executeMutation<JwtAuthTokenResponse>(
+  async loginWithJwt<TJwtResponse = JwtAuthTokenResponse>(
+    credentials: JwtLoginCredentials,
+    responseSchema?: WordPressStandardSchema<TJwtResponse>,
+  ): Promise<TJwtResponse> {
+    return this.executeMutation<TJwtResponse>(
       {
         endpoint: '/wp-json/jwt-auth/v1/token',
         method: 'POST',
         body: credentials,
       },
-      jwtAuthTokenResponseSchema,
+      responseSchema ?? (jwtAuthTokenResponseSchema as WordPressStandardSchema<TJwtResponse>),
     );
   }
 
   /**
    * Validates one JWT token with the WP JWT plugin endpoint.
    */
-  async validateJwtToken(token?: string | JwtAuthCredentials): Promise<JwtAuthValidationResponse> {
+  async validateJwtToken<TJwtValidation = JwtAuthValidationResponse>(
+    token?: string | JwtAuthCredentials,
+    responseSchema?: WordPressStandardSchema<TJwtValidation>,
+  ): Promise<TJwtValidation> {
     const authHeader = token
       ? createJwtAuthHeader(typeof token === 'string' ? token : token.token)
       : undefined;
 
-    return this.executeMutation<JwtAuthValidationResponse>(
+    return this.executeMutation<TJwtValidation>(
       {
         endpoint: '/wp-json/jwt-auth/v1/token/validate',
         method: 'POST',
         auth: authHeader,
       },
-      jwtAuthValidationResponseSchema,
+      responseSchema ?? (jwtAuthValidationResponseSchema as WordPressStandardSchema<TJwtValidation>),
     );
   }
 

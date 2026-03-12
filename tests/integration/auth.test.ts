@@ -2,11 +2,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import {
   WordPressApiError,
   WordPressClient,
+  WordPressSchemaValidationError,
   jwtAuthErrorResponseSchema,
   jwtAuthTokenResponseSchema,
   jwtAuthValidationResponseSchema,
 } from 'fluent-wp-client';
-import { createCookieAuthClient, getBaseUrl } from '../helpers/wp-client';
+import { createCookieAuthClient, createAuthClient, getBaseUrl } from '../helpers/wp-client';
 
 /**
  * Integration coverage for auth helpers and authenticated request transport.
@@ -23,13 +24,25 @@ describe('Client: Auth', () => {
       username: 'admin',
       password: 'password',
     });
-    const parsedTokenResponse = jwtAuthTokenResponseSchema.parse(tokenResponse);
+    const tokenValidationResult = await jwtAuthTokenResponseSchema['~standard'].validate(tokenResponse);
+
+    if (tokenValidationResult.issues) {
+      throw new Error('JWT token response schema validation failed');
+    }
+
+    const parsedTokenResponse = tokenValidationResult.value;
 
     expect(typeof parsedTokenResponse.token).toBe('string');
     expect(parsedTokenResponse.token.length).toBeGreaterThan(20);
 
     const validationResponse = await publicClient.validateJwtToken(tokenResponse.token);
-    const parsedValidationResponse = jwtAuthValidationResponseSchema.parse(validationResponse);
+    const jwtValidationResult = await jwtAuthValidationResponseSchema['~standard'].validate(validationResponse);
+
+    if (jwtValidationResult.issues) {
+      throw new Error('JWT validation response schema validation failed');
+    }
+
+    const parsedValidationResponse = jwtValidationResult.value;
 
     expect(parsedValidationResponse.code).toBe('jwt_auth_valid_token');
   });
@@ -44,9 +57,15 @@ describe('Client: Auth', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(WordPressApiError);
 
-      const parsedErrorResponse = jwtAuthErrorResponseSchema.parse(
+      const errorValidationResult = await jwtAuthErrorResponseSchema['~standard'].validate(
         (error as WordPressApiError).responseBody,
       );
+
+      if (errorValidationResult.issues) {
+        throw new Error('JWT error response schema validation failed');
+      }
+
+      const parsedErrorResponse = errorValidationResult.value;
 
       expect(parsedErrorResponse.message.length).toBeGreaterThan(0);
     }
@@ -110,5 +129,96 @@ describe('Client: Auth', () => {
 
     expect(Array.isArray(posts)).toBe(true);
     expect(posts.length).toBeGreaterThan(0);
+  });
+
+  it('loginWithJwt accepts custom responseSchema override and returns narrowed type', async () => {
+    const minimalTokenSchema = {
+      '~standard': {
+        validate: (value: unknown) => {
+          const obj = value as Record<string, unknown>;
+          if (typeof obj?.token !== 'string') {
+            return { issues: [{ message: 'token must be a string', path: ['token'] }] };
+          }
+          return { value: { token: obj.token } };
+        },
+      },
+    };
+
+    const result = await publicClient.loginWithJwt(
+      { username: 'admin', password: 'password' },
+      minimalTokenSchema as any,
+    );
+
+    expect(typeof result.token).toBe('string');
+    expect(result.token.length).toBeGreaterThan(20);
+    expect((result as any).user_email).toBeUndefined();
+  });
+
+  it('validateJwtToken accepts custom responseSchema override and returns narrowed type', async () => {
+    const tokenResponse = await publicClient.loginWithJwt({
+      username: 'admin',
+      password: 'password',
+    });
+
+    const minimalValidationSchema = {
+      '~standard': {
+        validate: (value: unknown) => {
+          const obj = value as Record<string, unknown>;
+          if (obj?.code !== 'jwt_auth_valid_token') {
+            return { issues: [{ message: 'code must be jwt_auth_valid_token', path: ['code'] }] };
+          }
+          return { value: { code: obj.code } };
+        },
+      },
+    };
+
+    const result = await publicClient.validateJwtToken(
+      tokenResponse.token,
+      minimalValidationSchema as any,
+    );
+
+    expect(result.code).toBe('jwt_auth_valid_token');
+    expect((result as any).data).toBeUndefined();
+  });
+
+  it('updateSettings accepts custom responseSchema override and returns narrowed type', async () => {
+    const authClient = createAuthClient();
+
+    const minimalSettingsSchema = {
+      '~standard': {
+        validate: (value: unknown) => {
+          const obj = value as Record<string, unknown>;
+          if (typeof obj?.title !== 'string') {
+            return { issues: [{ message: 'title must be a string', path: ['title'] }] };
+          }
+          return { value: { title: obj.title } };
+        },
+      },
+    };
+
+    const result = await authClient.updateSettings(
+      { title: 'Test Site Title Override' },
+      minimalSettingsSchema as any,
+    );
+
+    expect(typeof result.title).toBe('string');
+    expect((result as any).description).toBeUndefined();
+  });
+
+  it('rejects invalid payloads when custom schema is stricter than default', async () => {
+    const strictSchema = {
+      '~standard': {
+        validate: () => ({
+          issues: [{ message: 'Custom validation error', path: [] }],
+        }),
+      },
+    };
+
+    await expect(
+      publicClient.loginWithJwt(
+        { username: 'admin', password: 'password' },
+        strictSchema as any,
+      ),
+    ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
   });
 });

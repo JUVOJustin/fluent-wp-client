@@ -3,42 +3,18 @@ title: Usage
 short_title: Usage
 description: Primary developer guide for fluent-wp-client covering CRUD, auth, abilities, and WPAPI-compatible syntax.
 sidebar:
-  order: 1
+  order: 2
 ---
 
 import { CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
 
-This is the primary developer guide for `fluent-wp-client`.
-
-Canonical repository: `git@github.com:JUVOJustin/fluent-wp-client.git`
-
-It covers:
-
-- all main client method groups
-- complete CRUD patterns
-- WordPress abilities metadata and execution
-- WPAPI-compatible fluent syntax
-- validation, auth, pagination, and error handling
+This guide covers all main client methods, CRUD patterns, WordPress abilities, WPAPI-compatible fluent syntax, validation, auth, pagination, and error handling.
 
 ## Install
 
 ```bash
 npm install fluent-wp-client
 ```
-
-## Development Testing
-
-This repository owns the WordPress integration suite for the client.
-
-Automated npm publishing runs from `.github/workflows/deploy.yml` when you push a semver tag.
-
-```bash
-npm run wp:start
-npm test
-npm run wp:stop
-```
-
-`node_modules/`, `dist/`, and `.wp-env/` are local generated artifacts and are not tracked.
 
 ## Create a client
 
@@ -465,7 +441,7 @@ const postBlocks = await postQuery.getBlocks();
 const pageBlocks = await pageQuery.getBlocks();
 
 const postList = await wp.getPosts({ perPage: 5 });
-const firstListItemBlocks = await postList[0].getBlocks();
+const firstListItemBlocks = await wp.getPost(postList[0].id).getBlocks();
 ```
 
 `getBlocks()` requires edit capabilities because it reads `content.raw` using `context=edit`.

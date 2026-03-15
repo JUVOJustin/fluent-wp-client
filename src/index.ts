@@ -5,6 +5,7 @@ export {
   WordPressClient,
   type WordPressClientConfig,
   type WordPressRequestOptions,
+  type WordPressRequestOverrides,
   type WordPressRequestResult,
   type WordPressMediaUploadInput,
   type WordPressNamespaceClient,

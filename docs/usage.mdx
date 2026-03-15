@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
 
 This is the primary developer guide for `fluent-wp-client`.
 
@@ -64,9 +64,10 @@ const wp = new WordPressClient({
 
 Use `RequestAuthResolver` when your handler receives a web-standard `Request`, or `createAuthResolver()` when you want typed inference for a richer framework context.
 
-#### Generic Request handlers
+<Tabs>
+  <TabItem label="Generic">
 
-```ts
+```ts title="Generic Request handlers"
 import {
   WordPressClient,
   createAuthResolver,
@@ -128,9 +129,11 @@ This pattern covers common SSR fallbacks:
 - session ID forwarding from request headers
 - application passwords from server environment variables
 
-#### Astro Actions
+  </TabItem>
 
-```ts
+  <TabItem label="Astro">
+
+```ts title="Astro Actions"
 import type { ActionAPIContext } from 'astro:actions';
 import {
   createAuthResolver,
@@ -173,9 +176,11 @@ export async function resolveActionRequestAuth(
 
 This mirrors the pattern used by Astro integrations: keep `auth` configurable, then resolve it against the current `ActionAPIContext` right before you build request headers.
 
-#### Next.js App Router
+  </TabItem>
 
-```ts
+  <TabItem label="Next.js">
+
+```ts title="Next.js App Router"
 import {
   WordPressClient,
   createAuthResolver,
@@ -216,6 +221,9 @@ export async function GET(request: Request, { params }: { params: { slug: string
 }
 ```
 
+  </TabItem>
+</Tabs>
+
 The same resolver pattern also works in:
 
 - Next.js server actions or route handlers
@@ -227,31 +235,38 @@ The same resolver pattern also works in:
 
 The client exposes five complementary styles.
 
-### 1) Typed resource helpers (recommended default)
+<Tabs>
+  <TabItem label="Typed helpers">
 
-```ts
+```ts title="1) Typed resource helpers (recommended default)"
 const posts = await wp.getPosts({ perPage: 10, page: 1 });
 const post = await wp.getPostBySlug('hello-world');
 const blocks = await wp.getPostBySlug('hello-world').getBlocks();
 ```
 
-### 2) Generic resource helpers for CPTs/taxonomies
+  </TabItem>
 
-```ts
+  <TabItem label="Generic helpers">
+
+```ts title="2) Generic resource helpers for CPTs/taxonomies"
 const books = await wp.getContentCollection('books', { perPage: 20 });
 const genres = await wp.getTermCollection('genre', { perPage: 100 });
 ```
 
-### 3) WPAPI-compatible fluent builder
+  </TabItem>
 
-```ts
+  <TabItem label="WPAPI builder">
+
+```ts title="3) WPAPI-compatible fluent builder"
 const chainPosts = await wp.posts().perPage(10).page(1).embed().get();
 const chainPost = await wp.posts().slug('hello-world').get();
 ```
 
-### 4) Low-level request transport
+  </TabItem>
 
-```ts
+  <TabItem label="Low-level request">
+
+```ts title="4) Low-level request transport"
 const { data, response } = await wp.request({
   endpoint: '/wp-json/my-plugin/v1/sync',
   method: 'POST',
@@ -259,9 +274,11 @@ const { data, response } = await wp.request({
 });
 ```
 
-### 5) WordPress abilities
+  </TabItem>
 
-```ts
+  <TabItem label="Abilities">
+
+```ts title="5) WordPress abilities"
 const definitions = await wp.getAbilities();
 const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
 
@@ -273,6 +290,9 @@ const processed = await wp
 
 console.log(definitions.length, siteTitle.title, processed.processed);
 ```
+
+  </TabItem>
+</Tabs>
 
 ## Method reference
 
@@ -342,6 +362,36 @@ type PageLike = WordPressPostBase;
 - Comments: `createComment`, `updateComment`, `deleteComment`
 - Media: `createMedia`, `uploadMedia`, `updateMedia`, `deleteMedia`
 - Settings: `updateSettings`
+
+Most mutation helpers accept request-scoped custom headers so you can pass one-off metadata without mutating shared client defaults.
+
+```ts
+const createdPost = await wp.createPost(
+  { title: 'Post title', status: 'draft' },
+  {
+    headers: {
+      'x-crossposter-source-base-url': 'https://source.example',
+      'x-crossposter-source-entity-type': 'post',
+      'x-crossposter-source-entity-id': '42',
+    },
+  },
+);
+
+await wp.deletePost(createdPost.id, {
+  force: true,
+  headers: {
+    'x-crossposter-source-entity-id': '42',
+  },
+});
+```
+
+`create*` / `update*` helper signatures support both patterns:
+
+- `createPost(input, responseSchema?)`
+- `createPost(input, requestOptions?)`
+- `createPost(input, responseSchema?, requestOptions?)`
+
+Auth overrides are intentionally blocked on mutation helper options. If you need different auth credentials or auth headers, create a new `WordPressClient` instance with the desired auth configuration.
 
 ### Auth and ability helpers
 
@@ -456,6 +506,10 @@ const media = await wp.uploadMedia({
   mimeType: 'image/jpeg',
   title: 'Cover image',
   alt_text: 'Book cover image',
+}, {
+  headers: {
+    'x-crossposter-source-entity-id': 'book-42',
+  },
 });
 
 await wp.updateMedia(media.id, { caption: 'Updated caption' });
@@ -468,8 +522,17 @@ await wp.deleteMedia(media.id, { force: true });
 const books = wp.content('books');
 
 const createdBook = await books.create({ title: 'Book title', status: 'draft' });
-await books.update(createdBook.id, { status: 'publish' });
-await books.delete(createdBook.id, { force: true });
+await books.update(createdBook.id, { status: 'publish' }, {
+  headers: {
+    'x-crossposter-source-entity-id': String(createdBook.id),
+  },
+});
+await books.delete(createdBook.id, {
+  force: true,
+  headers: {
+    'x-crossposter-source-entity-id': String(createdBook.id),
+  },
+});
 ```
 
 ### Generic taxonomy CRUD
@@ -478,8 +541,17 @@ await books.delete(createdBook.id, { force: true });
 const genres = wp.terms('genre');
 
 const createdGenre = await genres.create({ name: 'Sci-Fi' });
-await genres.update(createdGenre.id, { name: 'Science Fiction' });
-await genres.delete(createdGenre.id, { force: true });
+await genres.update(createdGenre.id, { name: 'Science Fiction' }, {
+  headers: {
+    'x-crossposter-source-entity-id': String(createdGenre.id),
+  },
+});
+await genres.delete(createdGenre.id, {
+  force: true,
+  headers: {
+    'x-crossposter-source-entity-id': String(createdGenre.id),
+  },
+});
 ```
 
 ### WPAPI-style CRUD chain
@@ -532,16 +604,14 @@ await wp.posts().id(postId).delete({ force: true });
 - `password(value)`
 - `embed()`
 - `setHeaders(...)` / `headers(...)`
-- `auth(value)`
-- `authHeaders(value)`
-- `cookies(value)`
-- `credentials(value)`
 - `toString()`
 - `get()`
 - `create(payload)`
 - `update(payload)`
 - `delete({ force? })`
 - thenable support: `await wp.posts().slug('hello-world')`
+
+WPAPI chains intentionally block auth-like header overrides via `setHeaders` (for example `Authorization`, `Cookie`, and `X-WP-Nonce`). Use a different `WordPressClient` instance when auth settings need to change.
 
 ### Namespace and route helpers
 

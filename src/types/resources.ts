@@ -1,4 +1,5 @@
 import type { DeleteOptions, WordPressWritePayload } from './payloads.js';
+import type { WordPressRequestOverrides } from '../client-types.js';
 
 /**
  * Primitive value supported for query-string conversion.
@@ -65,9 +66,9 @@ export interface ContentResourceClient<TResource, TCreate extends WordPressWrite
   listPaginated: (filter?: QueryParams & PaginationParams) => Promise<PaginatedResponse<TResource>>;
   getById: (id: number) => Promise<TResource>;
   getBySlug: (slug: string) => Promise<TResource | undefined>;
-  create: (input: TCreate) => Promise<TResource>;
-  update: (id: number, input: TUpdate) => Promise<TResource>;
-  delete: (id: number, options?: DeleteOptions) => Promise<WordPressDeleteResult>;
+  create: (input: TCreate, options?: WordPressRequestOverrides) => Promise<TResource>;
+  update: (id: number, input: TUpdate, options?: WordPressRequestOverrides) => Promise<TResource>;
+  delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
 }
 
 /**
@@ -79,7 +80,7 @@ export interface TermsResourceClient<TResource, TCreate extends WordPressWritePa
   listPaginated: (filter?: QueryParams & PaginationParams) => Promise<PaginatedResponse<TResource>>;
   getById: (id: number) => Promise<TResource>;
   getBySlug: (slug: string) => Promise<TResource | undefined>;
-  create: (input: TCreate) => Promise<TResource>;
-  update: (id: number, input: TUpdate) => Promise<TResource>;
-  delete: (id: number, options?: DeleteOptions) => Promise<WordPressDeleteResult>;
+  create: (input: TCreate, options?: WordPressRequestOverrides) => Promise<TResource>;
+  update: (id: number, input: TUpdate, options?: WordPressRequestOverrides) => Promise<TResource>;
+  delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
 }

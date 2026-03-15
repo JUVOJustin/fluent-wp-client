@@ -38,6 +38,13 @@ export interface WordPressRequestOptions {
 }
 
 /**
+ * Per-request transport overrides supported by high-level helper methods.
+ */
+export interface WordPressRequestOverrides {
+  headers?: Record<string, string>;
+}
+
+/**
  * Low-level request result with parsed payload and original response metadata.
  */
 export interface WordPressRequestResult<T> {

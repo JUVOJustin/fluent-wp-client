@@ -14,6 +14,7 @@ Runtime-agnostic TypeScript client for the WordPress REST API.
 - Generic `content(resource)` and `terms(resource)` APIs for CPTs and custom taxonomies
 - WordPress Abilities API support with metadata helpers and fluent execution
 - Built-in auth utilities for Basic, JWT, cookie+nonce browser auth, prebuilt headers, and request-aware signing
+- Request-scoped mutation custom headers for tracing, correlation IDs, and source metadata
 - JWT workflow helpers (`loginWithJwt`, `validateJwtToken`)
 - Fluent relation API (`client.post('slug').with('author', 'terms').get()`)
 - Gutenberg block parsing via post/page queries and list records (for example, `getPostBySlug(...).getBlocks()`)
@@ -56,7 +57,14 @@ const wp = new WordPressClient({
 });
 
 const posts = await wp.getPosts();
-const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
+const draft = await wp.createPost(
+  { title: 'Hello', status: 'draft' },
+  {
+    headers: {
+      'x-crossposter-source-entity-id': '42',
+    },
+  },
+);
 
 const blocks = await wp.getPostBySlug('hello-world').getBlocks();
 ```

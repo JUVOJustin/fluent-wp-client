@@ -1,6 +1,7 @@
 import type { WordPressCategory, WordPressContent } from '../schemas.js';
-import type { WordPressRequestOptions, WordPressRequestResult } from '../client-types.js';
+import type { WordPressRequestOptions, WordPressRequestOverrides, WordPressRequestResult } from '../client-types.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
+import { applyRequestOverrides } from '../core/request-overrides.js';
 import { createWordPressPaginator } from '../core/pagination.js';
 import { compactPayload, filterToParams } from '../core/params.js';
 import type {
@@ -99,13 +100,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     input: TInput,
     responseSchema?: WordPressStandardSchema<TContent>,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TContent> {
     return dependencies.executeMutation<TContent>(
-      {
+      applyRequestOverrides({
         endpoint: `/${resource}`,
         method: 'POST',
         body: compactPayload(input),
-      },
+      }, requestOptions, 'Mutation helper options'),
       responseSchema,
     );
   }
@@ -118,13 +120,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     id: number,
     input: TInput,
     responseSchema?: WordPressStandardSchema<TContent>,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TContent> {
     return dependencies.executeMutation<TContent>(
-      {
+      applyRequestOverrides({
         endpoint: `/${resource}/${id}`,
         method: 'POST',
         body: compactPayload(input),
-      },
+      }, requestOptions, 'Mutation helper options'),
       responseSchema,
     );
   }
@@ -135,14 +138,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   async function deleteContent(
     resource: string,
     id: number,
-    options: DeleteOptions = {},
+    options: DeleteOptions & WordPressRequestOverrides = {},
   ): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
-    const { data } = await dependencies.request<unknown>({
+    const { data } = await dependencies.request<unknown>(applyRequestOverrides({
       endpoint: `/${resource}/${id}`,
       method: 'DELETE',
       params,
-    });
+    }, options, 'Mutation helper options'));
 
     if (
       typeof data === 'object'
@@ -227,13 +230,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     resource: string,
     input: TInput,
     responseSchema?: WordPressStandardSchema<TTerm>,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TTerm> {
     return dependencies.executeMutation<TTerm>(
-      {
+      applyRequestOverrides({
         endpoint: `/${resource}`,
         method: 'POST',
         body: compactPayload(input),
-      },
+      }, requestOptions, 'Mutation helper options'),
       responseSchema,
     );
   }
@@ -246,13 +250,14 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     id: number,
     input: TInput,
     responseSchema?: WordPressStandardSchema<TTerm>,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TTerm> {
     return dependencies.executeMutation<TTerm>(
-      {
+      applyRequestOverrides({
         endpoint: `/${resource}/${id}`,
         method: 'POST',
         body: compactPayload(input),
-      },
+      }, requestOptions, 'Mutation helper options'),
       responseSchema,
     );
   }
@@ -260,13 +265,17 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   /**
    * Deletes one term for any taxonomy resource.
    */
-  async function deleteTerm(resource: string, id: number, options: DeleteOptions = {}): Promise<WordPressDeleteResult> {
+  async function deleteTerm(
+    resource: string,
+    id: number,
+    options: DeleteOptions & WordPressRequestOverrides = {},
+  ): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
-    const { data } = await dependencies.request<unknown>({
+    const { data } = await dependencies.request<unknown>(applyRequestOverrides({
       endpoint: `/${resource}/${id}`,
       method: 'DELETE',
       params,
-    });
+    }, options, 'Mutation helper options'));
 
     if (
       typeof data === 'object'
@@ -304,8 +313,8 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
       listPaginated: (filter = {}) => getContentCollectionPaginated<TResource>(resource, filter),
       getById: (id) => getContent<TResource>(resource, id),
       getBySlug: (slug) => getContentBySlug<TResource>(resource, slug),
-      create: (input) => createContent<TResource, TCreate>(resource, input, responseSchema),
-      update: (id, input) => updateContent<TResource, TUpdate>(resource, id, input, responseSchema),
+      create: (input, options) => createContent<TResource, TCreate>(resource, input, responseSchema, options),
+      update: (id, input, options) => updateContent<TResource, TUpdate>(resource, id, input, responseSchema, options),
       delete: (id, options) => deleteContent(resource, id, options),
     };
   }
@@ -327,8 +336,8 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
       listPaginated: (filter = {}) => getTermCollectionPaginated<TResource>(resource, filter),
       getById: (id) => getTerm<TResource>(resource, id),
       getBySlug: (slug) => getTermBySlug<TResource>(resource, slug),
-      create: (input) => createTerm<TResource, TCreate>(resource, input, responseSchema),
-      update: (id, input) => updateTerm<TResource, TUpdate>(resource, id, input, responseSchema),
+      create: (input, options) => createTerm<TResource, TCreate>(resource, input, responseSchema, options),
+      update: (id, input, options) => updateTerm<TResource, TUpdate>(resource, id, input, responseSchema, options),
       delete: (id, options) => deleteTerm(resource, id, options),
     };
   }

@@ -390,4 +390,78 @@ describe('Client: request-scoped mutation overrides', () => {
       ),
     ).rejects.toThrow(/auth header overrides are not supported/i);
   });
+
+  it('ignores non-header override keys for mutation helpers even when passed as any', async () => {
+    const seen = {
+      usedPostsEndpoint: false,
+      usedForcedQueryParam: false,
+    };
+
+    const client = createObservedAuthClient((method, url, headers) => {
+      if (method !== 'POST') {
+        return;
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts')) {
+        seen.usedPostsEndpoint = true;
+        seen.usedForcedQueryParam = url.searchParams.get('forced') === '1';
+        expect(headers.get('x-test-source')).toBe('ignore-non-header-mutation');
+      }
+    });
+
+    const created = await client.createPost(
+      {
+        title: 'Request overrides: ignore non-header keys',
+        status: 'draft',
+      },
+      {
+        headers: {
+          'x-test-source': 'ignore-non-header-mutation',
+        },
+        endpoint: '/users',
+        params: { forced: '1' },
+        method: 'DELETE',
+      } as unknown as never,
+    );
+
+    await client.deletePost(created.id, { force: true });
+
+    expect(created.id).toBeGreaterThan(0);
+    expect(seen.usedPostsEndpoint).toBe(true);
+    expect(seen.usedForcedQueryParam).toBe(false);
+  });
+
+  it('ignores non-header override keys for read helpers even when passed as any', async () => {
+    const seen = {
+      usedPostsEndpoint: false,
+      usedInjectedSlugParam: false,
+    };
+
+    const client = createObservedAuthClient((method, url, headers) => {
+      if (method !== 'GET') {
+        return;
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('per_page') === '1') {
+        seen.usedPostsEndpoint = true;
+        seen.usedInjectedSlugParam = url.searchParams.get('slug') === 'test-post-999';
+        expect(headers.get('x-test-source')).toBe('ignore-non-header-read');
+      }
+    });
+
+    const posts = await client.getPosts(
+      { perPage: 1 },
+      {
+        headers: {
+          'x-test-source': 'ignore-non-header-read',
+        },
+        endpoint: '/users',
+        params: { slug: 'test-post-999' },
+      } as unknown as never,
+    );
+
+    expect(posts.length).toBe(1);
+    expect(seen.usedPostsEndpoint).toBe(true);
+    expect(seen.usedInjectedSlugParam).toBe(false);
+  });
 });

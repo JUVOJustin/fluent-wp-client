@@ -1,5 +1,5 @@
 import { throwIfWordPressError } from '../core/errors.js';
-import { assertNoAuthOverrides } from '../core/request-overrides.js';
+import { assertNoAuthHeaderOverrides } from '../core/request-overrides.js';
 import type { WordPressRequestOptions, WordPressRequestResult } from '../client-types.js';
 
 /**
@@ -197,18 +197,12 @@ export class WordPressRequestBuilder<
   setHeaders(headers: Record<string, string>): this;
   setHeaders(nameOrHeaders: string | Record<string, string>, value?: string): this {
     if (typeof nameOrHeaders === 'string') {
-      assertNoAuthOverrides(
-        { headers: { [nameOrHeaders]: value ?? '' } },
-        'WPAPI chain options',
-      );
+      assertNoAuthHeaderOverrides({ [nameOrHeaders]: value ?? '' }, 'WPAPI chain options');
       this.requestHeaders[nameOrHeaders] = value ?? '';
       return this;
     }
 
-    assertNoAuthOverrides(
-      { headers: nameOrHeaders },
-      'WPAPI chain options',
-    );
+    assertNoAuthHeaderOverrides(nameOrHeaders, 'WPAPI chain options');
 
     Object.assign(this.requestHeaders, nameOrHeaders);
     return this;

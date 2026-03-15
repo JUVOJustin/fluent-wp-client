@@ -1,6 +1,5 @@
 import type { WordPressRequestOptions, WordPressRequestOverrides } from '../client-types.js';
 
-const AUTH_OVERRIDE_FIELD_NAMES = ['auth', 'authHeaders', 'cookies', 'credentials'] as const;
 const AUTH_OVERRIDE_HEADER_NAMES = new Set([
   'authorization',
   'cookie',
@@ -9,29 +8,17 @@ const AUTH_OVERRIDE_HEADER_NAMES = new Set([
 ]);
 
 /**
- * Throws when request options attempt to override authentication behavior.
+ * Throws when header overrides include auth-related headers.
  */
-export function assertNoAuthOverrides(
-  config: {
-    headers?: Record<string, string>;
-    auth?: unknown;
-    authHeaders?: unknown;
-    cookies?: unknown;
-    credentials?: unknown;
-  } | undefined,
+export function assertNoAuthHeaderOverrides(
+  headers: Record<string, string> | undefined,
   context = 'Request options',
 ): void {
-  if (!config) {
+  if (!headers) {
     return;
   }
 
-  for (const fieldName of AUTH_OVERRIDE_FIELD_NAMES) {
-    if (config[fieldName] !== undefined) {
-      throw new Error(`${context}: auth overrides are not supported. Create a new WordPressClient with the desired auth settings.`);
-    }
-  }
-
-  for (const headerName of Object.keys(config.headers ?? {})) {
+  for (const headerName of Object.keys(headers)) {
     if (AUTH_OVERRIDE_HEADER_NAMES.has(headerName.toLowerCase())) {
       throw new Error(`${context}: auth header overrides are not supported ('${headerName}'). Create a new WordPressClient with the desired auth settings.`);
     }
@@ -39,22 +26,21 @@ export function assertNoAuthOverrides(
 }
 
 /**
- * Merges per-request header overrides into one request options object.
+ * Merges per-request non-auth header overrides into one request options object.
  */
 export function applyRequestOverrides(
   options: WordPressRequestOptions,
   overrides?: WordPressRequestOverrides,
   context = 'Request options',
 ): WordPressRequestOptions {
-  if (!overrides) {
+  if (!overrides?.headers) {
     return options;
   }
 
-  assertNoAuthOverrides(overrides as Record<string, unknown> & { headers?: Record<string, string> }, context);
+  assertNoAuthHeaderOverrides(overrides.headers, context);
 
   return {
     ...options,
-    ...overrides,
     headers: {
       ...(options.headers ?? {}),
       ...(overrides.headers ?? {}),

@@ -1,0 +1,87 @@
+---
+title: fluent-wp-client
+short_title: Overview
+description: Runtime-agnostic TypeScript client for the WordPress REST API with typed CRUD, auth, Gutenberg block parsing, and abilities.
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+`fluent-wp-client` is a runtime-agnostic TypeScript client for the WordPress REST API. It works on **Node.js**, **Deno**, **Bun**, and in the **browser** using only web-standard APIs (`fetch`, `URL`, `Blob`).
+
+## Install
+
+```bash
+npm install fluent-wp-client
+```
+
+## Quick start
+
+```ts
+import { WordPressClient } from 'fluent-wp-client';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+});
+
+// Read a list of posts
+const posts = await wp.getPosts({ perPage: 10 });
+
+// Read a single post and parse its Gutenberg blocks
+const blocks = await wp.getPostBySlug('hello-world').getBlocks();
+
+// Create a draft post (requires auth)
+const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
+```
+
+## Features
+
+- **Typed helpers** for posts, pages, media, categories, tags, users, comments, and settings
+- **Generic CPT and taxonomy APIs** — `content('books')` and `terms('genre')` work for any registered resource
+- **Gutenberg block parsing** — single-post queries expose `.getBlocks()` and `.getContent()`
+- **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
+- **WPAPI-compatible fluent syntax** — migrate from `node-wpapi` with minimal changes
+- **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
+- **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`
+- **Relation API** — `wp.post('slug').with('author', 'categories').get()`
+
+## Guides
+
+<CardGrid>
+  <LinkCard
+    title="Usage guide"
+    href="./usage"
+    description="All client methods, CRUD patterns, pagination, and error handling."
+  />
+  <LinkCard
+    title="Authentication"
+    href="./auth"
+    description="Choose the right auth strategy for your runtime and security model."
+  />
+  <LinkCard
+    title="Gutenberg content"
+    href="./gutenberg-content"
+    description="Render HTML or parse raw Gutenberg blocks from posts and pages."
+  />
+  <LinkCard
+    title="Custom endpoints"
+    href="./custom-endpoints"
+    description="Work with custom post types, taxonomies, and plugin REST namespaces."
+  />
+  <LinkCard
+    title="Abilities"
+    href="./abilities"
+    description="Discover and execute WordPress abilities with typed schemas."
+  />
+  <LinkCard
+    title="Validation"
+    href="./validation"
+    description="Validate responses with Standard Schema, Zod, Valibot, or ArkType."
+  />
+  <LinkCard
+    title="Migrate from node-wpapi"
+    href="./migration-from-node-wpapi"
+    description="Map familiar node-wpapi chains to fluent-wp-client methods."
+  />
+</CardGrid>

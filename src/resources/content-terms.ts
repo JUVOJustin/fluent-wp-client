@@ -33,6 +33,22 @@ export interface ContentTermMethodDependencies {
  * Creates generic content and taxonomy method groups used by the main client.
  */
 export function createContentTermMethods(dependencies: ContentTermMethodDependencies) {
+  const contentPaginator = createWordPressPaginator<QueryParams & PaginationParams, unknown>({
+    fetchPage: (currentFilter, context) => {
+      const { resource, ...queryFilter } = currentFilter as QueryParams & PaginationParams & { resource: string };
+      const params = filterToParams({ ...queryFilter, _embed: 'true' });
+      return dependencies.fetchAPIPaginated<unknown[]>(`/${resource}`, params, context as WordPressRequestOverrides | undefined);
+    },
+  });
+
+  const termPaginator = createWordPressPaginator<QueryParams & PaginationParams, unknown>({
+    fetchPage: (currentFilter, context) => {
+      const { resource, ...queryFilter } = currentFilter as QueryParams & PaginationParams & { resource: string };
+      const params = filterToParams(queryFilter);
+      return dependencies.fetchAPIPaginated<unknown[]>(`/${resource}`, params, context as WordPressRequestOverrides | undefined);
+    },
+  });
+
   /**
    * Lists one content resource (posts/pages/custom post types).
    */
@@ -53,14 +69,12 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     filter: Omit<QueryParams, 'page'> = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TContent[]> {
-    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TContent>({
-      fetchPage: (currentFilter) => {
-        const params = filterToParams({ ...currentFilter, _embed: 'true' });
-        return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params, requestOptions);
-      },
-    });
+    const paginatorFilter = {
+      ...filter,
+      resource,
+    } as Omit<QueryParams & PaginationParams & { resource: string }, 'page'>;
 
-    return paginator.listAll(filter);
+    return contentPaginator.listAll(paginatorFilter, requestOptions) as Promise<TContent[]>;
   }
 
   /**
@@ -71,14 +85,12 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     filter: QueryParams & PaginationParams = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<PaginatedResponse<TContent>> {
-    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TContent>({
-      fetchPage: (currentFilter) => {
-        const params = filterToParams({ ...currentFilter, _embed: 'true' });
-        return dependencies.fetchAPIPaginated<TContent[]>(`/${resource}`, params, requestOptions);
-      },
-    });
+    const paginatorFilter = {
+      ...filter,
+      resource,
+    } as QueryParams & PaginationParams & { resource: string };
 
-    return paginator.listPaginated(filter);
+    return contentPaginator.listPaginated(paginatorFilter, requestOptions) as Promise<PaginatedResponse<TContent>>;
   }
 
   /**
@@ -194,14 +206,12 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     filter: Omit<QueryParams, 'page'> = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TTerm[]> {
-    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TTerm>({
-      fetchPage: (currentFilter) => {
-        const params = filterToParams(currentFilter);
-        return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params, requestOptions);
-      },
-    });
+    const paginatorFilter = {
+      ...filter,
+      resource,
+    } as Omit<QueryParams & PaginationParams & { resource: string }, 'page'>;
 
-    return paginator.listAll(filter);
+    return termPaginator.listAll(paginatorFilter, requestOptions) as Promise<TTerm[]>;
   }
 
   /**
@@ -212,14 +222,12 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     filter: QueryParams & PaginationParams = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<PaginatedResponse<TTerm>> {
-    const paginator = createWordPressPaginator<QueryParams & PaginationParams, TTerm>({
-      fetchPage: (currentFilter) => {
-        const params = filterToParams(currentFilter);
-        return dependencies.fetchAPIPaginated<TTerm[]>(`/${resource}`, params, requestOptions);
-      },
-    });
+    const paginatorFilter = {
+      ...filter,
+      resource,
+    } as QueryParams & PaginationParams & { resource: string };
 
-    return paginator.listPaginated(filter);
+    return termPaginator.listPaginated(paginatorFilter, requestOptions) as Promise<PaginatedResponse<TTerm>>;
   }
 
   /**

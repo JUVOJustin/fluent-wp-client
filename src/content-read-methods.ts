@@ -32,6 +32,16 @@ export function createPostLikeReadMethods<
   TFilter extends PaginationParams,
 >(config: PostLikeReadMethodConfig<TContent, TFilter>) {
   const withDefaultFilter = config.withDefaultFilter ?? ((filter) => ({ ...filter, _embed: 'true' }));
+  const paginator = createWordPressPaginator<TFilter, TContent>({
+    fetchPage: (currentFilter, context) => {
+      const params = filterToParams(withDefaultFilter(currentFilter));
+      return config.fetchAPIPaginated<TContent[]>(
+        `/${config.resource}`,
+        params,
+        context as WordPressRequestOverrides | undefined,
+      );
+    },
+  });
 
   /**
    * Lists one page of post-like content with request-scoped transport overrides.
@@ -52,14 +62,7 @@ export function createPostLikeReadMethods<
     filter: Omit<TFilter, 'page'> = {} as Omit<TFilter, 'page'>,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TContent[]> {
-    const optionsPaginator = createWordPressPaginator<TFilter, TContent>({
-      fetchPage: (currentFilter) => {
-        const params = filterToParams(withDefaultFilter(currentFilter));
-        return config.fetchAPIPaginated<TContent[]>(`/${config.resource}`, params, requestOptions);
-      },
-    });
-
-    return optionsPaginator.listAll(filter);
+    return paginator.listAll(filter, requestOptions);
   }
 
   /**
@@ -69,14 +72,7 @@ export function createPostLikeReadMethods<
     filter: TFilter = {} as TFilter,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<PaginatedResponse<TContent>> {
-    const optionsPaginator = createWordPressPaginator<TFilter, TContent>({
-      fetchPage: (currentFilter) => {
-        const params = filterToParams(withDefaultFilter(currentFilter));
-        return config.fetchAPIPaginated<TContent[]>(`/${config.resource}`, params, requestOptions);
-      },
-    });
-
-    return optionsPaginator.listPaginated(filter);
+    return paginator.listPaginated(filter, requestOptions);
   }
 
   /**

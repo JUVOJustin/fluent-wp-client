@@ -12,6 +12,13 @@ export function createMediaMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<MediaFilter, WordPressMedia>({
+    fetchPage: (currentFilter, context) => {
+      const params = filterToParams(currentFilter);
+      return fetchAPIPaginated<WordPressMedia[]>('/media', params, context as WordPressRequestOverrides | undefined);
+    },
+  });
+
   return {
     /**
      * Gets media items with optional filtering.
@@ -28,14 +35,7 @@ export function createMediaMethods(
       filter: Omit<MediaFilter, 'page'> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressMedia[]> {
-      const paginator = createWordPressPaginator<MediaFilter, WordPressMedia>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressMedia[]>('/media', params, requestOptions);
-        },
-      });
-
-      return paginator.listAll(filter);
+      return paginator.listAll(filter, requestOptions);
     },
 
     /**
@@ -45,14 +45,7 @@ export function createMediaMethods(
       filter: MediaFilter = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<PaginatedResponse<WordPressMedia>> {
-      const paginator = createWordPressPaginator<MediaFilter, WordPressMedia>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressMedia[]>('/media', params, requestOptions);
-        },
-      });
-
-      return paginator.listPaginated(filter);
+      return paginator.listPaginated(filter, requestOptions);
     },
 
     /**

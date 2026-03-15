@@ -12,6 +12,13 @@ export function createTagsMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<TagsFilter, WordPressTag>({
+    fetchPage: (currentFilter, context) => {
+      const params = filterToParams(currentFilter);
+      return fetchAPIPaginated<WordPressTag[]>('/tags', params, context as WordPressRequestOverrides | undefined);
+    },
+  });
+
   return {
     /**
      * Gets tags with optional filtering.
@@ -28,14 +35,7 @@ export function createTagsMethods(
       filter: Omit<TagsFilter, 'page'> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressTag[]> {
-      const paginator = createWordPressPaginator<TagsFilter, WordPressTag>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressTag[]>('/tags', params, requestOptions);
-        },
-      });
-
-      return paginator.listAll(filter);
+      return paginator.listAll(filter, requestOptions);
     },
 
     /**
@@ -45,14 +45,7 @@ export function createTagsMethods(
       filter: TagsFilter = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<PaginatedResponse<WordPressTag>> {
-      const paginator = createWordPressPaginator<TagsFilter, WordPressTag>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressTag[]>('/tags', params, requestOptions);
-        },
-      });
-
-      return paginator.listPaginated(filter);
+      return paginator.listPaginated(filter, requestOptions);
     },
 
     /**

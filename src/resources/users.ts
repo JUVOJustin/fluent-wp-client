@@ -13,6 +13,13 @@ export function createUsersMethods(
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
   hasAuth: () => boolean,
 ) {
+  const paginator = createWordPressPaginator<UsersFilter, WordPressAuthor>({
+    fetchPage: (currentFilter, context) => {
+      const params = filterToParams(currentFilter);
+      return fetchAPIPaginated<WordPressAuthor[]>('/users', params, context as WordPressRequestOverrides | undefined);
+    },
+  });
+
   return {
     /**
      * Gets users with optional filtering.
@@ -29,14 +36,7 @@ export function createUsersMethods(
       filter: Omit<UsersFilter, 'page'> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressAuthor[]> {
-      const paginator = createWordPressPaginator<UsersFilter, WordPressAuthor>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressAuthor[]>('/users', params, requestOptions);
-        },
-      });
-
-      return paginator.listAll(filter);
+      return paginator.listAll(filter, requestOptions);
     },
 
     /**
@@ -46,14 +46,7 @@ export function createUsersMethods(
       filter: UsersFilter = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<PaginatedResponse<WordPressAuthor>> {
-      const paginator = createWordPressPaginator<UsersFilter, WordPressAuthor>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressAuthor[]>('/users', params, requestOptions);
-        },
-      });
-
-      return paginator.listPaginated(filter);
+      return paginator.listPaginated(filter, requestOptions);
     },
 
     /**

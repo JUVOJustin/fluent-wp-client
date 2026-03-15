@@ -12,6 +12,13 @@ export function createCommentsMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<CommentsFilter, WordPressComment>({
+    fetchPage: (currentFilter, context) => {
+      const params = filterToParams(currentFilter);
+      return fetchAPIPaginated<WordPressComment[]>('/comments', params, context as WordPressRequestOverrides | undefined);
+    },
+  });
+
   return {
     /**
      * Gets comments with optional filtering.
@@ -31,14 +38,7 @@ export function createCommentsMethods(
       filter: Omit<CommentsFilter, 'page'> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressComment[]> {
-      const paginator = createWordPressPaginator<CommentsFilter, WordPressComment>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressComment[]>('/comments', params, requestOptions);
-        },
-      });
-
-      return paginator.listAll(filter);
+      return paginator.listAll(filter, requestOptions);
     },
 
     /**
@@ -48,14 +48,7 @@ export function createCommentsMethods(
       filter: CommentsFilter = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<PaginatedResponse<WordPressComment>> {
-      const paginator = createWordPressPaginator<CommentsFilter, WordPressComment>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressComment[]>('/comments', params, requestOptions);
-        },
-      });
-
-      return paginator.listPaginated(filter);
+      return paginator.listPaginated(filter, requestOptions);
     },
 
     /**

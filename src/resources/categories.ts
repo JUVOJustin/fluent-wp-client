@@ -12,6 +12,13 @@ export function createCategoriesMethods(
   fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
 ) {
+  const paginator = createWordPressPaginator<CategoriesFilter, WordPressCategory>({
+    fetchPage: (currentFilter, context) => {
+      const params = filterToParams(currentFilter);
+      return fetchAPIPaginated<WordPressCategory[]>('/categories', params, context as WordPressRequestOverrides | undefined);
+    },
+  });
+
   return {
     /**
      * Gets categories with optional filtering.
@@ -31,14 +38,7 @@ export function createCategoriesMethods(
       filter: Omit<CategoriesFilter, 'page'> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressCategory[]> {
-      const paginator = createWordPressPaginator<CategoriesFilter, WordPressCategory>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressCategory[]>('/categories', params, requestOptions);
-        },
-      });
-
-      return paginator.listAll(filter);
+      return paginator.listAll(filter, requestOptions);
     },
 
     /**
@@ -48,14 +48,7 @@ export function createCategoriesMethods(
       filter: CategoriesFilter = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<PaginatedResponse<WordPressCategory>> {
-      const paginator = createWordPressPaginator<CategoriesFilter, WordPressCategory>({
-        fetchPage: (currentFilter) => {
-          const params = filterToParams(currentFilter);
-          return fetchAPIPaginated<WordPressCategory[]>('/categories', params, requestOptions);
-        },
-      });
-
-      return paginator.listPaginated(filter);
+      return paginator.listPaginated(filter, requestOptions);
     },
 
     /**

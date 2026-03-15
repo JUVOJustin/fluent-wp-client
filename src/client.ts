@@ -18,6 +18,7 @@ import type {
   WordPressClientConfig,
   WordPressMediaUploadInput,
   WordPressRequestOptions,
+  WordPressRequestOverrides,
   WordPressRequestResult,
 } from './client-types.js';
 import { createPostsMethods } from './resources/posts.js';
@@ -60,9 +61,11 @@ import {
 } from './builders/relations.js';
 import { WordPressRequestBuilder } from './builders/wpapi-request.js';
 import {
+  isStandardSchema,
   validateWithStandardSchema,
   type WordPressStandardSchema,
 } from './core/validation.js';
+import { applyRequestOverrides } from './core/request-overrides.js';
 import { compactPayload } from './core/params.js';
 import type {
   CategoriesFilter,
@@ -91,6 +94,7 @@ import type {
 export type {
   WordPressClientConfig,
   WordPressRequestOptions,
+  WordPressRequestOverrides,
   WordPressRequestResult,
   WordPressMediaUploadInput,
 } from './client-types.js';
@@ -490,6 +494,43 @@ export class WordPressClient {
   }
 
   /**
+   * Resolves schema and request options from overloaded mutation helper args.
+   */
+  private resolveMutationArguments<TResponse>(
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ): {
+    responseSchema?: WordPressStandardSchema<TResponse>;
+    requestOptions?: WordPressRequestOverrides;
+  } {
+    if (isStandardSchema(responseSchemaOrRequestOptions)) {
+      return {
+        responseSchema: responseSchemaOrRequestOptions,
+        requestOptions,
+      };
+    }
+
+    if (!responseSchemaOrRequestOptions) {
+      return {
+        responseSchema: undefined,
+        requestOptions,
+      };
+    }
+
+    return {
+      responseSchema: undefined,
+      requestOptions: {
+        ...responseSchemaOrRequestOptions,
+        ...(requestOptions ?? {}),
+        headers: {
+          ...(responseSchemaOrRequestOptions.headers ?? {}),
+          ...(requestOptions?.headers ?? {}),
+        },
+      },
+    };
+  }
+
+  /**
    * Returns whether authentication is configured on this client instance.
    */
   hasAuth(): boolean {
@@ -558,20 +599,28 @@ export class WordPressClient {
   /**
    * Fetches typed data from one WordPress REST endpoint.
    */
-  async fetchAPI<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
-    const result = await this.fetchAPIPaginated<T>(endpoint, params);
+  async fetchAPI<T>(
+    endpoint: string,
+    params: Record<string, string> = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<T> {
+    const result = await this.fetchAPIPaginated<T>(endpoint, params, requestOptions);
     return result.data;
   }
 
   /**
    * Fetches typed data and pagination metadata from one REST endpoint.
    */
-  async fetchAPIPaginated<T>(endpoint: string, params: Record<string, string> = {}): Promise<FetchResult<T>> {
-    const { data, response } = await this.request<T>({
+  async fetchAPIPaginated<T>(
+    endpoint: string,
+    params: Record<string, string> = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<FetchResult<T>> {
+    const { data, response } = await this.request<T>(applyRequestOverrides({
       endpoint,
       method: 'GET',
       params,
-    });
+    }, requestOptions, 'Helper request options'));
 
     throwIfWordPressError(response, data);
 
@@ -607,12 +656,16 @@ export class WordPressClient {
    */
   async createPost<TPost = WordPressPost>(
     input: WordPressPostWriteBase & Record<string, unknown>,
-    responseSchema?: WordPressStandardSchema<TPost>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TPost> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TPost> {
+    const resolved = this.resolveMutationArguments<TPost>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.createContent<TPost, WordPressPostWriteBase & Record<string, unknown>>(
       'posts',
       input,
-      responseSchema ?? (postSchema as WordPressStandardSchema<TPost>),
+      resolved.responseSchema ?? (postSchema as WordPressStandardSchema<TPost>),
+      resolved.requestOptions,
     );
   }
 
@@ -622,20 +675,24 @@ export class WordPressClient {
   async updatePost<TPost = WordPressPost>(
     id: number,
     input: WordPressPostWriteBase & Record<string, unknown>,
-    responseSchema?: WordPressStandardSchema<TPost>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TPost> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TPost> {
+    const resolved = this.resolveMutationArguments<TPost>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.updateContent<TPost, WordPressPostWriteBase & Record<string, unknown>>(
       'posts',
       id,
       input,
-      responseSchema ?? (postSchema as WordPressStandardSchema<TPost>),
+      resolved.responseSchema ?? (postSchema as WordPressStandardSchema<TPost>),
+      resolved.requestOptions,
     );
   }
 
   /**
    * Deletes one post.
    */
-  async deletePost(id: number, options: DeleteOptions = {}): Promise<WordPressDeleteResult> {
+  async deletePost(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
     return this.deleteContent('posts', id, options);
   }
 
@@ -644,12 +701,16 @@ export class WordPressClient {
    */
   async createPage<TPage = WordPressPage>(
     input: WordPressPostWriteBase & Record<string, unknown>,
-    responseSchema?: WordPressStandardSchema<TPage>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TPage> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TPage> {
+    const resolved = this.resolveMutationArguments<TPage>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.createContent<TPage, WordPressPostWriteBase & Record<string, unknown>>(
       'pages',
       input,
-      responseSchema ?? (pageSchema as WordPressStandardSchema<TPage>),
+      resolved.responseSchema ?? (pageSchema as WordPressStandardSchema<TPage>),
+      resolved.requestOptions,
     );
   }
 
@@ -659,20 +720,24 @@ export class WordPressClient {
   async updatePage<TPage = WordPressPage>(
     id: number,
     input: WordPressPostWriteBase & Record<string, unknown>,
-    responseSchema?: WordPressStandardSchema<TPage>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TPage> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TPage> {
+    const resolved = this.resolveMutationArguments<TPage>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.updateContent<TPage, WordPressPostWriteBase & Record<string, unknown>>(
       'pages',
       id,
       input,
-      responseSchema ?? (pageSchema as WordPressStandardSchema<TPage>),
+      resolved.responseSchema ?? (pageSchema as WordPressStandardSchema<TPage>),
+      resolved.requestOptions,
     );
   }
 
   /**
    * Deletes one page.
    */
-  async deletePage(id: number, options: DeleteOptions = {}): Promise<WordPressDeleteResult> {
+  async deletePage(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
     return this.deleteContent('pages', id, options);
   }
 
@@ -681,12 +746,16 @@ export class WordPressClient {
    */
   async createCategory<TCategory = WordPressCategory>(
     input: TermWriteInput,
-    responseSchema?: WordPressStandardSchema<TCategory>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TCategory> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TCategory> {
+    const resolved = this.resolveMutationArguments<TCategory>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.createTerm<TCategory, TermWriteInput>(
       'categories',
       input,
-      responseSchema ?? (categorySchema as WordPressStandardSchema<TCategory>),
+      resolved.responseSchema ?? (categorySchema as WordPressStandardSchema<TCategory>),
+      resolved.requestOptions,
     );
   }
 
@@ -696,20 +765,24 @@ export class WordPressClient {
   async updateCategory<TCategory = WordPressCategory>(
     id: number,
     input: TermWriteInput,
-    responseSchema?: WordPressStandardSchema<TCategory>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TCategory> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TCategory> {
+    const resolved = this.resolveMutationArguments<TCategory>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.updateTerm<TCategory, TermWriteInput>(
       'categories',
       id,
       input,
-      responseSchema ?? (categorySchema as WordPressStandardSchema<TCategory>),
+      resolved.responseSchema ?? (categorySchema as WordPressStandardSchema<TCategory>),
+      resolved.requestOptions,
     );
   }
 
   /**
    * Deletes one category.
    */
-  async deleteCategory(id: number, options: DeleteOptions = {}): Promise<WordPressDeleteResult> {
+  async deleteCategory(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
     return this.deleteTerm('categories', id, options);
   }
 
@@ -718,12 +791,16 @@ export class WordPressClient {
    */
   async createTag<TTag = WordPressTag>(
     input: TermWriteInput,
-    responseSchema?: WordPressStandardSchema<TTag>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TTag> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TTag> {
+    const resolved = this.resolveMutationArguments<TTag>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.createTerm<TTag, TermWriteInput>(
       'tags',
       input,
-      responseSchema ?? (categorySchema as WordPressStandardSchema<TTag>),
+      resolved.responseSchema ?? (categorySchema as WordPressStandardSchema<TTag>),
+      resolved.requestOptions,
     );
   }
 
@@ -733,20 +810,24 @@ export class WordPressClient {
   async updateTag<TTag = WordPressTag>(
     id: number,
     input: TermWriteInput,
-    responseSchema?: WordPressStandardSchema<TTag>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TTag> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TTag> {
+    const resolved = this.resolveMutationArguments<TTag>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.updateTerm<TTag, TermWriteInput>(
       'tags',
       id,
       input,
-      responseSchema ?? (categorySchema as WordPressStandardSchema<TTag>),
+      resolved.responseSchema ?? (categorySchema as WordPressStandardSchema<TTag>),
+      resolved.requestOptions,
     );
   }
 
   /**
    * Deletes one tag.
    */
-  async deleteTag(id: number, options: DeleteOptions = {}): Promise<WordPressDeleteResult> {
+  async deleteTag(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
     return this.deleteTerm('tags', id, options);
   }
 
@@ -755,15 +836,18 @@ export class WordPressClient {
    */
   async createUser<TUser = WordPressAuthor>(
     input: UserWriteInput,
-    responseSchema?: WordPressStandardSchema<TUser>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TUser> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TUser> {
+    const resolved = this.resolveMutationArguments<TUser>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.executeMutation<TUser>(
-      {
+      applyRequestOverrides({
         endpoint: '/users',
         method: 'POST',
         body: compactPayload(input),
-      },
-      responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
+      }, resolved.requestOptions, 'Mutation helper options'),
+      resolved.responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
     );
   }
 
@@ -773,22 +857,28 @@ export class WordPressClient {
   async updateUser<TUser = WordPressAuthor>(
     id: number,
     input: UserWriteInput,
-    responseSchema?: WordPressStandardSchema<TUser>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TUser> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TUser> {
+    const resolved = this.resolveMutationArguments<TUser>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.executeMutation<TUser>(
-      {
+      applyRequestOverrides({
         endpoint: `/users/${id}`,
         method: 'POST',
         body: compactPayload(input),
-      },
-      responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
+      }, resolved.requestOptions, 'Mutation helper options'),
+      resolved.responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
     );
   }
 
   /**
    * Deletes one user.
    */
-  async deleteUser(id: number, options: UserDeleteOptions = {}): Promise<WordPressDeleteResult> {
+  async deleteUser(
+    id: number,
+    options: UserDeleteOptions & WordPressRequestOverrides = {},
+  ): Promise<WordPressDeleteResult> {
     const params: Record<string, string> = {
       force: options.force === false ? 'false' : 'true',
     };
@@ -797,11 +887,11 @@ export class WordPressClient {
       params.reassign = String(options.reassign);
     }
 
-    const { data, response } = await this.request<unknown>({
+    const { data, response } = await this.request<unknown>(applyRequestOverrides({
       endpoint: `/users/${id}`,
       method: 'DELETE',
       params,
-    });
+    }, options, 'Mutation helper options'));
 
     throwIfWordPressError(response, data);
 
@@ -829,15 +919,18 @@ export class WordPressClient {
    */
   async createComment<TComment = WordPressComment>(
     input: WordPressWritePayload,
-    responseSchema?: WordPressStandardSchema<TComment>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TComment> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TComment> {
+    const resolved = this.resolveMutationArguments<TComment>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.executeMutation<TComment>(
-      {
+      applyRequestOverrides({
         endpoint: '/comments',
         method: 'POST',
         body: compactPayload(input),
-      },
-      responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
+      }, resolved.requestOptions, 'Mutation helper options'),
+      resolved.responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
     );
   }
 
@@ -847,28 +940,34 @@ export class WordPressClient {
   async updateComment<TComment = WordPressComment>(
     id: number,
     input: WordPressWritePayload,
-    responseSchema?: WordPressStandardSchema<TComment>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TComment> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TComment> {
+    const resolved = this.resolveMutationArguments<TComment>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.executeMutation<TComment>(
-      {
+      applyRequestOverrides({
         endpoint: `/comments/${id}`,
         method: 'POST',
         body: compactPayload(input),
-      },
-      responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
+      }, resolved.requestOptions, 'Mutation helper options'),
+      resolved.responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
     );
   }
 
   /**
    * Deletes one comment.
    */
-  async deleteComment(id: number, options: DeleteOptions = {}): Promise<WordPressDeleteResult> {
+  async deleteComment(
+    id: number,
+    options: DeleteOptions & WordPressRequestOverrides = {},
+  ): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
-    const { data, response } = await this.request<unknown>({
+    const { data, response } = await this.request<unknown>(applyRequestOverrides({
       endpoint: `/comments/${id}`,
       method: 'DELETE',
       params,
-    });
+    }, options, 'Mutation helper options'));
 
     throwIfWordPressError(response, data);
 
@@ -896,22 +995,25 @@ export class WordPressClient {
    */
   async createMedia<TMedia = WordPressMedia>(
     input: WordPressWritePayload,
-    responseSchema?: WordPressStandardSchema<TMedia>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TMedia> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TMedia> {
+    const resolved = this.resolveMutationArguments<TMedia>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.executeMutation<TMedia>(
-      {
+      applyRequestOverrides({
         endpoint: '/media',
         method: 'POST',
         body: compactPayload(input),
-      },
-      responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
+      }, resolved.requestOptions, 'Mutation helper options'),
+      resolved.responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
     );
   }
 
   /**
    * Uploads one binary media file and optionally applies metadata.
    */
-  async uploadMedia(input: WordPressMediaUploadInput): Promise<WordPressMedia> {
+  async uploadMedia(input: WordPressMediaUploadInput, requestOptions?: WordPressRequestOverrides): Promise<WordPressMedia> {
     const fileBody = input.file instanceof Blob
       ? input.file
       : input.file instanceof Uint8Array
@@ -930,13 +1032,13 @@ export class WordPressClient {
     }
 
     const created = await this.executeMutation<WordPressMedia>(
-      {
+      applyRequestOverrides({
         endpoint: '/media',
         method: 'POST',
         rawBody: fileBody,
         headers: uploadHeaders,
         omitContentType: true,
-      },
+      }, requestOptions, 'Mutation helper options'),
       mediaSchema,
     );
 
@@ -966,7 +1068,7 @@ export class WordPressClient {
       return created;
     }
 
-    return this.updateMedia(created.id, metadata);
+    return this.updateMedia(created.id, metadata, undefined, requestOptions);
   }
 
   /**
@@ -975,28 +1077,34 @@ export class WordPressClient {
   async updateMedia<TMedia = WordPressMedia>(
     id: number,
     input: WordPressWritePayload,
-    responseSchema?: WordPressStandardSchema<TMedia>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TMedia> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TMedia> {
+    const resolved = this.resolveMutationArguments<TMedia>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.executeMutation<TMedia>(
-      {
+      applyRequestOverrides({
         endpoint: `/media/${id}`,
         method: 'POST',
         body: compactPayload(input),
-      },
-      responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
+      }, resolved.requestOptions, 'Mutation helper options'),
+      resolved.responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
     );
   }
 
   /**
    * Deletes one media record.
    */
-  async deleteMedia(id: number, options: DeleteOptions = {}): Promise<WordPressDeleteResult> {
+  async deleteMedia(
+    id: number,
+    options: DeleteOptions & WordPressRequestOverrides = {},
+  ): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
-    const { data, response } = await this.request<unknown>({
+    const { data, response } = await this.request<unknown>(applyRequestOverrides({
       endpoint: `/media/${id}`,
       method: 'DELETE',
       params,
-    });
+    }, options, 'Mutation helper options'));
 
     throwIfWordPressError(response, data);
 
@@ -1024,19 +1132,22 @@ export class WordPressClient {
    */
   async updateSettings<TSettings = WordPressSettings>(
     input: Partial<WordPressSettings> & Record<string, unknown>,
-    responseSchema?: WordPressStandardSchema<TSettings>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TSettings> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TSettings> {
+    const resolved = this.resolveMutationArguments<TSettings>(responseSchemaOrRequestOptions, requestOptions);
+
     if (!this.hasAuth()) {
       throw new Error('Authentication required for /settings endpoint. Configure auth in client options.');
     }
 
     return this.executeMutation<TSettings>(
-      {
+      applyRequestOverrides({
         endpoint: '/settings',
         method: 'POST',
         body: compactPayload(input),
-      },
-      responseSchema ?? (settingsSchema as WordPressStandardSchema<TSettings>),
+      }, resolved.requestOptions, 'Mutation helper options'),
+      resolved.responseSchema ?? (settingsSchema as WordPressStandardSchema<TSettings>),
     );
   }
 
@@ -1045,15 +1156,18 @@ export class WordPressClient {
    */
   async loginWithJwt<TJwtResponse = JwtAuthTokenResponse>(
     credentials: JwtLoginCredentials,
-    responseSchema?: WordPressStandardSchema<TJwtResponse>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TJwtResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TJwtResponse> {
+    const resolved = this.resolveMutationArguments<TJwtResponse>(responseSchemaOrRequestOptions, requestOptions);
+
     return this.executeMutation<TJwtResponse>(
-      {
+      applyRequestOverrides({
         endpoint: '/wp-json/jwt-auth/v1/token',
         method: 'POST',
         body: credentials,
-      },
-      responseSchema ?? (jwtAuthTokenResponseSchema as WordPressStandardSchema<TJwtResponse>),
+      }, resolved.requestOptions, 'Mutation helper options'),
+      resolved.responseSchema ?? (jwtAuthTokenResponseSchema as WordPressStandardSchema<TJwtResponse>),
     );
   }
 

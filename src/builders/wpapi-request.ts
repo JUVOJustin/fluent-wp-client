@@ -1,9 +1,5 @@
-import {
-  type WordPressAuthHeaders,
-  type WordPressAuthHeadersProvider,
-  type WordPressAuthInput,
-} from '../auth.js';
 import { throwIfWordPressError } from '../core/errors.js';
+import { assertNoAuthHeaderOverrides } from '../core/request-overrides.js';
 import type { WordPressRequestOptions, WordPressRequestResult } from '../client-types.js';
 
 /**
@@ -48,10 +44,6 @@ export class WordPressRequestBuilder<
   private readonly requestHeaders: Record<string, string> = {};
   private resourceId: number | string | undefined;
   private includeEmbed = false;
-  private requestAuth: WordPressAuthInput | undefined;
-  private requestAuthHeaders: WordPressAuthHeaders | WordPressAuthHeadersProvider | undefined;
-  private requestCookies: string | undefined;
-  private requestCredentials: RequestCredentials | undefined;
 
   constructor(
     private readonly runtime: WordPressRequestBuilderRuntime,
@@ -205,9 +197,12 @@ export class WordPressRequestBuilder<
   setHeaders(headers: Record<string, string>): this;
   setHeaders(nameOrHeaders: string | Record<string, string>, value?: string): this {
     if (typeof nameOrHeaders === 'string') {
+      assertNoAuthHeaderOverrides({ [nameOrHeaders]: value ?? '' }, 'WPAPI chain options');
       this.requestHeaders[nameOrHeaders] = value ?? '';
       return this;
     }
+
+    assertNoAuthHeaderOverrides(nameOrHeaders, 'WPAPI chain options');
 
     Object.assign(this.requestHeaders, nameOrHeaders);
     return this;
@@ -227,42 +222,6 @@ export class WordPressRequestBuilder<
   }
 
   /**
-   * Overrides auth for this request chain.
-   */
-  auth(value?: WordPressAuthInput): this {
-    if (!value) {
-      return this;
-    }
-
-    this.requestAuth = value;
-    return this;
-  }
-
-  /**
-   * Overrides request-aware auth headers for this request chain.
-   */
-  authHeaders(value: WordPressAuthHeaders | WordPressAuthHeadersProvider): this {
-    this.requestAuthHeaders = value;
-    return this;
-  }
-
-  /**
-   * Overrides the cookie header for this request chain.
-   */
-  cookies(value: string): this {
-    this.requestCookies = value;
-    return this;
-  }
-
-  /**
-   * Overrides fetch credentials mode for this request chain.
-   */
-  credentials(value: RequestCredentials): this {
-    this.requestCredentials = value;
-    return this;
-  }
-
-  /**
    * Serializes this chain to the final request URL.
    */
   toString(): string {
@@ -278,10 +237,6 @@ export class WordPressRequestBuilder<
       method: 'GET',
       params: this.getParams(),
       headers: this.requestHeaders,
-      auth: this.requestAuth,
-      authHeaders: this.requestAuthHeaders,
-      cookies: this.requestCookies,
-      credentials: this.requestCredentials,
     });
 
     throwIfWordPressError(response, data);
@@ -298,10 +253,6 @@ export class WordPressRequestBuilder<
       params: this.getParams(),
       body: payload,
       headers: this.requestHeaders,
-      auth: this.requestAuth,
-      authHeaders: this.requestAuthHeaders,
-      cookies: this.requestCookies,
-      credentials: this.requestCredentials,
     });
 
     throwIfWordPressError(response, data);
@@ -318,10 +269,6 @@ export class WordPressRequestBuilder<
       params: this.getParams(),
       body: payload,
       headers: this.requestHeaders,
-      auth: this.requestAuth,
-      authHeaders: this.requestAuthHeaders,
-      cookies: this.requestCookies,
-      credentials: this.requestCredentials,
     });
 
     throwIfWordPressError(response, data);
@@ -342,10 +289,6 @@ export class WordPressRequestBuilder<
       method: 'DELETE',
       params,
       headers: this.requestHeaders,
-      auth: this.requestAuth,
-      authHeaders: this.requestAuthHeaders,
-      cookies: this.requestCookies,
-      credentials: this.requestCredentials,
     });
 
     throwIfWordPressError(response, data);

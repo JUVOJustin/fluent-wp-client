@@ -203,14 +203,16 @@ Choose the same auth approach as core endpoints:
 - Cookie + nonce for browser-front-end authenticated calls
 - `authHeaders` for signature-based/custom auth schemes
 
-If a custom endpoint requires per-request auth behavior, set auth at request-chain level:
+Prefer creating a new `WordPressClient` when auth should differ for a full request lifecycle or route handler.
 
-```ts title="Per-request auth override"
-const result = await wp
-  .namespace('my-plugin/v1')
-  .route('secure-sync')
-  .auth({ token: 'jwt-token' })
-  .get();
+Use per-request auth on `request()` only when auth truly varies call-by-call for custom endpoints:
+
+```ts title="Per-request auth with request()"
+const { data: result } = await wp.request({
+  endpoint: '/wp-json/my-plugin/v1/secure-sync',
+  method: 'GET',
+  auth: { token: 'jwt-token' },
+});
 ```
 
 ## Error handling

@@ -1,6 +1,7 @@
 import type { WordPressBlockParser } from '../blocks.js';
 import { createPostLikeReadMethods } from '../content-read-methods.js';
 import type { WordPressPost } from '../schemas.js';
+import type { WordPressRequestOverrides } from '../client-types.js';
 import type { FetchResult } from '../types/resources.js';
 import type { PostsFilter } from '../types/filters.js';
 
@@ -11,8 +12,8 @@ const missingRawPostMessage =
  * Posts API methods factory for typed read operations.
  */
 export function createPostsMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>,
+  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
+  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
   defaultBlockParser?: WordPressBlockParser,
 ) {
   const core = createPostLikeReadMethods<WordPressPost, PostsFilter>({

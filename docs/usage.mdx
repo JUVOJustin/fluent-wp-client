@@ -321,6 +321,19 @@ const posts = await wp.getPosts({ perPage: 5 });
 const blocks = await wp.getPost(posts[0].id).getBlocks();
 ```
 
+Read helpers also accept request-scoped custom headers as the last argument:
+
+```ts
+const posts = await wp.getPosts(
+  { perPage: 5 },
+  {
+    headers: {
+      'x-crossposter-source-entity-type': 'post',
+    },
+  },
+);
+```
+
 Media uses a different schema (`description`/`caption`, no `content.raw`), so media helpers do not expose `getBlocks()`.
 
 ### Generic resource helpers
@@ -363,7 +376,7 @@ type PageLike = WordPressPostBase;
 - Media: `createMedia`, `uploadMedia`, `updateMedia`, `deleteMedia`
 - Settings: `updateSettings`
 
-Most mutation helpers accept request-scoped custom headers so you can pass one-off metadata without mutating shared client defaults.
+Helpers accept request-scoped custom headers so you can pass one-off metadata without mutating shared client defaults.
 
 ```ts
 const createdPost = await wp.createPost(
@@ -392,6 +405,8 @@ await wp.deletePost(createdPost.id, {
 - `createPost(input, responseSchema?, requestOptions?)`
 
 Auth overrides are intentionally blocked on mutation helper options. If you need different auth credentials or auth headers, create a new `WordPressClient` instance with the desired auth configuration.
+
+The same auth-override rule applies to read and listing helpers.
 
 ### Auth and ability helpers
 

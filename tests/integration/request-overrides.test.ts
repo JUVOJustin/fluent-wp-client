@@ -293,4 +293,101 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.termUpdate).toBe(true);
     expect(seen.termDelete).toBe(true);
   });
+
+  it('forwards custom headers for read and listing helpers', async () => {
+    const seen = {
+      postsList: false,
+      postByIdView: false,
+      postByIdEdit: false,
+      booksList: false,
+      genreList: false,
+    };
+
+    const client = createObservedAuthClient((method, url, headers) => {
+      if (method !== 'GET') {
+        return;
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.has('per_page')) {
+        seen.postsList = headers.get('x-test-source') === 'read-posts';
+      }
+
+      if (/\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname) && url.searchParams.get('context') !== 'edit') {
+        seen.postByIdView = headers.get('x-test-source') === 'read-post-by-id';
+      }
+
+      if (/\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname) && url.searchParams.get('context') === 'edit') {
+        seen.postByIdEdit = headers.get('x-test-source') === 'read-post-by-id';
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/books') && url.searchParams.has('per_page')) {
+        seen.booksList = headers.get('x-test-source') === 'read-books';
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/genre') && url.searchParams.has('per_page')) {
+        seen.genreList = headers.get('x-test-source') === 'read-genre';
+      }
+
+    });
+
+    const posts = await client.getPosts(
+      { perPage: 1 },
+      {
+        headers: {
+          'x-test-source': 'read-posts',
+        },
+      },
+    );
+
+    const postQuery = client.getPost(posts[0].id, {
+      headers: {
+        'x-test-source': 'read-post-by-id',
+      },
+    });
+
+    await postQuery.get();
+    await postQuery.getBlocks();
+
+    const books = await client.content('books').list(
+      { perPage: 1 },
+      {
+        headers: {
+          'x-test-source': 'read-books',
+        },
+      },
+    );
+
+    const genres = await client.terms('genre').list(
+      { perPage: 1 },
+      {
+        headers: {
+          'x-test-source': 'read-genre',
+        },
+      },
+    );
+
+    expect(posts.length).toBeGreaterThan(0);
+    expect(books.length).toBeGreaterThan(0);
+    expect(Array.isArray(genres)).toBe(true);
+    expect(seen.postsList).toBe(true);
+    expect(seen.postByIdView).toBe(true);
+    expect(seen.postByIdEdit).toBe(true);
+    expect(seen.booksList).toBe(true);
+    expect(seen.genreList).toBe(true);
+  });
+
+  it('rejects auth header overrides on read helpers', async () => {
+    const client = createObservedAuthClient(() => undefined);
+
+    await expect(
+      client.getPosts(
+        { perPage: 1 },
+        {
+          headers: {
+            Authorization: 'Bearer blocked',
+          },
+        },
+      ),
+    ).rejects.toThrow(/auth header overrides are not supported/i);
+  });
 });

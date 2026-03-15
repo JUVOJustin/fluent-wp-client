@@ -599,20 +599,28 @@ export class WordPressClient {
   /**
    * Fetches typed data from one WordPress REST endpoint.
    */
-  async fetchAPI<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
-    const result = await this.fetchAPIPaginated<T>(endpoint, params);
+  async fetchAPI<T>(
+    endpoint: string,
+    params: Record<string, string> = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<T> {
+    const result = await this.fetchAPIPaginated<T>(endpoint, params, requestOptions);
     return result.data;
   }
 
   /**
    * Fetches typed data and pagination metadata from one REST endpoint.
    */
-  async fetchAPIPaginated<T>(endpoint: string, params: Record<string, string> = {}): Promise<FetchResult<T>> {
-    const { data, response } = await this.request<T>({
+  async fetchAPIPaginated<T>(
+    endpoint: string,
+    params: Record<string, string> = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<FetchResult<T>> {
+    const { data, response } = await this.request<T>(applyRequestOverrides({
       endpoint,
       method: 'GET',
       params,
-    });
+    }, requestOptions, 'Helper request options'));
 
     throwIfWordPressError(response, data);
 

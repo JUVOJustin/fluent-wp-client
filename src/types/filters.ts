@@ -17,6 +17,8 @@ export interface PostsFilter extends PaginationParams {
   sticky?: boolean;
   orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include';
   order?: 'asc' | 'desc';
+  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+  fields?: string[];
 }
 
 /**
@@ -33,6 +35,8 @@ export interface PagesFilter extends PaginationParams {
   before?: string;
   orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'menu_order';
   order?: 'asc' | 'desc';
+  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+  fields?: string[];
 }
 
 /**
@@ -49,6 +53,8 @@ export interface MediaFilter extends PaginationParams {
   before?: string;
   orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include';
   order?: 'asc' | 'desc';
+  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+  fields?: string[];
 }
 
 /**
@@ -62,6 +68,8 @@ export interface CategoriesFilter extends PaginationParams {
   search?: string;
   orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group' | 'include';
   order?: 'asc' | 'desc';
+  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+  fields?: string[];
 }
 
 /**
@@ -74,6 +82,8 @@ export interface TagsFilter extends PaginationParams {
   search?: string;
   orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group' | 'include';
   order?: 'asc' | 'desc';
+  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+  fields?: string[];
 }
 
 /**
@@ -86,6 +96,8 @@ export interface UsersFilter extends PaginationParams {
   search?: string;
   orderby?: 'id' | 'name' | 'slug' | 'email' | 'url' | 'registered_date' | 'include';
   order?: 'asc' | 'desc';
+  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+  fields?: string[];
 }
 
 /**
@@ -100,6 +112,8 @@ export interface CommentsFilter extends PaginationParams {
   status?: 'hold' | 'approve' | 'spam' | 'trash';
   orderby?: 'date' | 'date_gmt' | 'id' | 'include' | 'post' | 'parent' | 'type';
   order?: 'asc' | 'desc';
+  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+  fields?: string[];
 }
 
 /**

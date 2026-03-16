@@ -145,6 +145,25 @@ describe('Client: WPAPI compatibility syntax', () => {
     expect((books as Array<{ slug: string }>)[0]?.slug).toBe('test-book-001');
   });
 
+  it('supports fields() to restrict response payload via _fields', async () => {
+    const posts = await publicClient
+      .posts()
+      .perPage(5)
+      .fields(['id', 'slug', 'title'])
+      .get();
+
+    expect(Array.isArray(posts)).toBe(true);
+    expect((posts as unknown[]).length).toBeGreaterThan(0);
+
+    for (const post of posts as Array<Record<string, unknown>>) {
+      expect(post).toHaveProperty('id');
+      expect(post).toHaveProperty('slug');
+      expect(post).toHaveProperty('title');
+      expect(post).not.toHaveProperty('content');
+      expect(post).not.toHaveProperty('excerpt');
+    }
+  });
+
   it('supports registerRoute style factories', () => {
     const bookRoute = publicClient.registerRoute('wp/v2', '/books/(?P<id>)');
     const url = bookRoute().id(123).toString();

@@ -16,7 +16,8 @@ export function filterToParams(
       continue;
     }
 
-    const apiKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+    // `fields` maps to the WordPress `_fields` query parameter.
+    const apiKey = key === 'fields' ? '_fields' : key.replace(/([A-Z])/g, '_$1').toLowerCase();
 
     if (Array.isArray(value)) {
       params[apiKey] = value.map((item) => String(item)).join(',');

@@ -282,6 +282,7 @@ console.log(definitions.length, siteTitle.title, processed.processed);
 - `getUsers`, `getAllUsers`, `getUsersPaginated`, `getUser`, `getCurrentUser`
 - `getComments`, `getAllComments`, `getCommentsPaginated`, `getComment`
 - `getSettings`
+- `searchContent(query, filter?)`
 
 `getPost`, `getPostBySlug`, `getPage`, and `getPageBySlug` return promise-like queries.
 You can still `await` them directly, and you can also call:
@@ -325,6 +326,22 @@ Media uses a different schema (`description`/`caption`, no `content.raw`), so me
 - `.listPaginated(filter?)`
 
 If `page`/`perPage` are omitted, endpoint defaults are preserved.
+
+All collection helpers (`getContentCollection`, `getAllContentCollection`, the `content()` builder, and built-in helpers like `getPosts`) accept a `search` string to filter results by keyword:
+
+```ts
+// Built-in helpers
+const posts = await wp.getPosts({ search: 'hello world' });
+const allPosts = await wp.getAllPosts({ search: 'hello world' });
+
+// Generic collection helpers
+const books = await wp.getContentCollection('books', { search: 'Test Book' });
+const allBooks = await wp.getAllContentCollection('books', { search: 'Test Book' });
+
+// content() builder
+const bookResults = await wp.content('books').list({ search: 'Test Book' });
+const allBookResults = await wp.content('books').listAll({ search: 'Test Book' });
+```
 
 ### Post base typing
 
@@ -555,6 +572,77 @@ await wp.posts().id(postId).update({ status: 'publish' });
 await wp.posts().id(postId).delete({ force: true });
 ```
 
+## Cross-resource search
+
+`searchContent(query, filter?)` searches across posts, pages, and custom post types using the WordPress `/wp/v2/search` endpoint.
+
+```ts
+import type { WordPressSearchResult } from 'fluent-wp-client';
+
+// Basic keyword search
+const results = await wp.searchContent('hello');
+
+// Filter by resource type
+const posts = await wp.searchContent('hello', { type: 'post' });
+
+// Filter by a single subtype (post type)
+const pages = await wp.searchContent('about', {
+  type: 'post',
+  subtype: 'page',
+});
+
+// Filter by multiple subtypes — serialised as subtype[]=post&subtype[]=page&subtype[]=book
+const mixed = await wp.searchContent('test', {
+  type: 'post',
+  subtype: ['post', 'page', 'book'],
+});
+
+// Pagination, context, include and exclude
+const paged = await wp.searchContent('hello', {
+  perPage: 5,
+  context: 'embed',
+  exclude: [10, 20],
+  include: [5, 15],
+});
+```
+
+Each result has the shape `{ id, title, url, type, subtype }`.
+
+### WPAPI chain search
+
+The `search()` chain starter provides the same features through the fluent builder:
+
+```ts
+// Basic search
+const results = await wp.search().search('hello').perPage(5).get();
+
+// Filter by type and single subtype
+const pages = await wp
+  .search()
+  .search('about')
+  .param('type', 'post')
+  .subtype('page')
+  .get();
+
+// Filter by multiple subtypes — bracket notation is handled automatically
+const mixed = await wp
+  .search()
+  .search('test')
+  .param('type', 'post')
+  .subtype(['post', 'page', 'book'])
+  .perPage(10)
+  .get();
+
+// Use context, include, and exclude
+const withContext = await wp
+  .search()
+  .search('hello')
+  .context('embed')
+  .include([5, 15])
+  .exclude([10, 20])
+  .get();
+```
+
 ## Full WPAPI-compatible syntax
 
 ### Root chain starters
@@ -592,6 +680,8 @@ await wp.posts().id(postId).delete({ force: true });
 - `order('asc' | 'desc')`
 - `orderby(value)`
 - `context(value)`
+- `subtype(value)` — single string or array; arrays use bracket notation (`subtype[]=…`)
+- `fields(value)` — single field name or array; restricts the response via `_fields`
 - `password(value)`
 - `embed()`
 - `setHeaders(...)` / `headers(...)`
@@ -603,6 +693,8 @@ await wp.posts().id(postId).delete({ force: true });
 - thenable support: `await wp.posts().slug('hello-world')`
 
 WPAPI chains intentionally block auth-like header overrides via `setHeaders` (for example `Authorization`, `Cookie`, and `X-WP-Nonce`). Use a different `WordPressClient` instance when auth settings need to change.
+
+When `param(name, value)` receives an array it encodes each element using WordPress bracket notation (`name[]=a&name[]=b`). This is the correct format for multi-value parameters on the search endpoint (e.g. `subtype`) and is also accepted by WordPress for other array params such as `categories`, `tags`, `include`, and `exclude`.
 
 ### Namespace and route helpers
 

@@ -170,4 +170,108 @@ describe('Client: WPAPI compatibility syntax', () => {
 
     expect(url).toContain('/wp-json/wp/v2/books/123');
   });
+
+  describe('search() chain', () => {
+    it('filters by type via the search chain', async () => {
+      const results = await publicClient
+        .search()
+        .search('test-post')
+        .param('type', 'post')
+        .perPage(3)
+        .get();
+
+      expect(Array.isArray(results)).toBe(true);
+      expect(results).toHaveLength(3);
+      for (const result of results as Array<{ type: string }>) {
+        expect(result.type).toBe('post');
+      }
+    });
+
+    it('filters by a single subtype via the search chain', async () => {
+      // WordPress search uses `type` for the resource category ('post', 'term',
+      // 'post-format') and `subtype` for the specific post type within that
+      // category.  type=post + subtype=page means "pages, which are a post type".
+      const results = await publicClient
+        .search()
+        .search('about')
+        .param('type', 'post')
+        .subtype('page')
+        .get();
+
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
+      for (const result of results as Array<{ type: string; subtype: string }>) {
+        expect(result.type).toBe('post');
+        expect(result.subtype).toBe('page');
+      }
+    });
+
+    it('filters by multiple subtypes (array) via the search chain', async () => {
+      // type=post covers all WordPress post types; subtype narrows to specific
+      // ones.  Passing an array uses bracket notation automatically:
+      // subtype[]=post&subtype[]=page&subtype[]=book
+      const results = await publicClient
+        .search()
+        .search('test')
+        .param('type', 'post')
+        .subtype(['post', 'page', 'book'])
+        .perPage(10)
+        .get();
+
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
+      for (const result of results as Array<{ type: string; subtype: string }>) {
+        expect(result.type).toBe('post');
+        expect(['post', 'page', 'book']).toContain(result.subtype);
+      }
+    });
+
+    it('respects context via the search chain', async () => {
+      const results = await publicClient
+        .search()
+        .search('test-post-001')
+        .context('embed')
+        .get();
+
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
+    });
+
+    it('respects exclude via the search chain', async () => {
+      const all = (await publicClient
+        .search()
+        .search('test-post-001')
+        .get()) as Array<{ id: number }>;
+
+      expect(all.length).toBeGreaterThan(0);
+      const firstId = all[0]!.id;
+
+      const filtered = (await publicClient
+        .search()
+        .search('test-post-001')
+        .exclude([firstId])
+        .get()) as Array<{ id: number }>;
+
+      expect(filtered.map((r) => r.id)).not.toContain(firstId);
+    });
+
+    it('respects include via the search chain', async () => {
+      const all = (await publicClient
+        .search()
+        .search('test-post-001')
+        .get()) as Array<{ id: number }>;
+
+      expect(all.length).toBeGreaterThan(0);
+      const firstId = all[0]!.id;
+
+      const included = (await publicClient
+        .search()
+        .search('test-post-001')
+        .include([firstId])
+        .get()) as Array<{ id: number }>;
+
+      expect(included.length).toBeGreaterThan(0);
+      expect(included.map((r) => r.id)).toContain(firstId);
+    });
+  });
 });

@@ -83,6 +83,75 @@ describe('Client: Search', () => {
       expect(Array.isArray(results)).toBe(true);
       expect(results).toHaveLength(0);
     });
+
+    it('filters by multiple subtypes using an array (bracket notation)', async () => {
+      // 'about' matches the seeded About page; supplying both post and page
+      // subtypes ensures the bracket-notation serialization is exercised.
+      const results = await publicClient.searchContent('about', {
+        type: 'post',
+        subtype: ['post', 'page'],
+      });
+
+      expect(results.length).toBeGreaterThan(0);
+      for (const result of results) {
+        expect(result.type).toBe('post');
+        expect(['post', 'page']).toContain(result.subtype);
+      }
+    });
+
+    it('supports searching across posts, pages, and books with array subtype', async () => {
+      // Reproduces the exact example from the issue:
+      // /wp/v2/search?search=test&type=post&subtype[]=post&subtype[]=page&subtype[]=book
+      const results = await publicClient.searchContent('test', {
+        type: 'post',
+        subtype: ['post', 'page', 'book'],
+        perPage: 10,
+      });
+
+      expect(results.length).toBeGreaterThan(0);
+      for (const result of results) {
+        expect(result.type).toBe('post');
+        expect(['post', 'page', 'book']).toContain(result.subtype);
+      }
+    });
+
+    it('respects the context param', async () => {
+      const results = await publicClient.searchContent('test-post-001', {
+        context: 'embed',
+      });
+
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
+    });
+
+    it('respects the exclude param to omit specific IDs', async () => {
+      // First fetch without exclusion to get a real ID.
+      const all = await publicClient.searchContent('test-post-001');
+      expect(all.length).toBeGreaterThan(0);
+      const firstId = all[0]!.id;
+
+      // Now exclude that ID and verify it is absent from the results.
+      const filtered = await publicClient.searchContent('test-post-001', {
+        exclude: [firstId],
+      });
+
+      const ids = filtered.map((r) => r.id);
+      expect(ids).not.toContain(firstId);
+    });
+
+    it('respects the include param to fetch specific IDs', async () => {
+      // First fetch to obtain a real ID.
+      const all = await publicClient.searchContent('test-post-001');
+      expect(all.length).toBeGreaterThan(0);
+      const firstId = all[0]!.id;
+
+      const included = await publicClient.searchContent('test-post-001', {
+        include: [firstId],
+      });
+
+      expect(included.length).toBeGreaterThan(0);
+      expect(included.map((r) => r.id)).toContain(firstId);
+    });
   });
 
   describe('search() WPAPI builder', () => {

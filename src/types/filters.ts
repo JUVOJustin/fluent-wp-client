@@ -109,9 +109,16 @@ export interface CommentsFilter extends PaginationParams {
  * separate first argument in the `searchContent()` convenience method. Use this
  * interface directly when calling the lower-level WPAPI builder chain or when
  * composing filter objects manually.
+ *
+ * When `subtype` is an array it is serialised using WordPress bracket notation
+ * (`subtype[]=post&subtype[]=page`) so that multiple subtypes can be filtered
+ * in a single request.
  */
 export interface SearchFilter extends PaginationParams {
   search: string;
   type?: 'post' | 'term' | 'post-format';
   subtype?: string | string[];
+  context?: 'view' | 'embed';
+  include?: number[];
+  exclude?: number[];
 }

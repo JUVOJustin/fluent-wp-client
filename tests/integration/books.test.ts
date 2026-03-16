@@ -41,6 +41,43 @@ describe('Client: Books', () => {
       expect(book?.type).toBe('book');
     });
 
+    it('getContentCollection supports the search parameter', async () => {
+      const books = await publicClient.getContentCollection('books', { search: 'Test Book 001' });
+
+      expect(Array.isArray(books)).toBe(true);
+      expect(books.length).toBeGreaterThan(0);
+      expect(books[0]?.slug).toBe('test-book-001');
+    });
+
+    it('getAllContentCollection supports the search parameter', async () => {
+      const books = await publicClient.getAllContentCollection('books', { search: 'Test Book' });
+
+      expect(Array.isArray(books)).toBe(true);
+      expect(books.length).toBeGreaterThan(0);
+      for (const book of books) {
+        expect(book?.slug).toMatch(/^test-book-/);
+      }
+    });
+
+    it('content() list() supports the search parameter', async () => {
+      const booksClient = publicClient.content('books', contentWordPressSchema);
+      const results = await booksClient.list({ search: 'Test Book 001' });
+
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]?.slug).toBe('test-book-001');
+    });
+
+    it('content() listAll() supports the search parameter', async () => {
+      const booksClient = publicClient.content('books', contentWordPressSchema);
+      const results = await booksClient.listAll({ search: 'Test Book' });
+
+      expect(results.length).toBeGreaterThan(0);
+      for (const book of results) {
+        expect(book?.slug).toMatch(/^test-book-/);
+      }
+    });
+
     it('content() listAll returns every seeded book', async () => {
       const books = publicClient.content('books', contentWordPressSchema);
       const all = await books.listAll();

@@ -342,7 +342,7 @@ export class WordPressClient {
   /**
    * Builds one REST URL from endpoint and query params.
    */
-  private createApiUrl(endpoint: string, params: Record<string, string> = {}): URL {
+  private createApiUrl(endpoint: string, params: Record<string, string | string[]> = {}): URL {
     const url = /^https?:\/\//i.test(endpoint)
       ? this.createAbsoluteApiUrl(endpoint)
       : endpoint.startsWith('/wp-json/')
@@ -350,7 +350,13 @@ export class WordPressClient {
         : new URL(`${this.apiBase}${endpoint}`);
 
     for (const [key, value] of Object.entries(params)) {
-      url.searchParams.append(key, value);
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          url.searchParams.append(`${key}[]`, item);
+        }
+      } else {
+        url.searchParams.append(key, value);
+      }
     }
 
     return url;
@@ -359,7 +365,7 @@ export class WordPressClient {
   /**
    * Resolves one endpoint and params pair into an absolute URL string.
    */
-  private createApiUrlString(endpoint: string, params: Record<string, string> = {}): string {
+  private createApiUrlString(endpoint: string, params: Record<string, string | string[]> = {}): string {
     return this.createApiUrl(endpoint, params).toString();
   }
 
@@ -604,7 +610,7 @@ export class WordPressClient {
    */
   async fetchAPI<T>(
     endpoint: string,
-    params: Record<string, string> = {},
+    params: Record<string, string | string[]> = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<T> {
     const result = await this.fetchAPIPaginated<T>(endpoint, params, requestOptions);
@@ -616,7 +622,7 @@ export class WordPressClient {
    */
   async fetchAPIPaginated<T>(
     endpoint: string,
-    params: Record<string, string> = {},
+    params: Record<string, string | string[]> = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<FetchResult<T>> {
     const { data, response } = await this.request<T>(applyRequestOverrides({
@@ -1359,8 +1365,12 @@ export class WordPressClient {
    * Use the exported `searchResultSchema` to validate results when strict response
    * parsing is required.
    *
+   * When `filter.subtype` is an array it is serialised using WordPress bracket
+   * notation (`subtype[]=post&subtype[]=page`) so that multiple subtypes can be
+   * filtered in a single request.
+   *
    * @param query - The search string to query.
-   * @param filter - Optional filter options (type, subtype, pagination).
+   * @param filter - Optional filter options (type, subtype, context, include, exclude, pagination).
    * @param requestOptions - Optional per-request transport overrides.
    */
   async searchContent<TResult = WordPressSearchResult>(
@@ -1368,7 +1378,15 @@ export class WordPressClient {
     filter?: Omit<SearchFilter, 'search'>,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResult[]> {
-    const params = filterToParams({ ...filter, search: query });
+    const { subtype, ...rest } = filter ?? {};
+    const params: Record<string, string | string[]> = filterToParams({ ...rest, search: query });
+
+    if (subtype !== undefined) {
+      // Arrays use WordPress bracket notation (subtype[]=post&subtype[]=page).
+      // Single strings are passed as a plain query param.
+      params['subtype'] = subtype;
+    }
+
     return this.fetchAPI<TResult[]>('/search', params, requestOptions);
   }
 

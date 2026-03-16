@@ -128,6 +128,26 @@ describe('Client: Posts', () => {
         expect(post).toHaveProperty('_embedded');
       }
     });
+
+    it('getPosts supports the search parameter', async () => {
+      const posts = await publicClient.getPosts({ search: 'Test Post 001' });
+
+      expect(Array.isArray(posts)).toBe(true);
+      expect(posts.length).toBeGreaterThan(0);
+      expect(posts[0]?.title.rendered).toContain('Test Post 001');
+    });
+
+    it('getAllPosts supports the search parameter', async () => {
+      // There are 150 posts all matching 'test-post'; restricting via category
+      // keeps the count predictable (30 Technology posts).
+      const posts = await publicClient.getAllPosts({ search: 'Test Post 001' });
+
+      expect(Array.isArray(posts)).toBe(true);
+      expect(posts.length).toBeGreaterThan(0);
+      for (const post of posts) {
+        expect(post.title.rendered).toContain('Test Post 001');
+      }
+    });
   });
 
   describe('crud', () => {

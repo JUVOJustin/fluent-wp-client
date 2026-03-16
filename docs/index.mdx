@@ -44,6 +44,7 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 - **WPAPI-compatible fluent syntax** — migrate from `node-wpapi` with minimal changes
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`
+- **Unified typed errors** — branch on one `kind` contract and use subclasses for WP payload or schema-specific details
 - **Relation API** — `wp.post('slug').with('author', 'categories').get()`
 
 ## Guides
@@ -78,6 +79,11 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
     title="Validation"
     href="./validation"
     description="Validate responses with Standard Schema, Zod, Valibot, or ArkType."
+  />
+  <LinkCard
+    title="Error handling"
+    href="./errors"
+    description="Understand error kinds vs classes and handle failures consistently."
   />
   <LinkCard
     title="Migrate from node-wpapi"

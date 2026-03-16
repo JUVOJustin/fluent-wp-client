@@ -1,4 +1,4 @@
-import { throwIfWordPressError } from '../core/errors.js';
+import { throwIfWordPressError, type WordPressErrorContext } from '../core/errors.js';
 import { assertNoAuthHeaderOverrides } from '../core/request-overrides.js';
 import type { WordPressRequestOptions, WordPressRequestResult } from '../client-types.js';
 
@@ -6,7 +6,7 @@ import type { WordPressRequestOptions, WordPressRequestResult } from '../client-
  * Runtime hooks used by the WPAPI-style request builder.
  */
 export interface WordPressRequestBuilderRuntime {
-  request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
+  request: <T = unknown>(options: WordPressRequestOptions, context?: WordPressErrorContext) => Promise<WordPressRequestResult<T>>;
   createUrl: (endpoint: string, params?: Record<string, string>) => string;
 }
 
@@ -232,14 +232,20 @@ export class WordPressRequestBuilder<
    * Executes a GET request for the configured resource chain.
    */
   async get(): Promise<TResponse> {
+    const endpoint = this.getEndpoint();
+    const context: WordPressErrorContext = {
+      operation: 'wpapi.get',
+      method: 'GET',
+      endpoint,
+    };
     const { data, response } = await this.runtime.request<TResponse>({
-      endpoint: this.getEndpoint(),
+      endpoint,
       method: 'GET',
       params: this.getParams(),
       headers: this.requestHeaders,
-    });
+    }, context);
 
-    throwIfWordPressError(response, data);
+    throwIfWordPressError(response, data, context);
     return data;
   }
 
@@ -247,15 +253,21 @@ export class WordPressRequestBuilder<
    * Executes a POST create request on the configured resource chain.
    */
   async create(payload: TCreateInput): Promise<TResponse> {
+    const endpoint = this.getEndpoint();
+    const context: WordPressErrorContext = {
+      operation: 'wpapi.create',
+      method: 'POST',
+      endpoint,
+    };
     const { data, response } = await this.runtime.request<TResponse>({
-      endpoint: this.getEndpoint(),
+      endpoint,
       method: 'POST',
       params: this.getParams(),
       body: payload,
       headers: this.requestHeaders,
-    });
+    }, context);
 
-    throwIfWordPressError(response, data);
+    throwIfWordPressError(response, data, context);
     return data;
   }
 
@@ -263,15 +275,21 @@ export class WordPressRequestBuilder<
    * Executes a POST update request on the configured resource chain.
    */
   async update(payload: TUpdateInput): Promise<TResponse> {
+    const endpoint = this.getEndpoint();
+    const context: WordPressErrorContext = {
+      operation: 'wpapi.update',
+      method: 'POST',
+      endpoint,
+    };
     const { data, response } = await this.runtime.request<TResponse>({
-      endpoint: this.getEndpoint(),
+      endpoint,
       method: 'POST',
       params: this.getParams(),
       body: payload,
       headers: this.requestHeaders,
-    });
+    }, context);
 
-    throwIfWordPressError(response, data);
+    throwIfWordPressError(response, data, context);
     return data;
   }
 
@@ -279,19 +297,25 @@ export class WordPressRequestBuilder<
    * Executes a DELETE request on the configured resource chain.
    */
   async delete(options: WordPressRequestDeleteOptions = {}): Promise<TResponse> {
+    const endpoint = this.getEndpoint();
+    const context: WordPressErrorContext = {
+      operation: 'wpapi.delete',
+      method: 'DELETE',
+      endpoint,
+    };
     const params = {
       ...this.getParams(),
       ...(options.force === true ? { force: 'true' } : {}),
     };
 
     const { data, response } = await this.runtime.request<TResponse>({
-      endpoint: this.getEndpoint(),
+      endpoint,
       method: 'DELETE',
       params,
       headers: this.requestHeaders,
-    });
+    }, context);
 
-    throwIfWordPressError(response, data);
+    throwIfWordPressError(response, data, context);
     return data;
   }
 

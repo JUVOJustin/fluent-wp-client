@@ -217,6 +217,10 @@ const { data: result } = await wp.request({
 
 ## Error handling
 
-- API failures throw `WordPressApiError` with status, code, and payload details.
+- High-level custom endpoint helpers throw `WordPressClientError` with a normalized `kind`.
+- WordPress REST error payloads throw `WordPressApiError` (`kind: 'WP_API_ERROR'`) with status/code/body details.
+- `request()` remains raw transport and returns `{ data, response }` for non-2xx responses.
+- Prefer `kind` for primary branching and use `WordPressApiError` when you need WordPress-specific fields.
+- See [Error handling](./errors.mdx) for the full class-vs-kind guidance.
 - Validate only the fields your feature actually needs.
 - Prefer schema validation for writes so custom endpoint regressions fail fast.

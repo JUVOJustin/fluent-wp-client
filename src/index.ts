@@ -65,9 +65,16 @@ export {
 } from './core/validation.js';
 
 export {
+  WordPressClientError,
   WordPressApiError,
+  createWordPressClientError,
+  createWordPressHttpError,
   createWordPressApiError,
+  isTimeoutLikeError,
   throwIfWordPressError,
+  type WordPressClientErrorConfig,
+  type WordPressClientErrorKind,
+  type WordPressErrorContext,
   type WordPressErrorPayload,
 } from './core/errors.js';
 

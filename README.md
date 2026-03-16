@@ -38,6 +38,7 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 - **WPAPI-compatible fluent syntax** — migrate from `node-wpapi` with minimal changes
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`
+- **Unified typed errors** — branch on `WordPressClientError.kind` across auth, reads, writes, abilities, and custom endpoints
 - **Relation API** — `wp.post('slug').with('author', 'categories').get()`
 
 ## Auth examples
@@ -73,6 +74,7 @@ Full documentation lives in the [`docs/`](./docs/) folder:
 - [Custom endpoints](./docs/custom-endpoints.mdx) — custom post types, taxonomies, and plugin namespaces
 - [Abilities](./docs/abilities.mdx) — WordPress Abilities API
 - [Validation](./docs/validation.mdx) — Standard Schema, Zod, and custom validators
+- [Error handling](./docs/errors.mdx) — error kinds vs classes, upstream WordPress errors, and branching patterns
 - [Migrate from node-wpapi](./docs/migration-from-node-wpapi.mdx) — migration guide
 
 ## Development

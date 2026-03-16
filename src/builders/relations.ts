@@ -5,6 +5,7 @@ import type {
   WordPressPost,
   WordPressTag,
 } from '../schemas.js';
+import { createWordPressClientError } from '../core/errors.js';
 
 /**
  * Supported relation names for fluent post hydration.
@@ -200,7 +201,13 @@ export class PostRelationQueryBuilder<TRelations extends readonly PostRelation[]
     }
 
     if (!post) {
-      throw new Error('Post not found for the provided fluent relation selector.');
+      throw createWordPressClientError({
+        kind: 'HTTP_ERROR',
+        message: 'Post not found for the provided fluent relation selector.',
+        operation: 'getPostWithRelations',
+        method: 'GET',
+        status: 404,
+      });
     }
 
     const related: Record<string, unknown> = {};

@@ -2,6 +2,7 @@ import type { WordPressCategory, WordPressContent } from '../schemas.js';
 import type { WordPressRequestOptions, WordPressRequestOverrides, WordPressRequestResult } from '../client-types.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
+import { throwIfWordPressError, type WordPressErrorContext } from '../core/errors.js';
 import { createWordPressPaginator } from '../core/pagination.js';
 import { compactPayload, filterToParams } from '../core/params.js';
 import type {
@@ -23,10 +24,24 @@ import type {
  * Runtime hooks required for generic content and term method groups.
  */
 export interface ContentTermMethodDependencies {
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>;
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
-  request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
-  executeMutation: <T>(options: WordPressRequestOptions, responseSchema?: WordPressStandardSchema<T>) => Promise<T>;
+  fetchAPI: <T>(
+    endpoint: string,
+    params?: Record<string, string>,
+    options?: WordPressRequestOverrides,
+    context?: WordPressErrorContext,
+  ) => Promise<T>;
+  fetchAPIPaginated: <T>(
+    endpoint: string,
+    params?: Record<string, string>,
+    options?: WordPressRequestOverrides,
+    context?: WordPressErrorContext,
+  ) => Promise<FetchResult<T>>;
+  request: <T = unknown>(options: WordPressRequestOptions, context?: WordPressErrorContext) => Promise<WordPressRequestResult<T>>;
+  executeMutation: <T>(
+    options: WordPressRequestOptions,
+    responseSchema?: WordPressStandardSchema<T>,
+    context?: WordPressErrorContext,
+  ) => Promise<T>;
 }
 
 /**
@@ -37,7 +52,16 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     fetchPage: (currentFilter, context) => {
       const { resource, ...queryFilter } = currentFilter as QueryParams & PaginationParams & { resource: string };
       const params = filterToParams({ ...queryFilter, _embed: 'true' });
-      return dependencies.fetchAPIPaginated<unknown[]>(`/${resource}`, params, context as WordPressRequestOverrides | undefined);
+      return dependencies.fetchAPIPaginated(
+        `/${resource}`,
+        params,
+        context as WordPressRequestOverrides | undefined,
+        {
+          operation: 'paginateContentCollection',
+          method: 'GET',
+          endpoint: `/${resource}`,
+        },
+      ) as Promise<FetchResult<unknown[]>>;
     },
   });
 
@@ -45,7 +69,16 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     fetchPage: (currentFilter, context) => {
       const { resource, ...queryFilter } = currentFilter as QueryParams & PaginationParams & { resource: string };
       const params = filterToParams(queryFilter);
-      return dependencies.fetchAPIPaginated<unknown[]>(`/${resource}`, params, context as WordPressRequestOverrides | undefined);
+      return dependencies.fetchAPIPaginated(
+        `/${resource}`,
+        params,
+        context as WordPressRequestOverrides | undefined,
+        {
+          operation: 'paginateTermCollection',
+          method: 'GET',
+          endpoint: `/${resource}`,
+        },
+      ) as Promise<FetchResult<unknown[]>>;
     },
   });
 
@@ -58,7 +91,16 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TContent[]> {
     const params = filterToParams({ ...filter, _embed: 'true' });
-    return dependencies.fetchAPI<TContent[]>(`/${resource}`, params, requestOptions);
+    return dependencies.fetchAPI(
+      `/${resource}`,
+      params,
+      requestOptions,
+      {
+        operation: 'getContentCollection',
+        method: 'GET',
+        endpoint: `/${resource}`,
+      },
+    ) as Promise<TContent[]>;
   }
 
   /**
@@ -101,7 +143,16 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     id: number,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TContent> {
-    return dependencies.fetchAPI<TContent>(`/${resource}/${id}`, { _embed: 'true' }, requestOptions);
+    return dependencies.fetchAPI(
+      `/${resource}/${id}`,
+      { _embed: 'true' },
+      requestOptions,
+      {
+        operation: 'getContent',
+        method: 'GET',
+        endpoint: `/${resource}/${id}`,
+      },
+    ) as Promise<TContent>;
   }
 
   /**
@@ -112,7 +163,16 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     slug: string,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TContent | undefined> {
-    const items = await dependencies.fetchAPI<TContent[]>(`/${resource}`, { slug, _embed: 'true' }, requestOptions);
+    const items = await dependencies.fetchAPI(
+      `/${resource}`,
+      { slug, _embed: 'true' },
+      requestOptions,
+      {
+        operation: 'getContentBySlug',
+        method: 'GET',
+        endpoint: `/${resource}`,
+      },
+    ) as TContent[];
     return items[0];
   }
 
@@ -132,6 +192,11 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
         body: compactPayload(input),
       }, requestOptions, 'Mutation helper options'),
       responseSchema,
+      {
+        operation: 'createContent',
+        method: 'POST',
+        endpoint: `/${resource}`,
+      },
     );
   }
 
@@ -152,6 +217,11 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
         body: compactPayload(input),
       }, requestOptions, 'Mutation helper options'),
       responseSchema,
+      {
+        operation: 'updateContent',
+        method: 'POST',
+        endpoint: `/${resource}/${id}`,
+      },
     );
   }
 
@@ -164,11 +234,23 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     options: DeleteOptions & WordPressRequestOverrides = {},
   ): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
-    const { data } = await dependencies.request<unknown>(applyRequestOverrides({
-      endpoint: `/${resource}/${id}`,
+    const endpoint = `/${resource}/${id}`;
+    const requestContext: WordPressErrorContext = {
+      operation: 'deleteContent',
+      method: 'DELETE',
+      endpoint,
+    };
+    const { data, response } = await dependencies.request<unknown>(applyRequestOverrides({
+      endpoint,
       method: 'DELETE',
       params,
-    }, options, 'Mutation helper options'));
+    }, options, 'Mutation helper options'), requestContext);
+
+    if (!response.ok && response.status === 404) {
+      return { id, deleted: false };
+    }
+
+    throwIfWordPressError(response, data, requestContext);
 
     if (
       typeof data === 'object'
@@ -195,7 +277,16 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TTerm[]> {
     const params = filterToParams(filter);
-    return dependencies.fetchAPI<TTerm[]>(`/${resource}`, params, requestOptions);
+    return dependencies.fetchAPI(
+      `/${resource}`,
+      params,
+      requestOptions,
+      {
+        operation: 'getTermCollection',
+        method: 'GET',
+        endpoint: `/${resource}`,
+      },
+    ) as Promise<TTerm[]>;
   }
 
   /**
@@ -238,7 +329,16 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     id: number,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TTerm> {
-    return dependencies.fetchAPI<TTerm>(`/${resource}/${id}`, undefined, requestOptions);
+    return dependencies.fetchAPI(
+      `/${resource}/${id}`,
+      undefined,
+      requestOptions,
+      {
+        operation: 'getTerm',
+        method: 'GET',
+        endpoint: `/${resource}/${id}`,
+      },
+    ) as Promise<TTerm>;
   }
 
   /**
@@ -249,7 +349,16 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     slug: string,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TTerm | undefined> {
-    const items = await dependencies.fetchAPI<TTerm[]>(`/${resource}`, { slug }, requestOptions);
+    const items = await dependencies.fetchAPI(
+      `/${resource}`,
+      { slug },
+      requestOptions,
+      {
+        operation: 'getTermBySlug',
+        method: 'GET',
+        endpoint: `/${resource}`,
+      },
+    ) as TTerm[];
     return items[0];
   }
 
@@ -269,6 +378,11 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
         body: compactPayload(input),
       }, requestOptions, 'Mutation helper options'),
       responseSchema,
+      {
+        operation: 'createTerm',
+        method: 'POST',
+        endpoint: `/${resource}`,
+      },
     );
   }
 
@@ -289,6 +403,11 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
         body: compactPayload(input),
       }, requestOptions, 'Mutation helper options'),
       responseSchema,
+      {
+        operation: 'updateTerm',
+        method: 'POST',
+        endpoint: `/${resource}/${id}`,
+      },
     );
   }
 
@@ -301,11 +420,23 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     options: DeleteOptions & WordPressRequestOverrides = {},
   ): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
-    const { data } = await dependencies.request<unknown>(applyRequestOverrides({
-      endpoint: `/${resource}/${id}`,
+    const endpoint = `/${resource}/${id}`;
+    const requestContext: WordPressErrorContext = {
+      operation: 'deleteTerm',
+      method: 'DELETE',
+      endpoint,
+    };
+    const { data, response } = await dependencies.request<unknown>(applyRequestOverrides({
+      endpoint,
       method: 'DELETE',
       params,
-    }, options, 'Mutation helper options'));
+    }, options, 'Mutation helper options'), requestContext);
+
+    if (!response.ok && response.status === 404) {
+      return { id, deleted: false };
+    }
+
+    throwIfWordPressError(response, data, requestContext);
 
     if (
       typeof data === 'object'

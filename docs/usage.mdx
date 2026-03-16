@@ -642,6 +642,36 @@ const created = await wp.createPost(
 
 ## Error handling guidance
 
-- API errors throw `WordPressApiError`.
-- Validation errors throw `WordPressSchemaValidationError`.
-- Cross-origin absolute URLs are rejected before requests are sent.
+- High-level helpers throw `WordPressClientError` (or subclasses) with a stable `kind` field.
+- WordPress REST payload failures throw `WordPressApiError` (`kind: 'WP_API_ERROR'`) with `status`, `code`, and `responseBody`.
+- Schema failures throw `WordPressSchemaValidationError` (`kind: 'SCHEMA_VALIDATION_ERROR'`).
+- Preflight auth/config errors use `AUTH_ERROR` and `CONFIG_ERROR`.
+- `request()` stays low-level and returns `{ data, response }` even for non-2xx responses.
+- Prefer `kind` for primary branching and use subclasses when you need subclass-only fields (`code`, `responseBody`, `issues`).
+- For a full decision guide, see [Error handling](./errors.mdx).
+
+```ts
+import {
+  WordPressApiError,
+  WordPressClientError,
+  WordPressSchemaValidationError,
+} from 'fluent-wp-client';
+
+try {
+  await wp.createPost({ title: 'Example', status: 'draft' });
+} catch (error) {
+  if (error instanceof WordPressApiError) {
+    console.error('WP code:', error.code, 'status:', error.status);
+  }
+
+  if (error instanceof WordPressSchemaValidationError) {
+    console.error(error.issues);
+  }
+
+  if (error instanceof WordPressClientError) {
+    if (error.kind === 'AUTH_ERROR') {
+      // Handle missing/invalid auth configuration.
+    }
+  }
+}
+```

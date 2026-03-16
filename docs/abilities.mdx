@@ -110,5 +110,8 @@ They all use `.passthrough()` so plugin-added fields stay available.
 - Ability metadata helpers validate payloads with built-in ability schemas
 - Direct execution helpers validate the response only when you pass `responseSchema`
 - Fluent execution validates input before the request and output after the response when you configure schemas
-- Failed REST responses throw `WordPressApiError`
-- Failed local validation throws `WordPressSchemaValidationError`
+- Failed REST responses throw `WordPressApiError` (`kind: 'WP_API_ERROR'`)
+- Failed local schema validation throws `WordPressSchemaValidationError` (`kind: 'SCHEMA_VALIDATION_ERROR'`)
+- Local request/config failures throw `WordPressClientError` with kinds like `AUTH_ERROR`, `CONFIG_ERROR`, `NETWORK_ERROR`, and `PARSE_ERROR`
+- Prefer `kind` for primary branching and use subclasses when you need subclass-only fields.
+- See [Error handling](./errors.mdx) for the full guidance.

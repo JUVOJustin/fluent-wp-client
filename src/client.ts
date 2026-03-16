@@ -30,7 +30,12 @@ import { createUsersMethods } from './resources/users.js';
 import { createSettingsMethods } from './resources/settings.js';
 import { createCommentsMethods } from './resources/comments.js';
 import { createContentTermMethods } from './resources/content-terms.js';
-import { throwIfWordPressError } from './core/errors.js';
+import {
+  createWordPressClientError,
+  isTimeoutLikeError,
+  throwIfWordPressError,
+  type WordPressErrorContext,
+} from './core/errors.js';
 import {
   authorSchema,
   categorySchema,
@@ -328,9 +333,12 @@ export class WordPressClient {
     const url = new URL(endpoint);
 
     if (url.origin !== this.baseOrigin) {
-      throw new Error(
-        `Cross-origin absolute URLs are not allowed. Expected origin '${this.baseOrigin}' but received '${url.origin}'.`,
-      );
+      throw createWordPressClientError({
+        kind: 'CONFIG_ERROR',
+        message: `Cross-origin absolute URLs are not allowed. Expected origin '${this.baseOrigin}' but received '${url.origin}'.`,
+        operation: 'request',
+        endpoint,
+      });
     }
 
     return url;
@@ -368,7 +376,11 @@ export class WordPressClient {
     const normalizedResource = resource.replace(/^\/+|\/+$/g, '');
 
     if (!normalizedResource) {
-      throw new Error('Resource path must not be empty.');
+      throw createWordPressClientError({
+        kind: 'CONFIG_ERROR',
+        message: 'Resource path must not be empty.',
+        operation: 'route',
+      });
     }
 
     if (normalizedNamespace === 'wp/v2') {
@@ -555,9 +567,17 @@ export class WordPressClient {
   /**
    * Executes one low-level WordPress request and returns payload + response metadata.
    */
-  async request<T = unknown>(options: WordPressRequestOptions): Promise<WordPressRequestResult<T>> {
+  async request<T = unknown>(
+    options: WordPressRequestOptions,
+    context: WordPressErrorContext = {},
+  ): Promise<WordPressRequestResult<T>> {
     const method = options.method ?? 'GET';
     const url = this.createApiUrl(options.endpoint, options.params);
+    const requestContext: WordPressErrorContext = {
+      operation: context.operation ?? 'request',
+      method: context.method ?? method,
+      endpoint: context.endpoint ?? options.endpoint,
+    };
     const resolvedAuth = options.auth ?? this.auth;
     const serializedBody = this.serializeBody({
       body: options.body,
@@ -581,14 +601,45 @@ export class WordPressClient {
       credentials: options.credentials ?? this.requestCredentials,
     });
 
-    const response = await this.fetcher(url.toString(), {
-      method,
-      headers,
-      body: serializedBody.body,
-      credentials,
-    });
+    let response: Response;
 
-    const data = await this.parseResponseBody(response) as T;
+    try {
+      response = await this.fetcher(url.toString(), {
+        method,
+        headers,
+        body: serializedBody.body,
+        credentials,
+      });
+    } catch (cause) {
+      throw createWordPressClientError({
+        kind: isTimeoutLikeError(cause) ? 'TIMEOUT_ERROR' : 'NETWORK_ERROR',
+        message: cause instanceof Error && cause.message
+          ? cause.message
+          : 'WordPress request failed before a response was received.',
+        operation: requestContext.operation,
+        method: requestContext.method,
+        endpoint: requestContext.endpoint,
+        cause,
+      });
+    }
+
+    let data: T;
+
+    try {
+      data = await this.parseResponseBody(response) as T;
+    } catch (cause) {
+      throw createWordPressClientError({
+        kind: 'PARSE_ERROR',
+        message: cause instanceof Error && cause.message
+          ? cause.message
+          : 'Failed to parse WordPress response body.',
+        operation: requestContext.operation,
+        method: requestContext.method,
+        endpoint: requestContext.endpoint,
+        status: response.status,
+        cause,
+      });
+    }
 
     return {
       data,
@@ -603,8 +654,13 @@ export class WordPressClient {
     endpoint: string,
     params: Record<string, string> = {},
     requestOptions?: WordPressRequestOverrides,
+    context: WordPressErrorContext = {},
   ): Promise<T> {
-    const result = await this.fetchAPIPaginated<T>(endpoint, params, requestOptions);
+    const result = await this.fetchAPIPaginated<T>(endpoint, params, requestOptions, {
+      operation: context.operation ?? 'fetchAPI',
+      method: context.method ?? 'GET',
+      endpoint: context.endpoint ?? endpoint,
+    });
     return result.data;
   }
 
@@ -615,14 +671,20 @@ export class WordPressClient {
     endpoint: string,
     params: Record<string, string> = {},
     requestOptions?: WordPressRequestOverrides,
+    context: WordPressErrorContext = {},
   ): Promise<FetchResult<T>> {
+    const requestContext: WordPressErrorContext = {
+      operation: context.operation ?? 'fetchAPIPaginated',
+      method: context.method ?? 'GET',
+      endpoint: context.endpoint ?? endpoint,
+    };
     const { data, response } = await this.request<T>(applyRequestOverrides({
       endpoint,
       method: 'GET',
       params,
-    }, requestOptions, 'Helper request options'));
+    }, requestOptions, 'Helper request options'), requestContext);
 
-    throwIfWordPressError(response, data);
+    throwIfWordPressError(response, data, requestContext);
 
     const total = Number.parseInt(response.headers.get('X-WP-Total') || '0', 10);
     const totalPages = Number.parseInt(response.headers.get('X-WP-TotalPages') || '0', 10);
@@ -636,15 +698,27 @@ export class WordPressClient {
   private async executeMutation<T>(
     options: WordPressRequestOptions,
     responseSchema?: WordPressStandardSchema<T>,
+    context: WordPressErrorContext = {},
   ): Promise<T> {
-    const { data, response } = await this.request<unknown>(options);
-    throwIfWordPressError(response, data);
+    const requestContext: WordPressErrorContext = {
+      operation: context.operation ?? 'executeMutation',
+      method: context.method ?? options.method,
+      endpoint: context.endpoint ?? options.endpoint,
+    };
+
+    const { data, response } = await this.request<unknown>(options, requestContext);
+    throwIfWordPressError(response, data, requestContext);
 
     if (responseSchema) {
       return validateWithStandardSchema(
         responseSchema,
         data,
-        'WordPress mutation response validation failed',
+        {
+          message: 'WordPress mutation response validation failed',
+          operation: requestContext.operation,
+          method: requestContext.method,
+          endpoint: requestContext.endpoint,
+        },
       );
     }
 
@@ -848,6 +922,11 @@ export class WordPressClient {
         body: compactPayload(input),
       }, resolved.requestOptions, 'Mutation helper options'),
       resolved.responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
+      {
+        operation: 'createUser',
+        method: 'POST',
+        endpoint: '/users',
+      },
     );
   }
 
@@ -869,6 +948,11 @@ export class WordPressClient {
         body: compactPayload(input),
       }, resolved.requestOptions, 'Mutation helper options'),
       resolved.responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
+      {
+        operation: 'updateUser',
+        method: 'POST',
+        endpoint: `/users/${id}`,
+      },
     );
   }
 
@@ -887,13 +971,19 @@ export class WordPressClient {
       params.reassign = String(options.reassign);
     }
 
+    const endpoint = `/users/${id}`;
+    const requestContext: WordPressErrorContext = {
+      operation: 'deleteUser',
+      method: 'DELETE',
+      endpoint,
+    };
     const { data, response } = await this.request<unknown>(applyRequestOverrides({
       endpoint: `/users/${id}`,
       method: 'DELETE',
       params,
-    }, options, 'Mutation helper options'));
+    }, options, 'Mutation helper options'), requestContext);
 
-    throwIfWordPressError(response, data);
+    throwIfWordPressError(response, data, requestContext);
 
     if (
       typeof data === 'object'
@@ -931,6 +1021,11 @@ export class WordPressClient {
         body: compactPayload(input),
       }, resolved.requestOptions, 'Mutation helper options'),
       resolved.responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
+      {
+        operation: 'createComment',
+        method: 'POST',
+        endpoint: '/comments',
+      },
     );
   }
 
@@ -952,6 +1047,11 @@ export class WordPressClient {
         body: compactPayload(input),
       }, resolved.requestOptions, 'Mutation helper options'),
       resolved.responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
+      {
+        operation: 'updateComment',
+        method: 'POST',
+        endpoint: `/comments/${id}`,
+      },
     );
   }
 
@@ -963,13 +1063,19 @@ export class WordPressClient {
     options: DeleteOptions & WordPressRequestOverrides = {},
   ): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
+    const endpoint = `/comments/${id}`;
+    const requestContext: WordPressErrorContext = {
+      operation: 'deleteComment',
+      method: 'DELETE',
+      endpoint,
+    };
     const { data, response } = await this.request<unknown>(applyRequestOverrides({
-      endpoint: `/comments/${id}`,
+      endpoint,
       method: 'DELETE',
       params,
-    }, options, 'Mutation helper options'));
+    }, options, 'Mutation helper options'), requestContext);
 
-    throwIfWordPressError(response, data);
+    throwIfWordPressError(response, data, requestContext);
 
     if (
       typeof data === 'object'
@@ -1007,6 +1113,11 @@ export class WordPressClient {
         body: compactPayload(input),
       }, resolved.requestOptions, 'Mutation helper options'),
       resolved.responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
+      {
+        operation: 'createMedia',
+        method: 'POST',
+        endpoint: '/media',
+      },
     );
   }
 
@@ -1040,6 +1151,11 @@ export class WordPressClient {
         omitContentType: true,
       }, requestOptions, 'Mutation helper options'),
       mediaSchema,
+      {
+        operation: 'uploadMedia',
+        method: 'POST',
+        endpoint: '/media',
+      },
     );
 
     const metadata: Record<string, unknown> = {};
@@ -1089,6 +1205,11 @@ export class WordPressClient {
         body: compactPayload(input),
       }, resolved.requestOptions, 'Mutation helper options'),
       resolved.responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
+      {
+        operation: 'updateMedia',
+        method: 'POST',
+        endpoint: `/media/${id}`,
+      },
     );
   }
 
@@ -1100,13 +1221,19 @@ export class WordPressClient {
     options: DeleteOptions & WordPressRequestOverrides = {},
   ): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
+    const endpoint = `/media/${id}`;
+    const requestContext: WordPressErrorContext = {
+      operation: 'deleteMedia',
+      method: 'DELETE',
+      endpoint,
+    };
     const { data, response } = await this.request<unknown>(applyRequestOverrides({
-      endpoint: `/media/${id}`,
+      endpoint,
       method: 'DELETE',
       params,
-    }, options, 'Mutation helper options'));
+    }, options, 'Mutation helper options'), requestContext);
 
-    throwIfWordPressError(response, data);
+    throwIfWordPressError(response, data, requestContext);
 
     if (
       typeof data === 'object'
@@ -1138,7 +1265,13 @@ export class WordPressClient {
     const resolved = this.resolveMutationArguments<TSettings>(responseSchemaOrRequestOptions, requestOptions);
 
     if (!this.hasAuth()) {
-      throw new Error('Authentication required for /settings endpoint. Configure auth in client options.');
+      throw createWordPressClientError({
+        kind: 'AUTH_ERROR',
+        message: 'Authentication required for /settings endpoint. Configure auth in client options.',
+        operation: 'updateSettings',
+        method: 'POST',
+        endpoint: '/settings',
+      });
     }
 
     return this.executeMutation<TSettings>(
@@ -1148,6 +1281,11 @@ export class WordPressClient {
         body: compactPayload(input),
       }, resolved.requestOptions, 'Mutation helper options'),
       resolved.responseSchema ?? (settingsSchema as WordPressStandardSchema<TSettings>),
+      {
+        operation: 'updateSettings',
+        method: 'POST',
+        endpoint: '/settings',
+      },
     );
   }
 
@@ -1168,6 +1306,11 @@ export class WordPressClient {
         body: credentials,
       }, resolved.requestOptions, 'Mutation helper options'),
       resolved.responseSchema ?? (jwtAuthTokenResponseSchema as WordPressStandardSchema<TJwtResponse>),
+      {
+        operation: 'loginWithJwt',
+        method: 'POST',
+        endpoint: '/wp-json/jwt-auth/v1/token',
+      },
     );
   }
 
@@ -1189,6 +1332,11 @@ export class WordPressClient {
         auth: authHeader,
       },
       responseSchema ?? (jwtAuthValidationResponseSchema as WordPressStandardSchema<TJwtValidation>),
+      {
+        operation: 'validateJwtToken',
+        method: 'POST',
+        endpoint: '/wp-json/jwt-auth/v1/token/validate',
+      },
     );
   }
 

@@ -4,6 +4,7 @@ import {
   type WordPressBlockParser,
   type WordPressParsedBlock,
 } from './blocks.js';
+import { createWordPressClientError } from './core/errors.js';
 
 /**
  * Normalized content payload returned for block-oriented workflows.
@@ -29,7 +30,11 @@ export function resolveWordPressRawContent(
   missingRawMessage: string,
 ): WordPressRawContentResult {
   if (value.content.raw === undefined) {
-    throw new Error(missingRawMessage);
+    throw createWordPressClientError({
+      kind: 'PARSE_ERROR',
+      message: missingRawMessage,
+      operation: 'resolveWordPressRawContent',
+    });
   }
 
   return {

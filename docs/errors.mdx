@@ -1,0 +1,112 @@
+---
+title: Error handling
+short_title: Errors
+description: Understand fluent-wp-client error classes, kinds, and the recommended branching strategy.
+sidebar:
+  order: 8
+---
+
+## Overview
+
+`fluent-wp-client` exposes one shared error contract so integrations can handle failures consistently across auth, reads, writes, abilities, and custom endpoints.
+
+Use this guide when you need to decide whether to branch on error classes or on `kind`.
+
+## Error classes
+
+- `WordPressClientError`: base class for all high-level client failures.
+- `WordPressApiError`: subclass for WordPress REST payload errors (`code`, `responseBody`, HTTP status details).
+- `WordPressSchemaValidationError`: subclass for local schema validation failures (`issues`).
+
+## Error kinds
+
+Every `WordPressClientError` includes a `kind` category:
+
+- `AUTH_ERROR`: missing auth or invalid auth input/config.
+- `CONFIG_ERROR`: invalid client usage (for example invalid route shape).
+- `NETWORK_ERROR`: request failed before a response arrived.
+- `TIMEOUT_ERROR`: request aborted/timed out at transport level.
+- `PARSE_ERROR`: response body could not be parsed as expected.
+- `HTTP_ERROR`: non-2xx response without a recognizable WordPress error payload.
+- `WP_API_ERROR`: non-2xx response with a WordPress error payload.
+- `SCHEMA_VALIDATION_ERROR`: response or local payload failed Standard Schema validation.
+- `UNKNOWN_ERROR`: fallback category for unexpected mapping paths.
+
+## Kind vs classes
+
+Use both, but for different jobs:
+
+- Prefer `kind` as your primary branching key for integration logic.
+- Use class checks when you need subclass-only fields.
+
+Why this split works well:
+
+- `kind` gives one stable category surface across all failures.
+- classes expose extra structured fields only where they exist.
+- `instanceof` can become fragile across package boundaries, while `kind` stays portable when errors are serialized or rethrown.
+
+## Recommended pattern
+
+```ts
+import {
+  WordPressApiError,
+  WordPressClientError,
+  WordPressSchemaValidationError,
+} from 'fluent-wp-client';
+
+try {
+  await wp.createPost({ title: 'Example', status: 'draft' });
+} catch (error) {
+  if (!(error instanceof WordPressClientError)) {
+    throw error;
+  }
+
+  switch (error.kind) {
+    case 'AUTH_ERROR':
+      // Prompt re-auth or use different credentials.
+      break;
+    case 'NETWORK_ERROR':
+    case 'TIMEOUT_ERROR':
+      // Show transient connectivity feedback.
+      break;
+    case 'WP_API_ERROR':
+      if (error instanceof WordPressApiError) {
+        // Use upstream WordPress fields when available.
+        console.error(error.code, error.status, error.message);
+      }
+      break;
+    case 'SCHEMA_VALIDATION_ERROR':
+      if (error instanceof WordPressSchemaValidationError) {
+        console.error(error.issues);
+      }
+      break;
+    default:
+      console.error(error.message);
+  }
+}
+```
+
+## Upstream message compatibility
+
+For WordPress REST failures, the client preserves upstream semantics:
+
+- `WordPressApiError.message` comes from the WordPress payload message when present.
+- `WordPressApiError.code` preserves the WordPress error code (`rest_forbidden`, `rest_post_invalid_id`, etc.).
+- `WordPressApiError.responseBody` keeps the original payload for advanced tooling.
+
+This makes implementing tools and middleware safer because they can keep existing WordPress-oriented error handling logic.
+
+## Low-level `request()` behavior
+
+`request()` is intentionally low-level:
+
+- it returns `{ data, response }` for non-2xx responses.
+- it throws only for transport/parse/runtime failures.
+
+Use high-level helpers (`getPosts`, `createPost`, `executeRunAbility`, and others) when you want automatic typed error mapping for HTTP failures.
+
+## Related guides
+
+- [Usage guide](./usage.mdx)
+- [Custom endpoints](./custom-endpoints.mdx)
+- [Abilities](./abilities.mdx)

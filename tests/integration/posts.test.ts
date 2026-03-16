@@ -128,6 +128,22 @@ describe('Client: Posts', () => {
         expect(post).toHaveProperty('_embedded');
       }
     });
+
+    it('getPosts with fields filter returns only requested fields', async () => {
+      const posts = await publicClient.getPosts({ fields: ['id', 'slug', 'title'], perPage: 5 });
+
+      expect(Array.isArray(posts)).toBe(true);
+      expect(posts.length).toBeGreaterThan(0);
+
+      for (const post of posts) {
+        expect(post).toHaveProperty('id');
+        expect(post).toHaveProperty('slug');
+        expect(post).toHaveProperty('title');
+        // Fields not requested should be absent
+        expect(post).not.toHaveProperty('content');
+        expect(post).not.toHaveProperty('excerpt');
+      }
+    });
   });
 
   describe('crud', () => {

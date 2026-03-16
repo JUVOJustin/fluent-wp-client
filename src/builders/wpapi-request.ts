@@ -191,6 +191,13 @@ export class WordPressRequestBuilder<
   }
 
   /**
+   * Restricts the response to the given subset of fields via `_fields`.
+   */
+  fields(value: string | string[]): this {
+    return this.param('_fields', Array.isArray(value) ? value.join(',') : value);
+  }
+
+  /**
    * Adds request headers for this chain only.
    */
   setHeaders(name: string, value: string): this;

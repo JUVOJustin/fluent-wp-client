@@ -101,3 +101,17 @@ export interface CommentsFilter extends PaginationParams {
   orderby?: 'date' | 'date_gmt' | 'id' | 'include' | 'post' | 'parent' | 'type';
   order?: 'asc' | 'desc';
 }
+
+/**
+ * Filter options for the cross-resource `/wp/v2/search` endpoint.
+ *
+ * The `search` field is required by the WordPress API but is accepted as a
+ * separate first argument in the `searchContent()` convenience method. Use this
+ * interface directly when calling the lower-level WPAPI builder chain or when
+ * composing filter objects manually.
+ */
+export interface SearchFilter extends PaginationParams {
+  search: string;
+  type?: 'post' | 'term' | 'post-format';
+  subtype?: string | string[];
+}

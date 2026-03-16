@@ -40,6 +40,7 @@ import {
   mediaSchema,
   pageSchema,
   postSchema,
+  searchResultSchema,
   settingsSchema,
 } from './standard-schemas.js';
 import {
@@ -51,6 +52,7 @@ import {
   type WordPressPage,
   type WordPressPost,
   type WordPressPostWriteBase,
+  type WordPressSearchResult,
   type WordPressSettings,
   type WordPressTag,
 } from './schemas.js';
@@ -66,13 +68,14 @@ import {
   type WordPressStandardSchema,
 } from './core/validation.js';
 import { applyRequestOverrides } from './core/request-overrides.js';
-import { compactPayload } from './core/params.js';
+import { compactPayload, filterToParams } from './core/params.js';
 import type {
   CategoriesFilter,
   CommentsFilter,
   MediaFilter,
   PagesFilter,
   PostsFilter,
+  SearchFilter,
   TagsFilter,
   UsersFilter,
 } from './types/filters.js';
@@ -1345,8 +1348,28 @@ export class WordPressClient {
   /**
    * Starts one WPAPI-style search request chain.
    */
-  search(): WordPressRequestBuilder<unknown> {
+  search(): WordPressRequestBuilder<WordPressSearchResult[]> {
     return this.route('search');
+  }
+
+  /**
+   * Performs a typed cross-resource search against the `/wp/v2/search` endpoint.
+   *
+   * Returns lightweight result objects across posts, pages, and custom post types.
+   * Use the exported `searchResultSchema` to validate results when strict response
+   * parsing is required.
+   *
+   * @param query - The search string to query.
+   * @param filter - Optional filter options (type, subtype, pagination).
+   * @param requestOptions - Optional per-request transport overrides.
+   */
+  async searchContent<TResult = WordPressSearchResult>(
+    query: string,
+    filter?: Omit<SearchFilter, 'search'>,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TResult[]> {
+    const params = filterToParams({ ...filter, search: query });
+    return this.fetchAPI<TResult[]>('/search', params, requestOptions);
   }
 
   /**
@@ -1389,6 +1412,7 @@ export type {
   MediaFilter,
   PagesFilter,
   PostsFilter,
+  SearchFilter,
   TagsFilter,
   UsersFilter,
 };

@@ -26,7 +26,7 @@ export interface WordPressClientConfig {
 export interface WordPressRequestOptions {
   endpoint: string;
   method?: string;
-  params?: Record<string, string>;
+  params?: Record<string, string | string[]>;
   body?: unknown;
   rawBody?: BodyInit;
   headers?: Record<string, string>;

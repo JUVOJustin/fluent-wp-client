@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { WordPressClientError, type WordPressErrorContext } from './errors.js';
 
 /**
  * Shared schema type accepted by client mutation helpers.
@@ -13,14 +14,31 @@ export type WordPressSchemaIssue = StandardSchemaV1.Issue;
 /**
  * Error thrown when one Standard Schema validator reports issues.
  */
-export class WordPressSchemaValidationError extends Error {
+export class WordPressSchemaValidationError extends WordPressClientError {
   readonly issues: readonly WordPressSchemaIssue[];
 
-  constructor(message: string, issues: readonly WordPressSchemaIssue[]) {
-    super(message);
+  constructor(
+    message: string,
+    issues: readonly WordPressSchemaIssue[],
+    context: WordPressErrorContext = {},
+  ) {
+    super({
+      kind: 'SCHEMA_VALIDATION_ERROR',
+      message,
+      operation: context.operation,
+      method: context.method,
+      endpoint: context.endpoint,
+    });
     this.name = 'WordPressSchemaValidationError';
     this.issues = issues;
   }
+}
+
+/**
+ * Optional context fields accepted by schema validation helpers.
+ */
+export interface WordPressValidationContext extends WordPressErrorContext {
+  message?: string;
 }
 
 /**
@@ -74,8 +92,20 @@ function formatIssues(issues: readonly WordPressSchemaIssue[]): string {
 export async function validateWithStandardSchema<TOutput>(
   schema: WordPressStandardSchema<TOutput>,
   value: unknown,
-  context = 'Schema validation failed',
+  context: string | WordPressValidationContext = 'Schema validation failed',
 ): Promise<TOutput> {
+  const message = typeof context === 'string'
+    ? context
+    : context.message ?? 'Schema validation failed';
+
+  const errorContext: WordPressErrorContext = typeof context === 'string'
+    ? {}
+    : {
+      operation: context.operation,
+      method: context.method,
+      endpoint: context.endpoint,
+    };
+
   let result = schema['~standard'].validate(value);
 
   if (result instanceof Promise) {
@@ -84,8 +114,9 @@ export async function validateWithStandardSchema<TOutput>(
 
   if (result.issues) {
     throw new WordPressSchemaValidationError(
-      `${context}: ${formatIssues(result.issues)}`,
+      `${message}: ${formatIssues(result.issues)}`,
       result.issues,
+      errorContext,
     );
   }
 

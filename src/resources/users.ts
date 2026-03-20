@@ -4,6 +4,7 @@ import type { UsersFilter } from '../types/filters.js';
 import type { FetchResult, PaginatedResponse } from '../types/resources.js';
 import { createWordPressPaginator } from '../core/pagination.js';
 import { filterToParams } from '../core/params.js';
+import { createWordPressClientError } from '../core/errors.js';
 
 /**
  * Users API methods factory for typed read operations.
@@ -61,7 +62,13 @@ export function createUsersMethods(
      */
     async getCurrentUser(requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor> {
       if (!hasAuth()) {
-        throw new Error('Authentication required for /users/me endpoint. Configure auth in client options.');
+        throw createWordPressClientError({
+          kind: 'AUTH_ERROR',
+          message: 'Authentication required for /users/me endpoint. Configure auth in client options.',
+          operation: 'getCurrentUser',
+          method: 'GET',
+          endpoint: '/users/me',
+        });
       }
 
       return fetchAPI<WordPressAuthor>('/users/me', undefined, requestOptions);

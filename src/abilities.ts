@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import type { WordPressRequestOptions, WordPressRequestOverrides, WordPressRequestResult } from './client-types.js';
-import { throwIfWordPressError } from './core/errors.js';
+import {
+  createWordPressClientError,
+  throwIfWordPressError,
+  type WordPressErrorContext,
+} from './core/errors.js';
 import { applyRequestOverrides } from './core/request-overrides.js';
 import {
   abilityCategorySchema,
@@ -49,8 +53,13 @@ export type DeleteAbilityInput = z.infer<typeof zodDeleteAbilityInputSchema>;
  * Runtime hooks required for WordPress abilities support.
  */
 export interface WordPressAbilityRuntime {
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>;
-  request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
+  fetchAPI: <T>(
+    endpoint: string,
+    params?: Record<string, string>,
+    options?: WordPressRequestOverrides,
+    context?: WordPressErrorContext,
+  ) => Promise<T>;
+  request: <T = unknown>(options: WordPressRequestOptions, context?: WordPressErrorContext) => Promise<WordPressRequestResult<T>>;
 }
 
 /**
@@ -60,11 +69,19 @@ function normalizeAbilityName(name: string): string {
   const normalizedName = name.trim().replace(/^\/+|\/+$/g, '');
 
   if (!normalizedName) {
-    throw new Error('WordPress ability name must not be empty.');
+    throw createWordPressClientError({
+      kind: 'CONFIG_ERROR',
+      message: 'WordPress ability name must not be empty.',
+      operation: 'normalizeAbilityName',
+    });
   }
 
   if (!normalizedName.includes('/')) {
-    throw new Error(`WordPress ability '${name}' must use 'namespace/ability' format.`);
+    throw createWordPressClientError({
+      kind: 'CONFIG_ERROR',
+      message: `WordPress ability '${name}' must use 'namespace/ability' format.`,
+      operation: 'normalizeAbilityName',
+    });
   }
 
   return normalizedName;
@@ -104,9 +121,11 @@ function createAbilityQueryParams(input: unknown): Record<string, string> | unde
     };
   }
 
-  throw new Error(
-    'WordPress GET and DELETE ability execution only supports primitive input values. Use POST-based run() for object or array input.',
-  );
+  throw createWordPressClientError({
+    kind: 'CONFIG_ERROR',
+    message: 'WordPress GET and DELETE ability execution only supports primitive input values. Use POST-based run() for object or array input.',
+    operation: 'createAbilityQueryParams',
+  });
 }
 
 /**
@@ -144,9 +163,10 @@ async function validateAbilityInput<TInput>(
 async function parseAbilityResponse<TOutput>(
   response: Response,
   data: unknown,
+  context: WordPressErrorContext,
   responseSchema?: WordPressStandardSchema<TOutput>,
 ): Promise<TOutput> {
-  throwIfWordPressError(response, data);
+  throwIfWordPressError(response, data, context);
 
   if (!responseSchema) {
     return data as TOutput;
@@ -155,7 +175,12 @@ async function parseAbilityResponse<TOutput>(
   return validateWithStandardSchema(
     responseSchema,
     data,
-    'WordPress ability response validation failed',
+    {
+      message: 'WordPress ability response validation failed',
+      operation: context.operation,
+      method: context.method,
+      endpoint: context.endpoint,
+    },
   );
 }
 
@@ -165,11 +190,17 @@ async function parseAbilityResponse<TOutput>(
 async function parseAbilityMetadata<TOutput>(
   schema: WordPressStandardSchema<TOutput>,
   payload: unknown,
+  context: WordPressErrorContext,
 ): Promise<TOutput> {
   return validateWithStandardSchema(
     schema,
     payload,
-    'WordPress ability metadata validation failed',
+    {
+      message: 'WordPress ability metadata validation failed',
+      operation: context.operation,
+      method: context.method,
+      endpoint: context.endpoint,
+    },
   );
 }
 
@@ -212,54 +243,79 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
    * Fetches metadata for the configured ability.
    */
   async getDefinition(requestOptions?: WordPressRequestOverrides): Promise<WordPressAbility> {
+    const endpoint = createAbilityEndpoint(this.abilityName);
+    const context: WordPressErrorContext = {
+      operation: 'ability.getDefinition',
+      method: 'GET',
+      endpoint,
+    };
     const ability = await this.runtime.fetchAPI<WordPressAbility>(
-      createAbilityEndpoint(this.abilityName),
+      endpoint,
       undefined,
       requestOptions,
+      context,
     );
-    return parseAbilityMetadata(abilitySchema, ability);
+    return parseAbilityMetadata(abilitySchema, ability, context);
   }
 
   /**
    * Executes the configured ability through `GET /run`.
    */
   async get(input?: TInput, requestOptions?: WordPressRequestOverrides): Promise<TOutput> {
+    const endpoint = createAbilityRunEndpoint(this.abilityName);
+    const context: WordPressErrorContext = {
+      operation: 'executeGetAbility',
+      method: 'GET',
+      endpoint,
+    };
     const validatedInput = await validateAbilityInput(this.inputValidator, input);
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
-      endpoint: createAbilityRunEndpoint(this.abilityName),
+      endpoint,
       method: 'GET',
       params: createAbilityQueryParams(validatedInput),
-    }, requestOptions, 'Ability helper options'));
+    }, requestOptions, 'Ability helper options'), context);
 
-    return parseAbilityResponse(response, data, this.outputValidator);
+    return parseAbilityResponse(response, data, context, this.outputValidator);
   }
 
   /**
    * Executes the configured ability through `POST /run`.
    */
   async run(input?: TInput, requestOptions?: WordPressRequestOverrides): Promise<TOutput> {
+    const endpoint = createAbilityRunEndpoint(this.abilityName);
+    const context: WordPressErrorContext = {
+      operation: 'executeRunAbility',
+      method: 'POST',
+      endpoint,
+    };
     const validatedInput = await validateAbilityInput(this.inputValidator, input);
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
-      endpoint: createAbilityRunEndpoint(this.abilityName),
+      endpoint,
       method: 'POST',
       body: createAbilityRequestBody(validatedInput),
-    }, requestOptions, 'Ability helper options'));
+    }, requestOptions, 'Ability helper options'), context);
 
-    return parseAbilityResponse(response, data, this.outputValidator);
+    return parseAbilityResponse(response, data, context, this.outputValidator);
   }
 
   /**
    * Executes the configured ability through `DELETE /run`.
    */
   async delete(input?: TInput, requestOptions?: WordPressRequestOverrides): Promise<TOutput> {
+    const endpoint = createAbilityRunEndpoint(this.abilityName);
+    const context: WordPressErrorContext = {
+      operation: 'executeDeleteAbility',
+      method: 'DELETE',
+      endpoint,
+    };
     const validatedInput = await validateAbilityInput(this.inputValidator, input);
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
-      endpoint: createAbilityRunEndpoint(this.abilityName),
+      endpoint,
       method: 'DELETE',
       params: createAbilityQueryParams(validatedInput),
-    }, requestOptions, 'Ability helper options'));
+    }, requestOptions, 'Ability helper options'), context);
 
-    return parseAbilityResponse(response, data, this.outputValidator);
+    return parseAbilityResponse(response, data, context, this.outputValidator);
   }
 }
 
@@ -271,24 +327,42 @@ export function createAbilityMethods(runtime: WordPressAbilityRuntime) {
    * Lists all registered abilities exposed to the current caller.
    */
   async function getAbilities(requestOptions?: WordPressRequestOverrides): Promise<WordPressAbility[]> {
-    const abilities = await runtime.fetchAPI<WordPressAbility[]>(`${ABILITIES_BASE_ENDPOINT}/abilities`, undefined, requestOptions);
-    return parseAbilityMetadata(zodAbilitiesSchema, abilities);
+    const endpoint = `${ABILITIES_BASE_ENDPOINT}/abilities`;
+    const context: WordPressErrorContext = {
+      operation: 'getAbilities',
+      method: 'GET',
+      endpoint,
+    };
+    const abilities = await runtime.fetchAPI<WordPressAbility[]>(endpoint, undefined, requestOptions, context);
+    return parseAbilityMetadata(zodAbilitiesSchema, abilities, context);
   }
 
   /**
    * Fetches metadata for one registered ability.
    */
   async function getAbility(name: string, requestOptions?: WordPressRequestOverrides): Promise<WordPressAbility> {
-    const ability = await runtime.fetchAPI<WordPressAbility>(createAbilityEndpoint(name), undefined, requestOptions);
-    return parseAbilityMetadata(abilitySchema, ability);
+    const endpoint = createAbilityEndpoint(name);
+    const context: WordPressErrorContext = {
+      operation: 'getAbility',
+      method: 'GET',
+      endpoint,
+    };
+    const ability = await runtime.fetchAPI<WordPressAbility>(endpoint, undefined, requestOptions, context);
+    return parseAbilityMetadata(abilitySchema, ability, context);
   }
 
   /**
    * Lists all ability categories exposed to the current caller.
    */
   async function getAbilityCategories(requestOptions?: WordPressRequestOverrides): Promise<WordPressAbilityCategory[]> {
-    const categories = await runtime.fetchAPI<WordPressAbilityCategory[]>(`${ABILITIES_BASE_ENDPOINT}/categories`, undefined, requestOptions);
-    return parseAbilityMetadata(zodAbilityCategoriesSchema, categories);
+    const endpoint = `${ABILITIES_BASE_ENDPOINT}/categories`;
+    const context: WordPressErrorContext = {
+      operation: 'getAbilityCategories',
+      method: 'GET',
+      endpoint,
+    };
+    const categories = await runtime.fetchAPI<WordPressAbilityCategory[]>(endpoint, undefined, requestOptions, context);
+    return parseAbilityMetadata(zodAbilityCategoriesSchema, categories, context);
   }
 
   /**
@@ -298,12 +372,19 @@ export function createAbilityMethods(runtime: WordPressAbilityRuntime) {
     slug: string,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<WordPressAbilityCategory> {
+    const endpoint = `${ABILITIES_BASE_ENDPOINT}/categories/${slug}`;
+    const context: WordPressErrorContext = {
+      operation: 'getAbilityCategory',
+      method: 'GET',
+      endpoint,
+    };
     const category = await runtime.fetchAPI<WordPressAbilityCategory>(
-      `${ABILITIES_BASE_ENDPOINT}/categories/${slug}`,
+      endpoint,
       undefined,
       requestOptions,
+      context,
     );
-    return parseAbilityMetadata(abilityCategorySchema, category);
+    return parseAbilityMetadata(abilityCategorySchema, category, context);
   }
 
   /**

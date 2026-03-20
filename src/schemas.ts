@@ -372,3 +372,16 @@ export type WordPressSettings = z.infer<typeof settingsSchema>;
  * WordPress tag type aliases category response shape.
  */
 export type WordPressTag = WordPressCategory;
+
+/**
+ * Schema for a single WordPress cross-resource search result from `/wp/v2/search`.
+ */
+export const searchResultSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  url: z.string(),
+  type: z.string(),
+  subtype: z.string(),
+}).passthrough();
+
+export type WordPressSearchResult = z.infer<typeof searchResultSchema>;

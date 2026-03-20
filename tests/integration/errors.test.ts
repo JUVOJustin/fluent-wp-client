@@ -4,6 +4,7 @@ import {
   WordPressClient,
   WordPressClientError,
   WordPressSchemaValidationError,
+  validateWithStandardSchema,
 } from 'fluent-wp-client';
 import { getBaseUrl } from '../helpers/wp-client';
 
@@ -11,6 +12,16 @@ import { getBaseUrl } from '../helpers/wp-client';
  * Integration coverage for the unified client error contract.
  */
 describe('Client: Error Contract', () => {
+  it('re-exports validateWithStandardSchema from the package root', async () => {
+    const schema = {
+      '~standard': {
+        validate: (value: unknown) => ({ value }),
+      },
+    };
+
+    await expect(validateWithStandardSchema(schema as any, 'ok')).resolves.toBe('ok');
+  });
+
   it('maps transport failures to NETWORK_ERROR with cause details', async () => {
     const client = new WordPressClient({
       baseUrl: getBaseUrl(),

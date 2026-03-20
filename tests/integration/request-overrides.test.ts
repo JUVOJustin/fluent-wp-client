@@ -39,6 +39,30 @@ function createObservedAuthClient(
  * Integration coverage for request-scoped overrides on high-level mutation helpers.
  */
 describe('Client: request-scoped mutation overrides', () => {
+  it('uses the runtime fetch with the global object context by default', async () => {
+    const originalFetch = globalThis.fetch;
+    let observedThis: unknown;
+
+    globalThis.fetch = async function (
+      this: typeof globalThis,
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> {
+      observedThis = this;
+      return originalFetch.call(globalThis, input, init);
+    };
+
+    try {
+      const client = new WordPressClient({ baseUrl: getBaseUrl() });
+      const posts = await client.getPosts({ perPage: 1 });
+
+      expect(posts).toHaveLength(1);
+      expect(observedThis).toBe(globalThis);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('rejects auth header overrides on mutation helper options', async () => {
     const client = createObservedAuthClient(() => undefined);
 

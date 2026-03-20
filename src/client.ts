@@ -131,7 +131,7 @@ export class WordPressClient {
   private readonly cookieHeader: string | undefined;
   private readonly defaultHeaders: Record<string, string>;
   private readonly requestCredentials: RequestCredentials | undefined;
-  private readonly fetcher: typeof fetch;
+  private readonly fetcher: typeof fetch | undefined;
 
   // Posts methods
   public getPosts: ReturnType<typeof createPostsMethods>['getPosts'];
@@ -222,7 +222,7 @@ export class WordPressClient {
     this.cookieHeader = config.cookies;
     this.defaultHeaders = {};
     this.requestCredentials = config.credentials;
-    this.fetcher = config.fetch ?? fetch;
+    this.fetcher = config.fetch;
     this.apiBase = `${this.baseUrl}/wp-json/wp/v2`;
 
     const fetchAPI = this.fetchAPI.bind(this);
@@ -581,12 +581,22 @@ export class WordPressClient {
       credentials: options.credentials ?? this.requestCredentials,
     });
 
-    const response = await this.fetcher(url.toString(), {
+    const requestInit: RequestInit = {
       method,
       headers,
       body: serializedBody.body,
       credentials,
-    });
+    };
+
+    if (typeof this.fetcher !== 'function' && typeof globalThis.fetch !== 'function') {
+      throw new TypeError(
+        'No fetch implementation found. Provide a custom `fetch` via WordPressClientConfig or ensure `globalThis.fetch` is available.',
+      );
+    }
+
+    const response = typeof this.fetcher === 'function'
+      ? await this.fetcher(url.toString(), requestInit)
+      : await globalThis.fetch(url.toString(), requestInit);
 
     const data = await this.parseResponseBody(response) as T;
 

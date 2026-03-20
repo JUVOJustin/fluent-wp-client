@@ -581,19 +581,22 @@ export class WordPressClient {
       credentials: options.credentials ?? this.requestCredentials,
     });
 
-    const response = this.fetcher
-      ? await this.fetcher(url.toString(), {
-        method,
-        headers,
-        body: serializedBody.body,
-        credentials,
-      })
-      : await globalThis.fetch(url.toString(), {
-        method,
-        headers,
-        body: serializedBody.body,
-        credentials,
-      });
+    const requestInit: RequestInit = {
+      method,
+      headers,
+      body: serializedBody.body,
+      credentials,
+    };
+
+    if (typeof this.fetcher !== 'function' && typeof globalThis.fetch !== 'function') {
+      throw new TypeError(
+        'No fetch implementation found. Provide a custom `fetch` via WordPressClientConfig or ensure `globalThis.fetch` is available.',
+      );
+    }
+
+    const response = typeof this.fetcher === 'function'
+      ? await this.fetcher(url.toString(), requestInit)
+      : await globalThis.fetch(url.toString(), requestInit);
 
     const data = await this.parseResponseBody(response) as T;
 

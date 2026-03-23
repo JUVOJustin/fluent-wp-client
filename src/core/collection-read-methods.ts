@@ -1,5 +1,5 @@
 import type { WordPressRequestOverrides } from '../client-types.js';
-import type { FetchResult, PaginatedResponse, PaginationParams } from '../types/resources.js';
+import type { FetchResult, PaginatedResponse, PaginationParams, QueryParams, SerializedQueryParams } from '../types/resources.js';
 import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './params.js';
 
@@ -11,12 +11,12 @@ export interface CollectionReadMethodsConfig<TResource, TFilter extends Paginati
   endpoint: string;
   fetchAPI: <T>(
     endpoint: string,
-    params?: Record<string, string>,
+    params?: SerializedQueryParams,
     options?: WordPressRequestOverrides,
   ) => Promise<T>;
   fetchAPIPaginated: <T>(
     endpoint: string,
-    params?: Record<string, string>,
+    params?: SerializedQueryParams,
     options?: WordPressRequestOverrides,
   ) => Promise<FetchResult<T>>;
 }
@@ -35,7 +35,7 @@ export function createCollectionReadMethods<TResource, TFilter extends Paginatio
 ) {
   const paginator = createWordPressPaginator<TFilter, TResource>({
     fetchPage: (currentFilter, context) => {
-      const params = filterToParams(currentFilter as object);
+      const params = filterToParams(currentFilter as unknown as QueryParams);
       return config.fetchAPIPaginated<TResource[]>(
         config.endpoint,
         params,
@@ -47,7 +47,7 @@ export function createCollectionReadMethods<TResource, TFilter extends Paginatio
   return {
     /** Lists resources matching the given filter. */
     list(filter: TFilter = {} as TFilter, options?: WordPressRequestOverrides): Promise<TResource[]> {
-      const params = filterToParams(filter as object);
+      const params = filterToParams(filter as unknown as QueryParams);
       return config.fetchAPI<TResource[]>(config.endpoint, params, options);
     },
 

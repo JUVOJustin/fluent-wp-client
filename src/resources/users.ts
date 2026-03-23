@@ -1,18 +1,18 @@
 import type { WordPressAuthor } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
 import type { UsersFilter } from '../types/filters.js';
-import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import type { ExtensibleFilter, FetchResult, PaginatedResponse, SerializedQueryParams } from '../types/resources.js';
 import { createCollectionReadMethods } from '../core/collection-read-methods.js';
 
 /**
  * Users API methods factory for typed read operations.
  */
 export function createUsersMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
   hasAuth: () => boolean,
 ) {
-  const core = createCollectionReadMethods<WordPressAuthor, UsersFilter>({
+  const core = createCollectionReadMethods<WordPressAuthor, ExtensibleFilter<UsersFilter>>({
     endpoint: '/users',
     fetchAPI,
     fetchAPIPaginated,
@@ -20,15 +20,15 @@ export function createUsersMethods(
 
   return {
     /** Gets users with optional filtering. */
-    getUsers: (filter?: UsersFilter, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> =>
+    getUsers: (filter?: ExtensibleFilter<UsersFilter>, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> =>
       core.list(filter, options),
 
     /** Gets all users by paginating every page. */
-    getAllUsers: (filter?: Omit<UsersFilter, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> =>
+    getAllUsers: (filter?: Omit<ExtensibleFilter<UsersFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> =>
       core.listAll(filter, options),
 
     /** Gets users with pagination metadata. */
-    getUsersPaginated: (filter?: UsersFilter, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressAuthor>> =>
+    getUsersPaginated: (filter?: ExtensibleFilter<UsersFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressAuthor>> =>
       core.listPaginated(filter, options),
 
     /** Gets one user by ID. */

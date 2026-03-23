@@ -1,6 +1,6 @@
-import type { WordPressCategory, WordPressContent } from '../schemas.js';
+import type { WordPressCategory, WordPressPostLike } from '../schemas.js';
 import type { WordPressRequestOptions, WordPressRequestOverrides, WordPressRequestResult } from '../client-types.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
+import { validateWithStandardSchema, type WordPressStandardSchema } from '../core/validation.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { createWordPressPaginator } from '../core/pagination.js';
 import { compactPayload, filterToParams, normalizeDeleteResult } from '../core/params.js';
@@ -12,10 +12,12 @@ import {
 } from '../builders/relations.js';
 import type {
   ContentResourceClient,
+  ExtensibleFilter,
   FetchResult,
   PaginatedResponse,
   PaginationParams,
   QueryParams,
+  SerializedQueryParams,
   TermsResourceClient,
   WordPressDeleteResult,
 } from '../types/resources.js';
@@ -29,8 +31,8 @@ import type {
  * Runtime hooks required for generic content and term method groups.
  */
 export interface ContentTermMethodDependencies {
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>;
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>;
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
   request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
   executeMutation: <T>(options: WordPressRequestOptions, responseSchema?: WordPressStandardSchema<T>) => Promise<T>;
   relationClient: PostRelationClient;
@@ -57,9 +59,41 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   });
 
   /**
+   * Validates one generic content resource response when a schema is configured.
+   */
+  async function validateContentItem<TContent>(
+    value: unknown,
+    responseSchema?: WordPressStandardSchema<TContent>,
+  ): Promise<TContent> {
+    if (!responseSchema) {
+      return value as TContent;
+    }
+
+    return validateWithStandardSchema(
+      responseSchema,
+      value,
+      'WordPress content response validation failed',
+    );
+  }
+
+  /**
+   * Validates one generic content resource collection when a schema is configured.
+   */
+  async function validateContentCollection<TContent>(
+    values: unknown[],
+    responseSchema?: WordPressStandardSchema<TContent>,
+  ): Promise<TContent[]> {
+    if (!responseSchema) {
+      return values as TContent[];
+    }
+
+    return Promise.all(values.map((value) => validateContentItem(value, responseSchema)));
+  }
+
+  /**
    * Lists one content resource (posts/pages/custom post types).
    */
-  async function getContentCollection<TContent = WordPressContent>(
+  async function getContentCollection<TContent = WordPressPostLike>(
     resource: string,
     filter: QueryParams = {},
     requestOptions?: WordPressRequestOverrides,
@@ -71,7 +105,7 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   /**
    * Lists all items from one content resource using automatic pagination.
    */
-  async function getAllContentCollection<TContent = WordPressContent>(
+  async function getAllContentCollection<TContent = WordPressPostLike>(
     resource: string,
     filter: Omit<QueryParams, 'page'> = {},
     requestOptions?: WordPressRequestOverrides,
@@ -87,7 +121,7 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   /**
    * Lists one content resource with pagination metadata.
    */
-  async function getContentCollectionPaginated<TContent = WordPressContent>(
+  async function getContentCollectionPaginated<TContent = WordPressPostLike>(
     resource: string,
     filter: QueryParams & PaginationParams = {},
     requestOptions?: WordPressRequestOverrides,
@@ -103,7 +137,7 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   /**
    * Fetches one content item by numeric ID.
    */
-  async function getContent<TContent = WordPressContent>(
+  async function getContent<TContent = WordPressPostLike>(
     resource: string,
     id: number,
     requestOptions?: WordPressRequestOverrides,
@@ -114,7 +148,7 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   /**
    * Fetches one content item by slug.
    */
-  async function getContentBySlug<TContent = WordPressContent>(
+  async function getContentBySlug<TContent = WordPressPostLike>(
     resource: string,
     slug: string,
     requestOptions?: WordPressRequestOverrides,
@@ -126,7 +160,7 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   /**
    * Creates one content item for any post-like REST resource.
    */
-  async function createContent<TContent = WordPressContent, TInput extends WordPressWritePayload = WordPressWritePayload>(
+  async function createContent<TContent = WordPressPostLike, TInput extends WordPressWritePayload = WordPressWritePayload>(
     resource: string,
     input: TInput,
     responseSchema?: WordPressStandardSchema<TContent>,
@@ -145,7 +179,7 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   /**
    * Updates one content item for any post-like REST resource.
    */
-  async function updateContent<TContent = WordPressContent, TInput extends WordPressWritePayload = WordPressWritePayload>(
+  async function updateContent<TContent = WordPressPostLike, TInput extends WordPressWritePayload = WordPressWritePayload>(
     resource: string,
     id: number,
     input: TInput,
@@ -305,10 +339,11 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
   }
 
   /**
-   * Builds one typed generic content resource client.
+   * Builds one typed generic content resource client with optional read and
+   * mutation response validation.
    */
   function content<
-    TResource extends WordPressContent = WordPressContent,
+    TResource extends WordPressPostLike = WordPressPostLike,
     TCreate extends WordPressWritePayload = WordPressWritePayload,
     TUpdate extends WordPressWritePayload = TCreate,
   >(
@@ -316,11 +351,35 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     responseSchema?: WordPressStandardSchema<TResource>,
   ): ContentResourceClient<TResource, TCreate, TUpdate> {
     return {
-      list: (filter = {}, options) => getContentCollection<TResource>(resource, filter, options),
-      listAll: (filter = {}, options) => getAllContentCollection<TResource>(resource, filter, options),
-      listPaginated: (filter = {}, options) => getContentCollectionPaginated<TResource>(resource, filter, options),
-      getById: (id, options) => getContent<TResource>(resource, id, options),
-      getBySlug: (slug, options) => getContentBySlug<TResource>(resource, slug, options),
+      list: async (filter = {}, options) => validateContentCollection(
+        await getContentCollection<TResource>(resource, filter as ExtensibleFilter<QueryParams>, options),
+        responseSchema,
+      ),
+      listAll: async (filter = {}, options) => validateContentCollection(
+        await getAllContentCollection<TResource>(resource, filter as Omit<ExtensibleFilter<QueryParams>, 'page'>, options),
+        responseSchema,
+      ),
+      listPaginated: async (filter = {}, options) => {
+        const result = await getContentCollectionPaginated<TResource>(resource, filter as ExtensibleFilter<QueryParams> & PaginationParams, options);
+
+        return {
+          ...result,
+          data: await validateContentCollection(result.data, responseSchema),
+        };
+      },
+      getById: async (id, options) => validateContentItem(
+        await getContent<TResource>(resource, id, options),
+        responseSchema,
+      ),
+      getBySlug: async (slug, options) => {
+        const item = await getContentBySlug<TResource>(resource, slug, options);
+
+        if (item === undefined) {
+          return undefined;
+        }
+
+        return validateContentItem(item, responseSchema);
+      },
       item: (idOrSlug) => new PostRelationQueryBuilder(
         dependencies.relationClient,
         typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
@@ -338,7 +397,8 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
           (slug) => getContentBySlug<TResource>(resource, slug),
           relations,
         );
-        return query.get() as Promise<TResource & { related: SelectedPostRelations<TRelations> }>;
+        const result = await query.get();
+        return validateContentItem(result, responseSchema) as Promise<TResource & { related: SelectedPostRelations<TRelations> }>;
       },
       create: (input, options) => createContent<TResource, TCreate>(resource, input, responseSchema, options),
       update: (id, input, options) => updateContent<TResource, TUpdate>(resource, id, input, responseSchema, options),
@@ -358,9 +418,9 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     responseSchema?: WordPressStandardSchema<TResource>,
   ): TermsResourceClient<TResource, TCreate, TUpdate> {
     return {
-      list: (filter = {}, options) => getTermCollection<TResource>(resource, filter, options),
-      listAll: (filter = {}, options) => getAllTermCollection<TResource>(resource, filter, options),
-      listPaginated: (filter = {}, options) => getTermCollectionPaginated<TResource>(resource, filter, options),
+      list: (filter = {}, options) => getTermCollection<TResource>(resource, filter as ExtensibleFilter<QueryParams>, options),
+      listAll: (filter = {}, options) => getAllTermCollection<TResource>(resource, filter as Omit<ExtensibleFilter<QueryParams>, 'page'>, options),
+      listPaginated: (filter = {}, options) => getTermCollectionPaginated<TResource>(resource, filter as ExtensibleFilter<QueryParams> & PaginationParams, options),
       getById: (id, options) => getTerm<TResource>(resource, id, options),
       getBySlug: (slug, options) => getTermBySlug<TResource>(resource, slug, options),
       create: (input, options) => createTerm<TResource, TCreate>(resource, input, responseSchema, options),

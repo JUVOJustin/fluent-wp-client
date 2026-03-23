@@ -4,6 +4,7 @@ import {
   type WordPressContent,
   type WordPressMedia,
   type WordPressPost,
+  type WordPressPostLike,
   type WordPressTag,
   embeddedMediaSchema,
 } from '../schemas.js';
@@ -120,7 +121,7 @@ const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
  * Reads one numeric relation ID array from a content record.
  * Uses defaultParseReferenceId to handle both plain numbers and numeric strings.
  */
-function getContentRelationIds(content: WordPressContent, field: string): number[] {
+function getContentRelationIds(content: WordPressPostLike, field: string): number[] {
   const value = (content as Record<string, unknown>)[field];
 
   if (!Array.isArray(value)) {
@@ -135,7 +136,7 @@ function getContentRelationIds(content: WordPressContent, field: string): number
 /**
  * Resolves embedded taxonomy terms by taxonomy name.
  */
-function getEmbeddedTerms(post: WordPressContent): {
+function getEmbeddedTerms(post: WordPressPostLike): {
   categories: WordPressCategory[];
   tags: WordPressTag[];
   taxonomies: Record<string, RelatedTermReference[]>;
@@ -195,7 +196,7 @@ interface LinkedTermResource {
 /**
  * Resolves taxonomy resources from `_links['wp:term']`.
  */
-function getLinkedTermResources(post: WordPressContent): LinkedTermResource[] {
+function getLinkedTermResources(post: WordPressPostLike): LinkedTermResource[] {
   const links = (post as { _links?: Record<string, unknown> })._links?.['wp:term'];
 
   if (!Array.isArray(links)) {
@@ -235,7 +236,7 @@ function getLinkedTermResources(post: WordPressContent): LinkedTermResource[] {
  */
 async function resolveLinkedTerms(
   client: PostRelationClient,
-  post: WordPressContent,
+  post: WordPressPostLike,
   existingTaxonomies: Record<string, RelatedTermReference[]>,
 ): Promise<Record<string, RelatedTermReference[]>> {
   if (!client.getTermCollection) {
@@ -307,7 +308,7 @@ function getRequiredFieldsForRelations(relations: Set<AllPostRelations>): string
 async function resolveCustomRelation<T>(
   config: CustomRelationConfig<T>,
   client: PostRelationClient,
-  post: WordPressContent,
+  post: WordPressPostLike,
 ): Promise<T | null> {
   // Try to get embedded data first
   const embeddedData = extractEmbeddedData<unknown>(post, config.embeddedKey);
@@ -354,7 +355,7 @@ async function resolveCustomRelation<T>(
  */
 export class PostRelationQueryBuilder<
   TRelations extends readonly AllPostRelations[] = [],
-  TContent extends WordPressContent = WordPressPost,
+  TContent extends WordPressPostLike = WordPressPost,
 > {
   private readonly relationSet: Set<AllPostRelations>;
 
@@ -425,7 +426,8 @@ export class PostRelationQueryBuilder<
     // Handle built-in author relation
     if (this.relationSet.has('author')) {
       const embeddedAuthor = extractEmbeddedAuthor(extractEmbeddedData(post, 'author'));
-      related.author = embeddedAuthor ?? await resolveAuthor(this.client, post.author);
+      const authorId = post.author;
+      related.author = embeddedAuthor ?? (typeof authorId === 'number' ? await resolveAuthor(this.client, authorId) : null);
     }
 
     // Handle built-in featuredMedia relation

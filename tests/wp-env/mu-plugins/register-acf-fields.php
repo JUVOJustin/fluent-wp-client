@@ -3,7 +3,7 @@
  * Registers ACF field groups for integration testing.
  *
  * Creates a single field group — "Test Content Fields" — applied to posts,
- * pages, and the book CPT. The group includes:
+ * pages, the book CPT, and the sparse artifact CPT. The group includes:
  *   - Scalar fields: text (subtitle), textarea (summary), number (priority_score), url (external_url)
  *   - Relationship field: acf_related_posts — returns post objects so the REST
  *     response includes ACF's _link property pointing to each post's REST endpoint.
@@ -105,11 +105,12 @@ add_action( 'acf/init', function () {
 			],
 		],
 
-		// Applies to posts, pages, and the book CPT.
+		// Applies to posts, pages, the book CPT, and the sparse artifact CPT.
 		'location' => [
 			[ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'post' ] ],
 			[ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'page' ] ],
 			[ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'book' ] ],
+			[ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'artifact' ] ],
 		],
 
 		// Expose all fields in the `acf` key of WP REST API responses.

@@ -19,8 +19,10 @@ import {
   jwtAuthValidationResponseSchema as zodJwtAuthValidationResponseSchema,
   mediaSchema as zodMediaSchema,
   pageSchema as zodPageSchema,
+  postLikeWordPressSchema as zodPostLikeWordPressSchema,
   postSchema as zodPostSchema,
   postWriteBaseSchema as zodPostWriteBaseSchema,
+  searchResultSchema as zodSearchResultSchema,
   settingsSchema as zodSettingsSchema,
   updatePostFieldsSchema as zodUpdatePostFieldsSchema,
   wordPressErrorSchema as zodWordPressErrorSchema,
@@ -40,6 +42,7 @@ function asStandardSchema<TSchema extends z.ZodType>(
  * Standard Schema exports for WordPress core resource payloads.
  */
 export const baseWordPressSchema = asStandardSchema(zodBaseWordPressSchema);
+export const postLikeWordPressSchema = asStandardSchema(zodPostLikeWordPressSchema);
 export const contentWordPressSchema = asStandardSchema(zodContentWordPressSchema);
 export const postSchema = asStandardSchema(zodPostSchema);
 export const pageSchema = asStandardSchema(zodPageSchema);
@@ -58,6 +61,7 @@ export const jwtAuthErrorResponseSchema = asStandardSchema(zodJwtAuthErrorRespon
 export const jwtAuthValidationResponseSchema = asStandardSchema(zodJwtAuthValidationResponseSchema);
 export const wordPressErrorSchema = asStandardSchema(zodWordPressErrorSchema);
 export const settingsSchema = asStandardSchema(zodSettingsSchema);
+export const searchResultSchema = asStandardSchema(zodSearchResultSchema);
 
 /**
  * Standard Schema exports for ability execution input wrappers.

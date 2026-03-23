@@ -1,7 +1,7 @@
 import type { DeleteOptions, WordPressWritePayload } from './payloads.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
 import type { AllPostRelations, PostRelationQueryBuilder, SelectedPostRelations } from '../builders/relations.js';
-import type { WordPressContent } from '../schemas.js';
+import type { WordPressPostLike } from '../schemas.js';
 
 /**
  * Primitive value supported for query-string conversion.
@@ -21,6 +21,21 @@ export type QueryParamValue =
  * Generic query object accepted by low-level request helpers.
  */
 export type QueryParams = Record<string, QueryParamValue>;
+
+/**
+ * Serialized query object sent to the request layer.
+ */
+export type SerializedQueryParams = Record<string, string | string[]>;
+
+/**
+ * Extends one known filter shape with endpoint-specific custom query params.
+ */
+export type ExtensibleFilter<TKnown extends object> = TKnown & QueryParams;
+
+/**
+ * Common include/exclude parameter type used across collection filter interfaces.
+ */
+export type IncludeExcludeParam = number[];
 
 /**
  * Internal fetch result with pagination headers.
@@ -63,7 +78,7 @@ export interface WordPressDeleteResult {
  * Generic content resource API surface for custom post type usage.
  */
 export interface ContentResourceClient<
-  TResource extends WordPressContent,
+  TResource extends WordPressPostLike,
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload,
 > {

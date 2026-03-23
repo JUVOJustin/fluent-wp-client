@@ -14,6 +14,7 @@ export {
   type MediaFilter,
   type PagesFilter,
   type PostsFilter,
+  type SearchFilter,
   type TagsFilter,
   type UsersFilter,
 } from './client.js';
@@ -76,6 +77,7 @@ export {
 
 export {
   baseWordPressSchema,
+  postLikeWordPressSchema,
   contentWordPressSchema,
   postSchema,
   pageSchema,
@@ -94,6 +96,7 @@ export {
   jwtAuthValidationResponseSchema,
   wordPressErrorSchema,
   settingsSchema,
+  searchResultSchema,
   type WordPressAuthor,
   type WordPressBase,
   type WordPressCategory,
@@ -107,10 +110,12 @@ export {
   type WordPressAbilityCategory,
   type WordPressMedia,
   type WordPressPage,
+  type WordPressPostLike,
   type WordPressPostBase,
   type WordPressPost,
   type WordPressPostWriteBase,
   type WordPressPostWriteFields,
+  type WordPressSearchResult,
   type WordPressSettings,
   type WordPressTag,
 } from './schemas.js';

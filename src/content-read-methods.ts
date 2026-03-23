@@ -3,7 +3,7 @@ import { WordPressContentQuery } from './content-query.js';
 import type { WordPressPostBase } from './schemas.js';
 import type { WordPressRequestOverrides } from './client-types.js';
 import { filterToParams } from './core/params.js';
-import type { FetchResult, PaginatedResponse, PaginationParams } from './types/resources.js';
+import type { FetchResult, PaginatedResponse, PaginationParams, QueryParams, SerializedQueryParams } from './types/resources.js';
 import { createWordPressPaginator } from './core/pagination.js';
 
 /**
@@ -11,14 +11,14 @@ import { createWordPressPaginator } from './core/pagination.js';
  */
 export interface PostLikeReadMethodConfig<
   TContent extends WordPressPostBase,
-  TFilter extends PaginationParams,
+  TFilter extends QueryParams & PaginationParams,
 > {
   resource: string;
   missingRawMessage: string;
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>;
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>;
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
   defaultBlockParser?: WordPressBlockParser;
-  withDefaultFilter?: (filter: TFilter | Omit<TFilter, 'page'> | (TFilter & PaginationParams)) => Record<string, unknown>;
+  withDefaultFilter?: (filter: TFilter | Omit<TFilter, 'page'> | (TFilter & PaginationParams)) => QueryParams;
 }
 
 /**
@@ -29,7 +29,7 @@ export interface PostLikeReadMethodConfig<
  */
 export function createPostLikeReadMethods<
   TContent extends WordPressPostBase,
-  TFilter extends PaginationParams,
+  TFilter extends QueryParams & PaginationParams,
 >(config: PostLikeReadMethodConfig<TContent, TFilter>) {
   const withDefaultFilter = config.withDefaultFilter ?? ((filter) => ({ ...filter, _embed: 'true' }));
   const paginator = createWordPressPaginator<TFilter, TContent>({

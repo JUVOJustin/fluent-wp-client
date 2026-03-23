@@ -1,17 +1,17 @@
 import type { WordPressMedia } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
 import type { MediaFilter } from '../types/filters.js';
-import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import type { ExtensibleFilter, FetchResult, PaginatedResponse, SerializedQueryParams } from '../types/resources.js';
 import { createCollectionReadMethods } from '../core/collection-read-methods.js';
 
 /**
  * Media API methods factory for typed read operations.
  */
 export function createMediaMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
 ) {
-  const core = createCollectionReadMethods<WordPressMedia, MediaFilter>({
+  const core = createCollectionReadMethods<WordPressMedia, ExtensibleFilter<MediaFilter>>({
     endpoint: '/media',
     fetchAPI,
     fetchAPIPaginated,
@@ -19,15 +19,15 @@ export function createMediaMethods(
 
   return {
     /** Gets media items with optional filtering. */
-    getMedia: (filter?: MediaFilter, options?: WordPressRequestOverrides): Promise<WordPressMedia[]> =>
+    getMedia: (filter?: ExtensibleFilter<MediaFilter>, options?: WordPressRequestOverrides): Promise<WordPressMedia[]> =>
       core.list(filter, options),
 
     /** Gets all media items by paginating every page. */
-    getAllMedia: (filter?: Omit<MediaFilter, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressMedia[]> =>
+    getAllMedia: (filter?: Omit<ExtensibleFilter<MediaFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressMedia[]> =>
       core.listAll(filter, options),
 
-    /** Gets media with pagination metadata. */
-    getMediaPaginated: (filter?: MediaFilter, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressMedia>> =>
+    /** Gets media items with pagination metadata. */
+    getMediaPaginated: (filter?: ExtensibleFilter<MediaFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressMedia>> =>
       core.listPaginated(filter, options),
 
     /** Gets one media item by ID. */

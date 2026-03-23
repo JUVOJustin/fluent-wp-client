@@ -4,6 +4,7 @@ import type {
   WordPressContent,
   WordPressMedia,
   WordPressPost,
+  WordPressPostLike,
   WordPressTag,
 } from '../schemas.js';
 import type { WordPressRequestOptions, WordPressRequestResult } from '../client-types.js';
@@ -42,7 +43,7 @@ export interface RelationFallbackResolver<T> {
    */
   resolve(
     client: PostRelationClient,
-    post: WordPressContent,
+    post: WordPressPostLike,
   ): Promise<T>;
 }
 
@@ -376,7 +377,7 @@ export interface RelatedTermReference {
  * Helper to extract embedded data from a post by key.
  */
 export function extractEmbeddedData<T>(
-  post: WordPressContent,
+  post: WordPressPostLike,
   key: string,
 ): T | undefined {
   const embedded = (post as { _embedded?: Record<string, unknown> })._embedded;

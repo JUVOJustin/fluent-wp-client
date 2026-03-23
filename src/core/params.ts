@@ -1,18 +1,18 @@
 import type { WordPressWritePayload } from '../types/payloads.js';
-import type { WordPressDeleteResult } from '../types/resources.js';
+import type { QueryParams, SerializedQueryParams, WordPressDeleteResult } from '../types/resources.js';
 
 /**
  * Converts one filter object to WordPress API query params.
  */
 export function filterToParams(
-  filter: object,
+  filter: QueryParams,
   options: {
     applyPerPageDefault?: boolean;
   } = {},
-): Record<string, string> {
-  const params: Record<string, string> = {};
+): SerializedQueryParams {
+  const params: SerializedQueryParams = {};
 
-  for (const [key, value] of Object.entries(filter as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(filter)) {
     if (value === undefined || value === null) {
       continue;
     }
@@ -21,7 +21,7 @@ export function filterToParams(
     const apiKey = key === 'fields' ? '_fields' : key.replace(/([A-Z])/g, '_$1').toLowerCase();
 
     if (Array.isArray(value)) {
-      params[apiKey] = value.map((item) => String(item)).join(',');
+      params[apiKey] = value.map((item) => String(item));
       continue;
     }
 

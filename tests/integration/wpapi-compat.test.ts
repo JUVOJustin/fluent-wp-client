@@ -173,9 +173,7 @@ describe('Client: WPAPI compatibility syntax', () => {
 
   describe('search() chain', () => {
     it('filters by type via the search chain', async () => {
-      // Search for "Test Post" (with space) to match post titles
       const results = await publicClient
-        .search()
         .search('Test Post')
         .param('type', 'post')
         .perPage(3)
@@ -193,7 +191,6 @@ describe('Client: WPAPI compatibility syntax', () => {
       // 'post-format') and `subtype` for the specific post type within that
       // category.  type=post + subtype=page means "pages, which are a post type".
       const results = await publicClient
-        .search()
         .search('about')
         .param('type', 'post')
         .subtype('page')
@@ -212,7 +209,6 @@ describe('Client: WPAPI compatibility syntax', () => {
       // ones.  Passing an array uses bracket notation automatically:
       // subtype[]=post&subtype[]=page&subtype[]=book
       const results = await publicClient
-        .search()
         .search('test')
         .param('type', 'post')
         .subtype(['post', 'page', 'book'])
@@ -228,27 +224,19 @@ describe('Client: WPAPI compatibility syntax', () => {
     });
 
     it('respects context via the search chain', async () => {
-      const results = await publicClient
-        .search()
-        .search('001')
-        .context('embed')
-        .get();
+      const results = await publicClient.search('001').context('embed').get();
 
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBeGreaterThan(0);
     });
 
     it('respects exclude via the search chain', async () => {
-      const all = (await publicClient
-        .search()
-        .search('001')
-        .get()) as Array<{ id: number }>;
+      const all = (await publicClient.search('001').get()) as Array<{ id: number }>;
 
       expect(all.length).toBeGreaterThan(0);
       const firstId = all[0]!.id;
 
       const filtered = (await publicClient
-        .search()
         .search('001')
         .exclude([firstId])
         .get()) as Array<{ id: number }>;
@@ -257,16 +245,12 @@ describe('Client: WPAPI compatibility syntax', () => {
     });
 
     it('respects include via the search chain', async () => {
-      const all = (await publicClient
-        .search()
-        .search('001')
-        .get()) as Array<{ id: number }>;
+      const all = (await publicClient.search('001').get()) as Array<{ id: number }>;
 
       expect(all.length).toBeGreaterThan(0);
       const firstId = all[0]!.id;
 
       const included = (await publicClient
-        .search()
         .search('001')
         .include([firstId])
         .get()) as Array<{ id: number }>;
@@ -276,16 +260,12 @@ describe('Client: WPAPI compatibility syntax', () => {
     });
 
     it('supports multi-value include arrays via the WPAPI chain', async () => {
-      const all = (await publicClient
-        .search()
-        .search('001')
-        .get()) as Array<{ id: number }>;
+      const all = (await publicClient.search('001').get()) as Array<{ id: number }>;
 
       expect(all.length).toBeGreaterThan(1);
       const ids = all.slice(0, 2).map((result) => result.id);
 
       const included = (await publicClient
-        .search()
         .search('001')
         .include(ids)
         .get()) as Array<{ id: number }>;
@@ -296,16 +276,12 @@ describe('Client: WPAPI compatibility syntax', () => {
     });
 
     it('supports multi-value exclude arrays via the WPAPI chain', async () => {
-      const all = (await publicClient
-        .search()
-        .search('001')
-        .get()) as Array<{ id: number }>;
+      const all = (await publicClient.search('001').get()) as Array<{ id: number }>;
 
       expect(all.length).toBeGreaterThan(1);
       const ids = all.slice(0, 2).map((result) => result.id);
 
       const filtered = (await publicClient
-        .search()
         .search('001')
         .exclude(ids)
         .get()) as Array<{ id: number }>;

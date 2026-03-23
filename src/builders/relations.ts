@@ -1,13 +1,15 @@
-import type {
-  WordPressAuthor,
-  WordPressCategory,
-  WordPressContent,
-  WordPressMedia,
-  WordPressPost,
-  WordPressTag,
+import {
+  type WordPressAuthor,
+  type WordPressCategory,
+  type WordPressContent,
+  type WordPressMedia,
+  type WordPressPost,
+  type WordPressTag,
+  embeddedMediaSchema,
 } from '../schemas.js';
 import {
   customRelationRegistry,
+  defaultParseReferenceId,
   type CustomRelationConfig,
   type PostRelationClient,
   type RelatedTermReference,
@@ -81,17 +83,11 @@ export type SelectedPostRelations<TRelations extends readonly AllPostRelations[]
       >;
 
 /**
- * Resolves embedded author data when available.
+ * Extracts the first author from an _embedded author array.
  */
-function getEmbeddedAuthor(post: WordPressContent): WordPressAuthor | null {
-  const embedded = extractEmbeddedData<WordPressAuthor[]>(post, 'author');
-  
-  if (!Array.isArray(embedded) || embedded.length === 0) {
-    return null;
-  }
-  
-  return embedded[0];
-}
+const extractEmbeddedAuthor = createSingleExtractor(
+  (item: unknown) => item as WordPressAuthor,
+);
 
 /**
  * Resolves one author by preferring direct lookup and then list fallback.
@@ -112,20 +108,17 @@ async function resolveAuthor(client: PostRelationClient, authorId: number): Prom
 }
 
 /**
- * Resolves embedded featured media data when available.
+ * Extracts featured media from an _embedded wp:featuredmedia array.
+ * Validates each item against embeddedMediaSchema before returning.
  */
-function getEmbeddedFeaturedMedia(post: WordPressContent): WordPressMedia | null {
-  const embedded = extractEmbeddedData<WordPressMedia[]>(post, 'wp:featuredmedia');
-  
-  if (!Array.isArray(embedded) || embedded.length === 0) {
-    return null;
-  }
-  
-  return embedded[0];
-}
+const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
+  const result = embeddedMediaSchema.safeParse(item);
+  return result.success ? (result.data as unknown as WordPressMedia) : null;
+});
 
 /**
  * Reads one numeric relation ID array from a content record.
+ * Uses defaultParseReferenceId to handle both plain numbers and numeric strings.
  */
 function getContentRelationIds(content: WordPressContent, field: string): number[] {
   const value = (content as Record<string, unknown>)[field];
@@ -134,7 +127,9 @@ function getContentRelationIds(content: WordPressContent, field: string): number
     return [];
   }
 
-  return value.filter((id): id is number => typeof id === 'number' && id > 0);
+  return value
+    .map(defaultParseReferenceId)
+    .filter((id): id is number => id !== null);
 }
 
 /**
@@ -429,13 +424,13 @@ export class PostRelationQueryBuilder<
 
     // Handle built-in author relation
     if (this.relationSet.has('author')) {
-      const embeddedAuthor = getEmbeddedAuthor(post);
+      const embeddedAuthor = extractEmbeddedAuthor(extractEmbeddedData(post, 'author'));
       related.author = embeddedAuthor ?? await resolveAuthor(this.client, post.author);
     }
 
     // Handle built-in featuredMedia relation
     if (this.relationSet.has('featuredMedia')) {
-      const embeddedMedia = getEmbeddedFeaturedMedia(post);
+      const embeddedMedia = extractEmbeddedFeaturedMedia(extractEmbeddedData(post, 'wp:featuredmedia'));
       const featuredMediaId = post.featured_media;
 
       if (embeddedMedia) {
@@ -447,42 +442,48 @@ export class PostRelationQueryBuilder<
       }
     }
 
-    // Handle built-in terms relations
-    const embeddedTerms = getEmbeddedTerms(post);
-    let categories = embeddedTerms.categories;
-    let tags = embeddedTerms.tags;
-    let taxonomies = { ...embeddedTerms.taxonomies };
+    // Handle built-in terms relations — skip entirely when no term relation was requested.
+    let categories: WordPressCategory[] = [];
+    let tags: WordPressTag[] = [];
+    let taxonomies: Record<string, RelatedTermReference[]> = {};
 
-    const categoryIds = getContentRelationIds(post, 'categories');
-    const tagIds = getContentRelationIds(post, 'tags');
+    if (requestedCategories || requestedTags) {
+      const embeddedTerms = getEmbeddedTerms(post);
+      categories = embeddedTerms.categories;
+      tags = embeddedTerms.tags;
+      taxonomies = { ...embeddedTerms.taxonomies };
 
-    if (requestedCategories && categories.length === 0 && categoryIds.length > 0) {
-      categories = await this.client.getCategories({ include: categoryIds }).catch(() => []);
-    }
+      const categoryIds = getContentRelationIds(post, 'categories');
+      const tagIds = getContentRelationIds(post, 'tags');
 
-    if (requestedTags && tags.length === 0 && tagIds.length > 0) {
-      tags = await this.client.getTags({ include: tagIds }).catch(() => []);
-    }
+      if (requestedCategories && categories.length === 0 && categoryIds.length > 0) {
+        categories = await this.client.getCategories({ include: categoryIds }).catch(() => []);
+      }
 
-    if (categories.length > 0) {
-      taxonomies = {
-        ...taxonomies,
-        category: categories.map(toRelatedTermReference),
-      };
-    }
+      if (requestedTags && tags.length === 0 && tagIds.length > 0) {
+        tags = await this.client.getTags({ include: tagIds }).catch(() => []);
+      }
 
-    if (tags.length > 0) {
-      taxonomies = {
-        ...taxonomies,
-        post_tag: tags.map(toRelatedTermReference),
-      };
-    }
+      if (categories.length > 0) {
+        taxonomies = {
+          ...taxonomies,
+          category: categories.map(toRelatedTermReference),
+        };
+      }
 
-    if (requestedTerms) {
-      taxonomies = {
-        ...taxonomies,
-        ...await resolveLinkedTerms(this.client, post, taxonomies),
-      };
+      if (tags.length > 0) {
+        taxonomies = {
+          ...taxonomies,
+          post_tag: tags.map(toRelatedTermReference),
+        };
+      }
+
+      if (requestedTerms) {
+        taxonomies = {
+          ...taxonomies,
+          ...await resolveLinkedTerms(this.client, post, taxonomies),
+        };
+      }
     }
 
     if (this.relationSet.has('categories')) {

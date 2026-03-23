@@ -875,9 +875,11 @@ export async function resolveTermReferences(
 
   if (client.getTermCollection) {
     try {
+      // Omit perPage so filterToParams applies the default per_page=100 cap.
+      // Requesting perPage: ids.length would exceed WordPress's hard limit of 100
+      // and silently truncate results when more than 100 IDs are provided.
       const terms = await client.getTermCollection<WordPressCategory>(resource, {
         include: ids,
-        perPage: ids.length,
       });
       return terms.map(toRelatedTermReference);
     } catch {

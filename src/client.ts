@@ -1398,11 +1398,13 @@ export class WordPressClient {
     }
 
     if (include !== undefined) {
-      params['include'] = Array.isArray(include) ? include.map(String) : String(include);
+      // Always use bracket notation: include[]=1
+      params['include'] = Array.isArray(include) ? include.map(String) : [String(include)];
     }
 
     if (exclude !== undefined) {
-      params['exclude'] = Array.isArray(exclude) ? exclude.map(String) : String(exclude);
+      // Always use bracket notation: exclude[]=1
+      params['exclude'] = Array.isArray(exclude) ? exclude.map(String) : [String(exclude)];
     }
 
     return this.fetchAPI<TResult[]>('/search', params, requestOptions);

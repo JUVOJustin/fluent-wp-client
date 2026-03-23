@@ -6,6 +6,78 @@ export {
   type WordPressNamespaceClient,
 } from './client.js';
 
+// Export new resource classes
+export {
+  PostsResource,
+  type PostMethods,
+} from './resources/posts.js';
+
+export {
+  PagesResource,
+  type PageMethods,
+} from './resources/pages.js';
+
+export {
+  MediaResource,
+  type MediaMethods,
+} from './resources/media.js';
+
+export {
+  CategoriesResource,
+  type CategoryMethods,
+} from './resources/categories.js';
+
+export {
+  TagsResource,
+  type TagMethods,
+} from './resources/tags.js';
+
+export {
+  UsersResource,
+  type UserMethods,
+} from './resources/users.js';
+
+export {
+  CommentsResource,
+  type CommentMethods,
+} from './resources/comments.js';
+
+export {
+  SettingsResource,
+  type SettingsMethods,
+} from './resources/settings.js';
+
+export {
+  GenericResourceRegistry,
+  type ContentTermMethodDependencies,
+  type GenericResourceContext,
+  createContentTermMethods,
+} from './resources/content-terms.js';
+
+// Export core base classes
+export {
+  BaseCollectionResource,
+  BaseCrudResource,
+  BasePostLikeResource,
+  type ResourceContext,
+  type PostLikeResourceContext,
+} from './core/resource-base.js';
+
+export {
+  WordPressTransport,
+  createRuntime,
+  type WordPressRuntime,
+  type WordPressTransportConfig,
+} from './core/transport.js';
+
+export {
+  ExecutableQuery,
+  ImmutableBuilder,
+  createExecutableBuilder,
+  type WordPressQueryState,
+  type BuilderReturnType,
+} from './core/query-base.js';
+
 export type {
   WordPressClientConfig,
   WordPressRequestOptions,

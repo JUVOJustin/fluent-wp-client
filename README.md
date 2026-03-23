@@ -112,6 +112,8 @@ npm test
 npm run wp:stop
 ```
 
+Core resource factory internals live under `src/core/`, while the package API remains re-exported from `src/index.ts`.
+
 Tests run against a real WordPress Docker container managed by [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/). See [`tests/`](./tests/) for setup details.
 
 ## License

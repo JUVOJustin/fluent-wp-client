@@ -6,11 +6,19 @@ import type { WordPressRequestOverrides } from '../types/resources.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
 import type { FetchResult, PaginationParams, QueryParams, SerializedQueryParams, WordPressDeleteResult, PaginatedResponse } from '../types/resources.js';
 import type { DeleteOptions, WordPressWritePayload } from '../types/payloads.js';
-import { createPostLikeReadMethods } from '../content-read-methods.js';
+import { createPostLikeReadMethods } from './post-like-read-factory.js';
 import { createWordPressPaginator } from './pagination.js';
 import { filterToParams } from './params.js';
 import { applyRequestOverrides } from './request-overrides.js';
 import { compactPayload, normalizeDeleteResult } from './params.js';
+
+/**
+ * Dependencies required for read-only resource methods.
+ */
+export interface ReadDependencies {
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>;
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
+}
 
 /**
  * Dependencies required for CRUD mutation methods.
@@ -23,28 +31,58 @@ export interface MutationDependencies {
 /**
  * Unified dependencies for a complete resource with both read and CRUD operations.
  */
-export interface ResourceDependencies extends MutationDependencies {
-  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>;
-  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
-}
+export interface ResourceDependencies extends ReadDependencies, MutationDependencies {}
 
 /**
  * Generic CRUD method signatures.
  */
-export interface CrudMethods<TResource, TInput extends WordPressWritePayload> {
+export interface CrudMethods<
+  TResource,
+  TCreate extends WordPressWritePayload,
+  TUpdate extends WordPressWritePayload = TCreate,
+> {
   create<TResponse = TResource>(
-    input: TInput,
+    input: TCreate,
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResponse>;
   update<TResponse = TResource>(
     id: number,
-    input: TInput,
+    input: TUpdate,
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResponse>;
   delete(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult>;
 }
+
+/**
+ * Generic collection read method signatures.
+ */
+export interface CollectionReadMethods<TResource, TFilter extends PaginationParams> {
+  list(filter?: TFilter, options?: WordPressRequestOverrides): Promise<TResource[]>;
+  listAll(filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides): Promise<TResource[]>;
+  listPaginated(filter?: TFilter, options?: WordPressRequestOverrides): Promise<PaginatedResponse<TResource>>;
+  getById(id: number, options?: WordPressRequestOverrides): Promise<TResource>;
+  getBySlug(slug: string, options?: WordPressRequestOverrides): Promise<TResource | undefined>;
+}
+
+/**
+ * Post-like read method signatures.
+ */
+export interface PostLikeReadMethods<TContent extends WordPressPostBase, TFilter extends QueryParams & PaginationParams> {
+  list(filter?: TFilter, options?: WordPressRequestOverrides): Promise<TContent[]>;
+  listAll(filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides): Promise<TContent[]>;
+  listPaginated(filter?: TFilter, options?: WordPressRequestOverrides): Promise<PaginatedResponse<TContent>>;
+  getById(id: number, options?: WordPressRequestOverrides): WordPressContentQuery<TContent>;
+  getBySlug(slug: string, options?: WordPressRequestOverrides): WordPressContentQuery<TContent | undefined>;
+}
+
+/**
+ * Normalizes one collection filter before serialization.
+ */
+export type CollectionFilterResolver<TFilter extends PaginationParams> = (
+  filter: TFilter | Omit<TFilter, 'page'>,
+) => QueryParams;
 
 /**
  * Helper to resolve overloaded mutation arguments.
@@ -85,38 +123,36 @@ export function resolveMutationArguments<TResponse>(
  */
 export function createCollectionResourceFactory<TResource, TFilter extends PaginationParams>(
   endpoint: string,
+  withDefaultFilter?: CollectionFilterResolver<TFilter>,
 ) {
   return function createResourceMethods(
-    fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
-    fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
-  ) {
+    dependencies: ReadDependencies,
+  ): CollectionReadMethods<TResource, TFilter> {
     const core = createCollectionReadMethods<TResource, TFilter>({
       endpoint,
-      fetchAPI,
-      fetchAPIPaginated,
+      withDefaultFilter,
+      ...dependencies,
     });
 
-    return {
-      list: core.list,
-      listAll: core.listAll,
-      listPaginated: core.listPaginated,
-      getById: core.getById,
-      getBySlug: core.getBySlug,
-    };
+    return core;
   };
 }
 
 /**
  * Creates CRUD methods for a collection resource.
  */
-export function createCollectionCrudFactory<TResource, TInput extends WordPressWritePayload>(
+export function createCollectionCrudFactory<
+  TResource,
+  TCreate extends WordPressWritePayload,
+  TUpdate extends WordPressWritePayload = TCreate,
+>(
   endpoint: string,
-  defaultSchema: WordPressStandardSchema<TResource>,
+  defaultSchema?: WordPressStandardSchema<TResource>,
 ) {
-  return function createCrudMethods(deps: MutationDependencies): CrudMethods<TResource, TInput> {
+  return function createCrudMethods(deps: MutationDependencies): CrudMethods<TResource, TCreate, TUpdate> {
     return {
       async create<TResponse = TResource>(
-        input: TInput,
+        input: TCreate,
         responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
         requestOptions?: WordPressRequestOverrides,
       ): Promise<TResponse> {
@@ -128,13 +164,13 @@ export function createCollectionCrudFactory<TResource, TInput extends WordPressW
             method: 'POST',
             body: compactPayload(input),
           }, resolved.requestOptions, 'Mutation helper options'),
-          resolved.responseSchema ?? (defaultSchema as unknown as WordPressStandardSchema<TResponse>),
+          resolved.responseSchema ?? (defaultSchema as WordPressStandardSchema<TResponse> | undefined),
         );
       },
 
       async update<TResponse = TResource>(
         id: number,
-        input: TInput,
+        input: TUpdate,
         responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
         requestOptions?: WordPressRequestOverrides,
       ): Promise<TResponse> {
@@ -146,7 +182,7 @@ export function createCollectionCrudFactory<TResource, TInput extends WordPressW
             method: 'POST',
             body: compactPayload(input),
           }, resolved.requestOptions, 'Mutation helper options'),
-          resolved.responseSchema ?? (defaultSchema as unknown as WordPressStandardSchema<TResponse>),
+          resolved.responseSchema ?? (defaultSchema as WordPressStandardSchema<TResponse> | undefined),
         );
       },
 
@@ -165,17 +201,6 @@ export function createCollectionCrudFactory<TResource, TInput extends WordPressW
 }
 
 /**
- * Post-like read method signatures.
- */
-export interface PostLikeReadMethods<TContent extends WordPressPostBase, TFilter extends QueryParams & PaginationParams> {
-  list(filter?: TFilter, options?: WordPressRequestOverrides): Promise<TContent[]>;
-  listAll(filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides): Promise<TContent[]>;
-  listPaginated(filter?: TFilter, options?: WordPressRequestOverrides): Promise<PaginatedResponse<TContent>>;
-  getById(id: number, options?: WordPressRequestOverrides): WordPressContentQuery<TContent>;
-  getBySlug(slug: string, options?: WordPressRequestOverrides): WordPressContentQuery<TContent | undefined>;
-}
-
-/**
  * Creates a factory function that returns post-like read methods
  * for post-like WordPress REST resources.
  *
@@ -189,45 +214,41 @@ export function createPostLikeResourceFactory<TContent extends WordPressPostBase
   withDefaultFilter?: (filter: TFilter | Omit<TFilter, 'page'> | (TFilter & PaginationParams)) => QueryParams,
 ) {
   return function createResourceMethods(
-    fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
-    fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
+    dependencies: ReadDependencies,
     defaultBlockParser?: WordPressBlockParser,
   ): PostLikeReadMethods<TContent, TFilter> {
     const core = createPostLikeReadMethods<TContent, TFilter>({
       resource,
       missingRawMessage,
-      fetchAPI,
-      fetchAPIPaginated,
+      ...dependencies,
       defaultBlockParser,
       withDefaultFilter,
     });
 
-    return {
-      list: core.list,
-      listAll: core.listAll,
-      listPaginated: core.listPaginated,
-      getById: core.getById,
-      getBySlug: core.getBySlug,
-    };
+    return core;
   };
+}
+
+/**
+ * Runtime dependencies required for post-like resource read methods.
+ */
+export interface PostLikeReadMethodConfig<
+  TContent extends WordPressPostBase,
+  TFilter extends QueryParams & PaginationParams,
+> extends ReadDependencies {
+  resource: string;
+  missingRawMessage: string;
+  defaultBlockParser?: WordPressBlockParser;
+  withDefaultFilter?: (filter: TFilter | Omit<TFilter, 'page'> | (TFilter & PaginationParams)) => QueryParams;
 }
 
 /**
  * Dependencies for a simple collection read methods group.
  */
-export interface CollectionReadMethodsConfig<TResource, TFilter extends PaginationParams> {
+interface CollectionReadMethodsConfig<TResource, TFilter extends PaginationParams> extends ReadDependencies {
   /** REST endpoint path, e.g. `/categories`. */
   endpoint: string;
-  fetchAPI: <T>(
-    endpoint: string,
-    params?: SerializedQueryParams,
-    options?: WordPressRequestOverrides,
-  ) => Promise<T>;
-  fetchAPIPaginated: <T>(
-    endpoint: string,
-    params?: SerializedQueryParams,
-    options?: WordPressRequestOverrides,
-  ) => Promise<FetchResult<T>>;
+  withDefaultFilter?: CollectionFilterResolver<TFilter>;
 }
 
 /**
@@ -239,12 +260,13 @@ export interface CollectionReadMethodsConfig<TResource, TFilter extends Paginati
  * Each resource factory calls this function and re-exports the methods under its
  * own resource-specific names.
  */
-export function createCollectionReadMethods<TResource, TFilter extends PaginationParams>(
+function createCollectionReadMethods<TResource, TFilter extends PaginationParams>(
   config: CollectionReadMethodsConfig<TResource, TFilter>,
-) {
+): CollectionReadMethods<TResource, TFilter> {
+  const withDefaultFilter = config.withDefaultFilter ?? ((filter) => filter as QueryParams);
   const paginator = createWordPressPaginator<TFilter, TResource>({
     fetchPage: (currentFilter, context) => {
-      const params = filterToParams(currentFilter as unknown as QueryParams);
+      const params = filterToParams(withDefaultFilter(currentFilter));
       return config.fetchAPIPaginated<TResource[]>(
         config.endpoint,
         params,
@@ -256,7 +278,7 @@ export function createCollectionReadMethods<TResource, TFilter extends Paginatio
   return {
     /** Lists resources matching the given filter. */
     list(filter: TFilter = {} as TFilter, options?: WordPressRequestOverrides): Promise<TResource[]> {
-      const params = filterToParams(filter as unknown as QueryParams);
+      const params = filterToParams(withDefaultFilter(filter));
       return config.fetchAPI<TResource[]>(config.endpoint, params, options);
     },
 
@@ -278,13 +300,15 @@ export function createCollectionReadMethods<TResource, TFilter extends Paginatio
 
     /** Fetches one resource by numeric ID. */
     getById(id: number, options?: WordPressRequestOverrides): Promise<TResource> {
-      return config.fetchAPI<TResource>(`${config.endpoint}/${id}`, undefined, options);
+      const params = filterToParams(withDefaultFilter({} as Omit<TFilter, 'page'>));
+      return config.fetchAPI<TResource>(`${config.endpoint}/${id}`, params, options);
     },
 
     /** Fetches one resource by slug, returning undefined when not found. */
     getBySlug(slug: string, options?: WordPressRequestOverrides): Promise<TResource | undefined> {
+      const params = filterToParams(withDefaultFilter({ slug } as unknown as TFilter));
       return config
-        .fetchAPI<TResource[]>(config.endpoint, { slug }, options)
+        .fetchAPI<TResource[]>(config.endpoint, params, options)
         .then((items) => items[0]);
     },
   };

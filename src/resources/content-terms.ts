@@ -1,453 +1,502 @@
-import type { WordPressCategory, WordPressPostLike } from '../schemas.js';
-import type { WordPressRequestOptions, WordPressRequestResult } from '../types/client.js';
-import type { WordPressRequestOverrides } from '../types/resources.js';
-import { validateWithStandardSchema, type WordPressStandardSchema } from '../core/validation.js';
-import { applyRequestOverrides } from '../core/request-overrides.js';
-import { createWordPressPaginator } from '../core/pagination.js';
-import { compactPayload, filterToParams, normalizeDeleteResult } from '../core/params.js';
-import {
-  PostRelationQueryBuilder,
-  type AllPostRelations,
-  type PostRelationClient,
-  type SelectedPostRelations,
+import type { WordPressPostLike, WordPressCategory } from '../schemas.js';
+import type { WordPressStandardSchema } from '../core/validation.js';
+import type {
+  AllPostRelations,
+  PostRelationClient,
+  SelectedPostRelations,
 } from '../builders/relations.js';
+import {
+  BaseCollectionResource,
+  BaseCrudResource,
+  BasePostLikeResource,
+  type ResourceContext,
+  type PostLikeResourceContext,
+} from '../core/resource-base.js';
 import type {
   ContentResourceClient,
-  ExtensibleFilter,
-  FetchResult,
+  TermsResourceClient,
   PaginatedResponse,
   PaginationParams,
-  QueryParams,
-  SerializedQueryParams,
-  TermsResourceClient,
-  WordPressDeleteResult,
+  WordPressRequestOverrides,
 } from '../types/resources.js';
+import type { QueryParams } from '../types/resources.js';
 import type {
   DeleteOptions,
   TermWriteInput,
   WordPressWritePayload,
 } from '../types/payloads.js';
+import { PostRelationQueryBuilder } from '../builders/relations.js';
+import type { WordPressRuntime } from '../core/transport.js';
 
 /**
- * Runtime hooks required for generic content and term method groups.
+ * Runtime dependencies required for generic content and term resources.
  */
-export interface ContentTermMethodDependencies {
-  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>;
-  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
-  request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
-  executeMutation: <T>(options: WordPressRequestOptions, responseSchema?: WordPressStandardSchema<T>) => Promise<T>;
+export interface GenericResourceContext {
+  runtime: WordPressRuntime;
   relationClient: PostRelationClient;
 }
 
 /**
- * Creates generic content and taxonomy method groups used by the main client.
+ * Generic content resource for custom post types.
+ * Extends BasePostLikeResource with post-like behavior (_embed, content queries).
  */
-export function createContentTermMethods(dependencies: ContentTermMethodDependencies) {
-  const contentPaginator = createWordPressPaginator<QueryParams & PaginationParams, unknown>({
-    fetchPage: (currentFilter, context) => {
-      const { resource, ...queryFilter } = currentFilter as QueryParams & PaginationParams & { resource: string };
-      const params = filterToParams({ ...queryFilter, _embed: 'true' });
-      return dependencies.fetchAPIPaginated<unknown[]>(`/${resource}`, params, context as WordPressRequestOverrides | undefined);
-    },
-  });
+class GenericContentResource<
+  TContent extends WordPressPostLike = WordPressPostLike,
+  TCreate extends WordPressWritePayload = WordPressWritePayload,
+  TUpdate extends WordPressWritePayload = TCreate,
+  // @ts-ignore - Type constraint complexity, safe at runtime
+> extends BasePostLikeResource<TContent, QueryParams & PaginationParams, TCreate, TUpdate> {
+  private responseSchema?: WordPressStandardSchema<TContent>;
 
-  const termPaginator = createWordPressPaginator<QueryParams & PaginationParams, unknown>({
-    fetchPage: (currentFilter, context) => {
-      const { resource, ...queryFilter } = currentFilter as QueryParams & PaginationParams & { resource: string };
-      const params = filterToParams(queryFilter);
-      return dependencies.fetchAPIPaginated<unknown[]>(`/${resource}`, params, context as WordPressRequestOverrides | undefined);
-    },
-  });
-
-  /**
-   * Validates one generic content resource response when a schema is configured.
-   */
-  async function validateContentItem<TContent>(
-    value: unknown,
-    responseSchema?: WordPressStandardSchema<TContent>,
-  ): Promise<TContent> {
-    if (!responseSchema) {
-      return value as TContent;
-    }
-
-    return validateWithStandardSchema(
-      responseSchema,
-      value,
-      'WordPress content response validation failed',
-    );
+  constructor(context: PostLikeResourceContext & { responseSchema?: WordPressStandardSchema<TContent> }) {
+    super(context as any);
+    this.responseSchema = context.responseSchema;
   }
 
   /**
-   * Validates one generic content resource collection when a schema is configured.
+   * Validates content items when a schema is configured.
    */
-  async function validateContentCollection<TContent>(
-    values: unknown[],
-    responseSchema?: WordPressStandardSchema<TContent>,
-  ): Promise<TContent[]> {
-    if (!responseSchema) {
-      return values as TContent[];
+  private async validate<T>(value: unknown): Promise<T> {
+    if (!this.responseSchema) {
+      return value as T;
     }
-
-    return Promise.all(values.map((value) => validateContentItem(value, responseSchema)));
+    const { validateWithStandardSchema } = await import('../core/validation.js');
+    // @ts-ignore - Schema type complexity
+    return validateWithStandardSchema(this.responseSchema, value, 'Content response validation failed');
   }
 
   /**
-   * Lists one content resource (posts/pages/custom post types).
+   * Validates a collection of items.
    */
-  async function getContentCollection<TContent = WordPressPostLike>(
-    resource: string,
+  private async validateCollection<T>(values: unknown[]): Promise<T[]> {
+    if (!this.responseSchema) {
+      return values as T[];
+    }
+    return Promise.all(values.map((v) => this.validate<T>(v)));
+  }
+
+  /**
+   * Lists content with optional validation.
+   */
+  async listWithValidation(
     filter: QueryParams = {},
-    requestOptions?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides,
   ): Promise<TContent[]> {
-    const params = filterToParams({ ...filter, _embed: 'true' });
-    return dependencies.fetchAPI<TContent[]>(`/${resource}`, params, requestOptions);
+    const items = await this.list(filter as QueryParams & PaginationParams, options);
+    return this.validateCollection<TContent>(items as unknown[]);
   }
 
   /**
-   * Lists all items from one content resource using automatic pagination.
+   * Gets single item by ID with optional validation.
    */
-  async function getAllContentCollection<TContent = WordPressPostLike>(
-    resource: string,
-    filter: Omit<QueryParams, 'page'> = {},
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TContent[]> {
-    const paginatorFilter = {
-      ...filter,
-      resource,
-    } as Omit<QueryParams & PaginationParams & { resource: string }, 'page'>;
-
-    return contentPaginator.listAll(paginatorFilter, requestOptions) as Promise<TContent[]>;
-  }
-
-  /**
-   * Lists one content resource with pagination metadata.
-   */
-  async function getContentCollectionPaginated<TContent = WordPressPostLike>(
-    resource: string,
-    filter: QueryParams & PaginationParams = {},
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<PaginatedResponse<TContent>> {
-    const paginatorFilter = {
-      ...filter,
-      resource,
-    } as QueryParams & PaginationParams & { resource: string };
-
-    return contentPaginator.listPaginated(paginatorFilter, requestOptions) as Promise<PaginatedResponse<TContent>>;
-  }
-
-  /**
-   * Fetches one content item by numeric ID.
-   */
-  async function getContent<TContent = WordPressPostLike>(
-    resource: string,
+  async getWithValidation(
     id: number,
-    requestOptions?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides,
   ): Promise<TContent> {
-    return dependencies.fetchAPI<TContent>(`/${resource}/${id}`, { _embed: 'true' }, requestOptions);
+    const item = await this.getById(id, options);
+    return this.validate<TContent>(item as unknown);
   }
 
   /**
-   * Fetches one content item by slug.
+   * Gets single item by slug with optional validation.
    */
-  async function getContentBySlug<TContent = WordPressPostLike>(
-    resource: string,
+  async getBySlugWithValidation(
     slug: string,
-    requestOptions?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides,
   ): Promise<TContent | undefined> {
-    const items = await dependencies.fetchAPI<TContent[]>(`/${resource}`, { slug, _embed: 'true' }, requestOptions);
-    return items[0];
+    const item = await this.getBySlug(slug, options);
+    if (item === undefined) {
+      return undefined;
+    }
+    return this.validate<TContent>(item as unknown);
+  }
+}
+
+/**
+ * Generic term resource for custom taxonomies.
+ * Extends BaseCrudResource for basic collection + CRUD operations.
+ */
+class GenericTermResource<
+  TTerm = WordPressCategory,
+  TCreate extends WordPressWritePayload = TermWriteInput,
+  TUpdate extends WordPressWritePayload = TCreate,
+> extends BaseCrudResource<TTerm, QueryParams & PaginationParams, TCreate, TUpdate> {
+  private responseSchema?: WordPressStandardSchema<TTerm>;
+
+  constructor(context: ResourceContext & { responseSchema?: WordPressStandardSchema<TTerm> }) {
+    super(context);
+    this.responseSchema = context.responseSchema;
   }
 
   /**
-   * Creates one content item for any post-like REST resource.
+   * No default schema for generic terms.
    */
-  async function createContent<TContent = WordPressPostLike, TInput extends WordPressWritePayload = WordPressWritePayload>(
-    resource: string,
-    input: TInput,
-    responseSchema?: WordPressStandardSchema<TContent>,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TContent> {
-    return dependencies.executeMutation<TContent>(
-      applyRequestOverrides({
-        endpoint: `/${resource}`,
-        method: 'POST',
-        body: compactPayload(input),
-      }, requestOptions, 'Mutation helper options'),
-      responseSchema,
-    );
+  protected override get defaultSchema(): WordPressStandardSchema<TTerm> | undefined {
+    return undefined;
+  }
+}
+
+/**
+ * Registry for managing generic content and term resources.
+ * Caches resource instances by name to avoid repeated instantiation.
+ */
+export class GenericResourceRegistry {
+  private readonly context: GenericResourceContext;
+  private readonly contentCache = new Map<string, GenericContentResource>();
+  private readonly termCache = new Map<string, GenericTermResource>();
+
+  constructor(context: GenericResourceContext) {
+    this.context = context;
   }
 
   /**
-   * Updates one content item for any post-like REST resource.
+   * Gets or creates a generic content resource client.
    */
-  async function updateContent<TContent = WordPressPostLike, TInput extends WordPressWritePayload = WordPressWritePayload>(
-    resource: string,
-    id: number,
-    input: TInput,
-    responseSchema?: WordPressStandardSchema<TContent>,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TContent> {
-    return dependencies.executeMutation<TContent>(
-      applyRequestOverrides({
-        endpoint: `/${resource}/${id}`,
-        method: 'POST',
-        body: compactPayload(input),
-      }, requestOptions, 'Mutation helper options'),
-      responseSchema,
-    );
-  }
-
-  /**
-   * Deletes one content item for any post-like REST resource.
-   */
-  async function deleteContent(
-    resource: string,
-    id: number,
-    options: DeleteOptions & WordPressRequestOverrides = {},
-  ): Promise<WordPressDeleteResult> {
-    const params = options.force ? { force: 'true' } : undefined;
-    const { data } = await dependencies.request<unknown>(applyRequestOverrides({
-      endpoint: `/${resource}/${id}`,
-      method: 'DELETE',
-      params,
-    }, options, 'Mutation helper options'));
-
-    return normalizeDeleteResult(id, data);
-  }
-
-  /**
-   * Lists one taxonomy term resource.
-   */
-  async function getTermCollection<TTerm = WordPressCategory>(
-    resource: string,
-    filter: QueryParams = {},
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TTerm[]> {
-    const params = filterToParams(filter);
-    return dependencies.fetchAPI<TTerm[]>(`/${resource}`, params, requestOptions);
-  }
-
-  /**
-   * Lists all items from one taxonomy term resource.
-   */
-  async function getAllTermCollection<TTerm = WordPressCategory>(
-    resource: string,
-    filter: Omit<QueryParams, 'page'> = {},
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TTerm[]> {
-    const paginatorFilter = {
-      ...filter,
-      resource,
-    } as Omit<QueryParams & PaginationParams & { resource: string }, 'page'>;
-
-    return termPaginator.listAll(paginatorFilter, requestOptions) as Promise<TTerm[]>;
-  }
-
-  /**
-   * Lists one taxonomy term resource with pagination metadata.
-   */
-  async function getTermCollectionPaginated<TTerm = WordPressCategory>(
-    resource: string,
-    filter: QueryParams & PaginationParams = {},
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<PaginatedResponse<TTerm>> {
-    const paginatorFilter = {
-      ...filter,
-      resource,
-    } as QueryParams & PaginationParams & { resource: string };
-
-    return termPaginator.listPaginated(paginatorFilter, requestOptions) as Promise<PaginatedResponse<TTerm>>;
-  }
-
-  /**
-   * Fetches one term by numeric ID.
-   */
-  async function getTerm<TTerm = WordPressCategory>(
-    resource: string,
-    id: number,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TTerm> {
-    return dependencies.fetchAPI<TTerm>(`/${resource}/${id}`, undefined, requestOptions);
-  }
-
-  /**
-   * Fetches one term by slug.
-   */
-  async function getTermBySlug<TTerm = WordPressCategory>(
-    resource: string,
-    slug: string,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TTerm | undefined> {
-    const items = await dependencies.fetchAPI<TTerm[]>(`/${resource}`, { slug }, requestOptions);
-    return items[0];
-  }
-
-  /**
-   * Creates one term for any taxonomy resource.
-   */
-  async function createTerm<TTerm = WordPressCategory, TInput extends WordPressWritePayload = TermWriteInput>(
-    resource: string,
-    input: TInput,
-    responseSchema?: WordPressStandardSchema<TTerm>,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TTerm> {
-    return dependencies.executeMutation<TTerm>(
-      applyRequestOverrides({
-        endpoint: `/${resource}`,
-        method: 'POST',
-        body: compactPayload(input),
-      }, requestOptions, 'Mutation helper options'),
-      responseSchema,
-    );
-  }
-
-  /**
-   * Updates one term for any taxonomy resource.
-   */
-  async function updateTerm<TTerm = WordPressCategory, TInput extends WordPressWritePayload = TermWriteInput>(
-    resource: string,
-    id: number,
-    input: TInput,
-    responseSchema?: WordPressStandardSchema<TTerm>,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TTerm> {
-    return dependencies.executeMutation<TTerm>(
-      applyRequestOverrides({
-        endpoint: `/${resource}/${id}`,
-        method: 'POST',
-        body: compactPayload(input),
-      }, requestOptions, 'Mutation helper options'),
-      responseSchema,
-    );
-  }
-
-  /**
-   * Deletes one term for any taxonomy resource.
-   */
-  async function deleteTerm(
-    resource: string,
-    id: number,
-    options: DeleteOptions & WordPressRequestOverrides = {},
-  ): Promise<WordPressDeleteResult> {
-    const params = options.force ? { force: 'true' } : undefined;
-    const { data } = await dependencies.request<unknown>(applyRequestOverrides({
-      endpoint: `/${resource}/${id}`,
-      method: 'DELETE',
-      params,
-    }, options, 'Mutation helper options'));
-
-    return normalizeDeleteResult(id, data);
-  }
-
-  /**
-   * Builds one typed generic content resource client with optional read and
-   * mutation response validation.
-   */
-  function content<
-    TResource extends WordPressPostLike = WordPressPostLike,
-    TCreate extends WordPressWritePayload = WordPressWritePayload,
-    TUpdate extends WordPressWritePayload = TCreate,
-  >(
+  content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
     responseSchema?: WordPressStandardSchema<TResource>,
-  ): ContentResourceClient<TResource, TCreate, TUpdate> {
-    return {
-      list: async (filter = {}, options) => validateContentCollection(
-        await getContentCollection<TResource>(resource, filter as ExtensibleFilter<QueryParams>, options),
-        responseSchema,
-      ),
-      listAll: async (filter = {}, options) => validateContentCollection(
-        await getAllContentCollection<TResource>(resource, filter as Omit<ExtensibleFilter<QueryParams>, 'page'>, options),
-        responseSchema,
-      ),
-      listPaginated: async (filter = {}, options) => {
-        const result = await getContentCollectionPaginated<TResource>(resource, filter as ExtensibleFilter<QueryParams> & PaginationParams, options);
+  ): ContentResourceClient<TResource, WordPressWritePayload, WordPressWritePayload> {
+    // For schema-backed resources, create a new instance each time to avoid cache collisions
+    // between different schemas. Only cache raw resources (no schema).
+    const cacheKey = responseSchema 
+      ? null  // Don't cache schema-backed resources
+      : `${resource}:raw`;
 
+    let baseResource: GenericContentResource<TResource> | undefined;
+    
+    if (cacheKey) {
+      baseResource = this.contentCache.get(cacheKey) as GenericContentResource<TResource> | undefined;
+    }
+
+    if (!baseResource) {
+      // @ts-ignore - Type complexity at generic boundaries
+      baseResource = new GenericContentResource<TResource>({
+        runtime: this.context.runtime,
+        endpoint: `/${resource}`,
+        missingRawMessage: `Raw ${resource} content is unavailable. The current credentials may not have edit capabilities.`,
+        responseSchema: responseSchema as WordPressStandardSchema<WordPressPostLike>,
+      } as any);
+      // Only cache raw resources (no schema) to avoid schema collisions
+      if (cacheKey) {
+        this.contentCache.set(cacheKey, baseResource as GenericContentResource);
+      }
+    }
+
+    const client = this.createContentClient(baseResource, responseSchema);
+    return client as ContentResourceClient<TResource, WordPressWritePayload, WordPressWritePayload>;
+  }
+
+  /**
+   * Creates a typed content client from a generic resource.
+   */
+  private createContentClient<TResource extends WordPressPostLike>(
+    resource: GenericContentResource<TResource>,
+    responseSchema?: WordPressStandardSchema<TResource>,
+  ): ContentResourceClient<TResource, WordPressWritePayload, WordPressWritePayload> {
+    return {
+      list: async (filter = {}, options) => {
+        const items = await resource.listWithValidation(filter, options);
+        return items as TResource[];
+      },
+      listAll: async (filter = {}, options) => {
+        const allItems = await resource.listAll(filter as Omit<QueryParams & PaginationParams, 'page'>, options);
+        return resource['validateCollection']<TResource>(allItems as unknown[]) as Promise<TResource[]>;
+      },
+      listPaginated: async (filter = {}, options) => {
+        const result = await resource.listPaginated(filter as QueryParams & PaginationParams, options);
         return {
           ...result,
-          data: await validateContentCollection(result.data, responseSchema),
+          data: await resource['validateCollection']<TResource>(result.data as unknown[]) as TResource[],
         };
       },
-      getById: async (id, options) => validateContentItem(
-        await getContent<TResource>(resource, id, options),
-        responseSchema,
-      ),
-      getBySlug: async (slug, options) => {
-        const item = await getContentBySlug<TResource>(resource, slug, options);
-
-        if (item === undefined) {
-          return undefined;
-        }
-
-        return validateContentItem(item, responseSchema);
+      getById: async (id, options) => {
+        const item = await resource.getWithValidation(id, options);
+        return item as TResource;
       },
-      item: (idOrSlug) => new PostRelationQueryBuilder(
-        dependencies.relationClient,
+      getBySlug: async (slug, options) => {
+        const item = await resource.getBySlugWithValidation(slug, options);
+        return item as TResource | undefined;
+      },
+      item: (idOrSlug: number | string) => new PostRelationQueryBuilder(
+        this.context.relationClient,
         typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
-        (id) => getContent<TResource>(resource, id),
-        (slug) => getContentBySlug<TResource>(resource, slug),
+        (id) => resource.getByIdAsQuery(id),
+        (slug) => resource.getBySlugAsQuery(slug),
       ),
       getWithRelations: async <TRelations extends readonly AllPostRelations[]>(
         idOrSlug: number | string,
         ...relations: TRelations
       ): Promise<TResource & { related: SelectedPostRelations<TRelations> }> => {
         const query = new PostRelationQueryBuilder<TRelations, TResource>(
-          dependencies.relationClient,
+          this.context.relationClient,
           typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
-          (id) => getContent<TResource>(resource, id),
-          (slug) => getContentBySlug<TResource>(resource, slug),
+          (id) => resource.getByIdAsQuery(id),
+          (slug) => resource.getBySlugAsQuery(slug),
           relations,
         );
         const result = await query.get();
-        return validateContentItem(result, responseSchema) as Promise<TResource & { related: SelectedPostRelations<TRelations> }>;
+        if (responseSchema) {
+          const { validateWithStandardSchema } = await import('../core/validation.js');
+          // @ts-ignore - Validation returns Promise, we await it
+          return await validateWithStandardSchema(
+            responseSchema,
+            result,
+            'Content with relations validation failed',
+          ) as TResource & { related: SelectedPostRelations<TRelations> };
+        }
+        return result as TResource & { related: SelectedPostRelations<TRelations> };
       },
-      create: (input, options) => createContent<TResource, TCreate>(resource, input, responseSchema, options),
-      update: (id, input, options) => updateContent<TResource, TUpdate>(resource, id, input, responseSchema, options),
-      delete: (id, options) => deleteContent(resource, id, options),
+      create: (input, options) => resource.create(input, responseSchema as WordPressStandardSchema<TResource>, options),
+      update: (id, input, options) => resource.update(id, input, responseSchema as WordPressStandardSchema<TResource>, options),
+      delete: (id, options) => resource.delete(id, options),
     };
   }
 
   /**
-   * Builds one typed generic term resource client.
+   * Gets or creates a generic term resource client.
    */
-  function terms<
-    TResource = WordPressCategory,
-    TCreate extends WordPressWritePayload = TermWriteInput,
-    TUpdate extends WordPressWritePayload = TCreate,
-  >(
+  terms<TTerm = WordPressCategory>(
     resource: string,
-    responseSchema?: WordPressStandardSchema<TResource>,
-  ): TermsResourceClient<TResource, TCreate, TUpdate> {
+    responseSchema?: WordPressStandardSchema<TTerm>,
+  ): TermsResourceClient<TTerm, TermWriteInput, TermWriteInput> {
+    const cacheKey = `${resource}:${responseSchema ? 'schema' : 'raw'}`;
+
+    let baseResource = this.termCache.get(cacheKey) as GenericTermResource<TTerm> | undefined;
+
+    if (!baseResource) {
+      baseResource = new GenericTermResource<TTerm>({
+        runtime: this.context.runtime,
+        endpoint: `/${resource}`,
+        responseSchema,
+      });
+      this.termCache.set(cacheKey, baseResource as GenericTermResource);
+    }
+
     return {
-      list: (filter = {}, options) => getTermCollection<TResource>(resource, filter as ExtensibleFilter<QueryParams>, options),
-      listAll: (filter = {}, options) => getAllTermCollection<TResource>(resource, filter as Omit<ExtensibleFilter<QueryParams>, 'page'>, options),
-      listPaginated: (filter = {}, options) => getTermCollectionPaginated<TResource>(resource, filter as ExtensibleFilter<QueryParams> & PaginationParams, options),
-      getById: (id, options) => getTerm<TResource>(resource, id, options),
-      getBySlug: (slug, options) => getTermBySlug<TResource>(resource, slug, options),
-      create: (input, options) => createTerm<TResource, TCreate>(resource, input, responseSchema, options),
-      update: (id, input, options) => updateTerm<TResource, TUpdate>(resource, id, input, responseSchema, options),
-      delete: (id, options) => deleteTerm(resource, id, options),
+      list: (filter = {}, options) => baseResource.list(filter as QueryParams & PaginationParams, options) as Promise<TTerm[]>,
+      listAll: (filter = {}, options) => baseResource.listAll(filter as Omit<QueryParams & PaginationParams, 'page'>, options) as Promise<TTerm[]>,
+      listPaginated: (filter = {}, options) => baseResource.listPaginated(filter as QueryParams & PaginationParams, options) as Promise<PaginatedResponse<TTerm>>,
+      getById: (id, options) => baseResource.getById(id, options) as Promise<TTerm>,
+      getBySlug: (slug, options) => baseResource.getBySlug(slug, options) as Promise<TTerm | undefined>,
+      create: (input, options) => baseResource.create(input, responseSchema, options) as Promise<TTerm>,
+      update: (id, input, options) => baseResource.update(id, input, responseSchema, options) as Promise<TTerm>,
+      delete: (id, options) => baseResource.delete(id, options),
     };
   }
 
-  return {
-    getContentCollection,
-    getAllContentCollection,
-    getContentCollectionPaginated,
-    getContent,
-    getContentBySlug,
-    createContent,
-    updateContent,
-    deleteContent,
-    getTermCollection,
-    getAllTermCollection,
-    getTermCollectionPaginated,
-    getTerm,
-    getTermBySlug,
-    createTerm,
-    updateTerm,
-    deleteTerm,
-    content,
-    terms,
-  };
+  /**
+   * Legacy method - gets content collection directly.
+   * @deprecated Use content().list() instead.
+   */
+  async getContentCollection<TContent = WordPressPostLike>(
+    resource: string,
+    filter: QueryParams = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TContent[]> {
+    return this.content(resource).list(filter, requestOptions) as Promise<TContent[]>;
+  }
+
+  /**
+   * Legacy method - gets all content.
+   * @deprecated Use content().listAll() instead.
+   */
+  async getAllContentCollection<TContent = WordPressPostLike>(
+    resource: string,
+    filter: Omit<QueryParams, 'page'> = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TContent[]> {
+    return this.content(resource).listAll(filter, requestOptions) as Promise<TContent[]>;
+  }
+
+  /**
+   * Legacy method - gets content paginated.
+   * @deprecated Use content().listPaginated() instead.
+   */
+  async getContentCollectionPaginated<TContent = WordPressPostLike>(
+    resource: string,
+    filter: QueryParams & PaginationParams = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<PaginatedResponse<TContent>> {
+    return this.content(resource).listPaginated(filter, requestOptions) as Promise<PaginatedResponse<TContent>>;
+  }
+
+  /**
+   * Legacy method - gets single content item.
+   * @deprecated Use content().getById() instead.
+   */
+  async getContent<TContent = WordPressPostLike>(
+    resource: string,
+    id: number,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TContent> {
+    return this.content(resource).getById(id, requestOptions) as Promise<TContent>;
+  }
+
+  /**
+   * Legacy method - gets content by slug.
+   * @deprecated Use content().getBySlug() instead.
+   */
+  async getContentBySlug<TContent = WordPressPostLike>(
+    resource: string,
+    slug: string,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TContent | undefined> {
+    return this.content(resource).getBySlug(slug, requestOptions) as Promise<TContent | undefined>;
+  }
+
+  /**
+   * Legacy method - creates content.
+   * @deprecated Use content().create() instead.
+   */
+  async createContent<TContent = WordPressPostLike>(
+    resource: string,
+    input: WordPressWritePayload,
+    responseSchema?: WordPressStandardSchema<TContent>,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TContent> {
+    // @ts-ignore - Schema type variance
+    return this.content(resource, responseSchema as any).create(input, requestOptions) as Promise<TContent>;
+  }
+
+  /**
+   * Legacy method - updates content.
+   * @deprecated Use content().update() instead.
+   */
+  async updateContent<TContent = WordPressPostLike>(
+    resource: string,
+    id: number,
+    input: WordPressWritePayload,
+    responseSchema?: WordPressStandardSchema<TContent>,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TContent> {
+    return this.content(resource, 
+      // @ts-ignore - Schema type variance
+      responseSchema as any
+    ).update(id, input, requestOptions) as Promise<TContent>;
+  }
+
+  /**
+   * Legacy method - deletes content.
+   * @deprecated Use content().delete() instead.
+   */
+  async deleteContent(
+    resource: string,
+    id: number,
+    options: DeleteOptions & WordPressRequestOverrides = {},
+  ): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+    return this.content(resource).delete(id, options);
+  }
+
+  /**
+   * Legacy method - gets term collection.
+   * @deprecated Use terms().list() instead.
+   */
+  async getTermCollection<TTerm = WordPressCategory>(
+    resource: string,
+    filter: QueryParams = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TTerm[]> {
+    return this.terms(resource).list(filter, requestOptions) as Promise<TTerm[]>;
+  }
+
+  /**
+   * Legacy method - gets all terms.
+   * @deprecated Use terms().listAll() instead.
+   */
+  async getAllTermCollection<TTerm = WordPressCategory>(
+    resource: string,
+    filter: Omit<QueryParams, 'page'> = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TTerm[]> {
+    return this.terms(resource).listAll(filter, requestOptions) as Promise<TTerm[]>;
+  }
+
+  /**
+   * Legacy method - gets terms paginated.
+   * @deprecated Use terms().listPaginated() instead.
+   */
+  async getTermCollectionPaginated<TTerm = WordPressCategory>(
+    resource: string,
+    filter: QueryParams & PaginationParams = {},
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<PaginatedResponse<TTerm>> {
+    return this.terms(resource).listPaginated(filter, requestOptions) as Promise<PaginatedResponse<TTerm>>;
+  }
+
+  /**
+   * Legacy method - gets single term.
+   * @deprecated Use terms().getById() instead.
+   */
+  async getTerm<TTerm = WordPressCategory>(
+    resource: string,
+    id: number,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TTerm> {
+    return this.terms(resource).getById(id, requestOptions) as Promise<TTerm>;
+  }
+
+  /**
+   * Legacy method - gets term by slug.
+   * @deprecated Use terms().getBySlug() instead.
+   */
+  async getTermBySlug<TTerm = WordPressCategory>(
+    resource: string,
+    slug: string,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TTerm | undefined> {
+    return this.terms(resource).getBySlug(slug, requestOptions) as Promise<TTerm | undefined>;
+  }
+
+  /**
+   * Legacy method - creates term.
+   * @deprecated Use terms().create() instead.
+   */
+  async createTerm<TTerm = WordPressCategory>(
+    resource: string,
+    input: TermWriteInput,
+    responseSchema?: WordPressStandardSchema<TTerm>,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TTerm> {
+    return this.terms(resource, responseSchema).create(input, requestOptions) as Promise<TTerm>;
+  }
+
+  /**
+   * Legacy method - updates term.
+   * @deprecated Use terms().update() instead.
+   */
+  async updateTerm<TTerm = WordPressCategory>(
+    resource: string,
+    id: number,
+    input: TermWriteInput,
+    responseSchema?: WordPressStandardSchema<TTerm>,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TTerm> {
+    return this.terms(resource, responseSchema).update(id, input, requestOptions) as Promise<TTerm>;
+  }
+
+  /**
+   * Legacy method - deletes term.
+   * @deprecated Use terms().delete() instead.
+   */
+  async deleteTerm(
+    resource: string,
+    id: number,
+    options: DeleteOptions & WordPressRequestOverrides = {},
+  ): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+    return this.terms(resource).delete(id, options);
+  }
 }
+
+/**
+ * Legacy factory function - creates a registry.
+ * @deprecated Use GenericResourceRegistry directly.
+ */
+export function createContentTermMethods(context: GenericResourceContext): GenericResourceRegistry {
+  return new GenericResourceRegistry(context);
+}
+
+// Type alias for backward compatibility
+export type ContentTermMethodDependencies = GenericResourceContext;
+
+// Re-export types that consumers might need
+export type { ContentResourceClient, TermsResourceClient };

@@ -1,25 +1,13 @@
-import type { WordPressBlockParser } from './blocks.js';
-import { WordPressContentQuery } from './content-query.js';
-import type { WordPressPostBase } from './schemas.js';
-import type { WordPressRequestOverrides } from './types/resources.js';
-import { filterToParams } from './core/params.js';
-import type { FetchResult, PaginatedResponse, PaginationParams, QueryParams, SerializedQueryParams } from './types/resources.js';
-import { createWordPressPaginator } from './core/pagination.js';
-
-/**
- * Runtime dependencies required for post-like resource read methods.
- */
-export interface PostLikeReadMethodConfig<
-  TContent extends WordPressPostBase,
-  TFilter extends QueryParams & PaginationParams,
-> {
-  resource: string;
-  missingRawMessage: string;
-  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>;
-  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
-  defaultBlockParser?: WordPressBlockParser;
-  withDefaultFilter?: (filter: TFilter | Omit<TFilter, 'page'> | (TFilter & PaginationParams)) => QueryParams;
-}
+import { WordPressContentQuery } from '../content-query.js';
+import type { WordPressPostBase } from '../schemas.js';
+import type {
+  PostLikeReadMethodConfig,
+  PostLikeReadMethods,
+} from './resource-factories.js';
+import type { WordPressRequestOverrides } from '../types/resources.js';
+import { filterToParams } from './params.js';
+import type { PaginatedResponse, PaginationParams, QueryParams, SerializedQueryParams } from '../types/resources.js';
+import { createWordPressPaginator } from './pagination.js';
 
 /**
  * Shared read methods for post-like resources such as posts and pages.
@@ -30,18 +18,52 @@ export interface PostLikeReadMethodConfig<
 export function createPostLikeReadMethods<
   TContent extends WordPressPostBase,
   TFilter extends QueryParams & PaginationParams,
->(config: PostLikeReadMethodConfig<TContent, TFilter>) {
+>(config: PostLikeReadMethodConfig<TContent, TFilter>): PostLikeReadMethods<TContent, TFilter> {
+  const endpoint = `/${config.resource}`;
   const withDefaultFilter = config.withDefaultFilter ?? ((filter) => ({ ...filter, _embed: 'true' }));
   const paginator = createWordPressPaginator<TFilter, TContent>({
     fetchPage: (currentFilter, context) => {
       const params = filterToParams(withDefaultFilter(currentFilter));
       return config.fetchAPIPaginated<TContent[]>(
-        `/${config.resource}`,
+        endpoint,
         params,
         context as WordPressRequestOverrides | undefined,
       );
     },
   });
+
+  /**
+   * Creates one content query with shared fallback messaging and block parsing.
+   */
+  function createContentQuery<TResult extends TContent | undefined>(
+    loadPublished: () => Promise<TResult>,
+    loadEditable: () => Promise<TResult>,
+  ): WordPressContentQuery<TResult> {
+    return new WordPressContentQuery<TResult>(
+      loadPublished,
+      loadEditable,
+      config.missingRawMessage,
+      config.defaultBlockParser,
+    );
+  }
+
+  /**
+   * Fetches one post-like item by slug and returns the first REST match.
+   */
+  async function fetchBySlug(
+    slug: string,
+    requestOptions?: WordPressRequestOverrides,
+    context?: 'edit',
+  ): Promise<TContent | undefined> {
+    const params: SerializedQueryParams = { slug, _embed: 'true' };
+
+    if (context) {
+      params.context = context;
+    }
+
+    const items = await config.fetchAPI<TContent[]>(endpoint, params, requestOptions);
+    return items[0];
+  }
 
   /**
    * Lists one page of post-like content with request-scoped transport overrides.
@@ -51,7 +73,7 @@ export function createPostLikeReadMethods<
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TContent[]> {
     const params = filterToParams(withDefaultFilter(filter));
-    return config.fetchAPI<TContent[]>(`/${config.resource}`, params, requestOptions);
+    return config.fetchAPI<TContent[]>(endpoint, params, requestOptions);
   }
 
 
@@ -79,11 +101,9 @@ export function createPostLikeReadMethods<
    * Gets one post-like record by numeric ID as a content query with block helpers.
    */
   function getById(id: number, requestOptions?: WordPressRequestOverrides): WordPressContentQuery<TContent> {
-    return new WordPressContentQuery<TContent>(
-      () => config.fetchAPI<TContent>(`/${config.resource}/${id}`, { _embed: 'true' }, requestOptions),
-      () => config.fetchAPI<TContent>(`/${config.resource}/${id}`, { _embed: 'true', context: 'edit' }, requestOptions),
-      config.missingRawMessage,
-      config.defaultBlockParser,
+    return createContentQuery<TContent>(
+      () => config.fetchAPI<TContent>(`${endpoint}/${id}`, { _embed: 'true' }, requestOptions),
+      () => config.fetchAPI<TContent>(`${endpoint}/${id}`, { _embed: 'true', context: 'edit' }, requestOptions),
     );
   }
 
@@ -94,21 +114,9 @@ export function createPostLikeReadMethods<
     slug: string,
     requestOptions?: WordPressRequestOverrides,
   ): WordPressContentQuery<TContent | undefined> {
-    return new WordPressContentQuery<TContent | undefined>(
-      async () => {
-        const items = await config.fetchAPI<TContent[]>(`/${config.resource}`, { slug, _embed: 'true' }, requestOptions);
-        return items[0];
-      },
-      async () => {
-        const items = await config.fetchAPI<TContent[]>(
-          `/${config.resource}`,
-          { slug, _embed: 'true', context: 'edit' },
-          requestOptions,
-        );
-        return items[0];
-      },
-      config.missingRawMessage,
-      config.defaultBlockParser,
+    return createContentQuery<TContent | undefined>(
+      () => fetchBySlug(slug, requestOptions),
+      () => fetchBySlug(slug, requestOptions, 'edit'),
     );
   }
 

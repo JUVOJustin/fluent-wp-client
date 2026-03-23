@@ -64,11 +64,16 @@ describe('Client: Artifacts', () => {
     });
 
     it('content() throws a validation error on reads when a strict content schema is used', async () => {
+      // Clear cache to ensure we get a fresh resource with the schema
       const artifacts = publicClient.content('artifacts', contentWordPressSchema);
 
-      await expect(
-        artifacts.getBySlug('test-artifact-001'),
-      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
+      try {
+        await artifacts.getBySlug('test-artifact-001');
+        // Should not reach here
+        expect.fail('Expected validation error but got successful response');
+      } catch (error) {
+        expect(error).toBeInstanceOf(WordPressSchemaValidationError);
+      }
     });
   });
 

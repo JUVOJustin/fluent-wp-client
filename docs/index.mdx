@@ -97,3 +97,7 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
     description="Map familiar node-wpapi chains to fluent-wp-client methods."
   />
 </CardGrid>
+
+## Development notes
+
+Contributor-facing resource factory internals live in `src/core/`, while package consumers continue to import the public API from `src/index.ts`.

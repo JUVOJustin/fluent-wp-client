@@ -1,99 +1,152 @@
 import type { WordPressMedia } from '../schemas.js';
 import type { WordPressMediaUploadInput } from '../types/client.js';
-import type { WordPressRequestOverrides } from '../types/resources.js';
+import type { WordPressRequestOverrides, PaginatedResponse, WordPressDeleteResult } from '../types/resources.js';
 import type { MediaFilter } from '../types/filters.js';
-import type { ExtensibleFilter, FetchResult, SerializedQueryParams, WordPressDeleteResult } from '../types/resources.js';
+import type { ExtensibleFilter } from '../types/resources.js';
 import type { WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
 import { mediaSchema } from '../standard-schemas.js';
-import {
-  createCollectionResourceFactory,
-  createCollectionCrudFactory,
-  resolveMutationArguments,
-  type ResourceDependencies,
-  type CrudMethods,
-} from '../core/resource-factories.js';
+import { BaseCrudResource, type ResourceContext } from '../core/resource-base.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
+import type { WordPressRuntime } from '../core/transport.js';
 
 /**
- * Media methods including read operations, CRUD, and upload.
+ * WordPress media resource with full CRUD and upload support.
+ * 
+ * @example
+ * ```typescript
+ * const media = MediaResource.create(runtime);
+ * const allMedia = await media.getMedia();
+ * const uploaded = await media.upload({ file: blob, filename: 'image.jpg' });
+ * ```
  */
-export interface MediaMethods extends CrudMethods<WordPressMedia, WordPressWritePayload> {
-  getMedia: (filter?: ExtensibleFilter<MediaFilter>, options?: WordPressRequestOverrides) => Promise<WordPressMedia[]>;
-  getAllMedia: (filter?: Omit<ExtensibleFilter<MediaFilter>, 'page'>, options?: WordPressRequestOverrides) => Promise<WordPressMedia[]>;
-  getMediaPaginated: (filter?: ExtensibleFilter<MediaFilter>, options?: WordPressRequestOverrides) => Promise<import('../types/resources.js').PaginatedResponse<WordPressMedia>>;
-  getMediaItem: (id: number, options?: WordPressRequestOverrides) => Promise<WordPressMedia>;
-  getMediaBySlug: (slug: string, options?: WordPressRequestOverrides) => Promise<WordPressMedia | undefined>;
-  getImageUrl: (media: WordPressMedia, size?: string) => string;
-  upload: (input: WordPressMediaUploadInput, requestOptions?: WordPressRequestOverrides) => Promise<WordPressMedia>;
-}
+export class MediaResource extends BaseCrudResource<
+  WordPressMedia,
+  ExtensibleFilter<MediaFilter>,
+  WordPressWritePayload,
+  WordPressWritePayload
+> {
+  protected override get defaultSchema(): WordPressStandardSchema<WordPressMedia> | undefined {
+    return mediaSchema as WordPressStandardSchema<WordPressMedia>;
+  }
 
-/**
- * Creates all media resource methods (read + CRUD + upload).
- */
-export function createMediaResource(deps: ResourceDependencies): MediaMethods {
-  const readCore = createCollectionResourceFactory<WordPressMedia, ExtensibleFilter<MediaFilter>>('/media')(deps.fetchAPI, deps.fetchAPIPaginated);
-  const baseCrud = createCollectionCrudFactory<WordPressMedia, WordPressWritePayload>('/media', mediaSchema as WordPressStandardSchema<WordPressMedia>)(deps);
+  /**
+   * Creates a media resource instance.
+   */
+  static create(runtime: WordPressRuntime): MediaResource {
+    return new MediaResource({
+      runtime,
+      endpoint: '/media',
+    });
+  }
 
-  return {
-    getMedia: readCore.list,
-    getAllMedia: readCore.listAll,
-    getMediaPaginated: readCore.listPaginated,
-    getMediaItem: readCore.getById,
-    getMediaBySlug: readCore.getBySlug,
-    
-    getImageUrl(media: WordPressMedia, size: string = 'full'): string {
-      if (size === 'full' || !media.media_details.sizes[size]) {
-        return media.source_url;
-      }
-      return media.media_details.sizes[size].source_url;
-    },
+  /**
+   * Alias for list() - gets media items matching filter.
+   */
+  getMedia(filter?: ExtensibleFilter<MediaFilter>, options?: WordPressRequestOverrides): Promise<WordPressMedia[]> {
+    return this.list(filter, options);
+  }
 
-    create: baseCrud.create,
-    update: baseCrud.update,
-    delete: baseCrud.delete,
+  /**
+   * Alias for listAll() - gets all media via pagination.
+   */
+  getAllMedia(
+    filter?: Omit<ExtensibleFilter<MediaFilter>, 'page'>,
+    options?: WordPressRequestOverrides,
+  ): Promise<WordPressMedia[]> {
+    return this.listAll(filter, options);
+  }
 
-    async upload(input: WordPressMediaUploadInput, requestOptions?: WordPressRequestOverrides): Promise<WordPressMedia> {
-      const fileBody = input.file instanceof Blob
-        ? input.file
-        : input.file instanceof Uint8Array
+  /**
+   * Alias for listPaginated() - gets media with pagination metadata.
+   */
+  getMediaPaginated(
+    filter?: ExtensibleFilter<MediaFilter>,
+    options?: WordPressRequestOverrides,
+  ): Promise<PaginatedResponse<WordPressMedia>> {
+    return this.listPaginated(filter, options);
+  }
+
+  /**
+   * Alias for getById() - gets media by ID.
+   */
+  getMediaItem(id: number, options?: WordPressRequestOverrides): Promise<WordPressMedia> {
+    return this.getById(id, options);
+  }
+
+  /**
+   * Alias for getBySlug() - gets media by slug.
+   */
+  getMediaBySlug(slug: string, options?: WordPressRequestOverrides): Promise<WordPressMedia | undefined> {
+    return this.getBySlug(slug, options);
+  }
+
+  /**
+   * Gets the URL for a specific image size.
+   */
+  getImageUrl(media: WordPressMedia, size: string = 'full'): string {
+    if (size === 'full' || !media.media_details.sizes[size]) {
+      return media.source_url;
+    }
+    return media.media_details.sizes[size].source_url;
+  }
+
+  /**
+   * Uploads a file to WordPress media library.
+   */
+  async upload(input: WordPressMediaUploadInput, requestOptions?: WordPressRequestOverrides): Promise<WordPressMedia> {
+    const fileBody = input.file instanceof Blob
+      ? input.file
+      : input.file instanceof Uint8Array
+        ? new Blob([new Uint8Array(input.file)], { type: input.mimeType ?? 'application/octet-stream' })
+        : input.file instanceof ArrayBuffer
           ? new Blob([new Uint8Array(input.file)], { type: input.mimeType ?? 'application/octet-stream' })
-          : input.file instanceof ArrayBuffer
-            ? new Blob([new Uint8Array(input.file)], { type: input.mimeType ?? 'application/octet-stream' })
           : input.file;
 
-      const safeFilename = input.filename.replace(/"/g, '');
-      const uploadHeaders: Record<string, string> = {
-        'Content-Disposition': `attachment; filename="${safeFilename}"`,
-      };
+    const safeFilename = input.filename.replace(/"/g, '');
+    const uploadHeaders: Record<string, string> = {
+      'Content-Disposition': `attachment; filename="${safeFilename}"`,
+    };
 
-      if (input.mimeType) {
-        uploadHeaders['Content-Type'] = input.mimeType;
-      }
+    if (input.mimeType) {
+      uploadHeaders['Content-Type'] = input.mimeType;
+    }
 
-      const created = await deps.executeMutation<WordPressMedia>(
-        applyRequestOverrides({
-          endpoint: '/media',
-          method: 'POST',
-          rawBody: fileBody,
-          headers: uploadHeaders,
-          omitContentType: true,
-        }, requestOptions, 'Mutation helper options'),
-        mediaSchema,
-      );
+    const created = await this.executeMutation<WordPressMedia>(
+      applyRequestOverrides({
+        endpoint: '/media',
+        method: 'POST',
+        rawBody: fileBody,
+        headers: uploadHeaders,
+        omitContentType: true,
+      }, requestOptions, 'Mutation helper options'),
+      mediaSchema,
+    );
 
-      const metadata: Record<string, unknown> = {};
-      if (input.title) metadata.title = input.title;
-      if (input.caption) metadata.caption = input.caption;
-      if (input.description) metadata.description = input.description;
-      if (input.alt_text) metadata.alt_text = input.alt_text;
-      if (input.status) metadata.status = input.status;
+    const metadata: Record<string, unknown> = {};
+    if (input.title) metadata.title = input.title;
+    if (input.caption) metadata.caption = input.caption;
+    if (input.description) metadata.description = input.description;
+    if (input.alt_text) metadata.alt_text = input.alt_text;
+    if (input.status) metadata.status = input.status;
 
-      if (Object.keys(metadata).length === 0) {
-        return created;
-      }
+    if (Object.keys(metadata).length === 0) {
+      return created;
+    }
 
-      return baseCrud.update(created.id, metadata, undefined, requestOptions);
-    },
-  };
+    return this.update(created.id, metadata, undefined, requestOptions);
+  }
 }
+
+/**
+ * Legacy factory function - now delegates to MediaResource.create().
+ * @deprecated Use MediaResource.create() or new MediaResource() directly.
+ */
+export function createMediaResource(runtime: WordPressRuntime): MediaResource {
+  return MediaResource.create(runtime);
+}
+
+/**
+ * @deprecated Import MediaMethods from '../types/resources.js' instead.
+ */
+export interface MediaMethods extends MediaResource {}

@@ -39,7 +39,6 @@ src/
   blocks.ts                    # Block parser types and parseWordPressBlocks
   abilities.ts                 # Ability methods and builder
   content-query.ts             # WordPressContentQuery class
-  content-read-methods.ts      # Shared post-like read method factory
   types.ts                     # Re-export barrel for types/ subdirectory
 
   core/                        # Core infrastructure
@@ -47,6 +46,7 @@ src/
     pagination.ts              # createWordPressPaginator
     validation.ts              # Standard Schema validation helpers
     params.ts                  # filterToParams, compactPayload
+    post-like-read-factory.ts  # Shared post-like read method implementation
 
   types/                       # Pure type definitions (no runtime)
     filters.ts                 # PostsFilter, PagesFilter, MediaFilter, etc.

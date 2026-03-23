@@ -551,77 +551,167 @@ export function getLinkedRelationIds(
 }
 
 /**
- * Builds one embedded-item lookup for one shared bucket.
+ * Internal options for resolving one shared link/embed relation bucket.
  */
-function getEmbeddedRelationLookup<T extends { id: number }>(
-  content: WordPressContent,
-  embeddedKey: string,
-  extractItem: (item: unknown) => T | null,
-): Map<number, T> {
-  const lookup = new Map<number, T>();
-
-  for (const item of getEmbeddedRelationItems(content, embeddedKey, extractItem)) {
-    lookup.set(item.id, item);
-  }
-
-  return lookup;
+interface LinkedEmbeddedResolverOptions<T extends { id: number }> {
+  embeddedKey: string;
+  linksKey: string;
+  extractItem: (item: unknown) => T | null;
+  parseLinkId: (link: Record<string, unknown>) => number | null;
+  resolveMany?: (client: PostRelationClient, ids: number[]) => Promise<T[]>;
 }
 
 /**
- * Builds one linked-item href lookup for one shared bucket.
+ * Internal options for resolving one single shared link/embed relation.
  */
-function getLinkedRelationLookup(
-  content: WordPressContent,
-  linksKey: string,
-  parseLinkId: (link: Record<string, unknown>) => number | null,
-): Map<number, string> {
-  const links = (content as { _links?: Record<string, unknown> })._links?.[linksKey];
+interface LinkedEmbeddedSingleResolverOptions<T extends { id: number }>
+  extends Omit<LinkedEmbeddedResolverOptions<T>, 'resolveMany'> {
+  resolveOne?: (client: PostRelationClient, id: number) => Promise<T | null>;
+}
 
-  if (!Array.isArray(links)) {
-    return new Map<number, string>();
+/**
+ * Coordinates embedded, linked, and fallback resolution for one shared bucket.
+ */
+class LinkedEmbeddedRelationResolver<T extends { id: number }> {
+  private readonly embeddedLookup: Map<number, T>;
+  private readonly linkLookup: Map<number, string>;
+
+  constructor(
+    private readonly client: PostRelationClient,
+    private readonly content: WordPressContent,
+    private readonly options: LinkedEmbeddedResolverOptions<T>,
+  ) {
+    this.embeddedLookup = this.buildEmbeddedLookup();
+    this.linkLookup = this.buildLinkedLookup();
   }
 
-  const lookup = new Map<number, string>();
+  /**
+   * Builds one embedded-item lookup for the configured shared bucket.
+   */
+  private buildEmbeddedLookup(): Map<number, T> {
+    const lookup = new Map<number, T>();
 
-  for (const item of links as Array<Record<string, unknown>>) {
-    const href = typeof item.href === 'string' ? item.href : undefined;
-    const id = parseLinkId(item);
-
-    if (!href || id === null) {
-      continue;
+    for (const item of getEmbeddedRelationItems(this.content, this.options.embeddedKey, this.options.extractItem)) {
+      lookup.set(item.id, item);
     }
 
-    lookup.set(id, href);
+    return lookup;
   }
 
-  return lookup;
-}
+  /**
+   * Builds one linked-item href lookup for the configured shared bucket.
+   */
+  private buildLinkedLookup(): Map<number, string> {
+    const links = (this.content as { _links?: Record<string, unknown> })._links?.[this.options.linksKey];
 
-/**
- * Fetches one linked resource through the low-level client request API.
- */
-async function fetchLinkedRelationItem<T extends { id: number }>(
-  client: PostRelationClient,
-  href: string,
-  extractItem: (item: unknown) => T | null,
-): Promise<T | null> {
-  if (!client.request) {
-    return null;
+    if (!Array.isArray(links)) {
+      return new Map<number, string>();
+    }
+
+    const lookup = new Map<number, string>();
+
+    for (const item of links as Array<Record<string, unknown>>) {
+      const href = typeof item.href === 'string' ? item.href : undefined;
+      const id = this.options.parseLinkId(item);
+
+      if (!href || id === null) {
+        continue;
+      }
+
+      lookup.set(id, href);
+    }
+
+    return lookup;
   }
 
-  try {
-    const { data, response } = await client.request<unknown>({
-      endpoint: href,
-      method: 'GET',
-    });
-
-    if (!response.ok) {
+  /**
+   * Fetches one linked resource through the low-level client request API.
+   */
+  private async fetchLinkedItemByHref(href: string): Promise<T | null> {
+    if (!this.client.request) {
       return null;
     }
 
-    return extractItem(data);
-  } catch {
-    return null;
+    try {
+      const { data, response } = await this.client.request<unknown>({
+        endpoint: href,
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return this.options.extractItem(data);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetches one linked relation item when a matching href is available.
+   */
+  private async fetchLinkedItem(id: number): Promise<T | null> {
+    const href = this.linkLookup.get(id);
+
+    if (!href) {
+      return null;
+    }
+
+    return this.fetchLinkedItemByHref(href);
+  }
+
+  /**
+   * Resolves the last missing IDs through the optional fallback resolver.
+   */
+  private async resolveMissingItems(ids: number[]): Promise<T[]> {
+    if (ids.length === 0 || !this.options.resolveMany) {
+      return [];
+    }
+
+    return this.options.resolveMany(this.client, ids);
+  }
+
+  /**
+   * Resolves many relation items while preserving the caller's requested order.
+   */
+  async resolveMany(ids: number[]): Promise<T[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const requestedIds = Array.from(new Set(ids));
+    const resolved = new Map<number, T>();
+
+    for (const id of requestedIds) {
+      const embeddedItem = this.embeddedLookup.get(id);
+
+      if (embeddedItem) {
+        resolved.set(id, embeddedItem);
+      }
+    }
+
+    for (const id of requestedIds) {
+      if (resolved.has(id)) {
+        continue;
+      }
+
+      const linkedItem = await this.fetchLinkedItem(id);
+
+      if (linkedItem) {
+        resolved.set(id, linkedItem);
+      }
+    }
+
+    const missingIds = requestedIds.filter((id) => !resolved.has(id));
+
+    for (const item of await this.resolveMissingItems(missingIds)) {
+      resolved.set(item.id, item);
+    }
+
+    return ids
+      .map((id) => resolved.get(id))
+      .filter((item): item is T => item !== undefined);
   }
 }
 
@@ -632,61 +722,9 @@ async function resolveLinkedEmbeddedCollection<T extends { id: number }>(
   client: PostRelationClient,
   content: WordPressContent,
   ids: number[],
-  options: {
-    embeddedKey: string;
-    linksKey: string;
-    extractItem: (item: unknown) => T | null;
-    parseLinkId: (link: Record<string, unknown>) => number | null;
-    resolveMany?: (client: PostRelationClient, ids: number[]) => Promise<T[]>;
-  },
+  options: LinkedEmbeddedResolverOptions<T>,
 ): Promise<T[]> {
-  if (ids.length === 0) {
-    return [];
-  }
-
-  const requestedIds = Array.from(new Set(ids));
-  const resolved = new Map<number, T>();
-  const embeddedLookup = getEmbeddedRelationLookup(content, options.embeddedKey, options.extractItem);
-
-  for (const id of requestedIds) {
-    const embedded = embeddedLookup.get(id);
-
-    if (embedded) {
-      resolved.set(id, embedded);
-    }
-  }
-
-  const linkLookup = getLinkedRelationLookup(content, options.linksKey, options.parseLinkId);
-
-  for (const id of requestedIds) {
-    if (resolved.has(id)) {
-      continue;
-    }
-
-    const href = linkLookup.get(id);
-
-    if (!href) {
-      continue;
-    }
-
-    const linkedItem = await fetchLinkedRelationItem(client, href, options.extractItem);
-
-    if (linkedItem) {
-      resolved.set(id, linkedItem);
-    }
-  }
-
-  const missingIds = requestedIds.filter((id) => !resolved.has(id));
-
-  if (missingIds.length > 0 && options.resolveMany) {
-    for (const item of await options.resolveMany(client, missingIds)) {
-      resolved.set(item.id, item);
-    }
-  }
-
-  return ids
-    .map((id) => resolved.get(id))
-    .filter((item): item is T => item !== undefined);
+  return new LinkedEmbeddedRelationResolver(client, content, options).resolveMany(ids);
 }
 
 /**
@@ -696,13 +734,7 @@ async function resolveLinkedEmbeddedSingle<T extends { id: number }>(
   client: PostRelationClient,
   content: WordPressContent,
   id: number | null,
-  options: {
-    embeddedKey: string;
-    linksKey: string;
-    extractItem: (item: unknown) => T | null;
-    parseLinkId: (link: Record<string, unknown>) => number | null;
-    resolveOne?: (client: PostRelationClient, id: number) => Promise<T | null>;
-  },
+  options: LinkedEmbeddedSingleResolverOptions<T>,
 ): Promise<T | null> {
   if (id === null) {
     return null;
@@ -761,61 +793,57 @@ interface ResolverFactoryConfig<T, TRef extends { id: number }> {
 }
 
 /**
- * Creates a pair of reference resolvers (batch and single) with shared error handling.
- * 
- * This factory eliminates the duplicated try/catch loops and empty-check logic
- * across all resource-specific resolver pairs (posts, terms, content, etc.).
+ * Coordinates shared batch and single fetch logic for reference DTO resolvers.
  */
-function createReferenceResolvers<T, TRef extends { id: number }>({
-  batchFetch,
-  singleFetch,
-  toReference,
-}: ResolverFactoryConfig<T, TRef>): {
-  resolveMany: (ids: number[]) => Promise<TRef[]>;
-  resolveOne: (id: number) => Promise<TRef | null>;
-} {
-  async function resolveMany(ids: number[]): Promise<TRef[]> {
+class ReferenceResolver<T, TRef extends { id: number }> {
+  constructor(private readonly config: ResolverFactoryConfig<T, TRef>) {}
+
+  /**
+   * Resolves many references, preferring one batch request when available.
+   */
+  async resolveMany(ids: number[]): Promise<TRef[]> {
     if (ids.length === 0) {
       return [];
     }
 
-    // Use batch endpoint if available
-    if (batchFetch) {
+    if (this.config.batchFetch) {
       try {
-        const items = await batchFetch(ids);
-        return items.map(toReference);
+        const items = await this.config.batchFetch(ids);
+        return items.map(this.config.toReference);
       } catch {
-        // Fall through to individual fetches
+        // Fall through to individual fetches.
       }
     }
 
-    // Individual fetches with error tolerance
     const results: TRef[] = [];
+
     for (const id of ids) {
       try {
-        const item = await singleFetch(id);
-        results.push(toReference(item));
+        const item = await this.config.singleFetch(id);
+        results.push(this.config.toReference(item));
       } catch {
         continue;
       }
     }
+
     return results;
   }
 
-  async function resolveOne(id: number): Promise<TRef | null> {
+  /**
+   * Resolves one reference from a numeric ID with error tolerance.
+   */
+  async resolveOne(id: number): Promise<TRef | null> {
     if (id <= 0) {
       return null;
     }
 
     try {
-      const item = await singleFetch(id);
-      return toReference(item);
+      const item = await this.config.singleFetch(id);
+      return this.config.toReference(item);
     } catch {
       return null;
     }
   }
-
-  return { resolveMany, resolveOne };
 }
 
 /**
@@ -838,12 +866,10 @@ export async function resolveContentReferences(
     return [];
   }
 
-  const { resolveMany } = createReferenceResolvers<WordPressContent, RelatedContentReference>({
+  return new ReferenceResolver<WordPressContent, RelatedContentReference>({
     singleFetch: (id) => client.getContent!(resource, id),
     toReference: toRelatedContentReference,
-  });
-
-  return resolveMany(ids);
+  }).resolveMany(ids);
 }
 
 /**
@@ -866,12 +892,10 @@ export async function resolveContentReference(
     return null;
   }
 
-  const { resolveOne } = createReferenceResolvers<WordPressContent, RelatedContentReference>({
+  return new ReferenceResolver<WordPressContent, RelatedContentReference>({
     singleFetch: (id) => client.getContent!(resource, id),
     toReference: toRelatedContentReference,
-  });
-
-  return resolveOne(id);
+  }).resolveOne(id);
 }
 
 /**
@@ -885,12 +909,10 @@ export async function resolvePostReferences(
     return [];
   }
 
-  const { resolveMany } = createReferenceResolvers<WordPressPost, RelatedPostReference>({
+  return new ReferenceResolver<WordPressPost, RelatedPostReference>({
     singleFetch: (id) => client.getPost!(id),
     toReference: toRelatedPostReference,
-  });
-
-  return resolveMany(ids);
+  }).resolveMany(ids);
 }
 
 /**
@@ -904,12 +926,10 @@ export async function resolvePostReference(
     return null;
   }
 
-  const { resolveOne } = createReferenceResolvers<WordPressPost, RelatedPostReference>({
+  return new ReferenceResolver<WordPressPost, RelatedPostReference>({
     singleFetch: (id) => client.getPost!(id),
     toReference: toRelatedPostReference,
-  });
-
-  return resolveOne(id);
+  }).resolveOne(id);
 }
 
 /**
@@ -936,15 +956,13 @@ export async function resolveTermReferences(
     return [];
   }
 
-  const { resolveMany } = createReferenceResolvers<WordPressCategory, RelatedTermReference>({
+  return new ReferenceResolver<WordPressCategory, RelatedTermReference>({
     batchFetch: client.getTermCollection 
       ? (ids) => client.getTermCollection!(resource, { include: ids })
       : undefined,
     singleFetch: (id) => client.getTerm!(resource, id),
     toReference: toRelatedTermReference,
-  });
-
-  return resolveMany(ids);
+  }).resolveMany(ids);
 }
 
 /**
@@ -959,12 +977,10 @@ export async function resolveTermReference(
     return null;
   }
 
-  const { resolveOne } = createReferenceResolvers<WordPressCategory, RelatedTermReference>({
+  return new ReferenceResolver<WordPressCategory, RelatedTermReference>({
     singleFetch: (id) => client.getTerm!(resource, id),
     toReference: toRelatedTermReference,
-  });
-
-  return resolveOne(id);
+  }).resolveOne(id);
 }
 
 /**

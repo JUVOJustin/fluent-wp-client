@@ -1,41 +1,87 @@
 import type { WordPressComment } from '../schemas.js';
-import type { WordPressRequestOverrides } from '../types/resources.js';
+import type { WordPressRequestOverrides, PaginatedResponse } from '../types/resources.js';
 import type { CommentsFilter } from '../types/filters.js';
-import type { ExtensibleFilter, FetchResult, SerializedQueryParams } from '../types/resources.js';
+import type { ExtensibleFilter } from '../types/resources.js';
 import type { WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
 import { commentSchema } from '../standard-schemas.js';
-import {
-  createCollectionResourceFactory,
-  createCollectionCrudFactory,
-  type ResourceDependencies,
-  type CrudMethods,
-} from '../core/resource-factories.js';
+import { BaseCrudResource, type ResourceContext } from '../core/resource-base.js';
+import type { WordPressRuntime } from '../core/transport.js';
 
 /**
- * Comment methods including read operations and CRUD.
+ * WordPress comments resource with full CRUD support.
+ * 
+ * @example
+ * ```typescript
+ * const comments = CommentsResource.create(runtime);
+ * const allComments = await comments.getComments();
+ * const comment = await comments.getComment(123);
+ * ```
  */
-export interface CommentMethods extends CrudMethods<WordPressComment, WordPressWritePayload> {
-  getComments: (filter?: ExtensibleFilter<CommentsFilter>, options?: WordPressRequestOverrides) => Promise<WordPressComment[]>;
-  getAllComments: (filter?: Omit<ExtensibleFilter<CommentsFilter>, 'page'>, options?: WordPressRequestOverrides) => Promise<WordPressComment[]>;
-  getCommentsPaginated: (filter?: ExtensibleFilter<CommentsFilter>, options?: WordPressRequestOverrides) => Promise<import('../types/resources.js').PaginatedResponse<WordPressComment>>;
-  getComment: (id: number, options?: WordPressRequestOverrides) => Promise<WordPressComment>;
+export class CommentsResource extends BaseCrudResource<
+  WordPressComment,
+  ExtensibleFilter<CommentsFilter>,
+  WordPressWritePayload,
+  WordPressWritePayload
+> {
+  protected override get defaultSchema(): WordPressStandardSchema<WordPressComment> | undefined {
+    return commentSchema as WordPressStandardSchema<WordPressComment>;
+  }
+
+  /**
+   * Creates a comments resource instance.
+   */
+  static create(runtime: WordPressRuntime): CommentsResource {
+    return new CommentsResource({
+      runtime,
+      endpoint: '/comments',
+    });
+  }
+
+  /**
+   * Alias for list() - gets comments matching filter.
+   */
+  getComments(filter?: ExtensibleFilter<CommentsFilter>, options?: WordPressRequestOverrides): Promise<WordPressComment[]> {
+    return this.list(filter, options);
+  }
+
+  /**
+   * Alias for listAll() - gets all comments via pagination.
+   */
+  getAllComments(
+    filter?: Omit<ExtensibleFilter<CommentsFilter>, 'page'>,
+    options?: WordPressRequestOverrides,
+  ): Promise<WordPressComment[]> {
+    return this.listAll(filter, options);
+  }
+
+  /**
+   * Alias for listPaginated() - gets comments with pagination metadata.
+   */
+  getCommentsPaginated(
+    filter?: ExtensibleFilter<CommentsFilter>,
+    options?: WordPressRequestOverrides,
+  ): Promise<PaginatedResponse<WordPressComment>> {
+    return this.listPaginated(filter, options);
+  }
+
+  /**
+   * Alias for getById() - gets comment by ID.
+   */
+  getComment(id: number, options?: WordPressRequestOverrides): Promise<WordPressComment> {
+    return this.getById(id, options);
+  }
 }
 
 /**
- * Creates all comment resource methods (read + CRUD).
+ * Legacy factory function - now delegates to CommentsResource.create().
+ * @deprecated Use CommentsResource.create() or new CommentsResource() directly.
  */
-export function createCommentsResource(deps: ResourceDependencies): CommentMethods {
-  const readCore = createCollectionResourceFactory<WordPressComment, ExtensibleFilter<CommentsFilter>>('/comments')(deps.fetchAPI, deps.fetchAPIPaginated);
-  const crudCore = createCollectionCrudFactory<WordPressComment, WordPressWritePayload>('/comments', commentSchema as WordPressStandardSchema<WordPressComment>)(deps);
-
-  return {
-    getComments: readCore.list,
-    getAllComments: readCore.listAll,
-    getCommentsPaginated: readCore.listPaginated,
-    getComment: readCore.getById,
-    create: crudCore.create,
-    update: crudCore.update,
-    delete: crudCore.delete,
-  };
+export function createCommentsResource(runtime: WordPressRuntime): CommentsResource {
+  return CommentsResource.create(runtime);
 }
+
+/**
+ * @deprecated Import CommentMethods from '../types/resources.js' instead.
+ */
+export interface CommentMethods extends CommentsResource {}

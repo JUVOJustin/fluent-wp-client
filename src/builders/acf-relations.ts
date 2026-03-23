@@ -2,6 +2,7 @@ import type { WordPressCategory, WordPressContent, WordPressPost } from '../sche
 import {
   createLinkedEmbeddedCollectionRelation,
   createLinkedEmbeddedSingleRelation,
+  defaultParseReferenceId,
   getEmbeddedRelationItems,
   getLinkedRelationIds,
   resolveContentReference,
@@ -104,6 +105,32 @@ export const DEFAULT_ACF_POSTS_LINK_KEY = 'acf:post';
 export const DEFAULT_ACF_TERMS_LINK_KEY = 'acf:term';
 
 /**
+ * Default response fields required for ACF fallback hydration.
+ */
+const DEFAULT_ACF_REQUIRED_FIELDS = ['acf', '_links'];
+
+/**
+ * Fully resolved ACF relation settings after defaults are applied.
+ */
+interface ResolvedAcfRelationOptions {
+  relationName: string;
+  fieldName: string;
+  linksKey: string;
+  embeddedKey: string;
+  requiredFields: string[];
+}
+
+/**
+ * Internal shared options for ACF relation factory routing.
+ */
+interface AcfSharedBucketRelationOptions<T extends { id: number }> extends ResolvedAcfRelationOptions {
+  multiple: boolean;
+  extractItem: (item: unknown) => T | null;
+  resolveMany?: (client: PostRelationClient, ids: number[]) => Promise<T[]>;
+  resolveOne?: (client: PostRelationClient, id: number) => Promise<T | null>;
+}
+
+/**
  * Reads one ACF object map from a content response.
  */
 function getAcfRecord(content: WordPressContent): Record<string, unknown> {
@@ -120,18 +147,14 @@ function getAcfRecord(content: WordPressContent): Record<string, unknown> {
  * Normalizes one ACF relation field value to a numeric ID.
  */
 function parseAcfReferenceId(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-    return value;
+  const directId = defaultParseReferenceId(value);
+
+  if (directId !== null) {
+    return directId;
   }
 
   if (typeof value !== 'string') {
     return null;
-  }
-
-  const directId = Number(value);
-
-  if (Number.isInteger(directId) && directId > 0) {
-    return directId;
   }
 
   const colonMatch = value.match(/:(\d+)$/);
@@ -140,8 +163,25 @@ function parseAcfReferenceId(value: unknown): number | null {
     return null;
   }
 
-  const id = Number(colonMatch[1]);
-  return Number.isInteger(id) && id > 0 ? id : null;
+  return defaultParseReferenceId(colonMatch[1]);
+}
+
+/**
+ * Applies shared ACF defaults for link keys, embed keys, and required fields.
+ */
+function resolveAcfRelationOptions(
+  options: AcfRelationOptions,
+  defaultLinksKey: string,
+): ResolvedAcfRelationOptions {
+  const linksKey = options.linksKey ?? defaultLinksKey;
+
+  return {
+    relationName: options.relationName,
+    fieldName: options.fieldName,
+    linksKey,
+    embeddedKey: options.embeddedKey ?? linksKey,
+    requiredFields: options.requiredFields ?? [...DEFAULT_ACF_REQUIRED_FIELDS],
+  };
 }
 
 /**
@@ -182,14 +222,8 @@ function extractAcfTerm(item: unknown): AcfRelatedTerm | null {
  * Internal shared factory for ACF content/post relation resolvers.
  * Handles the common link/embed collection setup.
  */
-function createAcfContentCollectionRelation<T extends { id: number }>(
-  options: {
-    relationName: string;
-    fieldName: string;
-    linksKey: string;
-    embeddedKey: string;
-    requiredFields?: string[];
-  },
+function createAcfSharedBucketCollectionRelation<T extends { id: number }>(
+  options: ResolvedAcfRelationOptions,
   extractItem: (item: unknown) => T | null,
   resolveMany?: (client: PostRelationClient, ids: number[]) => Promise<T[]>,
 ): CustomRelationConfig<T[]> {
@@ -201,23 +235,17 @@ function createAcfContentCollectionRelation<T extends { id: number }>(
     getIds: (content) => getAcfRecord(content)[options.fieldName],
     parseReferenceId: parseAcfReferenceId,
     resolveMany,
-    requiredFields: options.requiredFields ?? ['acf', '_links'],
+    requiredFields: options.requiredFields,
   });
 }
 
 /**
  * Internal shared factory for ACF content/post single relation resolvers.
  */
-function createAcfContentSingleRelation<T extends { id: number }>(
-  options: {
-    relationName: string;
-    fieldName: string;
-    linksKey: string;
-    embeddedKey: string;
-    requiredFields?: string[];
-  },
+function createAcfSharedBucketSingleRelation<T extends { id: number }>(
+  options: ResolvedAcfRelationOptions,
   extractItem: (item: unknown) => T | null,
-  resolveOne?: (client: PostRelationClient, id: number) => Promise<T>,
+  resolveOne?: (client: PostRelationClient, id: number) => Promise<T | null>,
 ): CustomRelationConfig<T | null> {
   return createLinkedEmbeddedSingleRelation({
     name: options.relationName,
@@ -227,8 +255,51 @@ function createAcfContentSingleRelation<T extends { id: number }>(
     getId: (content) => getAcfRecord(content)[options.fieldName],
     parseReferenceId: parseAcfReferenceId,
     resolveOne,
-    requiredFields: options.requiredFields ?? ['acf', '_links'],
+    requiredFields: options.requiredFields,
   });
+}
+
+/**
+ * Routes one ACF relation through the collection or single shared-bucket helper.
+ */
+function createAcfSharedBucketRelation<T extends { id: number }>(
+  options: AcfSharedBucketRelationOptions<T>,
+): CustomRelationConfig<T[] | T | null> {
+  if (options.multiple) {
+    return createAcfSharedBucketCollectionRelation(options, options.extractItem, options.resolveMany);
+  }
+
+  return createAcfSharedBucketSingleRelation(options, options.extractItem, options.resolveOne);
+}
+
+/**
+ * Creates fallback resolvers for ACF content fields when a REST resource is known.
+ */
+function createAcfContentFallbackResolvers(resource?: string): {
+  resolveMany?: (client: PostRelationClient, ids: number[]) => Promise<AcfRelatedContent[]>;
+  resolveOne?: (client: PostRelationClient, id: number) => Promise<AcfRelatedContent | null>;
+} {
+  if (!resource) {
+    return {};
+  }
+
+  return {
+    resolveMany: (client, ids) => resolveContentReferences(client, resource, ids),
+    resolveOne: (client, id) => resolveContentReference(client, resource, id),
+  };
+}
+
+/**
+ * Creates fallback resolvers for ACF taxonomy fields.
+ */
+function createAcfTermFallbackResolvers(resource: string): {
+  resolveMany: (client: PostRelationClient, ids: number[]) => Promise<AcfRelatedTerm[]>;
+  resolveOne: (client: PostRelationClient, id: number) => Promise<AcfRelatedTerm | null>;
+} {
+  return {
+    resolveMany: (client, ids) => resolveTermReferences(client, resource, ids),
+    resolveOne: (client, id) => resolveTermReference(client, resource, id),
+  };
 }
 
 /**
@@ -240,21 +311,13 @@ function createAcfContentSingleRelation<T extends { id: number }>(
 export function createAcfRelationshipRelation(
   options: AcfContentRelationOptions,
 ): CustomRelationConfig<AcfRelatedContent[]> {
-  const linksKey = options.linksKey ?? DEFAULT_ACF_POSTS_LINK_KEY;
-  const embeddedKey = options.embeddedKey ?? linksKey;
+  const resolved = resolveAcfRelationOptions(options, DEFAULT_ACF_POSTS_LINK_KEY);
+  const fallbackResolvers = createAcfContentFallbackResolvers(options.resource);
 
-  return createAcfContentCollectionRelation(
-    {
-      relationName: options.relationName,
-      fieldName: options.fieldName,
-      linksKey,
-      embeddedKey,
-      requiredFields: options.requiredFields,
-    },
+  return createAcfSharedBucketCollectionRelation(
+    resolved,
     extractAcfContent,
-    options.resource
-      ? (client, ids) => resolveContentReferences(client, options.resource!, ids)
-      : undefined,
+    fallbackResolvers.resolveMany,
   );
 }
 
@@ -274,38 +337,16 @@ export function createAcfPostObjectRelation(
 export function createAcfPostObjectRelation(
   options: AcfPostObjectRelationOptions,
 ): CustomRelationConfig<AcfRelatedContent[] | AcfRelatedContent | null> {
-  const linksKey = options.linksKey ?? DEFAULT_ACF_POSTS_LINK_KEY;
-  const embeddedKey = options.embeddedKey ?? linksKey;
+  const resolved = resolveAcfRelationOptions(options, DEFAULT_ACF_POSTS_LINK_KEY);
+  const fallbackResolvers = createAcfContentFallbackResolvers(options.resource);
 
-  if (options.multiple) {
-    return createAcfContentCollectionRelation(
-      {
-        relationName: options.relationName,
-        fieldName: options.fieldName,
-        linksKey,
-        embeddedKey,
-        requiredFields: options.requiredFields,
-      },
-      extractAcfContent,
-      options.resource
-        ? (client, ids) => resolveContentReferences(client, options.resource!, ids)
-        : undefined,
-    );
-  }
-
-  return createAcfContentSingleRelation(
-    {
-      relationName: options.relationName,
-      fieldName: options.fieldName,
-      linksKey,
-      embeddedKey,
-      requiredFields: options.requiredFields,
-    },
-    extractAcfContent,
-    options.resource
-      ? (client, id) => resolveContentReference(client, options.resource!, id).then(r => r!)
-      : undefined,
-  );
+  return createAcfSharedBucketRelation({
+    ...resolved,
+    multiple: options.multiple,
+    extractItem: extractAcfContent,
+    resolveMany: fallbackResolvers.resolveMany,
+    resolveOne: fallbackResolvers.resolveOne,
+  });
 }
 
 export function createAcfTaxonomyRelation(
@@ -324,34 +365,16 @@ export function createAcfTaxonomyRelation(
 export function createAcfTaxonomyRelation(
   options: AcfTaxonomyRelationOptions,
 ): CustomRelationConfig<AcfRelatedTerm[] | AcfRelatedTerm | null> {
-  const linksKey = options.linksKey ?? DEFAULT_ACF_TERMS_LINK_KEY;
-  const embeddedKey = options.embeddedKey ?? linksKey;
+  const resolved = resolveAcfRelationOptions(options, DEFAULT_ACF_TERMS_LINK_KEY);
+  const fallbackResolvers = createAcfTermFallbackResolvers(options.resource);
 
-  if (options.multiple) {
-    return createAcfContentCollectionRelation(
-      {
-        relationName: options.relationName,
-        fieldName: options.fieldName,
-        linksKey,
-        embeddedKey,
-        requiredFields: options.requiredFields,
-      },
-      extractAcfTerm,
-      (client, ids) => resolveTermReferences(client, options.resource, ids),
-    );
-  }
-
-  return createAcfContentSingleRelation(
-    {
-      relationName: options.relationName,
-      fieldName: options.fieldName,
-      linksKey,
-      embeddedKey,
-      requiredFields: options.requiredFields,
-    },
-    extractAcfTerm,
-    (client, id) => resolveTermReference(client, options.resource, id).then(r => r!),
-  );
+  return createAcfSharedBucketRelation({
+    ...resolved,
+    multiple: options.multiple,
+    extractItem: extractAcfTerm,
+    resolveMany: fallbackResolvers.resolveMany,
+    resolveOne: fallbackResolvers.resolveOne,
+  });
 }
 
 /**

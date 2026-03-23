@@ -274,5 +274,47 @@ describe('Client: WPAPI compatibility syntax', () => {
       expect(included.length).toBeGreaterThan(0);
       expect(included.map((r) => r.id)).toContain(firstId);
     });
+
+    it('handles single value include via WPAPI chain with bracket notation', async () => {
+      const all = (await publicClient
+        .search()
+        .search('001')
+        .get()) as Array<{ id: number }>;
+
+      expect(all.length).toBeGreaterThan(0);
+      const firstId = all[0]!.id;
+
+      // Single value should use bracket notation via .param() or .include()
+      const included = (await publicClient
+        .search()
+        .search('001')
+        .include(firstId) // single number
+        .get()) as Array<{ id: number }>;
+
+      expect(included.length).toBeGreaterThan(0);
+      expect(included.map((r) => r.id)).toContain(firstId);
+    });
+
+    it('handles single value exclude via WPAPI chain with bracket notation', async () => {
+      const all = (await publicClient
+        .search()
+        .search('001')
+        .get()) as Array<{ id: number }>;
+
+      expect(all.length).toBeGreaterThan(0);
+      const firstId = all[0]!.id;
+
+      // Single value should use bracket notation via .exclude()
+      const filtered = (await publicClient
+        .search()
+        .search('001')
+        .exclude(firstId) // single number
+        .get()) as Array<{ id: number }>;
+
+      // Should still return results, but without the excluded ID
+      if (filtered.length > 0) {
+        expect(filtered.map((r) => r.id)).not.toContain(firstId);
+      }
+    });
   });
 });

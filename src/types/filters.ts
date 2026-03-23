@@ -133,6 +133,6 @@ export interface SearchFilter extends PaginationParams {
   type?: 'post' | 'term' | 'post-format';
   subtype?: string | string[];
   context?: 'view' | 'embed';
-  include?: number[];
-  exclude?: number[];
+  include?: number | number[];
+  exclude?: number | number[];
 }

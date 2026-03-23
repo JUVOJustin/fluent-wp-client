@@ -155,6 +155,38 @@ describe('Client: Search', () => {
       expect(included.length).toBeGreaterThan(0);
       expect(included.map((r) => r.id)).toContain(firstId);
     });
+
+    it('handles single value include with bracket notation', async () => {
+      // Get a real ID first
+      const all = await publicClient.searchContent('001');
+      expect(all.length).toBeGreaterThan(0);
+      const firstId = all[0]!.id;
+
+      // Single value should use bracket notation (include[]=id)
+      const included = await publicClient.searchContent('001', {
+        include: firstId, // single number, not array
+      });
+
+      expect(included.length).toBeGreaterThan(0);
+      expect(included.map((r) => r.id)).toContain(firstId);
+    });
+
+    it('handles single value exclude with bracket notation', async () => {
+      // Get a real ID first
+      const all = await publicClient.searchContent('001');
+      expect(all.length).toBeGreaterThan(0);
+      const firstId = all[0]!.id;
+
+      // Single value should use bracket notation (exclude[]=id)
+      const filtered = await publicClient.searchContent('001', {
+        exclude: firstId, // single number, not array
+      });
+
+      // Should still return results, but without the excluded ID
+      if (filtered.length > 0) {
+        expect(filtered.map((r) => r.id)).not.toContain(firstId);
+      }
+    });
   });
 
   describe('search() WPAPI builder', () => {

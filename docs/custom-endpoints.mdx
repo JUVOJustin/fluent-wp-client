@@ -86,42 +86,30 @@ const created = await books.create({ title: 'Typed book', status: 'draft' });
 
 Passing a schema to `content(resource, schema)` validates generic CPT reads and mutations for that resource client.
 
-### Flexible CPT typing
+### Sparse and flexible CPTs
 
-Use `WordPressCustomPost<TExtra>` or `WordPressPostLike` for generic CPTs where WordPress supports may disable `title`, `content`, `excerpt`, or `author`.
-Use `WordPressPostBase` only when the custom post type is guaranteed to expose content-bearing fields.
+Use `WordPressCustomPost<TExtra>` or `WordPressPostLike` for CPTs where WordPress supports may disable `title`, `content`, `excerpt`, or `author`.
+Use `WordPressPostBase` only when the post type is guaranteed to expose content-bearing fields.
 
-```ts title="Flexible CPT typing"
+```ts title="Sparse CPT typing and validation"
 import type { WordPressCustomPost, WordPressPostBase } from 'fluent-wp-client';
+import { postLikeWordPressSchema } from 'fluent-wp-client';
 
 type Artifact = WordPressCustomPost<{
   type: 'artifact';
-  acf?: {
-    acf_subtitle?: string;
-  };
+  acf?: { acf_subtitle?: string };
 }>;
 
-type ContentBook = WordPressPostBase & {
-  type: 'book';
-};
+type ContentBook = WordPressPostBase & { type: 'book' };
 
-const artifacts = await wp.getContentCollection<Artifact>('artifacts');
-const firstArtifact = artifacts[0];
-```
-
-### Sparse CPTs without title or content support
-
-```ts title="Sparse CPT validation"
-import { postLikeWordPressSchema } from 'fluent-wp-client';
-
+// postLikeWordPressSchema tolerates absent title, content, and excerpt.
 const artifacts = wp.content('artifacts', postLikeWordPressSchema);
 const artifact = await artifacts.getBySlug('test-artifact-001');
 
 console.log(artifact?.acf?.acf_subtitle);
-console.log(artifact?.title); // undefined when the post type hides title support
 ```
 
-If you intentionally require content-bearing fields, pass a stricter schema such as `contentWordPressSchema`. Validation then fails fast when the endpoint omits `title`, `content`, or `excerpt`.
+To require content-bearing fields, pass `contentWordPressSchema` instead. Reads and mutations both fail fast when the endpoint omits `title`, `content`, or `excerpt`.
 
 ### Parse Gutenberg blocks for custom post types
 

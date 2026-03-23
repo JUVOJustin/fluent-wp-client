@@ -373,11 +373,35 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     responseSchema?: WordPressStandardSchema<TResource>,
   ): ContentResourceClient<TResource, TCreate, TUpdate> {
     return {
-      list: (filter = {}, options) => getContentCollection<TResource>(resource, filter as ExtensibleFilter<QueryParams>, options),
-      listAll: (filter = {}, options) => getAllContentCollection<TResource>(resource, filter as Omit<ExtensibleFilter<QueryParams>, 'page'>, options),
-      listPaginated: (filter = {}, options) => getContentCollectionPaginated<TResource>(resource, filter as ExtensibleFilter<QueryParams> & PaginationParams, options),
-      getById: (id, options) => getContent<TResource>(resource, id, options),
-      getBySlug: (slug, options) => getContentBySlug<TResource>(resource, slug, options),
+      list: async (filter = {}, options) => validateContentCollection(
+        await getContentCollection<unknown>(resource, filter as ExtensibleFilter<QueryParams>, options),
+        responseSchema,
+      ),
+      listAll: async (filter = {}, options) => validateContentCollection(
+        await getAllContentCollection<unknown>(resource, filter as Omit<ExtensibleFilter<QueryParams>, 'page'>, options),
+        responseSchema,
+      ),
+      listPaginated: async (filter = {}, options) => {
+        const result = await getContentCollectionPaginated<unknown>(resource, filter as ExtensibleFilter<QueryParams> & PaginationParams, options);
+
+        return {
+          ...result,
+          data: await validateContentCollection(result.data, responseSchema),
+        };
+      },
+      getById: async (id, options) => validateContentItem(
+        await getContent<unknown>(resource, id, options),
+        responseSchema,
+      ),
+      getBySlug: async (slug, options) => {
+        const item = await getContentBySlug<unknown>(resource, slug, options);
+
+        if (item === undefined) {
+          return undefined;
+        }
+
+        return validateContentItem(item, responseSchema);
+      },
       create: (input, options) => createContent<TResource, TCreate>(resource, input, responseSchema, options),
       update: (id, input, options) => updateContent<TResource, TUpdate>(resource, id, input, responseSchema, options),
       delete: (id, options) => deleteContent(resource, id, options),

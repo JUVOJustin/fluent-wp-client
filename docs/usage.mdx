@@ -369,25 +369,16 @@ Use the typed helper when the endpoint shape is known, and drop to `route().para
 
 ### Post-like typing
 
-Use `WordPressCustomPost<TExtra>` or `WordPressPostLike` for generic custom post types where WordPress supports may disable `title`, `content`, `excerpt`, or `author`.
-Use `WordPressPostBase` only when the endpoint is guaranteed to expose content-bearing post fields.
+Use `WordPressCustomPost<TExtra>` or `WordPressPostLike` for CPTs where WordPress supports may disable `title`, `content`, `excerpt`, or `author`. Use `WordPressPostBase` only when the post type is guaranteed to expose content-bearing fields.
 
 ```ts
-import type { WordPressCustomPost, WordPressPostBase, WordPressPostLike } from 'fluent-wp-client';
+import type { WordPressCustomPost, WordPressPostBase } from 'fluent-wp-client';
 
-type Artifact = WordPressCustomPost<{
-  type: 'artifact';
-  acf?: {
-    acf_subtitle?: string;
-  };
-}>;
+// Sparse CPT — title, content, and excerpt are optional.
+type Artifact = WordPressCustomPost<{ type: 'artifact' }>;
 
-type GenericCpt = WordPressPostLike;
-
-type ContentBook = WordPressPostBase & {
-  type: 'book';
-  book_genre?: string;
-};
+// Content-bearing CPT — title, content, and excerpt are required.
+type ContentBook = WordPressPostBase & { type: 'book' };
 ```
 
 ### Mutation helpers

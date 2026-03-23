@@ -5,19 +5,22 @@ import {
   contentWordPressSchema,
   postLikeWordPressSchema,
 } from 'fluent-wp-client';
-import { createPublicClient } from '../helpers/wp-client';
+import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
  * Seed data: 3 sparse artifacts registered through the `artifact` custom post type.
  *
- * This suite verifies that generic content reads default to the flexible
- * post-like schema when a custom post type disables title and editor support.
+ * Verifies that generic content reads default to the flexible post-like schema
+ * when a CPT disables title and editor support, and that strict schemas fail
+ * fast on both reads and mutations.
  */
 describe('Client: Artifacts', () => {
   let publicClient: WordPressClient;
+  let authClient: WordPressClient;
 
   beforeAll(() => {
     publicClient = createPublicClient();
+    authClient = createAuthClient();
   });
 
   describe('reads', () => {
@@ -27,14 +30,14 @@ describe('Client: Artifacts', () => {
       expect(Array.isArray(artifacts)).toBe(true);
       expect(artifacts).toHaveLength(3);
 
-      const firstArtifact = artifacts[0];
+      const first = artifacts[0];
 
-      expect(firstArtifact?.type).toBe('artifact');
-      expect(firstArtifact).not.toHaveProperty('title');
-      expect(firstArtifact).not.toHaveProperty('content');
-      expect(firstArtifact).not.toHaveProperty('excerpt');
-      expect(firstArtifact).not.toHaveProperty('author');
-      expect(firstArtifact).toHaveProperty('acf.acf_subtitle');
+      expect(first?.type).toBe('artifact');
+      expect(first).not.toHaveProperty('title');
+      expect(first).not.toHaveProperty('content');
+      expect(first).not.toHaveProperty('excerpt');
+      expect(first).not.toHaveProperty('author');
+      expect(first).toHaveProperty('acf.acf_subtitle');
     });
 
     it('getContentBySlug fetches one known sparse artifact', async () => {
@@ -60,16 +63,26 @@ describe('Client: Artifacts', () => {
       expect(artifact).toHaveProperty('acf.acf_subtitle', 'Subtitle for test artifact 001');
     });
 
-    it('content() throws a validation error when content-bearing fields are required', async () => {
+    it('content() throws a validation error on reads when a strict content schema is used', async () => {
       const artifacts = publicClient.content('artifacts', contentWordPressSchema);
 
-      try {
-        await artifacts.getBySlug('test-artifact-001');
-        throw new Error('Expected sparse artifact validation to fail.');
-      } catch (error) {
-        expect(error).toBeInstanceOf(WordPressSchemaValidationError);
-        expect((error as Error).message).toMatch(/title|author|content|excerpt/i);
-      }
+      await expect(
+        artifacts.getBySlug('test-artifact-001'),
+      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
+    });
+  });
+
+  describe('mutations', () => {
+    it('content() throws a validation error on update when a strict content schema is used', async () => {
+      const artifact = await publicClient.getContentBySlug('artifacts', 'test-artifact-001');
+      expect(artifact).toBeDefined();
+
+      const strictArtifacts = authClient.content('artifacts', contentWordPressSchema);
+
+      // The HTTP PATCH succeeds but the sparse response fails contentWordPressSchema validation.
+      await expect(
+        strictArtifacts.update(artifact!.id, { status: 'publish' }),
+      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
     });
   });
 });

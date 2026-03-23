@@ -632,23 +632,17 @@ Each result has the shape `{ id, title, url, type, subtype }`.
 
 ### WPAPI chain search
 
-The `search()` chain starter provides the same features through the fluent builder:
+The `search(query)` starter provides the same features through the fluent builder. Pass the query directly to the starter — a separate chained `.search()` call is not needed:
 
 ```ts
 // Basic search
-const results = await wp.search().search('hello').perPage(5).get();
+const results = await wp.search('hello').perPage(5).get();
 
 // Filter by type and single subtype
-const pages = await wp
-  .search()
-  .search('about')
-  .param('type', 'post')
-  .subtype('page')
-  .get();
+const pages = await wp.search('about').param('type', 'post').subtype('page').get();
 
 // Filter by multiple subtypes — bracket notation is handled automatically
 const mixed = await wp
-  .search()
   .search('test')
   .param('type', 'post')
   .subtype(['post', 'page', 'book'])
@@ -657,7 +651,6 @@ const mixed = await wp
 
 // Use context, include, and exclude
 const withContext = await wp
-  .search()
   .search('hello')
   .context('embed')
   .include([5, 15])
@@ -680,7 +673,7 @@ const withContext = await wp
 - `types()`
 - `taxonomies()`
 - `statuses()`
-- `search()`
+- `search(query?)`
 - `blocks()`
 
 ### Chain query methods

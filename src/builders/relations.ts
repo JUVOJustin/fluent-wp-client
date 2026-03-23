@@ -1,15 +1,22 @@
 import type {
   WordPressAuthor,
   WordPressCategory,
+  WordPressContent,
   WordPressMedia,
   WordPressPost,
   WordPressTag,
 } from '../schemas.js';
+import type { QueryParams } from '../types/resources.js';
 
 /**
  * Supported relation names for fluent post hydration.
  */
 export type PostRelation = 'author' | 'categories' | 'tags' | 'terms' | 'featuredMedia';
+
+/**
+ * Shared term shape used for taxonomy maps.
+ */
+type WordPressTermLike = WordPressCategory | WordPressTag;
 
 /**
  * Client surface required by the post relation hydrator.
@@ -22,6 +29,10 @@ export interface PostRelationClient {
   getCategories: (filter?: { include?: number[] }) => Promise<WordPressCategory[]>;
   getTags: (filter?: { include?: number[] }) => Promise<WordPressTag[]>;
   getMediaItem: (id: number) => Promise<WordPressMedia>;
+  getTermCollection?: <TTerm = WordPressCategory>(
+    resource: string,
+    filter?: QueryParams,
+  ) => Promise<TTerm[]>;
 }
 
 /**
@@ -34,6 +45,7 @@ interface PostRelationMap {
   terms: {
     categories: WordPressCategory[];
     tags: WordPressTag[];
+    taxonomies: Record<string, WordPressTermLike[]>;
   };
   featuredMedia: WordPressMedia | null;
 }
@@ -67,7 +79,7 @@ export type SelectedPostRelations<TRelations extends readonly PostRelation[]> = 
 /**
  * Resolves embedded author data when available.
  */
-function getEmbeddedAuthor(post: WordPressPost): WordPressAuthor | null {
+function getEmbeddedAuthor(post: WordPressContent): WordPressAuthor | null {
   const embedded = (post as { _embedded?: Record<string, unknown> })._embedded;
   const authors = embedded?.author;
 
@@ -99,7 +111,7 @@ async function resolveAuthor(client: PostRelationClient, authorId: number): Prom
 /**
  * Resolves embedded featured media data when available.
  */
-function getEmbeddedFeaturedMedia(post: WordPressPost): WordPressMedia | null {
+function getEmbeddedFeaturedMedia(post: WordPressContent): WordPressMedia | null {
   const embedded = (post as { _embedded?: Record<string, unknown> })._embedded;
   const media = embedded?.['wp:featuredmedia'];
 
@@ -111,11 +123,25 @@ function getEmbeddedFeaturedMedia(post: WordPressPost): WordPressMedia | null {
 }
 
 /**
+ * Reads one numeric relation ID array from a content record.
+ */
+function getContentRelationIds(content: WordPressContent, field: string): number[] {
+  const value = (content as Record<string, unknown>)[field];
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((id): id is number => typeof id === 'number' && id > 0);
+}
+
+/**
  * Resolves embedded taxonomy terms by taxonomy name.
  */
-function getEmbeddedTerms(post: WordPressPost): {
+function getEmbeddedTerms(post: WordPressContent): {
   categories: WordPressCategory[];
   tags: WordPressTag[];
+  taxonomies: Record<string, WordPressTermLike[]>;
 } {
   const embedded = (post as { _embedded?: Record<string, unknown> })._embedded;
   const termGroups = embedded?.['wp:term'];
@@ -124,11 +150,13 @@ function getEmbeddedTerms(post: WordPressPost): {
     return {
       categories: [],
       tags: [],
+      taxonomies: {},
     };
   }
 
   const categories: WordPressCategory[] = [];
   const tags: WordPressTag[] = [];
+  const taxonomies: Record<string, WordPressTermLike[]> = {};
 
   for (const group of termGroups) {
     if (!Array.isArray(group)) {
@@ -136,6 +164,16 @@ function getEmbeddedTerms(post: WordPressPost): {
     }
 
     for (const term of group as Array<Record<string, unknown>>) {
+      if (typeof term.taxonomy !== 'string' || typeof term.id !== 'number') {
+        continue;
+      }
+
+      if (!taxonomies[term.taxonomy]) {
+        taxonomies[term.taxonomy] = [];
+      }
+
+      taxonomies[term.taxonomy].push(term as WordPressTermLike);
+
       if (term.taxonomy === 'category') {
         categories.push(term as WordPressCategory);
       }
@@ -149,18 +187,103 @@ function getEmbeddedTerms(post: WordPressPost): {
   return {
     categories,
     tags,
+    taxonomies,
   };
 }
 
+interface LinkedTermResource {
+  taxonomy: string;
+  resource: string;
+}
+
 /**
- * Fluent builder that hydrates one post and selected related entities.
+ * Resolves taxonomy resources from `_links['wp:term']`.
  */
-export class PostRelationQueryBuilder<TRelations extends readonly PostRelation[] = []> {
+function getLinkedTermResources(post: WordPressContent): LinkedTermResource[] {
+  const links = (post as { _links?: Record<string, unknown> })._links?.['wp:term'];
+
+  if (!Array.isArray(links)) {
+    return [];
+  }
+
+  const resources = new Map<string, LinkedTermResource>();
+
+  for (const link of links as Array<Record<string, unknown>>) {
+    if (typeof link.taxonomy !== 'string' || typeof link.href !== 'string') {
+      continue;
+    }
+
+    let resource: string | undefined;
+
+    try {
+      resource = new URL(link.href).pathname.split('/').filter(Boolean).pop();
+    } catch {
+      resource = undefined;
+    }
+
+    if (!resource) {
+      continue;
+    }
+
+    resources.set(link.taxonomy, {
+      taxonomy: link.taxonomy,
+      resource,
+    });
+  }
+
+  return Array.from(resources.values());
+}
+
+/**
+ * Resolves missing taxonomy groups from linked term resources.
+ */
+async function resolveLinkedTerms(
+  client: PostRelationClient,
+  post: WordPressContent,
+  existingTaxonomies: Record<string, WordPressTermLike[]>,
+): Promise<Record<string, WordPressTermLike[]>> {
+  if (!client.getTermCollection) {
+    return {};
+  }
+
+  const linkedResources = getLinkedTermResources(post)
+    .filter((entry) => !existingTaxonomies[entry.taxonomy] || existingTaxonomies[entry.taxonomy].length === 0);
+
+  if (linkedResources.length === 0) {
+    return {};
+  }
+
+  const resolved: Record<string, WordPressTermLike[]> = {};
+
+  for (const entry of linkedResources) {
+    try {
+      const terms = await client.getTermCollection<WordPressCategory>(entry.resource, {
+        post: post.id,
+        perPage: 100,
+      });
+      resolved[entry.taxonomy] = terms;
+    } catch {
+      continue;
+    }
+  }
+
+  return resolved;
+}
+
+/**
+ * Fluent builder that hydrates one post-like content record and selected related entities.
+ */
+export class PostRelationQueryBuilder<
+  TRelations extends readonly PostRelation[] = [],
+  TContent extends WordPressContent = WordPressPost,
+> {
   private readonly relationSet: Set<PostRelation>;
 
   constructor(
     private readonly client: PostRelationClient,
     private readonly selector: { id?: number; slug?: string },
+    private readonly getById: (id: number) => PromiseLike<TContent>,
+    private readonly getBySlug: (slug: string) => PromiseLike<TContent | undefined>,
     relations: readonly PostRelation[] = [],
   ) {
     this.relationSet = new Set(relations);
@@ -171,7 +294,7 @@ export class PostRelationQueryBuilder<TRelations extends readonly PostRelation[]
    */
   with<TNext extends readonly PostRelation[]>(
     ...relations: TNext
-  ): PostRelationQueryBuilder<[...TRelations, ...TNext]> {
+  ): PostRelationQueryBuilder<[...TRelations, ...TNext], TContent> {
     const nextRelations = new Set(this.relationSet);
 
     for (const relation of relations) {
@@ -181,22 +304,24 @@ export class PostRelationQueryBuilder<TRelations extends readonly PostRelation[]
     return new PostRelationQueryBuilder(
       this.client,
       this.selector,
+      this.getById,
+      this.getBySlug,
       Array.from(nextRelations),
-    ) as PostRelationQueryBuilder<[...TRelations, ...TNext]>;
+    ) as PostRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
   }
 
   /**
-   * Fetches the selected post and resolves requested relations.
+   * Fetches the selected post-like content item and resolves requested relations.
    */
-  async get(): Promise<WordPressPost & { related: SelectedPostRelations<TRelations> }> {
-    let post: WordPressPost | undefined;
+  async get(): Promise<TContent & { related: SelectedPostRelations<TRelations> }> {
+    let post: TContent | undefined;
 
     if (typeof this.selector.id === 'number') {
-      post = await this.client.getPost(this.selector.id);
+      post = await this.getById(this.selector.id);
     }
 
     if (!post && typeof this.selector.slug === 'string') {
-      post = await this.client.getPostBySlug(this.selector.slug);
+      post = await this.getBySlug(this.selector.slug);
     }
 
     if (!post) {
@@ -229,13 +354,38 @@ export class PostRelationQueryBuilder<TRelations extends readonly PostRelation[]
     const embeddedTerms = getEmbeddedTerms(post);
     let categories = embeddedTerms.categories;
     let tags = embeddedTerms.tags;
+    let taxonomies = { ...embeddedTerms.taxonomies };
 
-    if (requestedCategories && categories.length === 0 && Array.isArray(post.categories) && post.categories.length > 0) {
-      categories = await this.client.getCategories({ include: post.categories }).catch(() => []);
+    const categoryIds = getContentRelationIds(post, 'categories');
+    const tagIds = getContentRelationIds(post, 'tags');
+
+    if (requestedCategories && categories.length === 0 && categoryIds.length > 0) {
+      categories = await this.client.getCategories({ include: categoryIds }).catch(() => []);
     }
 
-    if (requestedTags && tags.length === 0 && Array.isArray(post.tags) && post.tags.length > 0) {
-      tags = await this.client.getTags({ include: post.tags }).catch(() => []);
+    if (requestedTags && tags.length === 0 && tagIds.length > 0) {
+      tags = await this.client.getTags({ include: tagIds }).catch(() => []);
+    }
+
+    if (categories.length > 0) {
+      taxonomies = {
+        ...taxonomies,
+        category: categories,
+      };
+    }
+
+    if (tags.length > 0) {
+      taxonomies = {
+        ...taxonomies,
+        post_tag: tags,
+      };
+    }
+
+    if (requestedTerms) {
+      taxonomies = {
+        ...taxonomies,
+        ...await resolveLinkedTerms(this.client, post, taxonomies),
+      };
     }
 
     if (this.relationSet.has('categories')) {
@@ -247,7 +397,7 @@ export class PostRelationQueryBuilder<TRelations extends readonly PostRelation[]
     }
 
     if (requestedTerms) {
-      related.terms = { categories, tags };
+      related.terms = { categories, tags, taxonomies };
     }
 
     return {

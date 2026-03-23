@@ -1,5 +1,7 @@
 import type { DeleteOptions, WordPressWritePayload } from './payloads.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
+import type { PostRelation, PostRelationQueryBuilder, SelectedPostRelations } from '../builders/relations.js';
+import type { WordPressContent } from '../schemas.js';
 
 /**
  * Primitive value supported for query-string conversion.
@@ -60,12 +62,21 @@ export interface WordPressDeleteResult {
 /**
  * Generic content resource API surface for custom post type usage.
  */
-export interface ContentResourceClient<TResource, TCreate extends WordPressWritePayload, TUpdate extends WordPressWritePayload> {
+export interface ContentResourceClient<
+  TResource extends WordPressContent,
+  TCreate extends WordPressWritePayload,
+  TUpdate extends WordPressWritePayload,
+> {
   list: (filter?: QueryParams, options?: WordPressRequestOverrides) => Promise<TResource[]>;
   listAll: (filter?: Omit<QueryParams, 'page'>, options?: WordPressRequestOverrides) => Promise<TResource[]>;
   listPaginated: (filter?: QueryParams & PaginationParams, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
   getById: (id: number, options?: WordPressRequestOverrides) => Promise<TResource>;
   getBySlug: (slug: string, options?: WordPressRequestOverrides) => Promise<TResource | undefined>;
+  item: (idOrSlug: number | string) => PostRelationQueryBuilder<[], TResource>;
+  getWithRelations: <TRelations extends readonly PostRelation[]>(
+    idOrSlug: number | string,
+    ...relations: TRelations
+  ) => Promise<TResource & { related: SelectedPostRelations<TRelations> }>;
   create: (input: TCreate, options?: WordPressRequestOverrides) => Promise<TResource>;
   update: (id: number, input: TUpdate, options?: WordPressRequestOverrides) => Promise<TResource>;
   delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;

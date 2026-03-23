@@ -4,6 +4,12 @@ import type { WordPressStandardSchema } from '../core/validation.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { createWordPressPaginator } from '../core/pagination.js';
 import { compactPayload, filterToParams } from '../core/params.js';
+import {
+  PostRelationQueryBuilder,
+  type PostRelation,
+  type PostRelationClient,
+  type SelectedPostRelations,
+} from '../builders/relations.js';
 import type {
   ContentResourceClient,
   FetchResult,
@@ -27,6 +33,7 @@ export interface ContentTermMethodDependencies {
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
   request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
   executeMutation: <T>(options: WordPressRequestOptions, responseSchema?: WordPressStandardSchema<T>) => Promise<T>;
+  relationClient: PostRelationClient;
 }
 
 /**
@@ -330,7 +337,7 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
    * Builds one typed generic content resource client.
    */
   function content<
-    TResource = WordPressContent,
+    TResource extends WordPressContent = WordPressContent,
     TCreate extends WordPressWritePayload = WordPressWritePayload,
     TUpdate extends WordPressWritePayload = TCreate,
   >(
@@ -343,6 +350,25 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
       listPaginated: (filter = {}, options) => getContentCollectionPaginated<TResource>(resource, filter, options),
       getById: (id, options) => getContent<TResource>(resource, id, options),
       getBySlug: (slug, options) => getContentBySlug<TResource>(resource, slug, options),
+      item: (idOrSlug) => new PostRelationQueryBuilder(
+        dependencies.relationClient,
+        typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
+        (id) => getContent<TResource>(resource, id),
+        (slug) => getContentBySlug<TResource>(resource, slug),
+      ),
+      getWithRelations: async <TRelations extends readonly PostRelation[]>(
+        idOrSlug: number | string,
+        ...relations: TRelations
+      ): Promise<TResource & { related: SelectedPostRelations<TRelations> }> => {
+        const query = new PostRelationQueryBuilder<TRelations, TResource>(
+          dependencies.relationClient,
+          typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
+          (id) => getContent<TResource>(resource, id),
+          (slug) => getContentBySlug<TResource>(resource, slug),
+          relations,
+        );
+        return query.get() as Promise<TResource & { related: SelectedPostRelations<TRelations> }>;
+      },
       create: (input, options) => createContent<TResource, TCreate>(resource, input, responseSchema, options),
       update: (id, input, options) => updateContent<TResource, TUpdate>(resource, id, input, responseSchema, options),
       delete: (id, options) => deleteContent(resource, id, options),

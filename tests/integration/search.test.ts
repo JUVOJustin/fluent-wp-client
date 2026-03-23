@@ -184,10 +184,7 @@ describe('Client: Search', () => {
 
   describe('search() WPAPI builder', () => {
     it('returns results via the WPAPI-style search chain', async () => {
-      const results = await publicClient
-        .search()
-        .search('001')
-        .get();
+      const results = await publicClient.search('001').get();
 
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBeGreaterThan(0);
@@ -198,12 +195,7 @@ describe('Client: Search', () => {
     });
 
     it('supports perPage via the WPAPI chain', async () => {
-      // Search for "Test Post" (with space) to match post titles
-      const results = await publicClient
-        .search()
-        .search('Test Post')
-        .perPage(2)
-        .get();
+      const results = await publicClient.search('Test Post').perPage(2).get();
 
       expect(Array.isArray(results)).toBe(true);
       expect(results).toHaveLength(2);

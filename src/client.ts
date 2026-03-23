@@ -1364,9 +1364,13 @@ export class WordPressClient {
 
   /**
    * Starts one WPAPI-style search request chain.
+   *
+   * When `query` is provided it is set as the `search` parameter immediately,
+   * so `.search('test').get()` works without a redundant chained `.search()` call.
    */
-  search(): WordPressRequestBuilder<WordPressSearchResult[]> {
-    return this.route('search');
+  search(query?: string): WordPressRequestBuilder<WordPressSearchResult[]> {
+    const builder = this.route('search') as WordPressRequestBuilder<WordPressSearchResult[]>;
+    return query !== undefined ? builder.search(query) : builder;
   }
 
   /**

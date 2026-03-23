@@ -1,41 +1,43 @@
 import type { WordPressTag } from '../schemas.js';
-import type { WordPressRequestOverrides } from '../client-types.js';
+import type { WordPressRequestOverrides } from '../types/resources.js';
 import type { TagsFilter } from '../types/filters.js';
-import type { ExtensibleFilter, FetchResult, PaginatedResponse, SerializedQueryParams } from '../types/resources.js';
-import { createCollectionReadMethods } from '../core/collection-read-methods.js';
+import type { ExtensibleFilter, FetchResult, SerializedQueryParams } from '../types/resources.js';
+import type { TermWriteInput } from '../types/payloads.js';
+import type { WordPressStandardSchema } from '../core/validation.js';
+import { tagSchema } from '../standard-schemas.js';
+import {
+  createCollectionResourceFactory,
+  createCollectionCrudFactory,
+  type ResourceDependencies,
+  type CrudMethods,
+} from '../core/resource-factories.js';
 
 /**
- * Tags API methods factory for typed read operations.
+ * Tag methods including read operations and CRUD.
  */
-export function createTagsMethods(
-  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
-) {
-  const core = createCollectionReadMethods<WordPressTag, ExtensibleFilter<TagsFilter>>({
-    endpoint: '/tags',
-    fetchAPI,
-    fetchAPIPaginated,
-  });
+export interface TagMethods extends CrudMethods<WordPressTag, TermWriteInput> {
+  getTags: (filter?: ExtensibleFilter<TagsFilter>, options?: WordPressRequestOverrides) => Promise<WordPressTag[]>;
+  getAllTags: (filter?: Omit<ExtensibleFilter<TagsFilter>, 'page'>, options?: WordPressRequestOverrides) => Promise<WordPressTag[]>;
+  getTagsPaginated: (filter?: ExtensibleFilter<TagsFilter>, options?: WordPressRequestOverrides) => Promise<import('../types/resources.js').PaginatedResponse<WordPressTag>>;
+  getTag: (id: number, options?: WordPressRequestOverrides) => Promise<WordPressTag>;
+  getTagBySlug: (slug: string, options?: WordPressRequestOverrides) => Promise<WordPressTag | undefined>;
+}
+
+/**
+ * Creates all tag resource methods (read + CRUD).
+ */
+export function createTagsResource(deps: ResourceDependencies): TagMethods {
+  const readCore = createCollectionResourceFactory<WordPressTag, ExtensibleFilter<TagsFilter>>('/tags')(deps.fetchAPI, deps.fetchAPIPaginated);
+  const crudCore = createCollectionCrudFactory<WordPressTag, TermWriteInput>('/tags', tagSchema as WordPressStandardSchema<WordPressTag>)(deps);
 
   return {
-    /** Gets tags with optional filtering. */
-    getTags: (filter?: ExtensibleFilter<TagsFilter>, options?: WordPressRequestOverrides): Promise<WordPressTag[]> =>
-      core.list(filter, options),
-
-    /** Gets all tags by paginating every page. */
-    getAllTags: (filter?: Omit<ExtensibleFilter<TagsFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressTag[]> =>
-      core.listAll(filter, options),
-
-    /** Gets tags with pagination metadata. */
-    getTagsPaginated: (filter?: ExtensibleFilter<TagsFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressTag>> =>
-      core.listPaginated(filter, options),
-
-    /** Gets one tag by ID. */
-    getTag: (id: number, options?: WordPressRequestOverrides): Promise<WordPressTag> =>
-      core.getById(id, options),
-
-    /** Gets one tag by slug. */
-    getTagBySlug: (slug: string, options?: WordPressRequestOverrides): Promise<WordPressTag | undefined> =>
-      core.getBySlug(slug, options),
+    getTags: readCore.list,
+    getAllTags: readCore.listAll,
+    getTagsPaginated: readCore.listPaginated,
+    getTag: readCore.getById,
+    getTagBySlug: readCore.getBySlug,
+    create: crudCore.create,
+    update: crudCore.update,
+    delete: crudCore.delete,
   };
 }

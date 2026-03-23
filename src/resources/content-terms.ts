@@ -1,5 +1,6 @@
 import type { WordPressCategory, WordPressPostLike } from '../schemas.js';
-import type { WordPressRequestOptions, WordPressRequestOverrides, WordPressRequestResult } from '../client-types.js';
+import type { WordPressRequestOptions, WordPressRequestResult } from '../types/client.js';
+import type { WordPressRequestOverrides } from '../types/resources.js';
 import { validateWithStandardSchema, type WordPressStandardSchema } from '../core/validation.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { createWordPressPaginator } from '../core/pagination.js';

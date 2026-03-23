@@ -1,6 +1,6 @@
 import { throwIfWordPressError } from '../core/errors.js';
 import { assertNoAuthHeaderOverrides } from '../core/request-overrides.js';
-import type { WordPressRequestOptions, WordPressRequestResult } from '../client-types.js';
+import type { WordPressRequestOptions, WordPressRequestResult } from '../types/client.js';
 
 /**
  * Runtime hooks used by the WPAPI-style request builder.

@@ -1,7 +1,7 @@
 import type { WordPressBlockParser } from './blocks.js';
 import { WordPressContentQuery } from './content-query.js';
 import type { WordPressPostBase } from './schemas.js';
-import type { WordPressRequestOverrides } from './client-types.js';
+import type { WordPressRequestOverrides } from './types/resources.js';
 import { filterToParams } from './core/params.js';
 import type { FetchResult, PaginatedResponse, PaginationParams, QueryParams, SerializedQueryParams } from './types/resources.js';
 import { createWordPressPaginator } from './core/pagination.js';

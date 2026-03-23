@@ -1,4 +1,5 @@
-import type { WordPressRequestOptions, WordPressRequestOverrides } from '../client-types.js';
+import type { WordPressRequestOptions } from '../types/client.js';
+import type { WordPressRequestOverrides } from '../types/resources.js';
 
 const AUTH_OVERRIDE_HEADER_NAMES = new Set([
   'authorization',

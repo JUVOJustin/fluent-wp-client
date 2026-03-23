@@ -3,21 +3,27 @@
  */
 export {
   WordPressClient,
-  type WordPressClientConfig,
-  type WordPressRequestOptions,
-  type WordPressRequestOverrides,
-  type WordPressRequestResult,
-  type WordPressMediaUploadInput,
   type WordPressNamespaceClient,
-  type CategoriesFilter,
-  type CommentsFilter,
-  type MediaFilter,
-  type PagesFilter,
-  type PostsFilter,
-  type SearchFilter,
-  type TagsFilter,
-  type UsersFilter,
 } from './client.js';
+
+export type {
+  WordPressClientConfig,
+  WordPressRequestOptions,
+  WordPressRequestOverrides,
+  WordPressRequestResult,
+  WordPressMediaUploadInput,
+} from './types.js';
+
+export type {
+  CategoriesFilter,
+  CommentsFilter,
+  MediaFilter,
+  PagesFilter,
+  PostsFilter,
+  SearchFilter,
+  TagsFilter,
+  UsersFilter,
+} from './types/filters.js';
 
 export {
   WordPressAbilityBuilder,

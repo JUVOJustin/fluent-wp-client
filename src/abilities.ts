@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { WordPressRequestOptions, WordPressRequestOverrides, WordPressRequestResult } from './client-types.js';
+import type { WordPressRequestOptions, WordPressRequestResult } from './types/client.js';
+import type { WordPressRequestOverrides } from './types/resources.js';
 import { throwIfWordPressError } from './core/errors.js';
 import { applyRequestOverrides } from './core/request-overrides.js';
 import {

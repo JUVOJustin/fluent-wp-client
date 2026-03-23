@@ -18,17 +18,17 @@ import type {
   WordPressClientConfig,
   WordPressMediaUploadInput,
   WordPressRequestOptions,
-  WordPressRequestOverrides,
   WordPressRequestResult,
-} from './client-types.js';
-import { createPostsMethods } from './resources/posts.js';
-import { createPagesMethods } from './resources/pages.js';
-import { createMediaMethods } from './resources/media.js';
-import { createCategoriesMethods } from './resources/categories.js';
-import { createTagsMethods } from './resources/tags.js';
-import { createUsersMethods } from './resources/users.js';
+} from './types/client.js';
+import type { WordPressRequestOverrides } from './types/resources.js';
+import { createPostsResource } from './resources/posts.js';
+import { createPagesResource } from './resources/pages.js';
+import { createMediaResource } from './resources/media.js';
+import { createCategoriesResource } from './resources/categories.js';
+import { createTagsResource } from './resources/tags.js';
+import { createUsersResource } from './resources/users.js';
 import { createSettingsMethods } from './resources/settings.js';
-import { createCommentsMethods } from './resources/comments.js';
+import { createCommentsResource } from './resources/comments.js';
 import { createContentTermMethods } from './resources/content-terms.js';
 import { throwIfWordPressError } from './core/errors.js';
 import {
@@ -94,14 +94,6 @@ import type {
   WordPressDeleteResult,
 } from './types/resources.js';
 
-export type {
-  WordPressClientConfig,
-  WordPressRequestOptions,
-  WordPressRequestOverrides,
-  WordPressRequestResult,
-  WordPressMediaUploadInput,
-} from './client-types.js';
-
 /**
  * Namespace-scoped request factory for WPAPI-style route chaining.
  */
@@ -137,56 +129,78 @@ export class WordPressClient {
   private readonly fetcher: typeof fetch | undefined;
 
   // Posts methods
-  public getPosts: ReturnType<typeof createPostsMethods>['getPosts'];
-  public getAllPosts: ReturnType<typeof createPostsMethods>['getAllPosts'];
-  public getPostsPaginated: ReturnType<typeof createPostsMethods>['getPostsPaginated'];
-  public getPost: ReturnType<typeof createPostsMethods>['getPost'];
-  public getPostBySlug: ReturnType<typeof createPostsMethods>['getPostBySlug'];
+  public getPosts: ReturnType<typeof createPostsResource>['getPosts'];
+  public getAllPosts: ReturnType<typeof createPostsResource>['getAllPosts'];
+  public getPostsPaginated: ReturnType<typeof createPostsResource>['getPostsPaginated'];
+  public getPost: ReturnType<typeof createPostsResource>['getPost'];
+  public getPostBySlug: ReturnType<typeof createPostsResource>['getPostBySlug'];
+  public createPost: ReturnType<typeof createPostsResource>['create'];
+  public updatePost: ReturnType<typeof createPostsResource>['update'];
+  public deletePost: ReturnType<typeof createPostsResource>['delete'];
 
   // Pages methods
-  public getPages: ReturnType<typeof createPagesMethods>['getPages'];
-  public getAllPages: ReturnType<typeof createPagesMethods>['getAllPages'];
-  public getPagesPaginated: ReturnType<typeof createPagesMethods>['getPagesPaginated'];
-  public getPage: ReturnType<typeof createPagesMethods>['getPage'];
-  public getPageBySlug: ReturnType<typeof createPagesMethods>['getPageBySlug'];
+  public getPages: ReturnType<typeof createPagesResource>['getPages'];
+  public getAllPages: ReturnType<typeof createPagesResource>['getAllPages'];
+  public getPagesPaginated: ReturnType<typeof createPagesResource>['getPagesPaginated'];
+  public getPage: ReturnType<typeof createPagesResource>['getPage'];
+  public getPageBySlug: ReturnType<typeof createPagesResource>['getPageBySlug'];
+  public createPage: ReturnType<typeof createPagesResource>['create'];
+  public updatePage: ReturnType<typeof createPagesResource>['update'];
+  public deletePage: ReturnType<typeof createPagesResource>['delete'];
 
   // Media methods
-  public getMedia: ReturnType<typeof createMediaMethods>['getMedia'];
-  public getAllMedia: ReturnType<typeof createMediaMethods>['getAllMedia'];
-  public getMediaPaginated: ReturnType<typeof createMediaMethods>['getMediaPaginated'];
-  public getMediaItem: ReturnType<typeof createMediaMethods>['getMediaItem'];
-  public getMediaBySlug: ReturnType<typeof createMediaMethods>['getMediaBySlug'];
-  public getImageUrl: ReturnType<typeof createMediaMethods>['getImageUrl'];
+  public getMedia: ReturnType<typeof createMediaResource>['getMedia'];
+  public getAllMedia: ReturnType<typeof createMediaResource>['getAllMedia'];
+  public getMediaPaginated: ReturnType<typeof createMediaResource>['getMediaPaginated'];
+  public getMediaItem: ReturnType<typeof createMediaResource>['getMediaItem'];
+  public getMediaBySlug: ReturnType<typeof createMediaResource>['getMediaBySlug'];
+  public getImageUrl: ReturnType<typeof createMediaResource>['getImageUrl'];
+  public createMedia: ReturnType<typeof createMediaResource>['create'];
+  public uploadMedia: ReturnType<typeof createMediaResource>['upload'];
+  public updateMedia: ReturnType<typeof createMediaResource>['update'];
+  public deleteMedia: ReturnType<typeof createMediaResource>['delete'];
 
   // Categories methods
-  public getCategories: ReturnType<typeof createCategoriesMethods>['getCategories'];
-  public getAllCategories: ReturnType<typeof createCategoriesMethods>['getAllCategories'];
-  public getCategoriesPaginated: ReturnType<typeof createCategoriesMethods>['getCategoriesPaginated'];
-  public getCategory: ReturnType<typeof createCategoriesMethods>['getCategory'];
-  public getCategoryBySlug: ReturnType<typeof createCategoriesMethods>['getCategoryBySlug'];
+  public getCategories: ReturnType<typeof createCategoriesResource>['getCategories'];
+  public getAllCategories: ReturnType<typeof createCategoriesResource>['getAllCategories'];
+  public getCategoriesPaginated: ReturnType<typeof createCategoriesResource>['getCategoriesPaginated'];
+  public getCategory: ReturnType<typeof createCategoriesResource>['getCategory'];
+  public getCategoryBySlug: ReturnType<typeof createCategoriesResource>['getCategoryBySlug'];
+  public createCategory: ReturnType<typeof createCategoriesResource>['create'];
+  public updateCategory: ReturnType<typeof createCategoriesResource>['update'];
+  public deleteCategory: ReturnType<typeof createCategoriesResource>['delete'];
 
   // Tags methods
-  public getTags: ReturnType<typeof createTagsMethods>['getTags'];
-  public getAllTags: ReturnType<typeof createTagsMethods>['getAllTags'];
-  public getTagsPaginated: ReturnType<typeof createTagsMethods>['getTagsPaginated'];
-  public getTag: ReturnType<typeof createTagsMethods>['getTag'];
-  public getTagBySlug: ReturnType<typeof createTagsMethods>['getTagBySlug'];
+  public getTags: ReturnType<typeof createTagsResource>['getTags'];
+  public getAllTags: ReturnType<typeof createTagsResource>['getAllTags'];
+  public getTagsPaginated: ReturnType<typeof createTagsResource>['getTagsPaginated'];
+  public getTag: ReturnType<typeof createTagsResource>['getTag'];
+  public getTagBySlug: ReturnType<typeof createTagsResource>['getTagBySlug'];
+  public createTag: ReturnType<typeof createTagsResource>['create'];
+  public updateTag: ReturnType<typeof createTagsResource>['update'];
+  public deleteTag: ReturnType<typeof createTagsResource>['delete'];
 
   // Users methods
-  public getUsers: ReturnType<typeof createUsersMethods>['getUsers'];
-  public getAllUsers: ReturnType<typeof createUsersMethods>['getAllUsers'];
-  public getUsersPaginated: ReturnType<typeof createUsersMethods>['getUsersPaginated'];
-  public getUser: ReturnType<typeof createUsersMethods>['getUser'];
-  public getCurrentUser: ReturnType<typeof createUsersMethods>['getCurrentUser'];
+  public getUsers: ReturnType<typeof createUsersResource>['getUsers'];
+  public getAllUsers: ReturnType<typeof createUsersResource>['getAllUsers'];
+  public getUsersPaginated: ReturnType<typeof createUsersResource>['getUsersPaginated'];
+  public getUser: ReturnType<typeof createUsersResource>['getUser'];
+  public getCurrentUser: ReturnType<typeof createUsersResource>['getCurrentUser'];
+  public createUser: ReturnType<typeof createUsersResource>['create'];
+  public updateUser: ReturnType<typeof createUsersResource>['update'];
+  public deleteUser: ReturnType<typeof createUsersResource>['delete'];
 
   // Settings methods
   public getSettings: ReturnType<typeof createSettingsMethods>['getSettings'];
 
   // Comments methods
-  public getComments: ReturnType<typeof createCommentsMethods>['getComments'];
-  public getAllComments: ReturnType<typeof createCommentsMethods>['getAllComments'];
-  public getCommentsPaginated: ReturnType<typeof createCommentsMethods>['getCommentsPaginated'];
-  public getComment: ReturnType<typeof createCommentsMethods>['getComment'];
+  public getComments: ReturnType<typeof createCommentsResource>['getComments'];
+  public getAllComments: ReturnType<typeof createCommentsResource>['getAllComments'];
+  public getCommentsPaginated: ReturnType<typeof createCommentsResource>['getCommentsPaginated'];
+  public getComment: ReturnType<typeof createCommentsResource>['getComment'];
+  public createComment: ReturnType<typeof createCommentsResource>['create'];
+  public updateComment: ReturnType<typeof createCommentsResource>['update'];
+  public deleteComment: ReturnType<typeof createCommentsResource>['delete'];
 
   // Generic content and term methods
   public getContentCollection: ReturnType<typeof createContentTermMethods>['getContentCollection'];
@@ -245,59 +259,83 @@ export class WordPressClient {
     this.executeRunAbility = abilityMethods.executeRunAbility;
     this.executeDeleteAbility = abilityMethods.executeDeleteAbility;
 
-    const posts = createPostsMethods(fetchAPI, fetchAPIPaginated, config.blockParser);
+    const executeMutation = this.executeMutation.bind(this);
+    const resourceDeps = { fetchAPI, fetchAPIPaginated, executeMutation, request };
+
+    const posts = createPostsResource(resourceDeps, config.blockParser);
     this.getPosts = posts.getPosts;
     this.getAllPosts = posts.getAllPosts;
     this.getPostsPaginated = posts.getPostsPaginated;
     this.getPost = posts.getPost;
     this.getPostBySlug = posts.getPostBySlug;
+    this.createPost = posts.create;
+    this.updatePost = posts.update;
+    this.deletePost = posts.delete;
 
-    const pages = createPagesMethods(fetchAPI, fetchAPIPaginated, config.blockParser);
+    const pages = createPagesResource(resourceDeps, config.blockParser);
     this.getPages = pages.getPages;
     this.getAllPages = pages.getAllPages;
     this.getPagesPaginated = pages.getPagesPaginated;
     this.getPage = pages.getPage;
     this.getPageBySlug = pages.getPageBySlug;
+    this.createPage = pages.create;
+    this.updatePage = pages.update;
+    this.deletePage = pages.delete;
 
-    const media = createMediaMethods(fetchAPI, fetchAPIPaginated);
+    const media = createMediaResource(resourceDeps);
     this.getMedia = media.getMedia;
     this.getAllMedia = media.getAllMedia;
     this.getMediaPaginated = media.getMediaPaginated;
     this.getMediaItem = media.getMediaItem;
     this.getMediaBySlug = media.getMediaBySlug;
     this.getImageUrl = media.getImageUrl;
+    this.createMedia = media.create;
+    this.uploadMedia = media.upload;
+    this.updateMedia = media.update;
+    this.deleteMedia = media.delete;
 
-    const categories = createCategoriesMethods(fetchAPI, fetchAPIPaginated);
+    const categories = createCategoriesResource(resourceDeps);
     this.getCategories = categories.getCategories;
     this.getAllCategories = categories.getAllCategories;
     this.getCategoriesPaginated = categories.getCategoriesPaginated;
     this.getCategory = categories.getCategory;
     this.getCategoryBySlug = categories.getCategoryBySlug;
+    this.createCategory = categories.create;
+    this.updateCategory = categories.update;
+    this.deleteCategory = categories.delete;
 
-    const tags = createTagsMethods(fetchAPI, fetchAPIPaginated);
+    const tags = createTagsResource(resourceDeps);
     this.getTags = tags.getTags;
     this.getAllTags = tags.getAllTags;
     this.getTagsPaginated = tags.getTagsPaginated;
     this.getTag = tags.getTag;
     this.getTagBySlug = tags.getTagBySlug;
+    this.createTag = tags.create;
+    this.updateTag = tags.update;
+    this.deleteTag = tags.delete;
 
-    const users = createUsersMethods(fetchAPI, fetchAPIPaginated, hasAuth);
+    const users = createUsersResource(resourceDeps, hasAuth);
     this.getUsers = users.getUsers;
     this.getAllUsers = users.getAllUsers;
     this.getUsersPaginated = users.getUsersPaginated;
     this.getUser = users.getUser;
     this.getCurrentUser = users.getCurrentUser;
+    this.createUser = users.create;
+    this.updateUser = users.update;
+    this.deleteUser = users.delete;
 
     const settings = createSettingsMethods(fetchAPI, hasAuth);
     this.getSettings = settings.getSettings;
 
-    const comments = createCommentsMethods(fetchAPI, fetchAPIPaginated);
+    const comments = createCommentsResource(resourceDeps);
     this.getComments = comments.getComments;
     this.getAllComments = comments.getAllComments;
     this.getCommentsPaginated = comments.getCommentsPaginated;
     this.getComment = comments.getComment;
+    this.createComment = comments.create;
+    this.updateComment = comments.update;
+    this.deleteComment = comments.delete;
 
-    const executeMutation = this.executeMutation.bind(this);
     const contentTerms = createContentTermMethods({
       fetchAPI,
       fetchAPIPaginated,
@@ -672,434 +710,6 @@ export class WordPressClient {
   }
 
   /**
-   * Creates one post with typed schema parsing.
-   */
-  async createPost<TPost = WordPressPost>(
-    input: WordPressPostWriteBase & Record<string, unknown>,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TPost> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TPost> {
-    const resolved = this.resolveMutationArguments<TPost>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.createContent<TPost, WordPressPostWriteBase & Record<string, unknown>>(
-      'posts',
-      input,
-      resolved.responseSchema ?? (postSchema as WordPressStandardSchema<TPost>),
-      resolved.requestOptions,
-    );
-  }
-
-  /**
-   * Updates one post with typed schema parsing.
-   */
-  async updatePost<TPost = WordPressPost>(
-    id: number,
-    input: WordPressPostWriteBase & Record<string, unknown>,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TPost> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TPost> {
-    const resolved = this.resolveMutationArguments<TPost>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.updateContent<TPost, WordPressPostWriteBase & Record<string, unknown>>(
-      'posts',
-      id,
-      input,
-      resolved.responseSchema ?? (postSchema as WordPressStandardSchema<TPost>),
-      resolved.requestOptions,
-    );
-  }
-
-  /**
-   * Deletes one post.
-   */
-  async deletePost(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
-    return this.deleteContent('posts', id, options);
-  }
-
-  /**
-   * Creates one page with typed schema parsing.
-   */
-  async createPage<TPage = WordPressPage>(
-    input: WordPressPostWriteBase & Record<string, unknown>,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TPage> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TPage> {
-    const resolved = this.resolveMutationArguments<TPage>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.createContent<TPage, WordPressPostWriteBase & Record<string, unknown>>(
-      'pages',
-      input,
-      resolved.responseSchema ?? (pageSchema as WordPressStandardSchema<TPage>),
-      resolved.requestOptions,
-    );
-  }
-
-  /**
-   * Updates one page with typed schema parsing.
-   */
-  async updatePage<TPage = WordPressPage>(
-    id: number,
-    input: WordPressPostWriteBase & Record<string, unknown>,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TPage> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TPage> {
-    const resolved = this.resolveMutationArguments<TPage>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.updateContent<TPage, WordPressPostWriteBase & Record<string, unknown>>(
-      'pages',
-      id,
-      input,
-      resolved.responseSchema ?? (pageSchema as WordPressStandardSchema<TPage>),
-      resolved.requestOptions,
-    );
-  }
-
-  /**
-   * Deletes one page.
-   */
-  async deletePage(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
-    return this.deleteContent('pages', id, options);
-  }
-
-  /**
-   * Creates one category with typed schema parsing.
-   */
-  async createCategory<TCategory = WordPressCategory>(
-    input: TermWriteInput,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TCategory> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TCategory> {
-    const resolved = this.resolveMutationArguments<TCategory>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.createTerm<TCategory, TermWriteInput>(
-      'categories',
-      input,
-      resolved.responseSchema ?? (categorySchema as WordPressStandardSchema<TCategory>),
-      resolved.requestOptions,
-    );
-  }
-
-  /**
-   * Updates one category with typed schema parsing.
-   */
-  async updateCategory<TCategory = WordPressCategory>(
-    id: number,
-    input: TermWriteInput,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TCategory> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TCategory> {
-    const resolved = this.resolveMutationArguments<TCategory>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.updateTerm<TCategory, TermWriteInput>(
-      'categories',
-      id,
-      input,
-      resolved.responseSchema ?? (categorySchema as WordPressStandardSchema<TCategory>),
-      resolved.requestOptions,
-    );
-  }
-
-  /**
-   * Deletes one category.
-   */
-  async deleteCategory(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
-    return this.deleteTerm('categories', id, options);
-  }
-
-  /**
-   * Creates one tag with typed schema parsing.
-   */
-  async createTag<TTag = WordPressTag>(
-    input: TermWriteInput,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TTag> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TTag> {
-    const resolved = this.resolveMutationArguments<TTag>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.createTerm<TTag, TermWriteInput>(
-      'tags',
-      input,
-      resolved.responseSchema ?? (categorySchema as WordPressStandardSchema<TTag>),
-      resolved.requestOptions,
-    );
-  }
-
-  /**
-   * Updates one tag with typed schema parsing.
-   */
-  async updateTag<TTag = WordPressTag>(
-    id: number,
-    input: TermWriteInput,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TTag> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TTag> {
-    const resolved = this.resolveMutationArguments<TTag>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.updateTerm<TTag, TermWriteInput>(
-      'tags',
-      id,
-      input,
-      resolved.responseSchema ?? (categorySchema as WordPressStandardSchema<TTag>),
-      resolved.requestOptions,
-    );
-  }
-
-  /**
-   * Deletes one tag.
-   */
-  async deleteTag(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
-    return this.deleteTerm('tags', id, options);
-  }
-
-  /**
-   * Creates one user.
-   */
-  async createUser<TUser = WordPressAuthor>(
-    input: UserWriteInput,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TUser> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TUser> {
-    const resolved = this.resolveMutationArguments<TUser>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.executeMutation<TUser>(
-      applyRequestOverrides({
-        endpoint: '/users',
-        method: 'POST',
-        body: compactPayload(input),
-      }, resolved.requestOptions, 'Mutation helper options'),
-      resolved.responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
-    );
-  }
-
-  /**
-   * Updates one user.
-   */
-  async updateUser<TUser = WordPressAuthor>(
-    id: number,
-    input: UserWriteInput,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TUser> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TUser> {
-    const resolved = this.resolveMutationArguments<TUser>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.executeMutation<TUser>(
-      applyRequestOverrides({
-        endpoint: `/users/${id}`,
-        method: 'POST',
-        body: compactPayload(input),
-      }, resolved.requestOptions, 'Mutation helper options'),
-      resolved.responseSchema ?? (authorSchema as WordPressStandardSchema<TUser>),
-    );
-  }
-
-  /**
-   * Deletes one user.
-   */
-  async deleteUser(
-    id: number,
-    options: UserDeleteOptions & WordPressRequestOverrides = {},
-  ): Promise<WordPressDeleteResult> {
-    const params: Record<string, string> = {
-      force: options.force === false ? 'false' : 'true',
-    };
-
-    if (typeof options.reassign === 'number') {
-      params.reassign = String(options.reassign);
-    }
-
-    const { data, response } = await this.request<unknown>(applyRequestOverrides({
-      endpoint: `/users/${id}`,
-      method: 'DELETE',
-      params,
-    }, options, 'Mutation helper options'));
-
-    throwIfWordPressError(response, data);
-
-    return normalizeDeleteResult(id, data);
-  }
-
-  /**
-   * Creates one comment.
-   */
-  async createComment<TComment = WordPressComment>(
-    input: WordPressWritePayload,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TComment> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TComment> {
-    const resolved = this.resolveMutationArguments<TComment>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.executeMutation<TComment>(
-      applyRequestOverrides({
-        endpoint: '/comments',
-        method: 'POST',
-        body: compactPayload(input),
-      }, resolved.requestOptions, 'Mutation helper options'),
-      resolved.responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
-    );
-  }
-
-  /**
-   * Updates one comment.
-   */
-  async updateComment<TComment = WordPressComment>(
-    id: number,
-    input: WordPressWritePayload,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TComment> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TComment> {
-    const resolved = this.resolveMutationArguments<TComment>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.executeMutation<TComment>(
-      applyRequestOverrides({
-        endpoint: `/comments/${id}`,
-        method: 'POST',
-        body: compactPayload(input),
-      }, resolved.requestOptions, 'Mutation helper options'),
-      resolved.responseSchema ?? (commentSchema as WordPressStandardSchema<TComment>),
-    );
-  }
-
-  /**
-   * Deletes one comment.
-   */
-  async deleteComment(
-    id: number,
-    options: DeleteOptions & WordPressRequestOverrides = {},
-  ): Promise<WordPressDeleteResult> {
-    const params = options.force ? { force: 'true' } : undefined;
-    const { data, response } = await this.request<unknown>(applyRequestOverrides({
-      endpoint: `/comments/${id}`,
-      method: 'DELETE',
-      params,
-    }, options, 'Mutation helper options'));
-
-    throwIfWordPressError(response, data);
-
-    return normalizeDeleteResult(id, data);
-  }
-
-  /**
-   * Creates one media record from a JSON payload.
-   */
-  async createMedia<TMedia = WordPressMedia>(
-    input: WordPressWritePayload,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TMedia> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TMedia> {
-    const resolved = this.resolveMutationArguments<TMedia>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.executeMutation<TMedia>(
-      applyRequestOverrides({
-        endpoint: '/media',
-        method: 'POST',
-        body: compactPayload(input),
-      }, resolved.requestOptions, 'Mutation helper options'),
-      resolved.responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
-    );
-  }
-
-  /**
-   * Uploads one binary media file and optionally applies metadata.
-   */
-  async uploadMedia(input: WordPressMediaUploadInput, requestOptions?: WordPressRequestOverrides): Promise<WordPressMedia> {
-    const fileBody = input.file instanceof Blob
-      ? input.file
-      : input.file instanceof Uint8Array
-        ? new Blob([new Uint8Array(input.file)], { type: input.mimeType ?? 'application/octet-stream' })
-        : input.file instanceof ArrayBuffer
-          ? new Blob([new Uint8Array(input.file)], { type: input.mimeType ?? 'application/octet-stream' })
-        : input.file;
-
-    const safeFilename = input.filename.replace(/"/g, '');
-    const uploadHeaders: Record<string, string> = {
-      'Content-Disposition': `attachment; filename="${safeFilename}"`,
-    };
-
-    if (input.mimeType) {
-      uploadHeaders['Content-Type'] = input.mimeType;
-    }
-
-    const created = await this.executeMutation<WordPressMedia>(
-      applyRequestOverrides({
-        endpoint: '/media',
-        method: 'POST',
-        rawBody: fileBody,
-        headers: uploadHeaders,
-        omitContentType: true,
-      }, requestOptions, 'Mutation helper options'),
-      mediaSchema,
-    );
-
-    const metadata: Record<string, unknown> = {};
-
-    if (input.title) {
-      metadata.title = input.title;
-    }
-
-    if (input.caption) {
-      metadata.caption = input.caption;
-    }
-
-    if (input.description) {
-      metadata.description = input.description;
-    }
-
-    if (input.alt_text) {
-      metadata.alt_text = input.alt_text;
-    }
-
-    if (input.status) {
-      metadata.status = input.status;
-    }
-
-    if (Object.keys(metadata).length === 0) {
-      return created;
-    }
-
-    return this.updateMedia(created.id, metadata, undefined, requestOptions);
-  }
-
-  /**
-   * Updates one media record.
-   */
-  async updateMedia<TMedia = WordPressMedia>(
-    id: number,
-    input: WordPressWritePayload,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TMedia> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TMedia> {
-    const resolved = this.resolveMutationArguments<TMedia>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.executeMutation<TMedia>(
-      applyRequestOverrides({
-        endpoint: `/media/${id}`,
-        method: 'POST',
-        body: compactPayload(input),
-      }, resolved.requestOptions, 'Mutation helper options'),
-      resolved.responseSchema ?? (mediaSchema as WordPressStandardSchema<TMedia>),
-    );
-  }
-
-  /**
-   * Deletes one media record.
-   */
-  async deleteMedia(
-    id: number,
-    options: DeleteOptions & WordPressRequestOverrides = {},
-  ): Promise<WordPressDeleteResult> {
-    const params = options.force ? { force: 'true' } : undefined;
-    const { data, response } = await this.request<unknown>(applyRequestOverrides({
-      endpoint: `/media/${id}`,
-      method: 'DELETE',
-      params,
-    }, options, 'Mutation helper options'));
-
-    throwIfWordPressError(response, data);
-
-    return normalizeDeleteResult(id, data);
-  }
-
-  /**
    * Updates WordPress site settings with optional response validation.
    */
   async updateSettings<TSettings = WordPressSettings>(
@@ -1379,18 +989,3 @@ export class WordPressClient {
   }
 
 }
-
-/**
- * Re-export selected client filter types alongside the class implementation.
- */
-export type {
-  BaseContentFilter,
-  CategoriesFilter,
-  CommentsFilter,
-  MediaFilter,
-  PagesFilter,
-  PostsFilter,
-  SearchFilter,
-  TagsFilter,
-  UsersFilter,
-};

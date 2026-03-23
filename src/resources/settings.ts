@@ -1,5 +1,5 @@
 import type { WordPressSettings } from '../schemas.js';
-import type { WordPressRequestOverrides } from '../client-types.js';
+import type { WordPressRequestOverrides } from '../types/resources.js';
 import type { SerializedQueryParams } from '../types/resources.js';
 
 /**

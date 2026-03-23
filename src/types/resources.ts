@@ -1,7 +1,13 @@
 import type { DeleteOptions, WordPressWritePayload } from './payloads.js';
-import type { WordPressRequestOverrides } from '../client-types.js';
 import type { AllPostRelations, PostRelationQueryBuilder, SelectedPostRelations } from '../builders/relations.js';
 import type { WordPressPostLike } from '../schemas.js';
+
+/**
+ * Per-request transport overrides supported by high-level helper methods.
+ */
+export interface WordPressRequestOverrides {
+  headers?: Record<string, string>;
+}
 
 /**
  * Primitive value supported for query-string conversion.

@@ -24,6 +24,7 @@ import {
   postWriteBaseSchema as zodPostWriteBaseSchema,
   searchResultSchema as zodSearchResultSchema,
   settingsSchema as zodSettingsSchema,
+  tagSchema as zodTagSchema,
   updatePostFieldsSchema as zodUpdatePostFieldsSchema,
   wordPressErrorSchema as zodWordPressErrorSchema,
 } from './schemas.js';
@@ -48,6 +49,7 @@ export const postSchema = asStandardSchema(zodPostSchema);
 export const pageSchema = asStandardSchema(zodPageSchema);
 export const mediaSchema = asStandardSchema(zodMediaSchema);
 export const categorySchema = asStandardSchema(zodCategorySchema);
+export const tagSchema = asStandardSchema(zodTagSchema);
 export const embeddedMediaSchema = asStandardSchema(zodEmbeddedMediaSchema);
 export const abilityAnnotationsSchema = asStandardSchema(zodAbilityAnnotationsSchema);
 export const abilitySchema = asStandardSchema(zodAbilitySchema);

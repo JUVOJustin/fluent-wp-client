@@ -152,6 +152,11 @@ export const categorySchema = z.object({
 }).passthrough();
 
 /**
+ * Schema for WordPress tags (same structure as categories, different semantics).
+ */
+export const tagSchema = categorySchema;
+
+/**
  * Schema for WordPress embedded media in `_embedded` responses.
  */
 export const embeddedMediaSchema = z.object({

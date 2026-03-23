@@ -7,7 +7,7 @@ import type {
   WordPressPostLike,
   WordPressTag,
 } from '../schemas.js';
-import type { WordPressRequestOptions, WordPressRequestResult } from '../client-types.js';
+import type { WordPressRequestOptions, WordPressRequestResult } from '../types/client.js';
 import type { QueryParams } from '../types/resources.js';
 
 /**

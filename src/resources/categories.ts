@@ -1,7 +1,7 @@
 import type { WordPressCategory } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
 import type { CategoriesFilter } from '../types/filters.js';
-import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import type { ExtensibleFilter, FetchResult, PaginatedResponse, SerializedQueryParams } from '../types/resources.js';
 import { createWordPressPaginator } from '../core/pagination.js';
 import { filterToParams } from '../core/params.js';
 
@@ -9,10 +9,10 @@ import { filterToParams } from '../core/params.js';
  * Categories API methods factory for typed read operations.
  */
 export function createCategoriesMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
 ) {
-  const paginator = createWordPressPaginator<CategoriesFilter, WordPressCategory>({
+  const paginator = createWordPressPaginator<ExtensibleFilter<CategoriesFilter>, WordPressCategory>({
     fetchPage: (currentFilter, context) => {
       const params = filterToParams(currentFilter);
       return fetchAPIPaginated<WordPressCategory[]>('/categories', params, context as WordPressRequestOverrides | undefined);
@@ -24,7 +24,7 @@ export function createCategoriesMethods(
      * Gets categories with optional filtering.
      */
     async getCategories(
-      filter: CategoriesFilter = {},
+      filter: ExtensibleFilter<CategoriesFilter> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressCategory[]> {
       const params = filterToParams(filter);
@@ -35,7 +35,7 @@ export function createCategoriesMethods(
      * Gets all categories by paginating every page.
      */
     async getAllCategories(
-      filter: Omit<CategoriesFilter, 'page'> = {},
+      filter: Omit<ExtensibleFilter<CategoriesFilter>, 'page'> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressCategory[]> {
       return paginator.listAll(filter, requestOptions);
@@ -45,7 +45,7 @@ export function createCategoriesMethods(
      * Gets categories with pagination metadata.
      */
     async getCategoriesPaginated(
-      filter: CategoriesFilter = {},
+      filter: ExtensibleFilter<CategoriesFilter> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<PaginatedResponse<WordPressCategory>> {
       return paginator.listPaginated(filter, requestOptions);

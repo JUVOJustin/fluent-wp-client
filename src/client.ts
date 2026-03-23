@@ -40,6 +40,7 @@ import {
   mediaSchema,
   pageSchema,
   postSchema,
+  searchResultSchema,
   settingsSchema,
 } from './standard-schemas.js';
 import {
@@ -51,6 +52,7 @@ import {
   type WordPressPage,
   type WordPressPost,
   type WordPressPostWriteBase,
+  type WordPressSearchResult,
   type WordPressSettings,
   type WordPressTag,
 } from './schemas.js';
@@ -66,13 +68,15 @@ import {
   type WordPressStandardSchema,
 } from './core/validation.js';
 import { applyRequestOverrides } from './core/request-overrides.js';
-import { compactPayload } from './core/params.js';
+import { compactPayload, filterToParams } from './core/params.js';
 import type {
+  BaseContentFilter,
   CategoriesFilter,
   CommentsFilter,
   MediaFilter,
   PagesFilter,
   PostsFilter,
+  SearchFilter,
   TagsFilter,
   UsersFilter,
 } from './types/filters.js';
@@ -339,7 +343,7 @@ export class WordPressClient {
   /**
    * Builds one REST URL from endpoint and query params.
    */
-  private createApiUrl(endpoint: string, params: Record<string, string> = {}): URL {
+  private createApiUrl(endpoint: string, params: Record<string, string | string[]> = {}): URL {
     const url = /^https?:\/\//i.test(endpoint)
       ? this.createAbsoluteApiUrl(endpoint)
       : endpoint.startsWith('/wp-json/')
@@ -347,7 +351,13 @@ export class WordPressClient {
         : new URL(`${this.apiBase}${endpoint}`);
 
     for (const [key, value] of Object.entries(params)) {
-      url.searchParams.append(key, value);
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          url.searchParams.append(`${key}[]`, item);
+        }
+      } else {
+        url.searchParams.append(key, value);
+      }
     }
 
     return url;
@@ -356,7 +366,7 @@ export class WordPressClient {
   /**
    * Resolves one endpoint and params pair into an absolute URL string.
    */
-  private createApiUrlString(endpoint: string, params: Record<string, string> = {}): string {
+  private createApiUrlString(endpoint: string, params: Record<string, string | string[]> = {}): string {
     return this.createApiUrl(endpoint, params).toString();
   }
 
@@ -611,7 +621,7 @@ export class WordPressClient {
    */
   async fetchAPI<T>(
     endpoint: string,
-    params: Record<string, string> = {},
+    params: Record<string, string | string[]> = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<T> {
     const result = await this.fetchAPIPaginated<T>(endpoint, params, requestOptions);
@@ -623,7 +633,7 @@ export class WordPressClient {
    */
   async fetchAPIPaginated<T>(
     endpoint: string,
-    params: Record<string, string> = {},
+    params: Record<string, string | string[]> = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<FetchResult<T>> {
     const { data, response } = await this.request<T>(applyRequestOverrides({
@@ -1354,9 +1364,37 @@ export class WordPressClient {
 
   /**
    * Starts one WPAPI-style search request chain.
+   *
+   * When `query` is provided it is set as the `search` parameter immediately,
+   * so `.search('test').get()` works without a redundant chained `.search()` call.
    */
-  search(): WordPressRequestBuilder<unknown> {
-    return this.route('search');
+  search(query?: string): WordPressRequestBuilder<WordPressSearchResult[]> {
+    const builder = this.route('search') as WordPressRequestBuilder<WordPressSearchResult[]>;
+    return query !== undefined ? builder.search(query) : builder;
+  }
+
+  /**
+   * Performs a typed cross-resource search against the `/wp/v2/search` endpoint.
+   *
+   * Returns lightweight result objects across posts, pages, and custom post types.
+   * Use the exported `searchResultSchema` to validate results when strict response
+   * parsing is required.
+   *
+   * When `filter.subtype` is an array it is serialised using WordPress bracket
+   * notation (`subtype[]=post&subtype[]=page`) so that multiple subtypes can be
+   * filtered in a single request.
+   *
+   * @param query - The search string to query.
+   * @param filter - Optional filter options (type, subtype, context, include, exclude, pagination).
+   * @param requestOptions - Optional per-request transport overrides.
+   */
+  async searchContent<TResult = WordPressSearchResult>(
+    query: string,
+    filter?: Omit<SearchFilter, 'search'>,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TResult[]> {
+    const params = filterToParams({ ...filter, search: query });
+    return this.fetchAPI<TResult[]>('/search', params, requestOptions);
   }
 
   /**
@@ -1394,11 +1432,13 @@ export class WordPressClient {
  * Re-export selected client filter types alongside the class implementation.
  */
 export type {
+  BaseContentFilter,
   CategoriesFilter,
   CommentsFilter,
   MediaFilter,
   PagesFilter,
   PostsFilter,
+  SearchFilter,
   TagsFilter,
   UsersFilter,
 };

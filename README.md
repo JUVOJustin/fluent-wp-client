@@ -32,6 +32,8 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 ## Features
 
 - **Typed helpers** for posts, pages, media, categories, tags, users, comments, and settings
+- **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
+- **Extensible collection filters** — built-in list helpers accept typed core filters plus extra endpoint-specific query params
 - **Generic CPT and taxonomy APIs** — `content('books')` and `terms('genre')` work for any registered resource
 - **Gutenberg block parsing** — single-post queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
@@ -39,6 +41,25 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`
 - **Relation API** — `wp.post('slug').with('author', 'categories').get()`
+
+## Flexible collection filters
+
+Collection helpers keep typed core filters like `search`, `include`, `exclude`, and `slug`, and they also forward extra endpoint-specific params for plugin or project-specific REST extensions.
+
+```ts
+const posts = await wp.getPosts({
+  search: 'hello world',
+  include: [4, 8],
+  titleSearch: 'Hello',
+});
+
+const books = await wp.content('books').list({
+  include: [164, 165],
+  titleSearch: 'Test Book',
+});
+```
+
+Array params are serialized as repeated `param[]` entries instead of comma-joined strings.
 
 ## Auth examples
 

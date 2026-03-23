@@ -9,11 +9,13 @@ export {
   type WordPressRequestResult,
   type WordPressMediaUploadInput,
   type WordPressNamespaceClient,
+  type BaseContentFilter,
   type CategoriesFilter,
   type CommentsFilter,
   type MediaFilter,
   type PagesFilter,
   type PostsFilter,
+  type SearchFilter,
   type TagsFilter,
   type UsersFilter,
 } from './client.js';
@@ -94,6 +96,7 @@ export {
   jwtAuthValidationResponseSchema,
   wordPressErrorSchema,
   settingsSchema,
+  searchResultSchema,
 } from './standard-schemas.js';
 
 export type {
@@ -114,6 +117,7 @@ export type {
   WordPressPost,
   WordPressPostWriteBase,
   WordPressPostWriteFields,
+  WordPressSearchResult,
   WordPressSettings,
   WordPressTag,
 } from './schemas.js';
@@ -126,11 +130,13 @@ export {
 export type {
   ContentResourceClient,
   DeleteOptions,
+  ExtensibleFilter,
   FetchResult,
   PaginatedResponse,
   PaginationParams,
   QueryParamPrimitive,
   QueryParams,
+  SerializedQueryParams,
   TermsResourceClient,
   TermWriteInput,
   UserDeleteOptions,

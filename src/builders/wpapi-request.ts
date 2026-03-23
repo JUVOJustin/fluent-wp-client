@@ -7,7 +7,7 @@ import type { WordPressRequestOptions, WordPressRequestResult } from '../client-
  */
 export interface WordPressRequestBuilderRuntime {
   request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
-  createUrl: (endpoint: string, params?: Record<string, string>) => string;
+  createUrl: (endpoint: string, params?: Record<string, string | string[]>) => string;
 }
 
 /**
@@ -40,7 +40,7 @@ export class WordPressRequestBuilder<
   TCreateInput extends Record<string, unknown> = Record<string, unknown>,
   TUpdateInput extends Record<string, unknown> = TCreateInput,
 > implements PromiseLike<TResponse> {
-  private readonly queryParams: Record<string, string> = {};
+  private readonly queryParams: Record<string, string | string[]> = {};
   private readonly requestHeaders: Record<string, string> = {};
   private resourceId: number | string | undefined;
   private includeEmbed = false;
@@ -60,9 +60,19 @@ export class WordPressRequestBuilder<
 
   /**
    * Adds one arbitrary query parameter.
+   *
+   * When `value` is an array each element is stringified and the parameter is
+   * encoded using WordPress bracket notation (`key[]=a&key[]=b`), which is
+   * required for multi-value REST params such as `subtype` on the search
+   * endpoint.  Single values are encoded as plain strings (`key=value`).
    */
   param(name: string, value: unknown): this {
-    this.queryParams[name] = stringifyParamValue(value);
+    if (Array.isArray(value)) {
+      this.queryParams[name] = value.map((entry) => stringifyParamValue(entry));
+    } else {
+      this.queryParams[name] = stringifyParamValue(value);
+    }
+
     return this;
   }
 
@@ -129,28 +139,28 @@ export class WordPressRequestBuilder<
   /**
    * Sets `categories` query filtering.
    */
-  categories(value: number | number[]): this {
+  categories(value: number[]): this {
     return this.param('categories', value);
   }
 
   /**
    * Sets `tags` query filtering.
    */
-  tags(value: number | number[]): this {
+  tags(value: number[]): this {
     return this.param('tags', value);
   }
 
   /**
    * Sets `include` query filtering.
    */
-  include(value: number | number[]): this {
+  include(value: number[]): this {
     return this.param('include', value);
   }
 
   /**
    * Sets `exclude` query filtering.
    */
-  exclude(value: number | number[]): this {
+  exclude(value: number[]): this {
     return this.param('exclude', value);
   }
 
@@ -195,6 +205,17 @@ export class WordPressRequestBuilder<
    */
   fields(value: string | string[]): this {
     return this.param('_fields', Array.isArray(value) ? value.join(',') : value);
+  }
+
+  /**
+   * Sets `subtype` query filtering for the `/wp/v2/search` chain.
+   *
+   * Accepts a single subtype string or an array of subtypes. Arrays are
+   * serialised using WordPress bracket notation so that all values reach the
+   * REST endpoint correctly (`subtype[]=post&subtype[]=page`).
+   */
+  subtype(value: string | string[]): this {
+    return this.param('subtype', value);
   }
 
   /**
@@ -342,7 +363,7 @@ export class WordPressRequestBuilder<
   /**
    * Resolves query params with optional `_embed` support.
    */
-  private getParams(): Record<string, string> {
+  private getParams(): Record<string, string | string[]> {
     if (!this.includeEmbed) {
       return { ...this.queryParams };
     }

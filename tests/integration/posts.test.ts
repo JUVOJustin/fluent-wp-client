@@ -137,6 +137,73 @@ describe('Client: Posts', () => {
       expect(posts[0]?.title.rendered).toContain('Test Post 001');
     });
 
+    it('getPosts supports include arrays on collection endpoints', async () => {
+      const first = await publicClient.getPostBySlug('test-post-001');
+      const second = await publicClient.getPostBySlug('test-post-002');
+
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+
+      const posts = await publicClient.getPosts({
+        include: [first!.id, second!.id],
+        orderby: 'include',
+      });
+
+      expect(posts.map((post) => post.id)).toEqual([first!.id, second!.id]);
+    });
+
+    it('getPosts supports exclude arrays on collection endpoints', async () => {
+      const first = await publicClient.getPostBySlug('test-post-001');
+      const second = await publicClient.getPostBySlug('test-post-002');
+
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+
+      const posts = await publicClient.getPosts({
+        search: 'Test Post',
+        exclude: [first!.id, second!.id],
+      });
+
+      expect(posts.map((post) => post.id)).not.toContain(first!.id);
+      expect(posts.map((post) => post.id)).not.toContain(second!.id);
+    });
+
+    it('getPosts supports slug arrays on collection endpoints', async () => {
+      const posts = await publicClient.getPosts({
+        slug: ['test-post-001', 'test-post-002'],
+      });
+
+      expect(posts.map((post) => post.slug).sort()).toEqual(['test-post-001', 'test-post-002']);
+    });
+
+    it('getPosts supports offset on collection endpoints', async () => {
+      const firstPage = await publicClient.getPosts({
+        orderby: 'id',
+        order: 'asc',
+        perPage: 2,
+      });
+
+      const offsetPage = await publicClient.getPosts({
+        orderby: 'id',
+        order: 'asc',
+        perPage: 1,
+        offset: 1,
+      });
+
+      expect(firstPage).toHaveLength(2);
+      expect(offsetPage).toHaveLength(1);
+      expect(offsetPage[0]?.id).toBe(firstPage[1]?.id);
+    });
+
+    it('getPosts supports custom registered collection filters through extensible typing', async () => {
+      const posts = await publicClient.getPosts({
+        titleSearch: 'Test Post 001',
+      });
+
+      expect(posts.length).toBeGreaterThan(0);
+      expect(posts[0]?.title.rendered).toContain('Test Post 001');
+    });
+
     it('getAllPosts supports the search parameter', async () => {
       // There are 150 posts all matching 'test-post'; restricting via category
       // keeps the count predictable (30 Technology posts).

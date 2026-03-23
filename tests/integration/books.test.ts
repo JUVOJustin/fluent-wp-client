@@ -68,6 +68,30 @@ describe('Client: Books', () => {
       expect(results[0]?.slug).toBe('test-book-001');
     });
 
+    it('getContentCollection supports include arrays on custom post type endpoints', async () => {
+      const first = await publicClient.getContentBySlug('books', 'test-book-001');
+      const second = await publicClient.getContentBySlug('books', 'test-book-002');
+
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+
+      const books = await publicClient.getContentCollection('books', {
+        include: [first!.id, second!.id],
+      });
+
+      expect(books.map((book) => book.id).sort((a, b) => a - b)).toEqual(
+        [first!.id, second!.id].sort((a, b) => a - b),
+      );
+    });
+
+    it('content() list() forwards custom registered collection filters for custom post types', async () => {
+      const booksClient = publicClient.content('books', contentWordPressSchema);
+      const results = await booksClient.list({ titleSearch: 'Test Book 001' });
+
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]?.slug).toBe('test-book-001');
+    });
+
     it('content() listAll() supports the search parameter', async () => {
       const booksClient = publicClient.content('books', contentWordPressSchema);
       const results = await booksClient.listAll({ search: 'Test Book' });

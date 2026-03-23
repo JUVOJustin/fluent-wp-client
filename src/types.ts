@@ -24,9 +24,11 @@ export type {
 } from './types/payloads.js';
 
 export type {
+  ExtensibleFilter,
   QueryParamPrimitive,
   QueryParamValue,
   QueryParams,
+  SerializedQueryParams,
   IncludeExcludeParam,
   FetchResult,
   PaginationParams,

@@ -6,10 +6,12 @@ import { createWordPressPaginator } from '../core/pagination.js';
 import { compactPayload, filterToParams } from '../core/params.js';
 import type {
   ContentResourceClient,
+  ExtensibleFilter,
   FetchResult,
   PaginatedResponse,
   PaginationParams,
   QueryParams,
+  SerializedQueryParams,
   TermsResourceClient,
   WordPressDeleteResult,
 } from '../types/resources.js';
@@ -23,8 +25,8 @@ import type {
  * Runtime hooks required for generic content and term method groups.
  */
 export interface ContentTermMethodDependencies {
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>;
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>;
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
   request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
   executeMutation: <T>(options: WordPressRequestOptions, responseSchema?: WordPressStandardSchema<T>) => Promise<T>;
 }
@@ -338,9 +340,9 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     responseSchema?: WordPressStandardSchema<TResource>,
   ): ContentResourceClient<TResource, TCreate, TUpdate> {
     return {
-      list: (filter = {}, options) => getContentCollection<TResource>(resource, filter, options),
-      listAll: (filter = {}, options) => getAllContentCollection<TResource>(resource, filter, options),
-      listPaginated: (filter = {}, options) => getContentCollectionPaginated<TResource>(resource, filter, options),
+      list: (filter = {}, options) => getContentCollection<TResource>(resource, filter as ExtensibleFilter<QueryParams>, options),
+      listAll: (filter = {}, options) => getAllContentCollection<TResource>(resource, filter as Omit<ExtensibleFilter<QueryParams>, 'page'>, options),
+      listPaginated: (filter = {}, options) => getContentCollectionPaginated<TResource>(resource, filter as ExtensibleFilter<QueryParams> & PaginationParams, options),
       getById: (id, options) => getContent<TResource>(resource, id, options),
       getBySlug: (slug, options) => getContentBySlug<TResource>(resource, slug, options),
       create: (input, options) => createContent<TResource, TCreate>(resource, input, responseSchema, options),
@@ -361,9 +363,9 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
     responseSchema?: WordPressStandardSchema<TResource>,
   ): TermsResourceClient<TResource, TCreate, TUpdate> {
     return {
-      list: (filter = {}, options) => getTermCollection<TResource>(resource, filter, options),
-      listAll: (filter = {}, options) => getAllTermCollection<TResource>(resource, filter, options),
-      listPaginated: (filter = {}, options) => getTermCollectionPaginated<TResource>(resource, filter, options),
+      list: (filter = {}, options) => getTermCollection<TResource>(resource, filter as ExtensibleFilter<QueryParams>, options),
+      listAll: (filter = {}, options) => getAllTermCollection<TResource>(resource, filter as Omit<ExtensibleFilter<QueryParams>, 'page'>, options),
+      listPaginated: (filter = {}, options) => getTermCollectionPaginated<TResource>(resource, filter as ExtensibleFilter<QueryParams> & PaginationParams, options),
       getById: (id, options) => getTerm<TResource>(resource, id, options),
       getBySlug: (slug, options) => getTermBySlug<TResource>(resource, slug, options),
       create: (input, options) => createTerm<TResource, TCreate>(resource, input, responseSchema, options),

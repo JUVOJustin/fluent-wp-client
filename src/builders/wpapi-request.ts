@@ -139,28 +139,28 @@ export class WordPressRequestBuilder<
   /**
    * Sets `categories` query filtering.
    */
-  categories(value: number | number[]): this {
+  categories(value: number[]): this {
     return this.param('categories', value);
   }
 
   /**
    * Sets `tags` query filtering.
    */
-  tags(value: number | number[]): this {
+  tags(value: number[]): this {
     return this.param('tags', value);
   }
 
   /**
    * Sets `include` query filtering.
    */
-  include(value: number | number[]): this {
+  include(value: number[]): this {
     return this.param('include', value);
   }
 
   /**
    * Sets `exclude` query filtering.
    */
-  exclude(value: number | number[]): this {
+  exclude(value: number[]): this {
     return this.param('exclude', value);
   }
 

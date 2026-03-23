@@ -343,6 +343,28 @@ const bookResults = await wp.content('books').list({ search: 'Test Book' });
 const allBookResults = await wp.content('books').listAll({ search: 'Test Book' });
 ```
 
+### Extensible collection filters
+
+Built-in collection helpers keep their typed core filters and also accept extra endpoint-specific params for plugin routes or project-specific REST extensions.
+
+Unknown keys are forwarded through the normal query serializer, so camelCase filter names become snake_case query params and array values are emitted as repeated `param[]` entries.
+
+```ts
+const posts = await wp.getPosts({
+  search: 'hello world',
+  include: [4, 8],
+  slug: ['hello-world', 'release-notes'],
+  titleSearch: 'Hello',
+});
+
+const books = await wp.content('books').list({
+  include: [164, 165],
+  titleSearch: 'Test Book',
+});
+```
+
+Use the typed helper when the endpoint shape is known, and drop to `route().param()` or `request()` when a plugin expects exact raw param names that should not be camelCase-normalized.
+
 ### Post base typing
 
 Use `WordPressPostBase` as the shared post-like foundation for pages and custom post types.

@@ -156,36 +156,29 @@ describe('Client: Search', () => {
       expect(included.map((r) => r.id)).toContain(firstId);
     });
 
-    it('handles single value include with bracket notation', async () => {
-      // Get a real ID first
+    it('supports multi-value include arrays without normalization', async () => {
       const all = await publicClient.searchContent('001');
-      expect(all.length).toBeGreaterThan(0);
-      const firstId = all[0]!.id;
+      expect(all.length).toBeGreaterThan(1);
+      const ids = all.slice(0, 2).map((result) => result.id);
 
-      // Single value should use bracket notation (include[]=id)
       const included = await publicClient.searchContent('001', {
-        include: firstId, // single number, not array
+        include: ids,
       });
 
-      expect(included.length).toBeGreaterThan(0);
-      expect(included.map((r) => r.id)).toContain(firstId);
+      expect(included.map((result) => result.id).sort((a, b) => a - b)).toEqual([...ids].sort((a, b) => a - b));
     });
 
-    it('handles single value exclude with bracket notation', async () => {
-      // Get a real ID first
+    it('supports multi-value exclude arrays without normalization', async () => {
       const all = await publicClient.searchContent('001');
-      expect(all.length).toBeGreaterThan(0);
-      const firstId = all[0]!.id;
+      expect(all.length).toBeGreaterThan(1);
+      const ids = all.slice(0, 2).map((result) => result.id);
 
-      // Single value should use bracket notation (exclude[]=id)
       const filtered = await publicClient.searchContent('001', {
-        exclude: firstId, // single number, not array
+        exclude: ids,
       });
 
-      // Should still return results, but without the excluded ID
-      if (filtered.length > 0) {
-        expect(filtered.map((r) => r.id)).not.toContain(firstId);
-      }
+      expect(filtered.map((result) => result.id)).not.toContain(ids[0]);
+      expect(filtered.map((result) => result.id)).not.toContain(ids[1]);
     });
   });
 

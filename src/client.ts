@@ -1388,25 +1388,7 @@ export class WordPressClient {
     filter?: Omit<SearchFilter, 'search'>,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResult[]> {
-    const { subtype, include, exclude, ...rest } = filter ?? {};
-    const params: Record<string, string | string[]> = filterToParams({ ...rest, search: query });
-
-    // Arrays use WordPress bracket notation (subtype[]=post&subtype[]=page).
-    // Single strings are passed as a plain query param.
-    if (subtype !== undefined) {
-      params['subtype'] = subtype;
-    }
-
-    if (include !== undefined) {
-      // Always use bracket notation: include[]=1
-      params['include'] = Array.isArray(include) ? include.map(String) : [String(include)];
-    }
-
-    if (exclude !== undefined) {
-      // Always use bracket notation: exclude[]=1
-      params['exclude'] = Array.isArray(exclude) ? exclude.map(String) : [String(exclude)];
-    }
-
+    const params = filterToParams({ ...filter, search: query });
     return this.fetchAPI<TResult[]>('/search', params, requestOptions);
   }
 

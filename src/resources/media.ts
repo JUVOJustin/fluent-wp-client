@@ -1,7 +1,7 @@
 import type { WordPressMedia } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
 import type { MediaFilter } from '../types/filters.js';
-import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import type { ExtensibleFilter, FetchResult, PaginatedResponse, SerializedQueryParams } from '../types/resources.js';
 import { createWordPressPaginator } from '../core/pagination.js';
 import { filterToParams } from '../core/params.js';
 
@@ -9,10 +9,10 @@ import { filterToParams } from '../core/params.js';
  * Media API methods factory for typed read operations.
  */
 export function createMediaMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
 ) {
-  const paginator = createWordPressPaginator<MediaFilter, WordPressMedia>({
+  const paginator = createWordPressPaginator<ExtensibleFilter<MediaFilter>, WordPressMedia>({
     fetchPage: (currentFilter, context) => {
       const params = filterToParams(currentFilter);
       return fetchAPIPaginated<WordPressMedia[]>('/media', params, context as WordPressRequestOverrides | undefined);
@@ -23,7 +23,10 @@ export function createMediaMethods(
     /**
      * Gets media items with optional filtering.
      */
-    async getMedia(filter: MediaFilter = {}, requestOptions?: WordPressRequestOverrides): Promise<WordPressMedia[]> {
+    async getMedia(
+      filter: ExtensibleFilter<MediaFilter> = {},
+      requestOptions?: WordPressRequestOverrides,
+    ): Promise<WordPressMedia[]> {
       const params = filterToParams(filter);
       return fetchAPI<WordPressMedia[]>('/media', params, requestOptions);
     },
@@ -32,7 +35,7 @@ export function createMediaMethods(
      * Gets all media items by paginating every page.
      */
     async getAllMedia(
-      filter: Omit<MediaFilter, 'page'> = {},
+      filter: Omit<ExtensibleFilter<MediaFilter>, 'page'> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressMedia[]> {
       return paginator.listAll(filter, requestOptions);
@@ -42,7 +45,7 @@ export function createMediaMethods(
      * Gets media with pagination metadata.
      */
     async getMediaPaginated(
-      filter: MediaFilter = {},
+      filter: ExtensibleFilter<MediaFilter> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<PaginatedResponse<WordPressMedia>> {
       return paginator.listPaginated(filter, requestOptions);

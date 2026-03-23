@@ -1,11 +1,12 @@
 import type { WordPressSettings } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
+import type { SerializedQueryParams } from '../types/resources.js';
 
 /**
  * Settings API methods factory for typed read operations.
  */
 export function createSettingsMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
   hasAuth: () => boolean,
 ) {
   return {

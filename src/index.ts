@@ -129,11 +129,13 @@ export {
 export type {
   ContentResourceClient,
   DeleteOptions,
+  ExtensibleFilter,
   FetchResult,
   PaginatedResponse,
   PaginationParams,
   QueryParamPrimitive,
   QueryParams,
+  SerializedQueryParams,
   TermsResourceClient,
   TermWriteInput,
   UserDeleteOptions,

@@ -21,10 +21,19 @@ export type QueryParamValue =
 export type QueryParams = Record<string, QueryParamValue>;
 
 /**
- * Common include/exclude parameter type used across filter interfaces.
- * Supports both single values and arrays for flexibility.
+ * Serialized query object sent to the request layer.
  */
-export type IncludeExcludeParam = number | number[];
+export type SerializedQueryParams = Record<string, string | string[]>;
+
+/**
+ * Extends one known filter shape with endpoint-specific custom query params.
+ */
+export type ExtensibleFilter<TKnown extends object> = TKnown & QueryParams;
+
+/**
+ * Common include/exclude parameter type used across collection filter interfaces.
+ */
+export type IncludeExcludeParam = number[];
 
 /**
  * Internal fetch result with pagination headers.

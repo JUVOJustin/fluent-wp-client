@@ -4,6 +4,7 @@ import type { IncludeExcludeParam, PaginationParams } from './resources.js';
  * Filter options for posts.
  */
 export interface PostsFilter extends PaginationParams {
+  context?: 'view' | 'embed' | 'edit';
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   categories?: IncludeExcludeParam;
   categoriesExclude?: IncludeExcludeParam;
@@ -11,11 +12,19 @@ export interface PostsFilter extends PaginationParams {
   tagsExclude?: IncludeExcludeParam;
   author?: number;
   authorExclude?: IncludeExcludeParam;
+  include?: IncludeExcludeParam;
+  exclude?: IncludeExcludeParam;
+  slug?: string[];
+  searchColumns?: string[];
   search?: string;
   after?: string;
+  modifiedAfter?: string;
   before?: string;
+  modifiedBefore?: string;
+  offset?: number;
   sticky?: boolean;
-  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include';
+  taxRelation?: 'AND' | 'OR';
+  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'parent' | 'include_slugs';
   order?: 'asc' | 'desc';
   /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
   fields?: string[];
@@ -25,15 +34,23 @@ export interface PostsFilter extends PaginationParams {
  * Filter options for pages.
  */
 export interface PagesFilter extends PaginationParams {
+  context?: 'view' | 'embed' | 'edit';
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   parent?: number;
   parentExclude?: IncludeExcludeParam;
   author?: number;
   authorExclude?: IncludeExcludeParam;
+  include?: IncludeExcludeParam;
+  exclude?: IncludeExcludeParam;
+  slug?: string[];
+  searchColumns?: string[];
   search?: string;
   after?: string;
+  modifiedAfter?: string;
   before?: string;
-  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'menu_order';
+  modifiedBefore?: string;
+  offset?: number;
+  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'menu_order' | 'include_slugs';
   order?: 'asc' | 'desc';
   /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
   fields?: string[];
@@ -43,15 +60,23 @@ export interface PagesFilter extends PaginationParams {
  * Filter options for media.
  */
 export interface MediaFilter extends PaginationParams {
+  context?: 'view' | 'embed' | 'edit';
   mediaType?: 'image' | 'video' | 'audio' | 'application';
   mimeType?: string;
   author?: number;
   authorExclude?: IncludeExcludeParam;
   parent?: number;
+  include?: IncludeExcludeParam;
+  exclude?: IncludeExcludeParam;
+  slug?: string[];
+  searchColumns?: string[];
   search?: string;
   after?: string;
+  modifiedAfter?: string;
   before?: string;
-  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include';
+  modifiedBefore?: string;
+  offset?: number;
+  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'parent' | 'include_slugs';
   order?: 'asc' | 'desc';
   /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
   fields?: string[];

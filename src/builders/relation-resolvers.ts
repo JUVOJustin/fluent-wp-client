@@ -1018,7 +1018,9 @@ export function createIdCollectionRelation<T>(
           return [];
         }
 
-        const validIds = ids.filter((id): id is number => typeof id === 'number' && id > 0);
+        const validIds = Array.from(
+          new Set(ids.filter((id): id is number => typeof id === 'number' && id > 0)),
+        );
 
         if (validIds.length === 0) {
           return [];

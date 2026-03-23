@@ -17,14 +17,15 @@ describe('Client: Search', () => {
 
   describe('searchContent()', () => {
     it('returns an array of search results', async () => {
-      const results = await publicClient.searchContent('test-post');
+      // Search for "Test Post" (with space) to match post titles
+      const results = await publicClient.searchContent('Test Post');
 
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBeGreaterThan(0);
     });
 
     it('returns results with expected shape', async () => {
-      const results = await publicClient.searchContent('test-post-001');
+      const results = await publicClient.searchContent('001');
 
       expect(results.length).toBeGreaterThan(0);
 
@@ -37,7 +38,7 @@ describe('Client: Search', () => {
     });
 
     it('finds the expected post by title keyword', async () => {
-      const results = await publicClient.searchContent('test-post-001');
+      const results = await publicClient.searchContent('001');
 
       const match = results.find((r) => r.title === 'Test Post 001');
       expect(match).toBeDefined();
@@ -59,7 +60,8 @@ describe('Client: Search', () => {
     });
 
     it('filters by type=post', async () => {
-      const results = await publicClient.searchContent('test-post', {
+      // Search for "Test Post" (with space) to match post titles
+      const results = await publicClient.searchContent('Test Post', {
         type: 'post',
       });
 
@@ -70,7 +72,8 @@ describe('Client: Search', () => {
     });
 
     it('respects perPage pagination option', async () => {
-      const results = await publicClient.searchContent('test-post', {
+      // Search for "Test Post" (with space) to match post titles
+      const results = await publicClient.searchContent('Test Post', {
         perPage: 3,
       });
 
@@ -116,7 +119,7 @@ describe('Client: Search', () => {
     });
 
     it('respects the context param', async () => {
-      const results = await publicClient.searchContent('test-post-001', {
+      const results = await publicClient.searchContent('001', {
         context: 'embed',
       });
 
@@ -126,12 +129,12 @@ describe('Client: Search', () => {
 
     it('respects the exclude param to omit specific IDs', async () => {
       // First fetch without exclusion to get a real ID.
-      const all = await publicClient.searchContent('test-post-001');
+      const all = await publicClient.searchContent('001');
       expect(all.length).toBeGreaterThan(0);
       const firstId = all[0]!.id;
 
       // Now exclude that ID and verify it is absent from the results.
-      const filtered = await publicClient.searchContent('test-post-001', {
+      const filtered = await publicClient.searchContent('001', {
         exclude: [firstId],
       });
 
@@ -141,11 +144,11 @@ describe('Client: Search', () => {
 
     it('respects the include param to fetch specific IDs', async () => {
       // First fetch to obtain a real ID.
-      const all = await publicClient.searchContent('test-post-001');
+      const all = await publicClient.searchContent('001');
       expect(all.length).toBeGreaterThan(0);
       const firstId = all[0]!.id;
 
-      const included = await publicClient.searchContent('test-post-001', {
+      const included = await publicClient.searchContent('001', {
         include: [firstId],
       });
 
@@ -158,7 +161,7 @@ describe('Client: Search', () => {
     it('returns results via the WPAPI-style search chain', async () => {
       const results = await publicClient
         .search()
-        .search('test-post-001')
+        .search('001')
         .get();
 
       expect(Array.isArray(results)).toBe(true);
@@ -170,9 +173,10 @@ describe('Client: Search', () => {
     });
 
     it('supports perPage via the WPAPI chain', async () => {
+      // Search for "Test Post" (with space) to match post titles
       const results = await publicClient
         .search()
-        .search('test-post')
+        .search('Test Post')
         .perPage(2)
         .get();
 

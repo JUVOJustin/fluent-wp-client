@@ -173,9 +173,10 @@ describe('Client: WPAPI compatibility syntax', () => {
 
   describe('search() chain', () => {
     it('filters by type via the search chain', async () => {
+      // Search for "Test Post" (with space) to match post titles
       const results = await publicClient
         .search()
-        .search('test-post')
+        .search('Test Post')
         .param('type', 'post')
         .perPage(3)
         .get();
@@ -229,7 +230,7 @@ describe('Client: WPAPI compatibility syntax', () => {
     it('respects context via the search chain', async () => {
       const results = await publicClient
         .search()
-        .search('test-post-001')
+        .search('001')
         .context('embed')
         .get();
 
@@ -240,7 +241,7 @@ describe('Client: WPAPI compatibility syntax', () => {
     it('respects exclude via the search chain', async () => {
       const all = (await publicClient
         .search()
-        .search('test-post-001')
+        .search('001')
         .get()) as Array<{ id: number }>;
 
       expect(all.length).toBeGreaterThan(0);
@@ -248,7 +249,7 @@ describe('Client: WPAPI compatibility syntax', () => {
 
       const filtered = (await publicClient
         .search()
-        .search('test-post-001')
+        .search('001')
         .exclude([firstId])
         .get()) as Array<{ id: number }>;
 
@@ -258,7 +259,7 @@ describe('Client: WPAPI compatibility syntax', () => {
     it('respects include via the search chain', async () => {
       const all = (await publicClient
         .search()
-        .search('test-post-001')
+        .search('001')
         .get()) as Array<{ id: number }>;
 
       expect(all.length).toBeGreaterThan(0);
@@ -266,7 +267,7 @@ describe('Client: WPAPI compatibility syntax', () => {
 
       const included = (await publicClient
         .search()
-        .search('test-post-001')
+        .search('001')
         .include([firstId])
         .get()) as Array<{ id: number }>;
 

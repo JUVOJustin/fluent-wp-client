@@ -3,7 +3,7 @@ import type { WordPressRequestOptions, WordPressRequestOverrides, WordPressReque
 import type { WordPressStandardSchema } from '../core/validation.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { createWordPressPaginator } from '../core/pagination.js';
-import { compactPayload, filterToParams } from '../core/params.js';
+import { compactPayload, filterToParams, normalizeDeleteResult } from '../core/params.js';
 import {
   PostRelationQueryBuilder,
   type AllPostRelations,
@@ -177,20 +177,7 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
       params,
     }, options, 'Mutation helper options'));
 
-    if (
-      typeof data === 'object'
-      && data !== null
-      && 'deleted' in data
-      && (data as Record<string, unknown>).deleted === true
-    ) {
-      return {
-        id,
-        deleted: true,
-        previous: (data as Record<string, unknown>).previous,
-      };
-    }
-
-    return { id, deleted: false };
+    return normalizeDeleteResult(id, data);
   }
 
   /**
@@ -314,23 +301,7 @@ export function createContentTermMethods(dependencies: ContentTermMethodDependen
       params,
     }, options, 'Mutation helper options'));
 
-    if (
-      typeof data === 'object'
-      && data !== null
-      && 'deleted' in data
-      && (data as Record<string, unknown>).deleted === true
-    ) {
-      return {
-        id,
-        deleted: true,
-        previous: (data as Record<string, unknown>).previous,
-      };
-    }
-
-    return {
-      id,
-      deleted: false,
-    };
+    return normalizeDeleteResult(id, data);
   }
 
   /**

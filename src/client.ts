@@ -66,7 +66,7 @@ import {
   type WordPressStandardSchema,
 } from './core/validation.js';
 import { applyRequestOverrides } from './core/request-overrides.js';
-import { compactPayload } from './core/params.js';
+import { compactPayload, normalizeDeleteResult } from './core/params.js';
 import type {
   CategoriesFilter,
   CommentsFilter,
@@ -906,23 +906,7 @@ export class WordPressClient {
 
     throwIfWordPressError(response, data);
 
-    if (
-      typeof data === 'object'
-      && data !== null
-      && 'deleted' in data
-      && (data as Record<string, unknown>).deleted === true
-    ) {
-      return {
-        id,
-        deleted: true,
-        previous: (data as Record<string, unknown>).previous,
-      };
-    }
-
-    return {
-      id,
-      deleted: false,
-    };
+    return normalizeDeleteResult(id, data);
   }
 
   /**
@@ -982,23 +966,7 @@ export class WordPressClient {
 
     throwIfWordPressError(response, data);
 
-    if (
-      typeof data === 'object'
-      && data !== null
-      && 'deleted' in data
-      && (data as Record<string, unknown>).deleted === true
-    ) {
-      return {
-        id,
-        deleted: true,
-        previous: (data as Record<string, unknown>).previous,
-      };
-    }
-
-    return {
-      id,
-      deleted: false,
-    };
+    return normalizeDeleteResult(id, data);
   }
 
   /**
@@ -1119,23 +1087,7 @@ export class WordPressClient {
 
     throwIfWordPressError(response, data);
 
-    if (
-      typeof data === 'object'
-      && data !== null
-      && 'deleted' in data
-      && (data as Record<string, unknown>).deleted === true
-    ) {
-      return {
-        id,
-        deleted: true,
-        previous: (data as Record<string, unknown>).previous,
-      };
-    }
-
-    return {
-      id,
-      deleted: false,
-    };
+    return normalizeDeleteResult(id, data);
   }
 
   /**

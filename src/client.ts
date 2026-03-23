@@ -70,6 +70,7 @@ import {
 import { applyRequestOverrides } from './core/request-overrides.js';
 import { compactPayload, filterToParams } from './core/params.js';
 import type {
+  BaseContentFilter,
   CategoriesFilter,
   CommentsFilter,
   MediaFilter,
@@ -1427,6 +1428,7 @@ export class WordPressClient {
  * Re-export selected client filter types alongside the class implementation.
  */
 export type {
+  BaseContentFilter,
   CategoriesFilter,
   CommentsFilter,
   MediaFilter,

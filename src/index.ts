@@ -9,6 +9,7 @@ export {
   type WordPressRequestResult,
   type WordPressMediaUploadInput,
   type WordPressNamespaceClient,
+  type BaseContentFilter,
   type CategoriesFilter,
   type CommentsFilter,
   type MediaFilter,

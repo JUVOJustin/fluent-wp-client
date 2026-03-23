@@ -1,85 +1,62 @@
 import type { IncludeExcludeParam, PaginationParams } from './resources.js';
 
 /**
+ * Common filter fields shared by the posts, pages, and media collection endpoints.
+ *
+ * Extend this interface rather than duplicating fields when adding a new
+ * content-like filter type.
+ */
+export interface BaseContentFilter extends PaginationParams {
+  context?: 'view' | 'embed' | 'edit';
+  author?: number;
+  authorExclude?: IncludeExcludeParam;
+  include?: IncludeExcludeParam;
+  exclude?: IncludeExcludeParam;
+  slug?: string[];
+  searchColumns?: string[];
+  search?: string;
+  after?: string;
+  modifiedAfter?: string;
+  before?: string;
+  modifiedBefore?: string;
+  offset?: number;
+  order?: 'asc' | 'desc';
+  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+  fields?: string[];
+}
+
+/**
  * Filter options for posts.
  */
-export interface PostsFilter extends PaginationParams {
-  context?: 'view' | 'embed' | 'edit';
+export interface PostsFilter extends BaseContentFilter {
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   categories?: IncludeExcludeParam;
   categoriesExclude?: IncludeExcludeParam;
   tags?: IncludeExcludeParam;
   tagsExclude?: IncludeExcludeParam;
-  author?: number;
-  authorExclude?: IncludeExcludeParam;
-  include?: IncludeExcludeParam;
-  exclude?: IncludeExcludeParam;
-  slug?: string[];
-  searchColumns?: string[];
-  search?: string;
-  after?: string;
-  modifiedAfter?: string;
-  before?: string;
-  modifiedBefore?: string;
-  offset?: number;
   sticky?: boolean;
   taxRelation?: 'AND' | 'OR';
   orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'parent' | 'include_slugs';
-  order?: 'asc' | 'desc';
-  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
-  fields?: string[];
 }
 
 /**
  * Filter options for pages.
  */
-export interface PagesFilter extends PaginationParams {
-  context?: 'view' | 'embed' | 'edit';
+export interface PagesFilter extends BaseContentFilter {
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   parent?: number;
   parentExclude?: IncludeExcludeParam;
-  author?: number;
-  authorExclude?: IncludeExcludeParam;
-  include?: IncludeExcludeParam;
-  exclude?: IncludeExcludeParam;
-  slug?: string[];
-  searchColumns?: string[];
-  search?: string;
-  after?: string;
-  modifiedAfter?: string;
-  before?: string;
-  modifiedBefore?: string;
-  offset?: number;
   orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'menu_order' | 'include_slugs';
-  order?: 'asc' | 'desc';
-  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
-  fields?: string[];
 }
 
 /**
  * Filter options for media.
  */
-export interface MediaFilter extends PaginationParams {
-  context?: 'view' | 'embed' | 'edit';
+export interface MediaFilter extends BaseContentFilter {
   mediaType?: 'image' | 'video' | 'audio' | 'application';
   mimeType?: string;
-  author?: number;
-  authorExclude?: IncludeExcludeParam;
   parent?: number;
-  include?: IncludeExcludeParam;
-  exclude?: IncludeExcludeParam;
-  slug?: string[];
-  searchColumns?: string[];
-  search?: string;
-  after?: string;
-  modifiedAfter?: string;
-  before?: string;
-  modifiedBefore?: string;
-  offset?: number;
   orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'parent' | 'include_slugs';
-  order?: 'asc' | 'desc';
-  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
-  fields?: string[];
 }
 
 /**
@@ -133,6 +110,8 @@ export interface CommentsFilter extends PaginationParams {
   parent?: number;
   author?: number;
   authorExclude?: IncludeExcludeParam;
+  include?: IncludeExcludeParam;
+  exclude?: IncludeExcludeParam;
   search?: string;
   status?: 'hold' | 'approve' | 'spam' | 'trash';
   orderby?: 'date' | 'date_gmt' | 'id' | 'include' | 'post' | 'parent' | 'type';

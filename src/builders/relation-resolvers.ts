@@ -749,6 +749,76 @@ export function toRelatedContentReference(content: WordPressContent): RelatedCon
 }
 
 /**
+ * Generic resolver factory configuration.
+ */
+interface ResolverFactoryConfig<T, TRef extends { id: number }> {
+  /** Batch fetch for multiple IDs (optional - falls back to individual fetches) */
+  batchFetch?: (ids: number[]) => Promise<T[]>;
+  /** Single item fetch by ID (required) */
+  singleFetch: (id: number) => PromiseLike<T>;
+  /** Transform from full type to reference type */
+  toReference: (item: T) => TRef;
+}
+
+/**
+ * Creates a pair of reference resolvers (batch and single) with shared error handling.
+ * 
+ * This factory eliminates the duplicated try/catch loops and empty-check logic
+ * across all resource-specific resolver pairs (posts, terms, content, etc.).
+ */
+function createReferenceResolvers<T, TRef extends { id: number }>({
+  batchFetch,
+  singleFetch,
+  toReference,
+}: ResolverFactoryConfig<T, TRef>): {
+  resolveMany: (ids: number[]) => Promise<TRef[]>;
+  resolveOne: (id: number) => Promise<TRef | null>;
+} {
+  async function resolveMany(ids: number[]): Promise<TRef[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    // Use batch endpoint if available
+    if (batchFetch) {
+      try {
+        const items = await batchFetch(ids);
+        return items.map(toReference);
+      } catch {
+        // Fall through to individual fetches
+      }
+    }
+
+    // Individual fetches with error tolerance
+    const results: TRef[] = [];
+    for (const id of ids) {
+      try {
+        const item = await singleFetch(id);
+        results.push(toReference(item));
+      } catch {
+        continue;
+      }
+    }
+    return results;
+  }
+
+  async function resolveOne(id: number): Promise<TRef | null> {
+    if (id <= 0) {
+      return null;
+    }
+
+    try {
+      const item = await singleFetch(id);
+      return toReference(item);
+    } catch {
+      return null;
+    }
+  }
+
+  return { resolveMany, resolveOne };
+}
+
+/**
  * Resolves many content references from numeric IDs for any content resource.
  */
 export async function resolveContentReferences(
@@ -768,18 +838,12 @@ export async function resolveContentReferences(
     return [];
   }
 
-  const items: RelatedContentReference[] = [];
+  const { resolveMany } = createReferenceResolvers<WordPressContent, RelatedContentReference>({
+    singleFetch: (id) => client.getContent!(resource, id),
+    toReference: toRelatedContentReference,
+  });
 
-  for (const id of ids) {
-    try {
-      const content = await client.getContent<WordPressContent>(resource, id);
-      items.push(toRelatedContentReference(content));
-    } catch {
-      continue;
-    }
-  }
-
-  return items;
+  return resolveMany(ids);
 }
 
 /**
@@ -802,12 +866,12 @@ export async function resolveContentReference(
     return null;
   }
 
-  try {
-    const content = await client.getContent<WordPressContent>(resource, id);
-    return toRelatedContentReference(content);
-  } catch {
-    return null;
-  }
+  const { resolveOne } = createReferenceResolvers<WordPressContent, RelatedContentReference>({
+    singleFetch: (id) => client.getContent!(resource, id),
+    toReference: toRelatedContentReference,
+  });
+
+  return resolveOne(id);
 }
 
 /**
@@ -817,18 +881,16 @@ export async function resolvePostReferences(
   client: PostRelationClient,
   ids: number[],
 ): Promise<RelatedPostReference[]> {
-  const posts: RelatedPostReference[] = [];
-
-  for (const id of ids) {
-    try {
-      const post = await client.getPost(id);
-      posts.push(toRelatedPostReference(post));
-    } catch {
-      continue;
-    }
+  if (!client.getPost) {
+    return [];
   }
 
-  return posts;
+  const { resolveMany } = createReferenceResolvers<WordPressPost, RelatedPostReference>({
+    singleFetch: (id) => client.getPost!(id),
+    toReference: toRelatedPostReference,
+  });
+
+  return resolveMany(ids);
 }
 
 /**
@@ -838,16 +900,16 @@ export async function resolvePostReference(
   client: PostRelationClient,
   id: number,
 ): Promise<RelatedPostReference | null> {
-  if (id <= 0) {
+  if (!client.getPost) {
     return null;
   }
 
-  try {
-    const post = await client.getPost(id);
-    return toRelatedPostReference(post);
-  } catch {
-    return null;
-  }
+  const { resolveOne } = createReferenceResolvers<WordPressPost, RelatedPostReference>({
+    singleFetch: (id) => client.getPost!(id),
+    toReference: toRelatedPostReference,
+  });
+
+  return resolveOne(id);
 }
 
 /**
@@ -870,40 +932,19 @@ export async function resolveTermReferences(
   resource: string,
   ids: number[],
 ): Promise<RelatedTermReference[]> {
-  if (ids.length === 0) {
-    return [];
-  }
-
-  if (client.getTermCollection) {
-    try {
-      // Omit perPage so filterToParams applies the default per_page=100 cap.
-      // Requesting perPage: ids.length would exceed WordPress's hard limit of 100
-      // and silently truncate results when more than 100 IDs are provided.
-      const terms = await client.getTermCollection<WordPressCategory>(resource, {
-        include: ids,
-      });
-      return terms.map(toRelatedTermReference);
-    } catch {
-      return [];
-    }
-  }
-
   if (!client.getTerm) {
     return [];
   }
 
-  const terms: RelatedTermReference[] = [];
+  const { resolveMany } = createReferenceResolvers<WordPressCategory, RelatedTermReference>({
+    batchFetch: client.getTermCollection 
+      ? (ids) => client.getTermCollection!(resource, { include: ids })
+      : undefined,
+    singleFetch: (id) => client.getTerm!(resource, id),
+    toReference: toRelatedTermReference,
+  });
 
-  for (const id of ids) {
-    try {
-      const term = await client.getTerm<WordPressCategory>(resource, id);
-      terms.push(toRelatedTermReference(term));
-    } catch {
-      continue;
-    }
-  }
-
-  return terms;
+  return resolveMany(ids);
 }
 
 /**
@@ -914,21 +955,16 @@ export async function resolveTermReference(
   resource: string,
   id: number,
 ): Promise<RelatedTermReference | null> {
-  if (id <= 0) {
+  if (!client.getTerm) {
     return null;
   }
 
-  if (client.getTerm) {
-    try {
-      const term = await client.getTerm<WordPressCategory>(resource, id);
-      return toRelatedTermReference(term);
-    } catch {
-      return null;
-    }
-  }
+  const { resolveOne } = createReferenceResolvers<WordPressCategory, RelatedTermReference>({
+    singleFetch: (id) => client.getTerm!(resource, id),
+    toReference: toRelatedTermReference,
+  });
 
-  const terms = await resolveTermReferences(client, resource, [id]);
-  return terms[0] ?? null;
+  return resolveOne(id);
 }
 
 /**

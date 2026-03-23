@@ -22,6 +22,7 @@ import {
   postLikeWordPressSchema as zodPostLikeWordPressSchema,
   postSchema as zodPostSchema,
   postWriteBaseSchema as zodPostWriteBaseSchema,
+  searchResultSchema as zodSearchResultSchema,
   settingsSchema as zodSettingsSchema,
   updatePostFieldsSchema as zodUpdatePostFieldsSchema,
   wordPressErrorSchema as zodWordPressErrorSchema,
@@ -60,6 +61,7 @@ export const jwtAuthErrorResponseSchema = asStandardSchema(zodJwtAuthErrorRespon
 export const jwtAuthValidationResponseSchema = asStandardSchema(zodJwtAuthValidationResponseSchema);
 export const wordPressErrorSchema = asStandardSchema(zodWordPressErrorSchema);
 export const settingsSchema = asStandardSchema(zodSettingsSchema);
+export const searchResultSchema = asStandardSchema(zodSearchResultSchema);
 
 /**
  * Standard Schema exports for ability execution input wrappers.

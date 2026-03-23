@@ -12,6 +12,7 @@ import {
   validateWithStandardSchema,
   type WordPressStandardSchema,
 } from './core/validation.js';
+import type { SerializedQueryParams } from './types/resources.js';
 
 const ABILITIES_BASE_ENDPOINT = '/wp-json/wp-abilities/v1';
 const zodAbilitiesSchema = z.array(abilitySchema);
@@ -49,7 +50,7 @@ export type DeleteAbilityInput = z.infer<typeof zodDeleteAbilityInputSchema>;
  * Runtime hooks required for WordPress abilities support.
  */
 export interface WordPressAbilityRuntime {
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>;
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>;
   request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
 }
 
@@ -87,7 +88,7 @@ function createAbilityRunEndpoint(name: string): string {
 /**
  * Serializes optional ability input for GET and DELETE requests.
  */
-function createAbilityQueryParams(input: unknown): Record<string, string> | undefined {
+function createAbilityQueryParams(input: unknown): SerializedQueryParams | undefined {
   if (input === undefined) {
     return undefined;
   }

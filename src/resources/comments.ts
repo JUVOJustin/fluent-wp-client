@@ -1,7 +1,7 @@
 import type { WordPressComment } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
 import type { CommentsFilter } from '../types/filters.js';
-import type { FetchResult, PaginatedResponse } from '../types/resources.js';
+import type { ExtensibleFilter, FetchResult, PaginatedResponse, SerializedQueryParams } from '../types/resources.js';
 import { createWordPressPaginator } from '../core/pagination.js';
 import { filterToParams } from '../core/params.js';
 
@@ -9,10 +9,10 @@ import { filterToParams } from '../core/params.js';
  * Comments API methods factory for typed read operations.
  */
 export function createCommentsMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
 ) {
-  const paginator = createWordPressPaginator<CommentsFilter, WordPressComment>({
+  const paginator = createWordPressPaginator<ExtensibleFilter<CommentsFilter>, WordPressComment>({
     fetchPage: (currentFilter, context) => {
       const params = filterToParams(currentFilter);
       return fetchAPIPaginated<WordPressComment[]>('/comments', params, context as WordPressRequestOverrides | undefined);
@@ -24,7 +24,7 @@ export function createCommentsMethods(
      * Gets comments with optional filtering.
      */
     async getComments(
-      filter: CommentsFilter = {},
+      filter: ExtensibleFilter<CommentsFilter> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressComment[]> {
       const params = filterToParams(filter);
@@ -35,7 +35,7 @@ export function createCommentsMethods(
      * Gets all comments by paginating every page.
      */
     async getAllComments(
-      filter: Omit<CommentsFilter, 'page'> = {},
+      filter: Omit<ExtensibleFilter<CommentsFilter>, 'page'> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<WordPressComment[]> {
       return paginator.listAll(filter, requestOptions);
@@ -45,7 +45,7 @@ export function createCommentsMethods(
      * Gets comments with pagination metadata.
      */
     async getCommentsPaginated(
-      filter: CommentsFilter = {},
+      filter: ExtensibleFilter<CommentsFilter> = {},
       requestOptions?: WordPressRequestOverrides,
     ): Promise<PaginatedResponse<WordPressComment>> {
       return paginator.listPaginated(filter, requestOptions);

@@ -153,6 +153,7 @@ ACF fields are seeded for a subset of content. The mu-plugin `tests/wp-env/mu-pl
 - The test environment ensures the free ACF plugin is available during `wp-env start` by activating it when installed or installing and activating `advanced-custom-fields` when missing.
 - The test environment also installs `jwt-authentication-for-wp-rest-api` during `wp-env start` and sets `JWT_AUTH_SECRET_KEY` in `.wp-env.json` for JWT endpoint tests.
 - WordPress ability integration tests rely on the core `wp_register_ability()` API being available in the local WordPress version. Test abilities are registered by `tests/wp-env/mu-plugins/register-test-abilities.php` and are skipped automatically when the function does not exist.
+- Integration tests for extensible collection filters rely on `tests/wp-env/mu-plugins/register-test-collection-filters.php`, which registers a custom `title_search` REST collection param for posts and books.
 - No license key is required.
 
 ### Running tests

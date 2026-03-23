@@ -12,6 +12,7 @@ export type {
   TagsFilter,
   UsersFilter,
   CommentsFilter,
+  SearchFilter,
 } from './types/filters.js';
 
 export type {
@@ -23,9 +24,12 @@ export type {
 } from './types/payloads.js';
 
 export type {
+  ExtensibleFilter,
   QueryParamPrimitive,
   QueryParamValue,
   QueryParams,
+  SerializedQueryParams,
+  IncludeExcludeParam,
   FetchResult,
   PaginationParams,
   PaginatedResponse,

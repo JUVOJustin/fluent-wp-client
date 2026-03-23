@@ -2,7 +2,7 @@ import type { WordPressBlockParser } from '../blocks.js';
 import { createPostLikeReadMethods } from '../content-read-methods.js';
 import type { WordPressPage } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
-import type { FetchResult } from '../types/resources.js';
+import type { ExtensibleFilter, FetchResult, SerializedQueryParams } from '../types/resources.js';
 import type { PagesFilter } from '../types/filters.js';
 
 const missingRawPageMessage =
@@ -12,11 +12,11 @@ const missingRawPageMessage =
  * Pages API methods factory for typed read operations.
  */
 export function createPagesMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
+  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
+  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
   defaultBlockParser?: WordPressBlockParser,
 ) {
-  const core = createPostLikeReadMethods<WordPressPage, PagesFilter>({
+  const core = createPostLikeReadMethods<WordPressPage, ExtensibleFilter<PagesFilter>>({
     resource: 'pages',
     missingRawMessage: missingRawPageMessage,
     fetchAPI,

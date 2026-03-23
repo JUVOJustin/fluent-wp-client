@@ -47,7 +47,6 @@ import {
   type WordPressAuthor,
   type WordPressCategory,
   type WordPressComment,
-  type WordPressContent,
   type WordPressMedia,
   type WordPressPage,
   type WordPressPost,

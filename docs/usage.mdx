@@ -327,6 +327,8 @@ Media uses a different schema (`description`/`caption`, no `content.raw`), so me
 
 If `page`/`perPage` are omitted, endpoint defaults are preserved.
 
+Passing a schema to `content(resource, schema)` validates generic content reads and mutations for that resource client.
+
 All collection helpers (`getContentCollection`, `getAllContentCollection`, the `content()` builder, and built-in helpers like `getPosts`) accept a `search` string to filter results by keyword:
 
 ```ts
@@ -365,19 +367,18 @@ const books = await wp.content('books').list({
 
 Use the typed helper when the endpoint shape is known, and drop to `route().param()` or `request()` when a plugin expects exact raw param names that should not be camelCase-normalized.
 
-### Post base typing
+### Post-like typing
 
-Use `WordPressPostBase` as the shared post-like foundation for pages and custom post types.
+Use `WordPressCustomPost<TExtra>` or `WordPressPostLike` for CPTs where WordPress supports may disable `title`, `content`, `excerpt`, or `author`. Use `WordPressPostBase` only when the post type is guaranteed to expose content-bearing fields.
 
 ```ts
 import type { WordPressCustomPost, WordPressPostBase } from 'fluent-wp-client';
 
-type Book = WordPressCustomPost<{
-  type: 'book';
-  book_genre?: string;
-}>;
+// Sparse CPT — title, content, and excerpt are optional.
+type Artifact = WordPressCustomPost<{ type: 'artifact' }>;
 
-type PageLike = WordPressPostBase;
+// Content-bearing CPT — title, content, and excerpt are required.
+type ContentBook = WordPressPostBase & { type: 'book' };
 ```
 
 ### Mutation helpers

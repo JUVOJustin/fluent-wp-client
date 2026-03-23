@@ -326,19 +326,29 @@ Media uses a different schema (`description`/`caption`, no `content.raw`), so me
 
 If `page`/`perPage` are omitted, endpoint defaults are preserved.
 
-### Post base typing
+Passing a schema to `content(resource, schema)` validates generic content reads and mutations for that resource client.
 
-Use `WordPressPostBase` as the shared post-like foundation for pages and custom post types.
+### Post-like typing
+
+Use `WordPressCustomPost<TExtra>` or `WordPressPostLike` for generic custom post types where WordPress supports may disable `title`, `content`, `excerpt`, or `author`.
+Use `WordPressPostBase` only when the endpoint is guaranteed to expose content-bearing post fields.
 
 ```ts
-import type { WordPressCustomPost, WordPressPostBase } from 'fluent-wp-client';
+import type { WordPressCustomPost, WordPressPostBase, WordPressPostLike } from 'fluent-wp-client';
 
-type Book = WordPressCustomPost<{
-  type: 'book';
-  book_genre?: string;
+type Artifact = WordPressCustomPost<{
+  type: 'artifact';
+  acf?: {
+    acf_subtitle?: string;
+  };
 }>;
 
-type PageLike = WordPressPostBase;
+type GenericCpt = WordPressPostLike;
+
+type ContentBook = WordPressPostBase & {
+  type: 'book';
+  book_genre?: string;
+};
 ```
 
 ### Mutation helpers

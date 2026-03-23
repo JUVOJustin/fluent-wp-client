@@ -80,35 +80,57 @@ const bookSchema = z.object({
 });
 
 const books = wp.content('books', bookSchema);
+const first = await books.getBySlug('my-book');
 const created = await books.create({ title: 'Typed book', status: 'draft' });
 ```
 
-### CPT typing from the shared post base
+Passing a schema to `content(resource, schema)` validates generic CPT reads and mutations for that resource client.
 
-Use `WordPressPostBase` as the common shape for post-like resources, and extend with `WordPressCustomPost<TExtra>`.
+### Flexible CPT typing
 
-```ts title="CPT typing from post base"
-import type { WordPressCustomPost } from 'fluent-wp-client';
+Use `WordPressCustomPost<TExtra>` or `WordPressPostLike` for generic CPTs where WordPress supports may disable `title`, `content`, `excerpt`, or `author`.
+Use `WordPressPostBase` only when the custom post type is guaranteed to expose content-bearing fields.
 
-type Book = WordPressCustomPost<{
-  type: 'book';
+```ts title="Flexible CPT typing"
+import type { WordPressCustomPost, WordPressPostBase } from 'fluent-wp-client';
+
+type Artifact = WordPressCustomPost<{
+  type: 'artifact';
   acf?: {
     acf_subtitle?: string;
   };
 }>;
 
-const books = await wp.getContentCollection<Book>('books');
-const firstBook = books[0];
+type ContentBook = WordPressPostBase & {
+  type: 'book';
+};
+
+const artifacts = await wp.getContentCollection<Artifact>('artifacts');
+const firstArtifact = artifacts[0];
 ```
+
+### Sparse CPTs without title or content support
+
+```ts title="Sparse CPT validation"
+import { postLikeWordPressSchema } from 'fluent-wp-client';
+
+const artifacts = wp.content('artifacts', postLikeWordPressSchema);
+const artifact = await artifacts.getBySlug('test-artifact-001');
+
+console.log(artifact?.acf?.acf_subtitle);
+console.log(artifact?.title); // undefined when the post type hides title support
+```
+
+If you intentionally require content-bearing fields, pass a stricter schema such as `contentWordPressSchema`. Validation then fails fast when the endpoint omits `title`, `content`, or `excerpt`.
 
 ### Parse Gutenberg blocks for custom post types
 
 `getBlocks()` is currently available on post/page helpers. For custom post types, request edit context and parse `content.raw` with `parseWordPressBlocks()`.
 
 ```ts title="CPT block parsing"
-import { parseWordPressBlocks, type WordPressCustomPost } from 'fluent-wp-client';
+import { parseWordPressBlocks, type WordPressPostBase } from 'fluent-wp-client';
 
-type Book = WordPressCustomPost<{ type: 'book' }>;
+type Book = WordPressPostBase & { type: 'book' };
 
 const books = await wp.getContentCollection<Book>('books', {
   slug: 'test-book-001',

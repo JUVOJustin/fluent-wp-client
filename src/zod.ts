@@ -76,6 +76,7 @@ export {
 
 export {
   baseWordPressSchema,
+  postLikeWordPressSchema,
   contentWordPressSchema,
   postSchema,
   pageSchema,
@@ -107,6 +108,7 @@ export {
   type WordPressAbilityCategory,
   type WordPressMedia,
   type WordPressPage,
+  type WordPressPostLike,
   type WordPressPostBase,
   type WordPressPost,
   type WordPressPostWriteBase,

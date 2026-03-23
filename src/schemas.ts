@@ -1,43 +1,82 @@
 import { z } from 'zod';
 
 /**
+ * Shared rendered-text field used by many REST resource payloads.
+ */
+const renderedTextSchema = z.object({
+  rendered: z.string(),
+});
+
+/**
+ * Rendered-text field that may also expose raw edit-context data.
+ */
+const editableRenderedTextSchema = renderedTextSchema.extend({
+  raw: z.string().optional(),
+});
+
+/**
+ * Content-like field that may expose raw data and protection state.
+ */
+const protectedRenderedTextSchema = editableRenderedTextSchema.extend({
+  protected: z.boolean(),
+});
+
+/**
  * Base schema shared by all WordPress content response types.
  */
 export const baseWordPressSchema = z.object({
   id: z.number(),
   date: z.string(),
   date_gmt: z.string(),
-  guid: z.object({
-    rendered: z.string(),
-  }),
+  guid: renderedTextSchema,
   modified: z.string(),
   modified_gmt: z.string(),
   slug: z.string(),
   status: z.string(),
   type: z.string(),
   link: z.string().url(),
-  title: z.object({
-    rendered: z.string(),
-  }),
+  title: renderedTextSchema,
   author: z.number(),
   meta: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
   _links: z.any(),
 }).passthrough();
 
 /**
+ * Flexible schema for generic post-like resources whose supports may disable
+ * title, content, excerpt, author, and other post fields.
+ */
+export const postLikeWordPressSchema = baseWordPressSchema
+  .omit({
+    author: true,
+    title: true,
+  })
+  .extend({
+    title: editableRenderedTextSchema.optional(),
+    author: z.number().optional(),
+    content: protectedRenderedTextSchema.optional(),
+    excerpt: protectedRenderedTextSchema.optional(),
+    featured_media: z.number().optional(),
+    comment_status: z.string().optional(),
+    ping_status: z.string().optional(),
+    template: z.string().optional(),
+    sticky: z.boolean().optional(),
+    format: z.string().optional(),
+    categories: z.array(z.number()).optional(),
+    tags: z.array(z.number()).optional(),
+    parent: z.number().optional(),
+    menu_order: z.number().optional(),
+    class_list: z.array(z.string()).optional(),
+    acf: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+    _embedded: z.any().optional(),
+  })
+  .passthrough();
+
+/**
  * Schema for content types (posts and pages).
  */
 export const contentWordPressSchema = baseWordPressSchema.extend({
-  content: z.object({
-    rendered: z.string(),
-    raw: z.string().optional(),
-    protected: z.boolean(),
-  }),
-  excerpt: z.object({
-    rendered: z.string(),
-    raw: z.string().optional(),
-    protected: z.boolean(),
-  }),
+  content: protectedRenderedTextSchema,
+  excerpt: protectedRenderedTextSchema,
   featured_media: z.number().optional(),
   comment_status: z.string(),
   ping_status: z.string(),
@@ -72,12 +111,8 @@ export const mediaSchema = baseWordPressSchema.extend({
   comment_status: z.string(),
   ping_status: z.string(),
   alt_text: z.string(),
-  caption: z.object({
-    rendered: z.string(),
-  }),
-  description: z.object({
-    rendered: z.string(),
-  }),
+  caption: renderedTextSchema,
+  description: renderedTextSchema,
   media_type: z.string(),
   mime_type: z.string(),
   media_details: z.object({
@@ -125,14 +160,10 @@ export const embeddedMediaSchema = z.object({
   slug: z.string(),
   type: z.string(),
   link: z.string(),
-  title: z.object({
-    rendered: z.string(),
-  }),
+  title: renderedTextSchema,
   author: z.number(),
   featured_media: z.number(),
-  caption: z.object({
-    rendered: z.string(),
-  }),
+  caption: renderedTextSchema,
   alt_text: z.string(),
   media_type: z.string(),
   mime_type: z.string(),
@@ -219,9 +250,7 @@ export const commentSchema = z.object({
   author_url: z.string().optional(),
   date: z.string(),
   date_gmt: z.string(),
-  content: z.object({
-    rendered: z.string(),
-  }),
+  content: renderedTextSchema,
   link: z.string(),
   status: z.string(),
   type: z.string(),
@@ -340,18 +369,20 @@ export const settingsSchema = z.object({
 });
 
 export type WordPressBase = z.infer<typeof baseWordPressSchema>;
+export type WordPressPostLike = z.infer<typeof postLikeWordPressSchema>;
 export type WordPressContent = z.infer<typeof contentWordPressSchema>;
 
 /**
- * Core post-shaped content type used as the base for pages and custom post types.
+ * Core content-bearing post type used as the base for posts, pages, and
+ * content-aware post-like workflows.
  */
 export type WordPressPostBase = WordPressContent;
 
 /**
- * Generic custom post type shape that extends the shared post base fields.
+ * Generic custom post type shape that defaults to the flexible post-like schema.
  */
 export type WordPressCustomPost<TExtra extends Record<string, unknown> = Record<string, never>> =
-  WordPressPostBase & TExtra;
+  WordPressPostLike & TExtra;
 
 export type WordPressPost = z.infer<typeof postSchema>;
 export type WordPressPage = z.infer<typeof pageSchema>;

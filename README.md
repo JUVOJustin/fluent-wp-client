@@ -33,6 +33,7 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 
 - **Typed helpers** for posts, pages, media, categories, tags, users, comments, and settings
 - **Generic CPT and taxonomy APIs** — `content('books')` and `terms('genre')` work for any registered resource
+- **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
 - **Gutenberg block parsing** — single-post queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
 - **WPAPI-compatible fluent syntax** — migrate from `node-wpapi` with minimal changes

@@ -57,6 +57,16 @@ describe('Client: Books', () => {
       expect(result.totalPages).toBe(2);
       expect(result.page).toBe(1);
     });
+
+    it('content() getBySlug validates one seeded book with the strict content schema', async () => {
+      const books = publicClient.content('books', contentWordPressSchema);
+      const book = await books.getBySlug('test-book-001');
+
+      expect(book).toBeDefined();
+      expect(book?.slug).toBe('test-book-001');
+      expect(book?.title.rendered).toBe('Test Book 001');
+      expect(book?.content.rendered).toContain('Content for test book 001');
+    });
   });
 
   describe('crud', () => {

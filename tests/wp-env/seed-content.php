@@ -10,6 +10,7 @@
  *  - 150 posts ("Test Post 001" – "Test Post 150"), 30 per category
  *  - 10 pages (About, Contact, Services, FAQ, Team, Blog, Portfolio, Testimonials, Privacy Policy, Terms of Service)
  *  - 10 books ("Test Book 001" – "Test Book 010") — custom post type registered by mu-plugin
+ *  - 3 artifacts ("test-artifact-001" – "test-artifact-003") — sparse custom post type with title/content support disabled
  *
  * Deletes the default "Hello world!" post, "Sample Page", and auto-draft
  * content so the DB starts clean.
@@ -252,6 +253,42 @@ for ( $i = 1; $i <= 10; $i++ ) {
 WP_CLI::success( "Books created/verified: $book_count" );
 
 /* ------------------------------------------------------------------ */
+/* Artifacts (sparse custom post type)                                */
+/* ------------------------------------------------------------------ */
+
+$artifact_count = 0;
+
+for ( $i = 1; $i <= 3; $i++ ) {
+	$padded   = str_pad( $i, 3, '0', STR_PAD_LEFT );
+	$slug     = "test-artifact-$padded";
+	$existing = get_page_by_path( $slug, OBJECT, 'artifact' );
+
+	if ( $existing ) {
+		$artifact_count++;
+		continue;
+	}
+
+	$artifact_id = wp_insert_post([
+		'post_title'   => "Hidden Artifact Title $padded",
+		'post_name'    => $slug,
+		'post_content' => "Hidden artifact content $padded that should not be exposed by the REST schema.",
+		'post_excerpt' => "Hidden artifact excerpt $padded",
+		'post_status'  => 'publish',
+		'post_type'    => 'artifact',
+		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-02-01 +{$i} hours" ) ),
+	], true );
+
+	if ( is_wp_error( $artifact_id ) ) {
+		WP_CLI::warning( "Failed to create artifact $padded: " . $artifact_id->get_error_message() );
+		continue;
+	}
+
+	$artifact_count++;
+}
+
+WP_CLI::success( "Artifacts created/verified: $artifact_count" );
+
+/* ------------------------------------------------------------------ */
 /* Native WordPress Meta Fields                                       */
 /* ------------------------------------------------------------------ */
 
@@ -409,6 +446,21 @@ if ( ! function_exists( 'update_field' ) ) {
 		}
 	}
 
+	// Artifacts 1–2: scalar ACF fields on a title/content-less CPT.
+	for ( $i = 1; $i <= 2; $i++ ) {
+		$padded   = str_pad( $i, 3, '0', STR_PAD_LEFT );
+		$artifact = get_page_by_path( "test-artifact-$padded", OBJECT, 'artifact' );
+
+		if ( ! $artifact ) {
+			continue;
+		}
+
+		update_field( 'acf_subtitle',       "Subtitle for test artifact $padded",                          $artifact->ID );
+		update_field( 'acf_summary',        "Summary for test artifact $padded. Deterministic seed data.", $artifact->ID );
+		update_field( 'acf_priority_score', $i * 25,                                                        $artifact->ID );
+		update_field( 'acf_external_url',   "https://example.com/test-artifact-$padded",                  $artifact->ID );
+	}
+
 	WP_CLI::success( 'ACF fields seeded.' );
 }
 
@@ -422,4 +474,5 @@ WP_CLI::log( "  Tags:       " . count( $tag_ids ) );
 WP_CLI::log( "  Posts:      $post_count" );
 WP_CLI::log( "  Pages:      $page_count" );
 WP_CLI::log( "  Books:      $book_count" );
+WP_CLI::log( "  Artifacts:  $artifact_count" );
 WP_CLI::log( "  Native meta seeded entries: $native_meta_seeded" );

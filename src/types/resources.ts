@@ -21,6 +21,12 @@ export type QueryParamValue =
 export type QueryParams = Record<string, QueryParamValue>;
 
 /**
+ * Common include/exclude parameter type used across filter interfaces.
+ * Supports both single values and arrays for flexibility.
+ */
+export type IncludeExcludeParam = number | number[];
+
+/**
  * Internal fetch result with pagination headers.
  */
 export interface FetchResult<T> {

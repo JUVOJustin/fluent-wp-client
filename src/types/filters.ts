@@ -1,16 +1,16 @@
-import type { PaginationParams } from './resources.js';
+import type { IncludeExcludeParam, PaginationParams } from './resources.js';
 
 /**
  * Filter options for posts.
  */
 export interface PostsFilter extends PaginationParams {
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
-  categories?: number[];
-  categoriesExclude?: number[];
-  tags?: number[];
-  tagsExclude?: number[];
+  categories?: IncludeExcludeParam;
+  categoriesExclude?: IncludeExcludeParam;
+  tags?: IncludeExcludeParam;
+  tagsExclude?: IncludeExcludeParam;
   author?: number;
-  authorExclude?: number[];
+  authorExclude?: IncludeExcludeParam;
   search?: string;
   after?: string;
   before?: string;
@@ -27,9 +27,9 @@ export interface PostsFilter extends PaginationParams {
 export interface PagesFilter extends PaginationParams {
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   parent?: number;
-  parentExclude?: number[];
+  parentExclude?: IncludeExcludeParam;
   author?: number;
-  authorExclude?: number[];
+  authorExclude?: IncludeExcludeParam;
   search?: string;
   after?: string;
   before?: string;
@@ -46,7 +46,7 @@ export interface MediaFilter extends PaginationParams {
   mediaType?: 'image' | 'video' | 'audio' | 'application';
   mimeType?: string;
   author?: number;
-  authorExclude?: number[];
+  authorExclude?: IncludeExcludeParam;
   parent?: number;
   search?: string;
   after?: string;
@@ -63,8 +63,8 @@ export interface MediaFilter extends PaginationParams {
 export interface CategoriesFilter extends PaginationParams {
   hideEmpty?: boolean;
   parent?: number;
-  exclude?: number[];
-  include?: number[];
+  exclude?: IncludeExcludeParam;
+  include?: IncludeExcludeParam;
   search?: string;
   orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group' | 'include';
   order?: 'asc' | 'desc';
@@ -77,8 +77,8 @@ export interface CategoriesFilter extends PaginationParams {
  */
 export interface TagsFilter extends PaginationParams {
   hideEmpty?: boolean;
-  exclude?: number[];
-  include?: number[];
+  exclude?: IncludeExcludeParam;
+  include?: IncludeExcludeParam;
   search?: string;
   orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group' | 'include';
   order?: 'asc' | 'desc';
@@ -91,8 +91,8 @@ export interface TagsFilter extends PaginationParams {
  */
 export interface UsersFilter extends PaginationParams {
   roles?: string[];
-  exclude?: number[];
-  include?: number[];
+  exclude?: IncludeExcludeParam;
+  include?: IncludeExcludeParam;
   search?: string;
   orderby?: 'id' | 'name' | 'slug' | 'email' | 'url' | 'registered_date' | 'include';
   order?: 'asc' | 'desc';
@@ -107,7 +107,7 @@ export interface CommentsFilter extends PaginationParams {
   post?: number;
   parent?: number;
   author?: number;
-  authorExclude?: number[];
+  authorExclude?: IncludeExcludeParam;
   search?: string;
   status?: 'hold' | 'approve' | 'spam' | 'trash';
   orderby?: 'date' | 'date_gmt' | 'id' | 'include' | 'post' | 'parent' | 'type';
@@ -133,6 +133,6 @@ export interface SearchFilter extends PaginationParams {
   type?: 'post' | 'term' | 'post-format';
   subtype?: string | string[];
   context?: 'view' | 'embed';
-  include?: number | number[];
-  exclude?: number | number[];
+  include?: IncludeExcludeParam;
+  exclude?: IncludeExcludeParam;
 }

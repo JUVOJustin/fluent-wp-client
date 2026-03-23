@@ -121,6 +121,7 @@ export type {
 export {
   filterToParams,
   compactPayload,
+  normalizeDeleteResult,
 } from './core/params.js';
 
 export type {

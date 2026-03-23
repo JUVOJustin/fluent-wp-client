@@ -2,8 +2,7 @@ import type { WordPressAuthor } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../client-types.js';
 import type { UsersFilter } from '../types/filters.js';
 import type { FetchResult, PaginatedResponse } from '../types/resources.js';
-import { createWordPressPaginator } from '../core/pagination.js';
-import { filterToParams } from '../core/params.js';
+import { createCollectionReadMethods } from '../core/collection-read-methods.js';
 
 /**
  * Users API methods factory for typed read operations.
@@ -13,52 +12,30 @@ export function createUsersMethods(
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
   hasAuth: () => boolean,
 ) {
-  const paginator = createWordPressPaginator<UsersFilter, WordPressAuthor>({
-    fetchPage: (currentFilter, context) => {
-      const params = filterToParams(currentFilter);
-      return fetchAPIPaginated<WordPressAuthor[]>('/users', params, context as WordPressRequestOverrides | undefined);
-    },
+  const core = createCollectionReadMethods<WordPressAuthor, UsersFilter>({
+    endpoint: '/users',
+    fetchAPI,
+    fetchAPIPaginated,
   });
 
   return {
-    /**
-     * Gets users with optional filtering.
-     */
-    async getUsers(filter: UsersFilter = {}, requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor[]> {
-      const params = filterToParams(filter);
-      return fetchAPI<WordPressAuthor[]>('/users', params, requestOptions);
-    },
+    /** Gets users with optional filtering. */
+    getUsers: (filter?: UsersFilter, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> =>
+      core.list(filter, options),
 
-    /**
-     * Gets all users by paginating every page.
-     */
-    async getAllUsers(
-      filter: Omit<UsersFilter, 'page'> = {},
-      requestOptions?: WordPressRequestOverrides,
-    ): Promise<WordPressAuthor[]> {
-      return paginator.listAll(filter, requestOptions);
-    },
+    /** Gets all users by paginating every page. */
+    getAllUsers: (filter?: Omit<UsersFilter, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> =>
+      core.listAll(filter, options),
 
-    /**
-     * Gets users with pagination metadata.
-     */
-    async getUsersPaginated(
-      filter: UsersFilter = {},
-      requestOptions?: WordPressRequestOverrides,
-    ): Promise<PaginatedResponse<WordPressAuthor>> {
-      return paginator.listPaginated(filter, requestOptions);
-    },
+    /** Gets users with pagination metadata. */
+    getUsersPaginated: (filter?: UsersFilter, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressAuthor>> =>
+      core.listPaginated(filter, options),
 
-    /**
-     * Gets one user by ID.
-     */
-    async getUser(id: number, requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-      return fetchAPI<WordPressAuthor>(`/users/${id}`, undefined, requestOptions);
-    },
+    /** Gets one user by ID. */
+    getUser: (id: number, options?: WordPressRequestOverrides): Promise<WordPressAuthor> =>
+      core.getById(id, options),
 
-    /**
-     * Gets the currently authenticated user.
-     */
+    /** Gets the currently authenticated user. */
     async getCurrentUser(requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor> {
       if (!hasAuth()) {
         throw new Error('Authentication required for /users/me endpoint. Configure auth in client options.');

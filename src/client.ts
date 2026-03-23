@@ -300,6 +300,7 @@ export class WordPressClient {
       fetchAPIPaginated,
       request,
       executeMutation,
+      relationClient: this,
     });
     this.getContentCollection = contentTerms.getContentCollection;
     this.getAllContentCollection = contentTerms.getAllContentCollection;
@@ -1371,10 +1372,10 @@ export class WordPressClient {
    */
   post(idOrSlug: number | string): PostRelationQueryBuilder<[]> {
     if (typeof idOrSlug === 'number') {
-      return new PostRelationQueryBuilder(this, { id: idOrSlug });
+      return new PostRelationQueryBuilder(this, { id: idOrSlug }, (id) => this.getPost(id), (slug) => this.getPostBySlug(slug));
     }
 
-    return new PostRelationQueryBuilder(this, { slug: idOrSlug });
+    return new PostRelationQueryBuilder(this, { slug: idOrSlug }, (id) => this.getPost(id), (slug) => this.getPostBySlug(slug));
   }
 
   /**

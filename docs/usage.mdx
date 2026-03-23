@@ -399,6 +399,8 @@ The same auth-override rule applies to read and listing helpers.
 
 - `post(idOrSlug).with(...relations).get()`
 - `getPostWithRelations(idOrSlug, ...relations)`
+- `content(resource).item(idOrSlug).with(...relations).get()`
+- `content(resource).getWithRelations(idOrSlug, ...relations)`
 
 Supported relation names:
 
@@ -407,6 +409,8 @@ Supported relation names:
 - `tags`
 - `terms`
 - `featuredMedia`
+
+`terms` always returns core `categories` and `tags` arrays when available, plus `terms.taxonomies` for generic taxonomy access. For custom post types, custom taxonomies such as `genre` are exposed under `terms.taxonomies.<taxonomy>`.
 
 ### Transport and request control
 

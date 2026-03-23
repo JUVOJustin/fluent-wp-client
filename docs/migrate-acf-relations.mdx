@@ -1,0 +1,234 @@
+---
+title: Migrate ACF Relations
+short_title: Migrate ACF
+description: Update legacy ACF relation helper usage to the new field-type-based ACF relation API.
+sidebar:
+  order: 8
+---
+
+## Overview
+
+The ACF relation helper API changed from app-specific helper names to field-type-based helpers.
+
+This is a breaking change if your project used any of these legacy APIs:
+
+- `.with('acfRelatedPosts')`
+- `createAcfRelatedPostsRelation(...)`
+- `createAcfFeaturedPostRelation(...)`
+- implicit reliance on built-in ACF relation auto-registration
+
+The new API is explicit and maps to real ACF field types:
+
+- `createAcfRelationshipRelation(...)`
+- `createAcfPostObjectRelation(...)`
+- `createAcfTaxonomyRelation(...)`
+
+## What Changed
+
+| Old API | New API | Notes |
+|---|---|---|
+| `.with('acfRelatedPosts')` | register a relation name, then call `.with('yourRelationName')` | No default ACF relation name is built in anymore |
+| `createAcfRelatedPostsRelation(...)` | `createAcfRelationshipRelation(...)` | Matches the real ACF `relationship` field type |
+| `createAcfFeaturedPostRelation(...)` | `createAcfPostObjectRelation(...)` | Matches the real ACF `post_object` field type |
+| no dedicated taxonomy helper | `createAcfTaxonomyRelation(...)` | New support for ACF `taxonomy` fields |
+| implicit ACF relation setup | explicit `customRelationRegistry.register(...)` | Registration is now opt-in |
+
+## Recommended Migration
+
+Use relation names that describe your project semantics, and use helper names that describe the ACF field type.
+
+### Relationship fields
+
+**Before**
+
+```ts
+const post = await wp.post('hello-world').with('acfRelatedPosts').get();
+
+console.log(post.related.acfRelatedPosts);
+```
+
+**After**
+
+```ts
+import {
+  createAcfRelationshipRelation,
+  customRelationRegistry,
+} from 'fluent-wp-client';
+
+customRelationRegistry.register(createAcfRelationshipRelation({
+  relationName: 'linkedArticles',
+  fieldName: 'acf_related_posts',
+}));
+
+const post = await wp.post('hello-world').with('linkedArticles').get();
+
+console.log(post.related.linkedArticles);
+```
+
+### Post object fields
+
+**Before**
+
+```ts
+import { createAcfFeaturedPostRelation, customRelationRegistry } from 'fluent-wp-client';
+
+customRelationRegistry.register(createAcfFeaturedPostRelation({
+  relationName: 'selectedPost',
+}));
+```
+
+**After**
+
+```ts
+import { createAcfPostObjectRelation, customRelationRegistry } from 'fluent-wp-client';
+
+customRelationRegistry.register(createAcfPostObjectRelation({
+  relationName: 'selectedPost',
+  fieldName: 'acf_featured_post',
+  multiple: false,
+}));
+```
+
+### Taxonomy fields
+
+This field type did not have a dedicated helper before.
+
+```ts
+import { createAcfTaxonomyRelation, customRelationRegistry } from 'fluent-wp-client';
+
+customRelationRegistry.register(createAcfTaxonomyRelation({
+  relationName: 'selectedGenres',
+  fieldName: 'acf_related_genres',
+  resource: 'genre',
+  multiple: true,
+}));
+```
+
+## Minimal-Diff Migration
+
+If you want to keep most of your call sites unchanged during the upgrade, you can re-register the old relation names yourself.
+
+### Keep `acfRelatedPosts` temporarily
+
+```ts
+import {
+  createAcfRelationshipRelation,
+  customRelationRegistry,
+} from 'fluent-wp-client';
+
+customRelationRegistry.register(createAcfRelationshipRelation({
+  relationName: 'acfRelatedPosts',
+  fieldName: 'acf_related_posts',
+}));
+
+const post = await wp.post('hello-world').with('acfRelatedPosts').get();
+```
+
+### Keep `acfFeaturedPost` temporarily
+
+```ts
+import {
+  createAcfPostObjectRelation,
+  customRelationRegistry,
+} from 'fluent-wp-client';
+
+customRelationRegistry.register(createAcfPostObjectRelation({
+  relationName: 'acfFeaturedPost',
+  fieldName: 'acf_featured_post',
+  multiple: false,
+}));
+
+const post = await wp.post('hello-world').with('acfFeaturedPost').get();
+```
+
+This compatibility bridge keeps runtime behavior working while you rename relation names to something more meaningful.
+
+## Import Changes
+
+### Remove these imports
+
+```ts
+import {
+  createAcfRelatedPostsRelation,
+  createAcfFeaturedPostRelation,
+} from 'fluent-wp-client';
+```
+
+### Replace with these imports
+
+```ts
+import {
+  createAcfRelationshipRelation,
+  createAcfPostObjectRelation,
+  createAcfTaxonomyRelation,
+  customRelationRegistry,
+} from 'fluent-wp-client';
+```
+
+## Custom Post Types
+
+The new relation system also works for custom post types.
+
+```ts
+customRelationRegistry.register(createAcfRelationshipRelation({
+  relationName: 'linkedArticles',
+  fieldName: 'acf_related_posts',
+}));
+
+const book = await wp
+  .content('books')
+  .item('test-book-001')
+  .with('linkedArticles')
+  .get();
+```
+
+You can also use the direct helper:
+
+```ts
+const book = await wp
+  .content('books')
+  .getWithRelations('test-book-001', 'linkedArticles');
+```
+
+## Why This Changed
+
+The legacy ACF helper names encoded app semantics instead of actual ACF field types.
+
+Examples:
+
+- `acfRelatedPosts` described one specific field name, not the `relationship` field type
+- `acfFeaturedPost` implied a feature concept that ACF does not actually define
+
+The new API is better because it:
+
+- matches ACF field types directly
+- works for any field name
+- supports custom entities and custom taxonomies
+- handles ACF's shared `_links` / `_embedded` buckets safely
+
+## Shared `_links` / `_embedded` Buckets
+
+ACF groups multiple relational fields into shared buckets like:
+
+- `_embedded['acf:post']`
+- `_embedded['acf:term']`
+- `_links['acf:post']`
+- `_links['acf:term']`
+
+The new helpers resolve by field IDs first, then filter embeds and links to the items that belong to the current field. This prevents one ACF field from hydrating another field's related items.
+
+## Migration Checklist
+
+1. Replace removed helper imports
+2. Register ACF relations explicitly with `customRelationRegistry.register(...)`
+3. Replace `createAcfRelatedPostsRelation(...)` with `createAcfRelationshipRelation(...)`
+4. Replace `createAcfFeaturedPostRelation(...)` with `createAcfPostObjectRelation(...)`
+5. Add `multiple: false` or `multiple: true` for `post_object` and `taxonomy` helpers
+6. Add `resource` for taxonomy helpers
+7. Update `.with(...)` calls to your registered relation names
+8. Run the integration tests that cover your ACF fields
+
+## Related Docs
+
+- [Extensible relations](./extensible-relations.mdx)
+- [Custom endpoints](./custom-endpoints.mdx)

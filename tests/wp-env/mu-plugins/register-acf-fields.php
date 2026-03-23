@@ -9,6 +9,8 @@
  *     response includes ACF's _link property pointing to each post's REST endpoint.
  *   - Post object field: acf_featured_post — single post object; REST response
  *     similarly includes _link.
+ *   - Taxonomy field: acf_related_genres — multi-select custom taxonomy field;
+ *     REST response includes ACF term links for related genres.
  *
  * Only runs when ACF is active (guarded by the acf/init action and an
  * existence check on acf_add_local_field_group). show_in_rest exposes all
@@ -85,6 +87,21 @@ add_action( 'acf/init', function () {
 				'post_type'     => [ 'post' ],
 				'return_format' => 'object',
 				'allow_null'    => 1,
+			],
+
+			// ── Related Genres (taxonomy) ────────────────────────────────────────
+			// Multi-select taxonomy relation; REST response includes term links.
+			[
+				'key'           => 'field_acf_related_genres',
+				'name'          => 'acf_related_genres',
+				'label'         => 'Related Genres',
+				'type'          => 'taxonomy',
+				'taxonomy'      => 'genre',
+				'field_type'    => 'multi_select',
+				'return_format' => 'object',
+				'allow_null'    => 1,
+				'load_terms'    => 0,
+				'save_terms'    => 0,
 			],
 		],
 

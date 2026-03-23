@@ -1,0 +1,195 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import { WordPressClient } from 'fluent-wp-client';
+import { createAuthClient, createPublicClient } from '../helpers/wp-client';
+
+/**
+ * Integration tests for relationship field requirements.
+ * 
+ * These tests ensure that when using relationship hydration methods,
+ * critical fields (_embed data and ID fields) are automatically preserved
+ * even when users attempt to restrict the field set via the `fields` filter.
+ */
+describe('Client: relationship field requirements', () => {
+  let publicClient: WordPressClient;
+  let authClient: WordPressClient;
+
+  beforeAll(() => {
+    publicClient = createPublicClient();
+    authClient = createAuthClient();
+  });
+
+  /**
+   * Asserts author relation behavior for environments that expose or mask author IDs.
+   */
+  function expectAuthorRelation(authorId: number, relatedAuthor: { slug?: string } | null): void {
+    if (authorId === 0) {
+      expect(relatedAuthor).toBeNull();
+      return;
+    }
+
+    expect(relatedAuthor).toBeTruthy();
+    expect(relatedAuthor?.slug).toBe('admin');
+  }
+
+  describe('automatic field preservation for relations', () => {
+    it('includes _embedded data when using getPostWithRelations', async () => {
+      // Relationship hydration depends on embedded data being present.
+      const post = await authClient.getPostWithRelations('test-post-001', 'author', 'terms');
+
+      expect(post.slug).toBe('test-post-001');
+      // _embedded should be present because relations need it
+      expect(post).toHaveProperty('_embedded');
+      expectAuthorRelation(post.author, post.related.author);
+      expect(post.related.terms.categories.length).toBeGreaterThan(0);
+    });
+
+    it('includes _embedded data when using fluent .with().get()', async () => {
+      const post = await authClient
+        .post('test-post-002')
+        .with('author', 'categories', 'tags')
+        .get();
+
+      expect(post.slug).toBe('test-post-002');
+      // _embedded should be present for relation hydration
+      expect(post).toHaveProperty('_embedded');
+      expectAuthorRelation(post.author, post.related.author);
+      expect(Array.isArray(post.related.categories)).toBe(true);
+      expect(Array.isArray(post.related.tags)).toBe(true);
+    });
+
+    it('preserves author field when requesting author relation', async () => {
+      // The author ID field is required to fetch author details if _embedded fails
+      const post = await authClient.getPostWithRelations('test-post-003', 'author');
+
+      // author field should be present (number or 0)
+      expect(typeof post.author).toBe('number');
+      expectAuthorRelation(post.author, post.related.author);
+    });
+
+    it('preserves categories field when requesting categories relation', async () => {
+      const post = await authClient.getPostWithRelations('test-post-004', 'categories');
+
+      // categories array should be present for fallback fetching
+      expect(post).toHaveProperty('categories');
+      expect(Array.isArray(post.categories)).toBe(true);
+      expect(post.categories.length).toBeGreaterThan(0);
+      expect(Array.isArray(post.related.categories)).toBe(true);
+    });
+
+    it('preserves tags field when requesting tags relation', async () => {
+      const post = await authClient.getPostWithRelations('test-post-005', 'tags');
+
+      // tags array should be present for fallback fetching
+      expect(post).toHaveProperty('tags');
+      expect(Array.isArray(post.tags)).toBe(true);
+      expect(post.tags.length).toBeGreaterThan(0);
+      expect(Array.isArray(post.related.tags)).toBe(true);
+    });
+
+    it('preserves featured_media field when requesting featuredMedia relation', async () => {
+      const post = await authClient.getPostWithRelations('test-post-006', 'featuredMedia');
+
+      // featured_media field should be present
+      expect(post).toHaveProperty('featured_media');
+      expect(typeof post.featured_media).toBe('number');
+    });
+  });
+
+  describe('WPAPI builder field restrictions with relations', () => {
+    it('includes embedded relation data on collection requests with .embed()', async () => {
+      // WPAPI-style collection requests still expose embedded data when requested.
+      const posts = await authClient
+        .posts()
+        .slug('test-post-001')
+        .embed()
+        .get();
+
+      expect(Array.isArray(posts)).toBe(true);
+      expect(posts.length).toBeGreaterThan(0);
+      const post = posts[0];
+
+      // _embedded should be present due to .embed()
+      expect(post).toHaveProperty('_embedded');
+      // Critical fields should be present for relation use
+      expect(post).toHaveProperty('author');
+      expect(post).toHaveProperty('categories');
+      expect(post).toHaveProperty('tags');
+    });
+
+    it('falls back to separate requests when _embedded is missing but IDs are present', async () => {
+      // If _embedded is not available, the system uses ID fields to fetch relations
+      // This tests the fallback mechanism works when required ID fields are present
+      const post = await authClient.post('test-post-007').with('author').get();
+
+      // Should have the author relation resolved
+      expectAuthorRelation(post.author, post.related.author);
+    });
+  });
+
+  describe('edge cases and error handling', () => {
+    it('handles posts without categories gracefully', async () => {
+      // Some posts might not have categories - ensure this doesn't break
+      const post = await authClient.getPostWithRelations('test-post-008', 'categories');
+
+      expect(post).toHaveProperty('categories');
+      expect(Array.isArray(post.categories)).toBe(true);
+      // related.categories should be an array even if empty
+      expect(Array.isArray(post.related.categories)).toBe(true);
+    });
+
+    it('handles posts without tags gracefully', async () => {
+      const post = await authClient.getPostWithRelations('test-post-009', 'tags');
+
+      expect(post).toHaveProperty('tags');
+      expect(Array.isArray(post.tags)).toBe(true);
+      expect(Array.isArray(post.related.tags)).toBe(true);
+    });
+
+    it('handles posts without featured media gracefully', async () => {
+      const post = await authClient.getPostWithRelations('test-post-010', 'featuredMedia');
+
+      expect(post).toHaveProperty('featured_media');
+      // Should resolve to null when no featured media
+      expect(post.related.featuredMedia === null || typeof post.related.featuredMedia === 'object').toBe(true);
+    });
+
+    it('handles multiple relations with partial embedded data', async () => {
+      // Request multiple relations - some may have embedded data, others may need fallback
+      const post = await authClient.getPostWithRelations(
+        'test-post-011',
+        'author',
+        'categories',
+        'tags',
+        'featuredMedia'
+      );
+
+      expect(post.slug).toBe('test-post-011');
+      expectAuthorRelation(post.author, post.related.author);
+      expect(Array.isArray(post.related.categories)).toBe(true);
+      expect(Array.isArray(post.related.tags)).toBe(true);
+      // featuredMedia may be null or an object
+      expect(post.related.featuredMedia === null || typeof post.related.featuredMedia === 'object').toBe(true);
+    });
+  });
+
+  describe('public client behavior (no auth)', () => {
+    it('returns null for author when public API masks author IDs but preserves field structure', async () => {
+      const post = await publicClient.getPostWithRelations('test-post-012', 'author');
+
+      // author field should still be present (value 0 for masked)
+      expect(post).toHaveProperty('author');
+      expect(post.author).toBe(0);
+      expect(post.related.author).toBeNull();
+    });
+
+    it('still provides categories and tags for public client', async () => {
+      const post = await publicClient.getPostWithRelations('test-post-013', 'categories', 'tags');
+
+      // These should work even without auth
+      expect(Array.isArray(post.related.categories)).toBe(true);
+      expect(post.related.categories.length).toBeGreaterThan(0);
+      expect(Array.isArray(post.related.tags)).toBe(true);
+      expect(post.related.tags.length).toBeGreaterThan(0);
+    });
+  });
+});

@@ -13,6 +13,7 @@
 - Core mutation helpers should use built-in default response validation, while schema arguments (`responseSchema`, `inputSchema`, `outputSchema`) must always allow callers to override validation behavior.
 - Validate and require only the minimum data needed for a feature to work. Keep optional and custom fields extensible so projects can layer in ACF fields, meta, relations, and plugin data without fighting the package.
 - Avoid hard-coded assumptions that only fit default posts and pages. Always leave room for custom post types, taxonomies, fields, actions, and REST namespaces.
+- Keep relation helpers field-type-driven and generic. For ACF and plugin integrations, prefer reusable relation factories over app-specific helper names.
 
 ## Serialization
 
@@ -123,11 +124,19 @@ Native REST meta fields are registered by `tests/wp-env/mu-plugins/register-test
 
 ACF fields are seeded for a subset of content. The mu-plugin `tests/wp-env/mu-plugins/register-acf-fields.php` registers the field group on posts, pages, and books with `show_in_rest => 1`.
 
+The registered ACF field group includes scalar fields plus these relational field types:
+
+- `relationship` field: `acf_related_posts`
+- `post_object` field: `acf_featured_post`
+- `taxonomy` field: `acf_related_genres`
+
 | Entity | ACF fields set |
 |---|---|
 | Posts 001–003 | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_external_url`, `acf_related_posts`, `acf_featured_post` |
 | Pages `about`, `contact` | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_external_url`, `acf_related_posts` |
 | Books 001–002 | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_featured_post` |
+
+`acf_related_genres` is registered for REST integration coverage but is not pre-seeded; tests create taxonomy terms dynamically when needed.
 
 #### Post distribution
 

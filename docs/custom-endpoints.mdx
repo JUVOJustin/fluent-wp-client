@@ -28,7 +28,23 @@ const list = await books.list({ perPage: 20, page: 1 });
 const allBooks = await books.listAll();
 const pagedBooks = await books.listPaginated({ page: 2, perPage: 25 });
 const bySlug = await books.getBySlug('my-book');
+const hydrated = await books.item('my-book').with('author', 'terms').get();
 ```
+
+### Relation hydration for custom post types
+
+Custom post type clients expose the same relation builder pattern as core posts:
+
+```ts title="Custom post type relation hydration"
+const books = wp.content('books');
+
+const book = await books.item('test-book-001').with('author').get();
+const withTerms = await books.getWithRelations('test-book-001', 'terms');
+
+console.log(withTerms.related.terms.taxonomies);
+```
+
+For custom taxonomies such as `genre`, hydrated term data is available under `related.terms.taxonomies.genre`.
 
 ### Pagination for CPT and custom taxonomies
 

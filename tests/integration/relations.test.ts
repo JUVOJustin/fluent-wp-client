@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { WordPressClient } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
-import { expectAuthorRelation } from '../helpers/expectations';
 
 /**
  * Integration coverage for fluent relation hydration APIs.
@@ -14,6 +13,19 @@ describe('Client: post relation hydration', () => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
   });
+
+  /**
+   * Asserts author relation behavior for environments that expose or mask author IDs.
+   */
+  function expectAuthorRelation(authorId: number, relatedAuthor: { slug?: string } | null): void {
+    if (authorId === 0) {
+      expect(relatedAuthor).toBeNull();
+      return;
+    }
+
+    expect(relatedAuthor).toBeTruthy();
+    expect(relatedAuthor?.slug).toBe('admin');
+  }
 
   it('hydrates related entities with getPostWithRelations', async () => {
     const post = await authClient.getPostWithRelations('test-post-001', 'author', 'terms');

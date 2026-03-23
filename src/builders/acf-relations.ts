@@ -182,14 +182,26 @@ function extractAcfTerm(item: unknown): AcfRelatedTerm | null {
  *
  * Internally this uses the shared-bucket link/embed factory because ACF groups
  * all post-like fields under the same `acf:post` relation key.
- *
- * This is a convenience alias for `createAcfPostObjectRelation({ multiple: true })`
- * since ACF relationship fields always allow multiple selections.
  */
 export function createAcfRelationshipRelation(
   options: AcfContentRelationOptions,
 ): CustomRelationConfig<AcfRelatedContent[]> {
-  return createAcfPostObjectRelation({ ...options, multiple: true }) as CustomRelationConfig<AcfRelatedContent[]>;
+  const linksKey = options.linksKey ?? DEFAULT_ACF_POSTS_LINK_KEY;
+  const embeddedKey = options.embeddedKey ?? linksKey;
+  const fallbackResource = options.resource;
+
+  return createLinkedEmbeddedCollectionRelation({
+    name: options.relationName,
+    embeddedKey,
+    linksKey,
+    extractItem: extractAcfContent,
+    getIds: (content) => getAcfRecord(content)[options.fieldName],
+    parseReferenceId: parseAcfReferenceId,
+    resolveMany: fallbackResource
+      ? (client, ids) => resolveContentReferences(client, fallbackResource, ids)
+      : undefined,
+    requiredFields: options.requiredFields ?? ['acf', '_links'],
+  });
 }
 
 export function createAcfPostObjectRelation(

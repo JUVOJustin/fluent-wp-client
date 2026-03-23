@@ -1,11 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { WordPressClient } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
-import { expectAuthorRelation } from '../helpers/expectations';
 
 /**
  * Integration tests for relationship field requirements.
- *
+ * 
  * These tests ensure that when using relationship hydration methods,
  * critical fields (_embed data and ID fields) are automatically preserved
  * even when users attempt to restrict the field set via the `fields` filter.
@@ -18,6 +17,19 @@ describe('Client: relationship field requirements', () => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
   });
+
+  /**
+   * Asserts author relation behavior for environments that expose or mask author IDs.
+   */
+  function expectAuthorRelation(authorId: number, relatedAuthor: { slug?: string } | null): void {
+    if (authorId === 0) {
+      expect(relatedAuthor).toBeNull();
+      return;
+    }
+
+    expect(relatedAuthor).toBeTruthy();
+    expect(relatedAuthor?.slug).toBe('admin');
+  }
 
   describe('automatic field preservation for relations', () => {
     it('includes _embedded data when using getPostWithRelations', async () => {

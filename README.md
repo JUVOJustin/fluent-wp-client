@@ -32,6 +32,7 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 ## Features
 
 - **Typed helpers** for posts, pages, media, categories, tags, users, comments, and settings
+- **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
 - **Generic CPT and taxonomy APIs** — `content('books')` and `terms('genre')` work for any registered resource
 - **Gutenberg block parsing** — single-post queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing

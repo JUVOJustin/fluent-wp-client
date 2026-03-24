@@ -218,12 +218,13 @@ export abstract class BaseCrudResource<
    */
   async delete(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
-    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
+    const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: `${this.endpoint}/${id}`,
       method: 'DELETE',
       params,
     }, options));
 
+    throwIfWordPressError(response, data);
     return normalizeDeleteResult(id, data);
   }
 }

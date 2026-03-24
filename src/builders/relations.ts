@@ -785,7 +785,7 @@ export class PostRelationQueryBuilder<
     const fields = new Set<string>();
 
     for (const relation of this.relationSet) {
-      if (relation in BUILT_IN_RELATION_FIELDS) {
+      if (Object.hasOwn(BUILT_IN_RELATION_FIELDS, relation)) {
         for (const field of BUILT_IN_RELATION_FIELDS[relation as PostRelation]) {
           fields.add(field);
         }

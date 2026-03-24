@@ -14,7 +14,11 @@ export function applyRequestOverrides(
   }
 
   const headers = overrides.headers;
-  if (headers.Authorization || headers.authorization) {
+  // Check for Authorization header case-insensitively
+  const hasAuthHeader = Object.keys(headers).some(
+    key => key.toLowerCase() === 'authorization'
+  );
+  if (hasAuthHeader) {
     throw new Error(
       'auth header overrides are not supported. Use the auth configuration options instead.',
     );

@@ -843,4 +843,49 @@ describe('Client: Custom Relation Resolvers', () => {
       expect(Array.isArray(post.related[acfRelationshipRelationName]) || post.related[acfRelationshipRelationName] === null).toBe(true);
     });
   });
+
+  describe('Security: prototype chain protection', () => {
+    it('does not allow prototype pollution via relation names like constructor or toString', async () => {
+      // Register a custom relation with a potentially dangerous name
+      registerTestRelation({
+        name: 'constructor',
+        embeddedKey: 'test:constructor',
+        extractEmbedded: () => null,
+        requiredFields: ['meta'],
+      });
+
+      registerTestRelation({
+        name: 'toString',
+        embeddedKey: 'test:toString',
+        extractEmbedded: () => null,
+        requiredFields: ['meta'],
+      });
+
+      registerTestRelation({
+        name: '__proto__',
+        embeddedKey: 'test:proto',
+        extractEmbedded: () => null,
+        requiredFields: ['meta'],
+      });
+
+      // These should not throw and should return the correct required fields
+      const query = authClient
+        .content('posts').item('test-post-001')
+        .with('constructor', 'toString', '__proto__');
+
+      const requiredFields = query.getRequiredFields();
+
+      // Should include 'meta' from the custom relations but not crash
+      expect(requiredFields).toContain('meta');
+
+      // Should successfully fetch the post
+      const post = await query.get();
+      expect(post.slug).toBe('test-post-001');
+
+      // The prototype-related names should not have polluted anything
+      expect(post.related.constructor).toBeNull();
+      expect(post.related.toString).toBeNull();
+      expect(post.related['__proto__']).toBeNull();
+    });
+  });
 });

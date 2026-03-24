@@ -60,11 +60,11 @@ npm install fluent-wp-client
 
 :::tip[What is a Resource Client?]
 
-When you call `wp.content('posts')` or `wp.terms('category')`, you get a **resource client**. Think of it as a dedicated helper for working with one type of content in WordPress.
+When you call `wp.content('posts')` or `wp.terms('categories')`, you get a **resource client**. Think of it as a dedicated helper for working with one type of content in WordPress.
 
 - `wp.content('posts')` returns a client for posts
 - `wp.content('books')` returns a client for your custom book post type
-- `wp.terms('category')` returns a client for categories
+- `wp.terms('categories')` returns a client for categories
 
 Use the client to list items, create new ones, update, or delete. The actual data you get back—a post, book, or category—is a **DTO (Data Transport Object)** which is fully serializable.
 

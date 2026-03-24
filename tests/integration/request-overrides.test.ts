@@ -391,6 +391,27 @@ describe('Client: request-scoped mutation overrides', () => {
     ).rejects.toThrow(/auth header overrides are not supported/i);
   });
 
+  it('rejects auth header overrides case-insensitively', async () => {
+    const client = createObservedAuthClient(() => undefined);
+
+    // Test various case combinations
+    const authVariations: Record<string, string>[] = [
+      { authorization: 'Bearer blocked-lowercase' },
+      { AUTHORIZATION: 'Bearer blocked-uppercase' },
+      { AuthoriZation: 'Bearer blocked-mixed' },
+      { AuThOrIzAtIoN: 'Bearer blocked-mixed2' },
+    ];
+
+    for (const headers of authVariations) {
+      await expect(
+        client.content('posts').list(
+          { perPage: 1 },
+          { headers },
+        ),
+      ).rejects.toThrow(/auth header overrides are not supported/i);
+    }
+  });
+
   it('ignores non-header override keys for mutation helpers even when passed as any', async () => {
     const seen = {
       usedPostsEndpoint: false,
@@ -463,5 +484,53 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(posts.length).toBe(1);
     expect(seen.usedPostsEndpoint).toBe(true);
     expect(seen.usedInjectedSlugParam).toBe(false);
+  });
+
+  it('merges nested headers instead of overwriting them', async () => {
+    const seen: { headers?: Record<string, string> } = {};
+
+    const client = createObservedAuthClient((method, url, headers) => {
+      if (method !== 'POST') {
+        return;
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts')) {
+        // Convert Headers to plain object for inspection
+        const headerObj: Record<string, string> = {};
+        headers.forEach((value, key) => {
+          headerObj[key] = value;
+        });
+        seen.headers = headerObj;
+      }
+    });
+
+    // Create with headers in both arguments - should merge, not overwrite
+    const created = await client.content('posts').create(
+      {
+        title: 'Headers merge test',
+        status: 'draft',
+      },
+      {
+        headers: {
+          'x-base-header': 'base-value',
+          'x-shared-header': 'base-shared',
+        },
+      },
+      {
+        headers: {
+          'x-override-header': 'override-value',
+          'x-shared-header': 'override-shared',
+        },
+      },
+    );
+
+    await client.content('posts').delete(created.id, { force: true });
+
+    // Verify headers were merged properly
+    expect(seen.headers).toBeDefined();
+    expect(seen.headers?.['x-base-header']).toBe('base-value');
+    expect(seen.headers?.['x-override-header']).toBe('override-value');
+    // Second headers should override first for same key
+    expect(seen.headers?.['x-shared-header']).toBe('override-shared');
   });
 });

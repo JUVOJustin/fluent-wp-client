@@ -33,8 +33,22 @@ export function resolveMutationArguments<TResponse>(
     };
   }
 
+  // Deep merge headers to avoid losing nested header values
+  const baseOptions = responseSchemaOrRequestOptions as WordPressRequestOverrides;
+  const baseHeaders = baseOptions.headers;
+  const overrideHeaders = requestOptions?.headers;
+
+  const mergedHeaders =
+    baseHeaders || overrideHeaders
+      ? { ...baseHeaders, ...overrideHeaders }
+      : undefined;
+
   return {
     responseSchema: undefined,
-    requestOptions: { ...responseSchemaOrRequestOptions, ...requestOptions },
+    requestOptions: {
+      ...baseOptions,
+      ...requestOptions,
+      ...(mergedHeaders && { headers: mergedHeaders }),
+    },
   };
 }

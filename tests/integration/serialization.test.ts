@@ -131,7 +131,7 @@ describe('Client: DTO serialization', () => {
     });
   });
 
-  describe('all-pages DTOs', () => {
+  describe('all-posts DTOs', () => {
     it('content(\'posts\').listAll() items are structuredClone-safe', async () => {
       const posts = await postsClient(publicClient).listAll();
 

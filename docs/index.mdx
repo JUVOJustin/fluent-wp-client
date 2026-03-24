@@ -18,22 +18,40 @@ npm install fluent-wp-client
 
 ## Quick start
 
-```ts
-import { WordPressClient } from 'fluent-wp-client';
+<Steps>
+1. Install
+  ```bash
+  npm install fluent-wp-client
+  ```
 
-const wp = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-});
+2. Create a client
+  ```ts
+  import { WordPressClient } from 'fluent-wp-client';
 
-// Read a list of posts
-const posts = await wp.getPosts({ perPage: 10 });
+  const wp = new WordPressClient({
+    baseUrl: 'https://your-wordpress-site.com',
+  });
+  ```
 
-// Read a single post and parse its Gutenberg blocks
-const blocks = await wp.getPostBySlug('hello-world').getBlocks();
+3. Interact with the API
+  ```ts 
+  // Read a list of posts
+  const posts = await wp.getPosts({ perPage: 10 });
 
-// Create a draft post (requires auth)
-const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
-```
+  // Create a draft post (requires auth)
+  const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
+
+  // Custom post type example
+  const books = wp.content('books');
+  const allBooks = await books.listAll();
+
+  // Get item directly
+  const bySlug = await books.getBySlug('my-book');
+
+  // Get the item with relations
+  const hydrated = await books.item('my-book').with('author', 'terms').get();
+  ```
+</Steps>
 
 ## Features
 

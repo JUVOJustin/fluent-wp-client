@@ -3,6 +3,7 @@ import type { WordPressRequestOverrides } from '../types/resources.js';
 
 /**
  * Merges per-request header overrides into one request options object.
+ * Rejects Authorization header overrides to prevent auth conflicts.
  */
 export function applyRequestOverrides(
   options: WordPressRequestOptions,
@@ -12,11 +13,18 @@ export function applyRequestOverrides(
     return options;
   }
 
+  const headers = overrides.headers;
+  if (headers.Authorization || headers.authorization) {
+    throw new Error(
+      'auth header overrides are not supported. Use the auth configuration options instead.',
+    );
+  }
+
   return {
     ...options,
     headers: {
       ...(options.headers ?? {}),
-      ...(overrides.headers ?? {}),
+      ...headers,
     },
   };
 }

@@ -54,6 +54,14 @@ console.log(content.protected);
 
 `getContent()` uses `context=edit`, so the caller must have edit capabilities for the resource.
 
+import { LinkCard } from '@astrojs/starlight/components';
+
+<LinkCard
+  title="Authentication"
+  description="Learn how to authenticate with the WordPress REST API to access protected content."
+  href="./auth.mdx"
+/>
+
 ## Block parsing with query helpers
 
 Use `getBlocks()` to parse Gutenberg blocks from `content.raw`.

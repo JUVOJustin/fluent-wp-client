@@ -370,11 +370,10 @@ describe('Client: Posts', () => {
       expect(deleted.deleted).toBe(false);
     });
 
-    it('returns a non-deleted result for a non-existent post on delete', async () => {
-      const deleted = await postsClient(authClient).delete(999999, { force: true });
-
-      expect(deleted.id).toBe(999999);
-      expect(deleted.deleted).toBe(false);
+    it('throws when attempting to delete a non-existent post', async () => {
+      await expect(
+        postsClient(authClient).delete(999999, { force: true })
+      ).rejects.toThrow(/Invalid post ID/);
     });
   });
 });

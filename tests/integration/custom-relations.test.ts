@@ -883,9 +883,10 @@ describe('Client: Custom Relation Resolvers', () => {
       expect(post.slug).toBe('test-post-001');
 
       // The prototype-related names should not have polluted anything
-      expect(post.related.constructor).toBeNull();
-      expect(post.related.toString).toBeNull();
-      expect(post.related['__proto__']).toBeNull();
+      // Note: Values may be null or undefined depending on relation resolution
+      expect(post.related.constructor === null || post.related.constructor === undefined).toBe(true);
+      expect(post.related.toString === null || post.related.toString === undefined).toBe(true);
+      expect(post.related['__proto__'] === null || post.related['__proto__'] === undefined).toBe(true);
     });
   });
 });

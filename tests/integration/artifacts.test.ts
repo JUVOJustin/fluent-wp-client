@@ -64,7 +64,6 @@ describe('Client: Artifacts', () => {
     });
 
     it('content() throws a validation error on reads when a strict content schema is used', async () => {
-      // Clear cache to ensure we get a fresh resource with the schema
       const artifacts = publicClient.content('artifacts', contentWordPressSchema);
 
       try {

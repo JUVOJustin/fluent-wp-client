@@ -87,11 +87,6 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
     description="Register custom relations for ACF field types, plugin embeds, built-in terms, custom taxonomies, and shared link/embed buckets."
   />
   <LinkCard
-    title="Migrate ACF relations"
-    href="./migrate-acf-relations"
-    description="Upgrade legacy ACF relation helpers to the new field-type-based API."
-  />
-  <LinkCard
     title="Migrate from node-wpapi"
     href="./migration-from-node-wpapi"
     description="Map familiar node-wpapi chains to fluent-wp-client methods."
@@ -100,4 +95,4 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 
 ## Development notes
 
-Contributor-facing resource factory internals live in `src/core/`, while package consumers continue to import the public API from `src/index.ts`.
+Contributor-facing transport and base resource classes live in `src/core/`, while relation definitions, registries, and reference resolvers live in `src/builders/relation-*.ts`. Package consumers continue to import the public API from `src/index.ts`.

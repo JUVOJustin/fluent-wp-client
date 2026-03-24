@@ -103,7 +103,7 @@ export class MediaResource extends BaseCrudResource<
           ? new Blob([new Uint8Array(input.file)], { type: input.mimeType ?? 'application/octet-stream' })
           : input.file;
 
-    const safeFilename = input.filename.replace(/"/g, '');
+    const safeFilename = input.filename.replace(/[\x00-\x1F\x7F"]/g, '');
     const uploadHeaders: Record<string, string> = {
       'Content-Disposition': `attachment; filename="${safeFilename}"`,
     };

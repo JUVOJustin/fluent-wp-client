@@ -87,6 +87,32 @@ class GenericContentResource<
   }
 
   /**
+   * Lists every page of content with optional validation.
+   */
+  async listAllWithValidation(
+    filter: Omit<QueryParams & PaginationParams, 'page'> = {},
+    options?: WordPressRequestOverrides,
+  ): Promise<TContent[]> {
+    const items = await this.listAll(filter, options);
+    return this.validateCollection<TContent>(items as unknown[]);
+  }
+
+  /**
+   * Lists one page of content with pagination metadata and optional validation.
+   */
+  async listPaginatedWithValidation(
+    filter: QueryParams & PaginationParams = {},
+    options?: WordPressRequestOverrides,
+  ): Promise<PaginatedResponse<TContent>> {
+    const result = await this.listPaginated(filter, options);
+
+    return {
+      ...result,
+      data: await this.validateCollection<TContent>(result.data as unknown[]),
+    };
+  }
+
+  /**
    * Gets single item by ID with optional validation.
    */
   async getWithValidation(
@@ -199,15 +225,18 @@ export class GenericResourceRegistry {
         return items as TResource[];
       },
       listAll: async (filter = {}, options) => {
-        const allItems = await resource.listAll(filter as Omit<QueryParams & PaginationParams, 'page'>, options);
-        return resource['validateCollection']<TResource>(allItems as unknown[]) as Promise<TResource[]>;
+        const allItems = await resource.listAllWithValidation(
+          filter as Omit<QueryParams & PaginationParams, 'page'>,
+          options,
+        );
+        return allItems as TResource[];
       },
       listPaginated: async (filter = {}, options) => {
-        const result = await resource.listPaginated(filter as QueryParams & PaginationParams, options);
-        return {
-          ...result,
-          data: await resource['validateCollection']<TResource>(result.data as unknown[]) as TResource[],
-        };
+        const result = await resource.listPaginatedWithValidation(
+          filter as QueryParams & PaginationParams,
+          options,
+        );
+        return result as PaginatedResponse<TResource>;
       },
       getById: async (id, options) => {
         const item = await resource.getWithValidation(id, options);

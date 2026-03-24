@@ -513,58 +513,94 @@ export class PostRelationQueryBuilder<
   }
 
   /**
-   * Resolves all requested custom relations for one post.
+   * Collects all requested custom relation configs for the current query.
    */
-  private async resolveCustomRelations(post: TContent): Promise<Record<string, unknown>> {
-    const related: Record<string, unknown> = {};
+  private getRequestedCustomRelations(): Array<{ name: string; config: CustomRelationConfig<unknown> }> {
+    const relations: Array<{ name: string; config: CustomRelationConfig<unknown> }> = [];
 
     for (const relationName of this.relationSet) {
       if (BUILT_IN_RELATION_NAMES.has(relationName as PostRelation)) {
         continue;
       }
 
-      const customConfig = customRelationRegistry.get(relationName);
+      const config = customRelationRegistry.get(relationName);
 
-      if (!customConfig) {
-        continue;
+      if (config) {
+        relations.push({ name: relationName, config });
       }
-
-      related[relationName] = await this.resolveCustomRelation(customConfig, post);
     }
 
-    return related;
+    return relations;
+  }
+
+  /**
+   * Resolves all requested custom relations for one post.
+   */
+  private async resolveCustomRelations(post: TContent): Promise<Record<string, unknown>> {
+    const requestedRelations = this.getRequestedCustomRelations();
+
+    if (requestedRelations.length === 0) {
+      return {};
+    }
+
+    const resolvedEntries = await Promise.all(
+      requestedRelations.map(async ({ name, config }) => [
+        name,
+        await this.resolveCustomRelation(config, post),
+      ] as const),
+    );
+
+    return Object.fromEntries(resolvedEntries);
   }
 
   /**
    * Resolves every requested relation and returns the related payload map.
    */
   private async resolveRelated(post: TContent): Promise<Record<string, unknown>> {
-    const related = await this.resolveCustomRelations(post);
+    const related: Record<string, unknown> = {};
     const requestedTerms = this.relationSet.has('terms');
 
+    const tasks: Array<Promise<void>> = [
+      this.resolveCustomRelations(post).then((customRelations) => {
+        Object.assign(related, customRelations);
+      }),
+    ];
+
     if (this.relationSet.has('author')) {
-      related.author = await this.resolveAuthorRelation(post);
+      tasks.push(
+        this.resolveAuthorRelation(post).then((author) => {
+          related.author = author;
+        }),
+      );
     }
 
     if (this.relationSet.has('featuredMedia')) {
-      related.featuredMedia = await this.resolveFeaturedMediaRelation(post);
+      tasks.push(
+        this.resolveFeaturedMediaRelation(post).then((featuredMedia) => {
+          related.featuredMedia = featuredMedia;
+        }),
+      );
     }
 
     if (requestedTerms || this.relationSet.has('categories') || this.relationSet.has('tags')) {
-      const terms = await this.resolveRequestedTerms(post);
+      tasks.push(
+        this.resolveRequestedTerms(post).then((terms) => {
+          if (this.relationSet.has('categories')) {
+            related.categories = terms.categories;
+          }
 
-      if (this.relationSet.has('categories')) {
-        related.categories = terms.categories;
-      }
+          if (this.relationSet.has('tags')) {
+            related.tags = terms.tags;
+          }
 
-      if (this.relationSet.has('tags')) {
-        related.tags = terms.tags;
-      }
-
-      if (requestedTerms) {
-        related.terms = terms;
-      }
+          if (requestedTerms) {
+            related.terms = terms;
+          }
+        }),
+      );
     }
+
+    await Promise.all(tasks);
 
     return related;
   }

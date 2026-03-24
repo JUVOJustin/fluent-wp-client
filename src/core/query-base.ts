@@ -36,10 +36,10 @@ export abstract class ExecutableQuery<TResult> implements PromiseLike<TResult> {
   /**
    * Supports .catch() by delegating to execute().
    */
-  catch<TResult = never>(
-    onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null,
-  ): Promise<TResult | TResult> {
-    return this.execute().catch(onrejected ?? undefined) as Promise<TResult | TResult>;
+  catch<TCatch = never>(
+    onrejected?: ((reason: unknown) => TCatch | PromiseLike<TCatch>) | null,
+  ): Promise<TResult | TCatch> {
+    return this.execute().catch(onrejected ?? undefined) as Promise<TResult | TCatch>;
   }
 
   /**
@@ -123,10 +123,10 @@ export function createExecutableBuilder<
       return config.execute(this.state).then(onfulfilled ?? undefined, onrejected ?? undefined);
     }
 
-    catch<TResult = never>(
-      onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null,
-    ): Promise<TResult | TResult> {
-      return config.execute(this.state).catch(onrejected ?? undefined) as Promise<TResult | TResult>;
+    catch<TCatch = never>(
+      onrejected?: ((reason: unknown) => TCatch | PromiseLike<TCatch>) | null,
+    ): Promise<TResult | TCatch> {
+      return config.execute(this.state).catch(onrejected ?? undefined) as Promise<TResult | TCatch>;
     }
 
     finally(onfinally?: (() => void) | null): Promise<TResult> {

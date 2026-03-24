@@ -96,7 +96,6 @@ Full documentation lives in the [`docs/`](./docs/) folder:
 - [Abilities](./docs/abilities.mdx) — WordPress Abilities API
 - [Validation](./docs/validation.mdx) — Standard Schema, Zod, and custom validators
 - [Extensible relations](./docs/extensible-relations.mdx) — ACF field-type helpers, custom relation registration, and generic relation factories for IDs and shared link/embed buckets
-- [Migrate ACF relations](./docs/migrate-acf-relations.mdx) — update legacy ACF relation helpers to the new field-type-based API
 - [Migrate from node-wpapi](./docs/migration-from-node-wpapi.mdx) — migration guide
 
 ## Development
@@ -112,7 +111,7 @@ npm test
 npm run wp:stop
 ```
 
-Core resource factory internals live under `src/core/`, while the package API remains re-exported from `src/index.ts`.
+Core transport and base resource classes live under `src/core/`, while relation definition, registry, and reference resolver internals live under `src/builders/relation-*.ts`. Package consumers continue to import the public API from `src/index.ts`.
 
 Tests run against a real WordPress Docker container managed by [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/). See [`tests/`](./tests/) for setup details.
 

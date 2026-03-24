@@ -54,19 +54,22 @@ src/
     resources.ts               # ContentResourceClient, PaginatedResponse, FetchResult, etc.
 
   resources/                   # Resource method factories
-    posts.ts                   # createPostsMethods
-    pages.ts                   # createPagesMethods
-    media.ts                   # createMediaMethods
-    categories.ts              # createCategoriesMethods
-    tags.ts                    # createTagsMethods
-    users.ts                   # createUsersMethods
-    comments.ts                # createCommentsMethods
-    settings.ts                # createSettingsMethods
-    content-terms.ts           # Generic content/terms builders
+    posts.ts                   # PostsResource
+    pages.ts                   # PagesResource
+    media.ts                   # MediaResource
+    categories.ts              # CategoriesResource
+    tags.ts                    # TagsResource
+    users.ts                   # UsersResource
+    comments.ts                # CommentsResource
+    settings.ts                # SettingsResource
+    content-terms.ts           # GenericResourceRegistry
 
   builders/                    # Fluent query/request builders
     wpapi-request.ts           # WordPressRequestBuilder (WPAPI compat chain)
     relations.ts               # PostRelationQueryBuilder
+    relation-contracts.ts      # Relation registry contracts + parsing helpers
+    relation-definitions.ts    # Class-backed relation definition factories
+    relation-reference-resolvers.ts # Shared post/content/term reference resolvers
 ```
 
 When adding new files:

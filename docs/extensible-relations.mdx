@@ -257,9 +257,7 @@ console.log(post.related.primaryArticle);
 console.log(post.related.linkedGenres);
 ```
 
-The helper names map to actual ACF field types. The relation names you pass in are application-specific.
-
-For the breaking upgrade path from the legacy ACF helpers, see [Migrate ACF relations](./migrate-acf-relations.mdx).
+The helper names map to actual ACF field types. The relation names you pass in are application-specific. Projects upgrading from the legacy app-specific ACF helpers should register the new field-type helper under their preferred relation name and then update `.with(...)` calls to use that registered name.
 
 ### ACF Field Configuration
 

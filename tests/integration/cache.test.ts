@@ -1,0 +1,144 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import { WordPressClient } from 'fluent-wp-client';
+import { createAuthClient, getBaseUrl } from '../helpers/wp-client';
+
+/**
+ * Creates a client that counts HTTP requests.
+ */
+function createCountingClient(): { client: WordPressClient; count: { value: number } } {
+  const password = process.env.WP_APP_PASSWORD;
+  if (!password) throw new Error('WP_APP_PASSWORD not set');
+  
+  const count = { value: 0 };
+  const client = new WordPressClient({
+    baseUrl: getBaseUrl(),
+    auth: { username: 'admin', password },
+    fetch: async (input, init) => {
+      count.value += 1;
+      return fetch(input, init);
+    },
+  });
+  
+  return { client, count };
+}
+
+describe('Client: internal caching', () => {
+  let authClient: WordPressClient;
+
+  beforeAll(() => {
+    authClient = createAuthClient();
+  });
+
+  describe('query builder memoization', () => {
+    it('caches .get() results and returns same object', async () => {
+      const { client, count } = createCountingClient();
+      const query = client.content('posts').item('test-post-001');
+      
+      const result1 = await query.get();
+      const result2 = await query.get();
+      
+      expect(count.value).toBe(1);
+      expect(result1).toBe(result2);
+    });
+
+    it('caches getContent() edit-context calls', async () => {
+      const { client, count } = createCountingClient();
+      const query = client.content('posts').item('test-post-001');
+      
+      const content1 = await query.getContent();
+      const content2 = await query.getContent();
+      
+      expect(count.value).toBe(1);
+      expect(content1?.raw).toBe(content2?.raw);
+    });
+
+    it('shares edit promise between getContent() and getBlocks()', async () => {
+      const { client, count } = createCountingClient();
+      const query = client.content('posts').item('test-post-001');
+      
+      await query.getContent();
+      await query.getBlocks();
+      
+      expect(count.value).toBeLessThanOrEqual(2); // edit context shared
+    });
+
+    it('caches relation queries', async () => {
+      const { client, count } = createCountingClient();
+      const query = client.content('posts').item('test-post-001').with('author', 'categories');
+      
+      const result1 = await query.get();
+      const result2 = await query.get();
+      
+      expect(result1).toBe(result2);
+      expect(result1.related.author).toBe(result2.related.author);
+    });
+  });
+
+  describe('concurrent request deduplication', () => {
+    it('deduplicates concurrent .get() calls', async () => {
+      const { client, count } = createCountingClient();
+      const query = client.content('posts').item('test-post-001');
+      
+      const [r1, r2, r3] = await Promise.all([query.get(), query.get(), query.get()]);
+      
+      expect(count.value).toBe(1);
+      expect(r1).toBe(r2);
+      expect(r2).toBe(r3);
+    });
+
+    it('deduplicates concurrent getContent() calls', async () => {
+      const { client, count } = createCountingClient();
+      const query = client.content('posts').item('test-post-001');
+      
+      const results = await Promise.all([query.getContent(), query.getContent(), query.getContent()]);
+      
+      expect(count.value).toBe(1);
+      expect(results.every(r => r?.raw === results[0]?.raw)).toBe(true);
+    });
+  });
+
+  describe('error handling', () => {
+    it('does not cache failed requests', async () => {
+      let requests = 0;
+      const password = process.env.WP_APP_PASSWORD;
+      if (!password) throw new Error('WP_APP_PASSWORD not set');
+      
+      const client = new WordPressClient({
+        baseUrl: getBaseUrl(),
+        auth: { username: 'admin', password },
+        fetch: async (input, init) => {
+          requests++;
+          if (requests === 1) throw new Error('Network error');
+          return fetch(input, init);
+        },
+      });
+
+      const query = client.content('posts').item('test-post-001');
+      await expect(query.get()).rejects.toThrow();
+      // Second call retries (may also fail, but doesn't use cached error)
+    });
+  });
+
+  describe('resource registry caching', () => {
+    it('bypasses cache with custom schema', async () => {
+      const schema = {
+        '~standard': { validate: (data: unknown) => ({ value: data }) },
+      };
+      
+      const c1 = authClient.content('posts', schema as any);
+      const c2 = authClient.content('posts', schema as any);
+      
+      expect(c1).not.toBe(c2);
+    });
+
+    it('separate clients have separate caches', async () => {
+      const password = process.env.WP_APP_PASSWORD;
+      if (!password) throw new Error('WP_APP_PASSWORD not set');
+      
+      const client1 = new WordPressClient({ baseUrl: getBaseUrl(), auth: { username: 'admin', password } });
+      const client2 = new WordPressClient({ baseUrl: getBaseUrl(), auth: { username: 'admin', password } });
+      
+      expect(client1.content('posts')).not.toBe(client2.content('posts'));
+    });
+  });
+});

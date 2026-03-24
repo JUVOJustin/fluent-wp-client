@@ -28,7 +28,25 @@ const list = await books.list({ perPage: 20, page: 1 });
 const allBooks = await books.listAll();
 const pagedBooks = await books.listPaginated({ page: 2, perPage: 25 });
 const bySlug = await books.getBySlug('my-book');
+const hydrated = await books.item('my-book').with('author', 'terms');
 ```
+
+### Relation hydration for custom post types
+
+Custom post type clients expose the same relation builder pattern as core posts:
+
+```ts title="Custom post type relation hydration"
+const books = wp.content('books');
+
+const book = await books.item('test-book-001').with('author');
+const withTerms = await books.getWithRelations('test-book-001', 'terms');
+
+console.log(withTerms.related.terms.taxonomies);
+```
+
+When you pass a schema to `content('books', schema)`, the base book payload is validated before fluent relation data is attached under `related`.
+
+For custom taxonomies such as `genre`, hydrated term data is available under `related.terms.taxonomies.genre`.
 
 ### Pagination for CPT and custom taxonomies
 
@@ -120,7 +138,7 @@ import { parseWordPressBlocks, type WordPressPostBase } from 'fluent-wp-client';
 
 type Book = WordPressPostBase & { type: 'book' };
 
-const books = await wp.getContentCollection<Book>('books', {
+const books = await wp.content<Book>('books').list({
   slug: 'test-book-001',
   context: 'edit',
 });
@@ -155,37 +173,6 @@ const genres = wp.terms('genre');
 const created = await genres.create({ name: 'Science Fiction' });
 await genres.update(created.id, { name: 'Sci-Fi' });
 await genres.delete(created.id, { force: true });
-```
-
-## Plugin/custom namespace routes
-
-For endpoints outside `wp/v2`, use namespace-scoped chains:
-
-```ts title="Namespace route request"
-const syncResult = await wp
-  .namespace('my-plugin/v1')
-  .route('sync')
-  .param('mode', 'full')
-  .get();
-```
-
-You can also create/update/delete in custom namespaces:
-
-```ts title="Namespace CRUD"
-const inventory = wp.namespace('inventory/v1').route('items');
-
-const created = await inventory.create({ sku: 'abc-123', stock: 20 });
-await inventory.id((created as { id: number }).id).update({ stock: 18 });
-await inventory.id((created as { id: number }).id).delete();
-```
-
-## node-wpapi `registerRoute` compatibility
-
-```ts title="registerRoute compatibility"
-const authorRoute = wp.registerRoute('my-plugin/v1', '/authors/(?P<id>)');
-
-const url = authorRoute().id(7).toString();
-const author = await authorRoute().id(7).get();
 ```
 
 ## Low-level custom endpoint requests

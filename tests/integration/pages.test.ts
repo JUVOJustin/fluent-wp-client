@@ -28,22 +28,26 @@ describe('Client: Pages', () => {
     authClient = createAuthClient();
   });
 
+  function pagesClient(client: WordPressClient) {
+    return client.content('pages');
+  }
+
   afterAll(async () => {
     for (const id of createdPageIds) {
-      await authClient.deletePage(id, { force: true }).catch(() => undefined);
+      await pagesClient(authClient).delete(id, { force: true }).catch(() => undefined);
     }
   });
 
   describe('reads', () => {
-    it('getPages returns an array of pages', async () => {
-      const pages = await publicClient.getPages();
+    it('content(\'pages\').list() returns an array of pages', async () => {
+      const pages = await pagesClient(publicClient).list();
 
       expect(Array.isArray(pages)).toBe(true);
       expect(pages.length).toBeGreaterThan(0);
     });
 
     it('every page has required fields', async () => {
-      const pages = await publicClient.getPages();
+      const pages = await pagesClient(publicClient).list();
 
       for (const page of pages) {
         expect(page).toHaveProperty('id');
@@ -57,22 +61,22 @@ describe('Client: Pages', () => {
       }
     });
 
-    it('getPageBySlug fetches a known seed page', async () => {
-      const page = await publicClient.getPageBySlug('about');
+    it('content(\'pages\').getBySlug() fetches a known seed page', async () => {
+      const page = await pagesClient(publicClient).getBySlug('about');
 
       expect(page).toBeDefined();
       expect(page!.slug).toBe('about');
       expect(page!.title.rendered).toBe('About');
     });
 
-    it('getPageBySlug returns undefined for non-existent slug', async () => {
-      const page = await publicClient.getPageBySlug('non-existent-page-slug-999');
+    it('content(\'pages\').getBySlug() returns undefined for non-existent slug', async () => {
+      const page = await pagesClient(publicClient).getBySlug('non-existent-page-slug-999');
 
       expect(page).toBeUndefined();
     });
 
-    it('getAllPages includes every seeded page slug', async () => {
-      const all = await publicClient.getAllPages();
+    it('content(\'pages\').listAll() includes every seeded page slug', async () => {
+      const all = await pagesClient(publicClient).listAll();
       const slugs = new Set(all.map((page) => page.slug));
 
       for (const slug of seedPageSlugs) {
@@ -80,8 +84,8 @@ describe('Client: Pages', () => {
       }
     });
 
-    it('getPagesPaginated returns pagination metadata', async () => {
-      const result = await publicClient.getPagesPaginated({ perPage: 5, page: 1 });
+    it('content(\'pages\').listPaginated() returns pagination metadata', async () => {
+      const result = await pagesClient(publicClient).listPaginated({ perPage: 5, page: 1 });
 
       expect(result.data).toHaveLength(5);
       expect(result.total).toBeGreaterThanOrEqual(seedPageSlugs.length);
@@ -93,7 +97,7 @@ describe('Client: Pages', () => {
 
   describe('crud', () => {
     it('creates, updates, and deletes pages', async () => {
-      const created = await authClient.createPage(
+      const created = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page create',
           status: 'draft',
@@ -107,7 +111,7 @@ describe('Client: Pages', () => {
       expect(created.type).toBe('page');
       expect(created.menu_order).toBe(7);
 
-      const updated = await authClient.updatePage(
+      const updated = await pagesClient(authClient).update(
         created.id,
         {
           title: 'Client CRUD: Page update',
@@ -119,12 +123,12 @@ describe('Client: Pages', () => {
       expect(updated.title.rendered).toBe('Client CRUD: Page update');
       expect(updated.menu_order).toBe(12);
 
-      const deleted = await authClient.deletePage(created.id, { force: true });
+      const deleted = await pagesClient(authClient).delete(created.id, { force: true });
       expect(deleted.deleted).toBe(true);
     });
 
     it('creates one hierarchical page with parent and content fields', async () => {
-      const parent = await authClient.createPage(
+      const parent = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page parent',
           status: 'draft',
@@ -134,7 +138,7 @@ describe('Client: Pages', () => {
 
       createdPageIds.push(parent.id);
 
-      const child = await authClient.createPage(
+      const child = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page child',
           content: '<p>Child page content.</p>',
@@ -155,7 +159,7 @@ describe('Client: Pages', () => {
     });
 
     it('updates page-specific hierarchical fields', async () => {
-      const parent = await authClient.createPage(
+      const parent = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page update parent',
           status: 'draft',
@@ -165,7 +169,7 @@ describe('Client: Pages', () => {
 
       createdPageIds.push(parent.id);
 
-      const child = await authClient.createPage(
+      const child = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page update child',
           status: 'draft',
@@ -175,7 +179,7 @@ describe('Client: Pages', () => {
 
       createdPageIds.push(child.id);
 
-      const updated = await authClient.updatePage(
+      const updated = await pagesClient(authClient).update(
         child.id,
         {
           parent: parent.id,
@@ -190,7 +194,7 @@ describe('Client: Pages', () => {
 
     it('throws for unauthenticated page creation', async () => {
       await expect(
-        publicClient.createPage({
+        pagesClient(publicClient).create({
           title: 'Client CRUD: Public page create',
           status: 'draft',
         }),
@@ -201,7 +205,7 @@ describe('Client: Pages', () => {
 
     it('throws for a non-existent page on update', async () => {
       await expect(
-        authClient.updatePage(999999, { title: 'Ghost Page' }, pageSchema),
+        pagesClient(authClient).update(999999, { title: 'Ghost Page' }, pageSchema),
       ).rejects.toMatchObject({
         name: 'WordPressApiError',
         status: 404,
@@ -251,7 +255,7 @@ describe('Client: Pages', () => {
         },
       };
 
-      const created = await authClient.createPage(
+      const created = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Standard Schema create',
           status: 'draft',

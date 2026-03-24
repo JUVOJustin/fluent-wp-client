@@ -24,8 +24,8 @@ describe('Client: Artifacts', () => {
   });
 
   describe('reads', () => {
-    it('getContentCollection returns sparse artifacts without title or content fields', async () => {
-      const artifacts = await publicClient.getContentCollection('artifacts');
+    it('content() list() returns sparse artifacts without title or content fields', async () => {
+      const artifacts = await publicClient.content('artifacts').list();
 
       expect(Array.isArray(artifacts)).toBe(true);
       expect(artifacts).toHaveLength(3);
@@ -40,8 +40,8 @@ describe('Client: Artifacts', () => {
       expect(first).toHaveProperty('acf.acf_subtitle');
     });
 
-    it('getContentBySlug fetches one known sparse artifact', async () => {
-      const artifact = await publicClient.getContentBySlug('artifacts', 'test-artifact-001');
+    it('content() getBySlug fetches one known sparse artifact', async () => {
+      const artifact = await publicClient.content('artifacts').getBySlug('test-artifact-001');
 
       expect(artifact).toBeDefined();
       expect(artifact?.slug).toBe('test-artifact-001');
@@ -66,15 +66,19 @@ describe('Client: Artifacts', () => {
     it('content() throws a validation error on reads when a strict content schema is used', async () => {
       const artifacts = publicClient.content('artifacts', contentWordPressSchema);
 
-      await expect(
-        artifacts.getBySlug('test-artifact-001'),
-      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
+      try {
+        await artifacts.getBySlug('test-artifact-001');
+        // Should not reach here
+        expect.fail('Expected validation error but got successful response');
+      } catch (error) {
+        expect(error).toBeInstanceOf(WordPressSchemaValidationError);
+      }
     });
   });
 
   describe('mutations', () => {
     it('content() throws a validation error on update when a strict content schema is used', async () => {
-      const artifact = await publicClient.getContentBySlug('artifacts', 'test-artifact-001');
+      const artifact = await publicClient.content('artifacts').getBySlug('test-artifact-001');
       expect(artifact).toBeDefined();
 
       const strictArtifacts = authClient.content('artifacts', contentWordPressSchema);

@@ -3,21 +3,26 @@
  */
 export {
   WordPressClient,
-  type WordPressClientConfig,
-  type WordPressRequestOptions,
-  type WordPressRequestOverrides,
-  type WordPressRequestResult,
-  type WordPressMediaUploadInput,
-  type WordPressNamespaceClient,
-  type CategoriesFilter,
-  type CommentsFilter,
-  type MediaFilter,
-  type PagesFilter,
-  type PostsFilter,
-  type SearchFilter,
-  type TagsFilter,
-  type UsersFilter,
 } from './client.js';
+
+export type {
+  WordPressClientConfig,
+  WordPressRequestOptions,
+  WordPressRequestOverrides,
+  WordPressRequestResult,
+  WordPressMediaUploadInput,
+} from './types.js';
+
+export type {
+  CategoriesFilter,
+  CommentsFilter,
+  MediaFilter,
+  PagesFilter,
+  PostsFilter,
+  SearchFilter,
+  TagsFilter,
+  UsersFilter,
+} from './types/filters.js';
 
 export {
   WordPressAbilityBuilder,
@@ -29,11 +34,6 @@ export {
   type RunAbilityInput,
   type DeleteAbilityInput,
 } from './abilities.js';
-
-export {
-  WordPressRequestBuilder,
-  type WordPressRequestDeleteOptions,
-} from './builders/wpapi-request.js';
 
 export {
   createBasicAuthHeader,
@@ -143,12 +143,12 @@ export type {
 
 export {
   PostRelationQueryBuilder,
+  type ContentItemResult,
   type PostRelation,
   type SelectedPostRelations,
 } from './builders/relations.js';
 
 export {
-  WordPressContentQuery,
   type WordPressGetBlocksOptions,
   type WordPressRawContentResult,
 } from './content-query.js';

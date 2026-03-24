@@ -1,73 +1,87 @@
 import type { WordPressAuthor } from '../schemas.js';
-import type { WordPressRequestOverrides } from '../client-types.js';
+import type { WordPressRequestOverrides, PaginatedResponse } from '../types/resources.js';
 import type { UsersFilter } from '../types/filters.js';
-import type { ExtensibleFilter, FetchResult, PaginatedResponse, SerializedQueryParams } from '../types/resources.js';
-import { createWordPressPaginator } from '../core/pagination.js';
-import { filterToParams } from '../core/params.js';
+import type { ExtensibleFilter } from '../types/resources.js';
+import type { UserWriteInput } from '../types/payloads.js';
+import { authorSchema } from '../standard-schemas.js';
+import { BaseCrudResource } from '../core/resource-base.js';
+import type { WordPressRuntime } from '../core/transport.js';
 
 /**
- * Users API methods factory for typed read operations.
+ * WordPress users resource with full CRUD support.
+ * 
+ * @example
+ * ```typescript
+ * const users = UsersResource.create(runtime);
+ * const allUsers = await users.getUsers();
+ * const currentUser = await users.getCurrentUser();
+ * ```
  */
-export function createUsersMethods(
-  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
-  hasAuth: () => boolean,
-) {
-  const paginator = createWordPressPaginator<ExtensibleFilter<UsersFilter>, WordPressAuthor>({
-    fetchPage: (currentFilter, context) => {
-      const params = filterToParams(currentFilter);
-      return fetchAPIPaginated<WordPressAuthor[]>('/users', params, context as WordPressRequestOverrides | undefined);
-    },
-  });
+export class UsersResource extends BaseCrudResource<
+  WordPressAuthor,
+  ExtensibleFilter<UsersFilter>,
+  UserWriteInput,
+  UserWriteInput
+> {
+  /**
+   * Creates a users resource instance.
+   */
+  static create(runtime: WordPressRuntime): UsersResource {
+    return new UsersResource({
+      runtime,
+      endpoint: '/users',
+      defaultSchema: authorSchema,
+    });
+  }
 
-  return {
-    /**
-     * Gets users with optional filtering.
-     */
-    async getUsers(
-      filter: ExtensibleFilter<UsersFilter> = {},
-      requestOptions?: WordPressRequestOverrides,
-    ): Promise<WordPressAuthor[]> {
-      const params = filterToParams(filter);
-      return fetchAPI<WordPressAuthor[]>('/users', params, requestOptions);
-    },
+  /**
+   * Alias for list() - gets users matching filter.
+   */
+  getUsers(filter?: ExtensibleFilter<UsersFilter>, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> {
+    return this.list(filter, options);
+  }
 
-    /**
-     * Gets all users by paginating every page.
-     */
-    async getAllUsers(
-      filter: Omit<ExtensibleFilter<UsersFilter>, 'page'> = {},
-      requestOptions?: WordPressRequestOverrides,
-    ): Promise<WordPressAuthor[]> {
-      return paginator.listAll(filter, requestOptions);
-    },
+  /**
+   * Alias for listAll() - gets all users via pagination.
+   */
+  getAllUsers(
+    filter?: Omit<ExtensibleFilter<UsersFilter>, 'page'>,
+    options?: WordPressRequestOverrides,
+  ): Promise<WordPressAuthor[]> {
+    return this.listAll(filter, options);
+  }
 
-    /**
-     * Gets users with pagination metadata.
-     */
-    async getUsersPaginated(
-      filter: ExtensibleFilter<UsersFilter> = {},
-      requestOptions?: WordPressRequestOverrides,
-    ): Promise<PaginatedResponse<WordPressAuthor>> {
-      return paginator.listPaginated(filter, requestOptions);
-    },
+  /**
+   * Alias for listPaginated() - gets users with pagination metadata.
+   */
+  getUsersPaginated(
+    filter?: ExtensibleFilter<UsersFilter>,
+    options?: WordPressRequestOverrides,
+  ): Promise<PaginatedResponse<WordPressAuthor>> {
+    return this.listPaginated(filter, options);
+  }
 
-    /**
-     * Gets one user by ID.
-     */
-    async getUser(id: number, requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-      return fetchAPI<WordPressAuthor>(`/users/${id}`, undefined, requestOptions);
-    },
+  /**
+   * Alias for getById() - gets user by ID.
+   */
+  getUser(id: number, options?: WordPressRequestOverrides): Promise<WordPressAuthor> {
+    return this.getById(id, options);
+  }
 
-    /**
-     * Gets the currently authenticated user.
-     */
-    async getCurrentUser(requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-      if (!hasAuth()) {
-        throw new Error('Authentication required for /users/me endpoint. Configure auth in client options.');
-      }
+  /**
+   * Alias for getBySlug() - gets user by slug.
+   */
+  getUserBySlug(slug: string, options?: WordPressRequestOverrides): Promise<WordPressAuthor | undefined> {
+    return this.getBySlug(slug, options);
+  }
 
-      return fetchAPI<WordPressAuthor>('/users/me', undefined, requestOptions);
-    },
-  };
+  /**
+   * Gets the current authenticated user.
+   */
+  async getCurrentUser(requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor> {
+    if (!this.runtime.hasAuth()) {
+      throw new Error('Authentication required for /users/me endpoint. Configure auth in client options.');
+    }
+    return this.runtime.fetchAPI<WordPressAuthor>('/users/me', undefined, requestOptions);
+  }
 }

@@ -7,6 +7,7 @@
 - Treat `WordPressClient` as the package's core integration layer. Add or harden client abilities before introducing convenience helpers that depend on them.
 - Build higher-level helpers on top of proven client primitives. If a feature needs a new REST ability, implement that ability in the client first.
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
+- Prefer `content()` and `terms()` as the public post-like and term resource API. Do not reintroduce legacy direct convenience wrappers for posts/pages/categories/tags.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Root package schema exports must be typed as Standard Schema (`WordPressStandardSchema`) to keep the default API validator-agnostic.
 - Native Zod schema exports belong in the dedicated `fluent-wp-client/zod` entrypoint only.
@@ -14,15 +15,17 @@
 - Validate and require only the minimum data needed for a feature to work. Keep optional and custom fields extensible so projects can layer in ACF fields, meta, relations, and plugin data without fighting the package.
 - Keep native posts/pages strict, but default generic custom post type reads to a flexible post-like shape because WordPress supports can remove `title`, `content`, `excerpt`, `author`, and related fields from REST responses.
 - Avoid hard-coded assumptions that only fit default posts and pages. Always leave room for custom post types, taxonomies, fields, actions, and REST namespaces.
+- Keep relation helpers field-type-driven and generic. For ACF and plugin integrations, prefer reusable relation factories over app-specific helper names.
 
 ## Serialization
 
 - All terminal read methods return plain serializable DTOs by default. Returned data must survive `structuredClone()`, `JSON.stringify()`, and cross-boundary transport (SSR, RSC, `postMessage`, cache).
 - No fetched DTO should contain functions, `then`, `PromiseLike`, or hidden closures. Never mutate API response objects with runtime helpers via `Object.assign` or similar.
-- Runtime query helpers (`WordPressContentQuery`, `WordPressRequestBuilder`, `PostRelationQueryBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
+- Runtime query helpers (`PostRelationQueryBuilder`, `WordPressRequestBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
 - Standalone utility functions (like `parseWordPressBlocks`) handle stateless transforms on already-fetched DTOs.
-- List methods (`getPosts`, `getPages`, `getAllPosts`, etc.) return plain DTO arrays. Single-item getters (`getPost`, `getPostBySlug`, etc.) return `WordPressContentQuery` instances (thenable, with `.getBlocks()` / `.getContent()`).
-- When adding new resource helpers, follow the same contract: collections return plain arrays, single-item getters return query wrappers only when block/content helpers are needed.
+- Post-like collection methods (`content('posts').list()`, `content('pages').list()`, `content(resource).list()`) return plain DTO arrays.
+- Single post-like item access goes through `content(resource).item(idOrSlug)`, which returns an awaitable `PostRelationQueryBuilder` with `.getBlocks()` / `.getContent()` and relation hydration.
+- When adding new resource helpers, follow the same contract: collections return plain arrays, and single-item post-like access returns explicit query wrappers only when block/content helpers or relation hydration are needed.
 
 ## File Structure
 
@@ -30,46 +33,51 @@
 src/
   index.ts                     # Public exports barrel
   client.ts                    # WordPressClient class
-  client-types.ts              # Client config and request option types
+  types/client.ts              # Client config and low-level request types
   schemas.ts                   # Zod schemas and inferred DTO types
   standard-schemas.ts          # Root Standard Schema exports mapped from Zod definitions
   zod.ts                       # Optional native Zod export entrypoint
   auth.ts                      # Auth types, helpers, resolvers
   blocks.ts                    # Block parser types and parseWordPressBlocks
   abilities.ts                 # Ability methods and builder
-  content-query.ts             # WordPressContentQuery class
-  content-read-methods.ts      # Shared post-like read method factory
+  content-query.ts             # Raw content helper types and resolver
   types.ts                     # Re-export barrel for types/ subdirectory
 
   core/                        # Core infrastructure
     errors.ts                  # WordPressApiError, throwIfWordPressError
+    mutation-helpers.ts        # Shared mutation overload resolution
     pagination.ts              # createWordPressPaginator
+    query-base.ts              # ExecutableQuery and immutable builder primitives
     validation.ts              # Standard Schema validation helpers
     params.ts                  # filterToParams, compactPayload
+    request-overrides.ts       # Per-request non-auth header overrides
+    resource-base.ts           # Shared resource classes
+    transport.ts               # Runtime transport layer
 
   types/                       # Pure type definitions (no runtime)
     filters.ts                 # PostsFilter, PagesFilter, MediaFilter, etc.
     payloads.ts                # WordPressWritePayload, TermWriteInput, DeleteOptions, etc.
     resources.ts               # ContentResourceClient, PaginatedResponse, FetchResult, etc.
 
-  resources/                   # Resource method factories
-    posts.ts                   # createPostsMethods
-    pages.ts                   # createPagesMethods
-    media.ts                   # createMediaMethods
-    categories.ts              # createCategoriesMethods
-    tags.ts                    # createTagsMethods
-    users.ts                   # createUsersMethods
-    comments.ts                # createCommentsMethods
-    settings.ts                # createSettingsMethods
-    content-terms.ts           # Generic content/terms builders
+  resources/                   # Resource classes and generic registries
+    media.ts                   # MediaResource
+    users.ts                   # UsersResource
+    comments.ts                # CommentsResource
+    settings.ts                # SettingsResource
+    content.ts                 # Generic post-like resource + client factory
+    terms.ts                   # Generic term resource + client factory
+    registry.ts                # Shared generic resource registry
+    schema-validation.ts       # Shared read-validation helpers for resources
 
   builders/                    # Fluent query/request builders
-    wpapi-request.ts           # WordPressRequestBuilder (WPAPI compat chain)
     relations.ts               # PostRelationQueryBuilder
+    acf-relations.ts           # ACF relation factories built on shared contracts
+    relation-contracts.ts      # Relation registry contracts + parsing helpers
+    relation-definitions.ts    # Class-backed relation definition factories
 ```
 
 When adding new files:
-- Resource-specific method factories go in `resources/`.
+- Resource-specific classes and registries go in `resources/`.
 - Fluent builder/query classes go in `builders/`.
 - Pure type definitions (no runtime code) go in `types/`.
 - Runtime utilities shared across resources go in `core/`.
@@ -125,12 +133,20 @@ Native REST meta fields are registered by `tests/wp-env/mu-plugins/register-test
 
 ACF fields are seeded for a subset of content. The mu-plugin `tests/wp-env/mu-plugins/register-acf-fields.php` registers the field group on posts, pages, books, and artifacts with `show_in_rest => 1`.
 
+The registered ACF field group includes scalar fields plus these relational field types:
+
+- `relationship` field: `acf_related_posts`
+- `post_object` field: `acf_featured_post`
+- `taxonomy` field: `acf_related_genres`
+
 | Entity | ACF fields set |
 |---|---|
 | Posts 001–003 | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_external_url`, `acf_related_posts`, `acf_featured_post` |
 | Pages `about`, `contact` | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_external_url`, `acf_related_posts` |
 | Books 001–002 | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_featured_post` |
 | Artifacts 001–002 | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_external_url` |
+
+`acf_related_genres` is registered for REST integration coverage but is not pre-seeded; tests create taxonomy terms dynamically when needed.
 
 #### Post distribution
 
@@ -181,12 +197,12 @@ npm run wp:clean
 
 Reference integration suites:
 
-- `tests/integration/posts.test.ts` — post read and CRUD coverage, including auth variants.
-- `tests/integration/pages.test.ts` — page read and CRUD coverage.
+- `tests/integration/posts.test.ts` — `content('posts')` read and CRUD coverage, including auth variants.
+- `tests/integration/pages.test.ts` — `content('pages')` read and CRUD coverage.
 - `tests/integration/books.test.ts` — generic custom post type coverage through `content('books')`.
 - `tests/integration/artifacts.test.ts` — sparse custom post type coverage through `content('artifacts')` and `postLikeWordPressSchema`.
-- `tests/integration/categories.test.ts` — category read and CRUD coverage.
-- `tests/integration/tags.test.ts` — tag read and CRUD coverage.
+- `tests/integration/categories.test.ts` — `terms('categories')` read and CRUD coverage.
+- `tests/integration/tags.test.ts` — `terms('tags')` read and CRUD coverage.
 - `tests/integration/comments.test.ts` — comment read and CRUD coverage.
 - `tests/integration/terms.test.ts` — generic custom taxonomy coverage through `terms('genre')`.
 - `tests/integration/auth.test.ts` — JWT helper and cookie+nonce auth coverage.
@@ -195,7 +211,6 @@ Reference integration suites:
 - `tests/integration/meta.test.ts` — registered REST meta coverage across posts, pages, and books.
 - `tests/integration/acf.test.ts` — ACF REST field coverage across seeded and mutated content.
 - `tests/integration/relations.test.ts` — fluent post relation hydration coverage.
-- `tests/integration/wpapi-compat.test.ts` — WPAPI-compatible request builder coverage.
 - `tests/integration/serialization.test.ts` — DTO serialization safety (`structuredClone`, `JSON.stringify`, no helper leakage).
 
 ### What to test when adding new features

@@ -125,60 +125,33 @@ describe('Client: Auth', () => {
       },
     });
 
-    const posts = await browserPublicClient.getPosts({ perPage: 5 });
+    const posts = await browserPublicClient.content('posts').list({ perPage: 5 });
 
     expect(Array.isArray(posts)).toBe(true);
     expect(posts.length).toBeGreaterThan(0);
   });
 
-  it('loginWithJwt accepts custom responseSchema override and returns narrowed type', async () => {
-    const minimalTokenSchema = {
-      '~standard': {
-        validate: (value: unknown) => {
-          const obj = value as Record<string, unknown>;
-          if (typeof obj?.token !== 'string') {
-            return { issues: [{ message: 'token must be a string', path: ['token'] }] };
-          }
-          return { value: { token: obj.token } };
-        },
-      },
-    };
-
-    const result = await publicClient.loginWithJwt(
-      { username: 'admin', password: 'password' },
-      minimalTokenSchema as any,
-    );
+  it('loginWithJwt returns JWT token response', async () => {
+    const result = await publicClient.loginWithJwt({
+      username: 'admin',
+      password: 'password',
+    });
 
     expect(typeof result.token).toBe('string');
     expect(result.token.length).toBeGreaterThan(20);
-    expect((result as any).user_email).toBeUndefined();
+    expect(result.user_email).toBe('wordpress@example.com');
   });
 
-  it('validateJwtToken accepts custom responseSchema override and returns narrowed type', async () => {
+  it('validateJwtToken validates a token successfully', async () => {
     const tokenResponse = await publicClient.loginWithJwt({
       username: 'admin',
       password: 'password',
     });
 
-    const minimalValidationSchema = {
-      '~standard': {
-        validate: (value: unknown) => {
-          const obj = value as Record<string, unknown>;
-          if (obj?.code !== 'jwt_auth_valid_token') {
-            return { issues: [{ message: 'code must be jwt_auth_valid_token', path: ['code'] }] };
-          }
-          return { value: { code: obj.code } };
-        },
-      },
-    };
-
-    const result = await publicClient.validateJwtToken(
-      tokenResponse.token,
-      minimalValidationSchema as any,
-    );
+    const result = await publicClient.validateJwtToken(tokenResponse.token);
 
     expect(result.code).toBe('jwt_auth_valid_token');
-    expect((result as any).data).toBeUndefined();
+    expect(result.data).toBeDefined();
   });
 
   it('updateSettings accepts custom responseSchema override and returns narrowed type', async () => {
@@ -203,22 +176,5 @@ describe('Client: Auth', () => {
 
     expect(typeof result.title).toBe('string');
     expect((result as any).description).toBeUndefined();
-  });
-
-  it('rejects invalid payloads when custom schema is stricter than default', async () => {
-    const strictSchema = {
-      '~standard': {
-        validate: () => ({
-          issues: [{ message: 'Custom validation error', path: [] }],
-        }),
-      },
-    };
-
-    await expect(
-      publicClient.loginWithJwt(
-        { username: 'admin', password: 'password' },
-        strictSchema as any,
-      ),
-    ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
   });
 });

@@ -22,6 +22,38 @@ const protectedRenderedTextSchema = editableRenderedTextSchema.extend({
 });
 
 /**
+ * Flexible schema used by WordPress for meta and ACF payloads.
+ */
+const recordOrArraySchema = z.union([
+  z.record(z.string(), z.any()),
+  z.array(z.any()),
+]);
+
+/**
+ * Shared image size schema used inside media details payloads.
+ */
+const mediaSizeSchema = z.object({
+  file: z.string(),
+  width: z.number(),
+  height: z.number(),
+  filesize: z.number().optional(),
+  mime_type: z.string(),
+  source_url: z.string(),
+});
+
+/**
+ * Shared media details schema used by media and embedded media responses.
+ */
+const mediaDetailsSchema = z.object({
+  width: z.number(),
+  height: z.number(),
+  file: z.string(),
+  filesize: z.number().optional(),
+  sizes: z.record(z.string(), mediaSizeSchema),
+  image_meta: z.any(),
+});
+
+/**
  * Base schema shared by all WordPress content response types.
  */
 export const baseWordPressSchema = z.object({
@@ -37,7 +69,7 @@ export const baseWordPressSchema = z.object({
   link: z.string().url(),
   title: renderedTextSchema,
   author: z.number(),
-  meta: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+  meta: recordOrArraySchema.optional(),
   _links: z.any(),
 }).passthrough();
 
@@ -66,7 +98,7 @@ export const postLikeWordPressSchema = baseWordPressSchema
     parent: z.number().optional(),
     menu_order: z.number().optional(),
     class_list: z.array(z.string()).optional(),
-    acf: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+    acf: recordOrArraySchema.optional(),
     _embedded: z.any().optional(),
   })
   .passthrough();
@@ -81,7 +113,7 @@ export const contentWordPressSchema = baseWordPressSchema.extend({
   comment_status: z.string(),
   ping_status: z.string(),
   template: z.string(),
-  acf: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+  acf: recordOrArraySchema.optional(),
   _embedded: z.any().optional(),
 });
 
@@ -115,21 +147,7 @@ export const mediaSchema = baseWordPressSchema.extend({
   description: renderedTextSchema,
   media_type: z.string(),
   mime_type: z.string(),
-  media_details: z.object({
-    width: z.number(),
-    height: z.number(),
-    file: z.string(),
-    filesize: z.number().optional(),
-    sizes: z.record(z.string(), z.object({
-      file: z.string(),
-      width: z.number(),
-      height: z.number(),
-      filesize: z.number().optional(),
-      mime_type: z.string(),
-      source_url: z.string(),
-    })),
-    image_meta: z.any(),
-  }),
+  media_details: mediaDetailsSchema,
   source_url: z.string(),
 });
 
@@ -145,11 +163,16 @@ export const categorySchema = z.object({
   slug: z.string(),
   taxonomy: z.string(),
   parent: z.number().default(0),
-  meta: z.array(z.any()).or(z.record(z.string(), z.any())),
-  acf: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+  meta: recordOrArraySchema,
+  acf: recordOrArraySchema.optional(),
   _embedded: z.any().optional(),
   _links: z.any(),
 }).passthrough();
+
+/**
+ * Schema for WordPress tags (same structure as categories, different semantics).
+ */
+export const tagSchema = categorySchema;
 
 /**
  * Schema for WordPress embedded media in `_embedded` responses.
@@ -167,19 +190,7 @@ export const embeddedMediaSchema = z.object({
   alt_text: z.string(),
   media_type: z.string(),
   mime_type: z.string(),
-  media_details: z.object({
-    width: z.number(),
-    height: z.number(),
-    file: z.string(),
-    filesize: z.number().optional(),
-    sizes: z.record(z.string(), z.object({
-      file: z.string(),
-      width: z.number(),
-      height: z.number(),
-      filesize: z.number().optional(),
-      mime_type: z.string(),
-      source_url: z.string(),
-    })),
+  media_details: mediaDetailsSchema.extend({
     image_meta: z.any().optional(),
   }),
   source_url: z.string(),
@@ -234,7 +245,7 @@ export const authorSchema = z.object({
   link: z.string(),
   slug: z.string(),
   avatar_urls: z.record(z.string(), z.string()),
-  meta: z.array(z.any()).or(z.record(z.string(), z.any())).optional().default([]),
+  meta: recordOrArraySchema.optional().default([]),
   _links: z.any(),
 }).passthrough();
 
@@ -254,7 +265,7 @@ export const commentSchema = z.object({
   link: z.string(),
   status: z.string(),
   type: z.string(),
-  meta: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+  meta: recordOrArraySchema.optional(),
   _links: z.any(),
 }).passthrough();
 

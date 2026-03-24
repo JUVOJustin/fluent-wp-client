@@ -3,22 +3,62 @@
  */
 export {
   WordPressClient,
-  type WordPressClientConfig,
-  type WordPressRequestOptions,
-  type WordPressRequestOverrides,
-  type WordPressRequestResult,
-  type WordPressMediaUploadInput,
-  type WordPressNamespaceClient,
-  type BaseContentFilter,
-  type CategoriesFilter,
-  type CommentsFilter,
-  type MediaFilter,
-  type PagesFilter,
-  type PostsFilter,
-  type SearchFilter,
-  type TagsFilter,
-  type UsersFilter,
 } from './client.js';
+
+export { MediaResource } from './resources/media.js';
+export { UsersResource } from './resources/users.js';
+export { CommentsResource } from './resources/comments.js';
+export { SettingsResource } from './resources/settings.js';
+
+export {
+  GenericResourceRegistry,
+  type GenericResourceContext,
+} from './resources/registry.js';
+
+// Export core base classes
+export {
+  BaseCollectionResource,
+  BaseCrudResource,
+  BasePostLikeResource,
+  type CrudResourceContext,
+  type ResourceContext,
+  type PostLikeResourceContext,
+} from './core/resource-base.js';
+
+export {
+  WordPressTransport,
+  createRuntime,
+  type WordPressRuntime,
+  type WordPressTransportConfig,
+} from './core/transport.js';
+
+export {
+  ExecutableQuery,
+  ImmutableBuilder,
+  createExecutableBuilder,
+  type WordPressQueryState,
+  type BuilderReturnType,
+} from './core/query-base.js';
+
+export type {
+  WordPressClientConfig,
+  WordPressRequestOptions,
+  WordPressRequestOverrides,
+  WordPressRequestResult,
+  WordPressMediaUploadInput,
+} from './types.js';
+
+export type {
+  BaseContentFilter,
+  CategoriesFilter,
+  CommentsFilter,
+  MediaFilter,
+  PagesFilter,
+  PostsFilter,
+  SearchFilter,
+  TagsFilter,
+  UsersFilter,
+} from './types/filters.js';
 
 export {
   WordPressAbilityBuilder,
@@ -27,11 +67,6 @@ export {
   type RunAbilityInput,
   type DeleteAbilityInput,
 } from './abilities.js';
-
-export {
-  WordPressRequestBuilder,
-  type WordPressRequestDeleteOptions,
-} from './builders/wpapi-request.js';
 
 export {
   createBasicAuthHeader,
@@ -84,6 +119,7 @@ export {
   pageSchema,
   mediaSchema,
   categorySchema,
+  tagSchema,
   embeddedMediaSchema,
   abilityAnnotationsSchema,
   abilitySchema,
@@ -127,6 +163,7 @@ export type {
 export {
   filterToParams,
   compactPayload,
+  normalizeDeleteResult,
 } from './core/params.js';
 
 export type {
@@ -149,12 +186,64 @@ export type {
 
 export {
   PostRelationQueryBuilder,
+  type ContentItemResult,
   type PostRelation,
   type SelectedPostRelations,
+  type AllPostRelations,
+  customRelationRegistry,
+  createArrayExtractor,
+  createSingleExtractor,
+  createIdCollectionRelation,
+  createIdSingleRelation,
+  createLinkedEmbeddedCollectionRelation,
+  createLinkedEmbeddedSingleRelation,
+  defaultParseLinkId,
+  defaultParseReferenceId,
+  extractEmbeddedData,
+  getEmbeddedRelationItems,
+  getLinkedRelationIds,
+  resolveContentReference,
+  resolveContentReferences,
+  resolvePostReference,
+  resolvePostReferences,
+  resolveTermReference,
+  resolveTermReferences,
+  toRelatedContentReference,
+  toRelatedPostReference,
+  toRelatedTermReference,
+  type CustomRelationConfig,
+  type CustomRelationRegistry,
+  type PostRelationClient,
+  type EmbeddedDataExtractor,
+  type RelationFallbackResolver,
+  type IdCollectionRelationOptions,
+  type IdSingleRelationOptions,
+  type LinkedEmbeddedCollectionRelationOptions,
+  type LinkedEmbeddedSingleRelationOptions,
+  type RelatedContentReference,
+  type RelatedPostReference,
+  type RelatedTermReference,
 } from './builders/relations.js';
 
 export {
-  WordPressContentQuery,
+  createAcfRelationshipRelation,
+  createAcfPostObjectRelation,
+  getAcfLinkedPostIds,
+  getAcfEmbeddedPosts,
+  getAcfLinkedTermIds,
+  getAcfEmbeddedTerms,
+  createAcfTaxonomyRelation,
+  DEFAULT_ACF_POSTS_LINK_KEY,
+  DEFAULT_ACF_TERMS_LINK_KEY,
+  type AcfRelatedContent,
+  type AcfRelatedTerm,
+  type AcfRelationOptions,
+  type AcfContentRelationOptions,
+  type AcfPostObjectRelationOptions,
+  type AcfTaxonomyRelationOptions,
+} from './builders/acf-relations.js';
+
+export {
   type WordPressGetBlocksOptions,
   type WordPressRawContentResult,
 } from './content-query.js';

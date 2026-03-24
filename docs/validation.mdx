@@ -23,14 +23,15 @@ Core mutation helpers use built-in response validation by default. Pass your own
 | Use Zod schema in your app | Import from `fluent-wp-client/zod` | Use `.parse()`, `.extend()`, `.shape`, then pass the schema to client methods |
 | Extend built-in schemas for custom fields or CPTs | Import from `fluent-wp-client/zod` | Start from `postSchema`, `postLikeWordPressSchema`, or `postWriteBaseSchema`, extend, then pass as `responseSchema` |
 | Use custom validator library (Valibot, ArkType, etc.) | Import root package schemas or pass your own library schema | Call `schema['~standard'].validate(...)` directly, or pass the schema to `responseSchema` / `inputSchema` / `outputSchema` |
-| Use custom validator with custom post types and extended shapes | Prefer library-native schema composition | Build a schema for your CPT response shape in your library, then pass it to `content('books', schema)` / `createContent(..., schema)` |
+| Use custom validator with custom post types and extended shapes | Prefer library-native schema composition | Build a schema for your CPT response shape in your library, then pass it to `content('books', schema)` and call `.create()` / `.update()` on that resource client |
 
 ## Quick hints
 
 - Start with `/zod` when you need schema extension ergonomics.
 - Start with root exports when you want validator-agnostic app code.
 - Core mutation helpers auto-validate with built-in schemas.
-- `content(resource, schema)` validates generic CPT reads and mutations for that resource client.
+- `content(resource, schema)` validates generic CPT reads and mutations for that resource client, including fluent relation-hydrated single-item reads.
+- `terms(resource, schema)` validates generic taxonomy reads and mutations for that resource client.
 - Pass your own schema to `responseSchema`, `inputSchema`, or `outputSchema` whenever you need custom validation rules.
 - `schema['~standard'].validate(...)` is implemented by the schema's library (Zod, Valibot, ArkType, etc.).
 - For non-Zod extension workflows, model the final response shape in your validator library and pass that schema to the client.
@@ -53,7 +54,7 @@ const extendedPostSchema = postSchema.extend({
   }).optional(),
 });
 
-const created = await wp.createPost(
+const created = await wp.content('posts').create(
   { title: 'Schema validated', status: 'draft' },
   extendedPostSchema,
 );
@@ -75,7 +76,7 @@ const postResponseSchema = v.object({
   status: v.string(),
 });
 
-const created = await wp.createPost(
+const created = await wp.content('posts').create(
   { title: 'Valibot validation', status: 'draft' },
   postResponseSchema,
 );
@@ -97,6 +98,8 @@ const createdBook = await books.create({
   status: 'draft',
 });
 ```
+
+The same schema-backed resource client also validates `list()`, `getBySlug()`, `item(...).with(...)`, and `getWithRelations(...)` for that custom post type.
 
 ## Example: sparse CPT validation with built-in schemas
 

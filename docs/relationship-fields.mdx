@@ -1,0 +1,134 @@
+---
+title: Relationship Field Requirements
+description: Understanding how critical fields are automatically preserved when querying relationships to ensure hydration works correctly.
+sidebar:
+  order: 6
+---
+
+## Overview
+
+When using relationship hydration methods like `content(resource).getWithRelations()` or the fluent `content(resource).item(...).with(...)` API, the client automatically ensures that critical fields required for relationship resolution are preserved in the response, even when you use field filtering options.
+
+## Why Fields Are Automatically Preserved
+
+Relationship hydration works by extracting embedded data from the `_embedded` property of REST API responses. When embedded data is unavailable, the client falls back to making separate API calls using ID fields (`author`, `categories`, `tags`, `featured_media`).
+
+If these fields were excluded from the response, relationship hydration would fail. Therefore, the client automatically:
+
+1. **Includes `_embed` parameter** when using relationship methods
+2. **Preserves ID fields** required for fallback fetching
+3. **Maintains `_embedded` data** for efficient hydration
+
+## Critical Fields for Each Relation
+
+| Relation | Required ID Field | Embedded Data Path |
+|----------|-------------------|-------------------|
+| `author` | `author` | `_embedded.author` |
+| `categories` | `categories` (array) | `_embedded['wp:term']` (taxonomy: category) |
+| `tags` | `tags` (array) | `_embedded['wp:term']` (taxonomy: post_tag) |
+| `terms` | `categories` + `tags` | Same as above |
+| `featuredMedia` | `featured_media` | `_embedded['wp:featuredmedia']` |
+
+## How It Works
+
+### Automatic `_embed` Inclusion
+
+When you call relationship methods, `_embed: 'true'` is automatically added to the request:
+
+```typescript
+// This automatically includes _embed parameter
+const post = await client.content('posts').getWithRelations('my-post', 'author', 'categories');
+
+const book = await client.content('books').getWithRelations('my-book', 'terms');
+
+// The request includes: ?_embed=true
+```
+
+### Field Preservation
+
+Even if you use field filtering, the client ensures required fields are present:
+
+```typescript
+// The fields filter restricts the response
+const posts = await client.content('posts').list({ fields: ['id', 'title'] });
+
+// But when using relations, required fields are preserved
+const post = await client.content('posts').item('my-post').with('author');
+// author field is preserved even if not in the original fields list
+```
+
+### Fallback Mechanism
+
+If `_embedded` data is missing but ID fields are present, the client makes separate API calls:
+
+```typescript
+const post = await client.content('posts').getWithRelations('my-post', 'author');
+
+// If _embedded.author is missing:
+// 1. Uses post.author ID to fetch author separately
+// 2. Resolves to the full author object
+```
+
+## Edge Cases
+
+### Missing ID Fields
+
+If the WordPress REST API masks certain fields (e.g., author IDs for unauthenticated users), the client gracefully handles this:
+
+```typescript
+// Public client may receive author: 0
+const post = await publicClient.content('posts').getWithRelations('my-post', 'author');
+// post.related.author will be null
+```
+
+### Empty Relations
+
+Posts without certain relations are handled gracefully:
+
+```typescript
+// Post without categories
+const post = await client.content('posts').getWithRelations('my-post', 'categories');
+// post.related.categories will be an empty array []
+
+// Post without featured media
+const post = await client.content('posts').getWithRelations('my-post', 'featuredMedia');
+// post.related.featuredMedia will be null
+```
+
+### Multiple Relations
+
+When requesting multiple relations, the client efficiently batches fallback requests:
+
+```typescript
+const post = await client.content('posts').getWithRelations(
+  'my-post',
+  'author',
+  'categories',
+  'tags',
+  'featuredMedia'
+);
+
+// Embedded data is used where available
+// Fallback API calls are batched for missing embedded data
+```
+
+## Testing
+
+The test suite includes comprehensive coverage for relationship field requirements:
+
+```bash
+npm test -- tests/integration/relations-fields.test.ts
+```
+
+Tests verify:
+- `_embedded` data is present when using relations
+- ID fields are preserved for fallback fetching
+- Edge cases (missing fields, empty relations) are handled
+- Public vs authenticated client behavior
+
+## Best Practices
+
+1. **Let the client handle fields**: Don't manually exclude critical fields when using relations
+2. **Use `_embed` for collections**: When fetching collections with relations, ensure `_embed` is set to get embedded data
+3. **Check for null**: Always handle cases where relations may be null (e.g., no featured media)
+4. **Auth for full data**: Use authenticated clients to get complete author information

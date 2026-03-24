@@ -16,7 +16,7 @@ describe('Client: Comments', () => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
 
-    const seedPost = await authClient.getPostBySlug('test-post-001');
+    const seedPost = await authClient.content('posts').getBySlug('test-post-001');
 
     if (!seedPost) {
       throw new Error('Expected seeded post test-post-001 for comment integration coverage.');

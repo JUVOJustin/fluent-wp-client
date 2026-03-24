@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
+import {
+  WordPressClient,
+  WordPressSchemaValidationError,
+  type WordPressStandardSchema,
+} from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
@@ -16,13 +20,14 @@ describe('Client: Terms', () => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
 
-    const existing = await authClient.getTermBySlug('genre', seedGenreSlug);
+    const genres = authClient.terms('genre');
+    const existing = await genres.getBySlug(seedGenreSlug);
 
     if (existing) {
-      await authClient.deleteTerm('genre', existing.id, { force: true });
+      await genres.delete(existing.id, { force: true });
     }
 
-    const seededGenre = await authClient.createTerm('genre', {
+    const seededGenre = await genres.create({
       name: 'Client Terms Seed',
       slug: seedGenreSlug,
       description: 'Seed genre for generic term integration tests.',
@@ -33,43 +38,45 @@ describe('Client: Terms', () => {
   });
 
   afterAll(async () => {
+    const genres = authClient.terms('genre');
+
     for (const id of createdGenreIds) {
-      await authClient.deleteTerm('genre', id, { force: true }).catch(() => undefined);
+      await genres.delete(id, { force: true }).catch(() => undefined);
     }
   });
 
   describe('reads', () => {
-    it('getTermCollection returns custom taxonomy terms', async () => {
-      const genres = await publicClient.getTermCollection('genre');
+    it('terms() list() returns custom taxonomy terms', async () => {
+      const genres = await publicClient.terms('genre').list();
 
       expect(Array.isArray(genres)).toBe(true);
       expect(genres.some((genre) => genre.id === seedGenreId)).toBe(true);
     });
 
-    it('getTerm fetches a custom taxonomy term by ID', async () => {
-      const genre = await publicClient.getTerm('genre', seedGenreId);
+    it('terms() getById fetches a custom taxonomy term by ID', async () => {
+      const genre = await publicClient.terms('genre').getById(seedGenreId);
 
       expect(genre.id).toBe(seedGenreId);
       expect(genre.slug).toBe(seedGenreSlug);
       expect(genre.taxonomy).toBe('genre');
     });
 
-    it('getTermBySlug fetches a custom taxonomy term by slug', async () => {
-      const genre = await publicClient.getTermBySlug('genre', seedGenreSlug);
+    it('terms() getBySlug fetches a custom taxonomy term by slug', async () => {
+      const genre = await publicClient.terms('genre').getBySlug(seedGenreSlug);
 
       expect(genre).toBeDefined();
       expect(genre?.id).toBe(seedGenreId);
       expect(genre?.taxonomy).toBe('genre');
     });
 
-    it('getAllTermCollection returns custom taxonomy terms across pages', async () => {
-      const genres = await publicClient.getAllTermCollection('genre');
+    it('terms() listAll() returns custom taxonomy terms across pages', async () => {
+      const genres = await publicClient.terms('genre').listAll();
 
       expect(genres.some((genre) => genre.id === seedGenreId)).toBe(true);
     });
 
-    it('getTermCollectionPaginated returns pagination metadata', async () => {
-      const result = await publicClient.getTermCollectionPaginated('genre', { perPage: 1, page: 1 });
+    it('terms() listPaginated() returns pagination metadata', async () => {
+      const result = await publicClient.terms('genre').listPaginated({ perPage: 1, page: 1 });
 
       expect(result.data.length).toBeGreaterThan(0);
       expect(result.total).toBeGreaterThan(0);
@@ -85,6 +92,79 @@ describe('Client: Terms', () => {
 
       expect(bySlug?.id).toBe(seedGenreId);
       expect(all.some((genre) => genre.id === seedGenreId)).toBe(true);
+    });
+
+    it('terms() validates single-item reads when a schema is provided', async () => {
+      const genreSchema: WordPressStandardSchema<{ id: number; slug: string; taxonomy: string }> = {
+        '~standard': {
+          version: 1,
+          vendor: 'integration-test',
+          validate(value) {
+            if (typeof value !== 'object' || value === null) {
+              return { issues: [{ message: 'Expected term object response.' }] };
+            }
+
+            const record = value as Record<string, unknown>;
+
+            if (typeof record.id !== 'number') {
+              return { issues: [{ message: 'Expected numeric id.' }] };
+            }
+
+            if (typeof record.slug !== 'string') {
+              return { issues: [{ message: 'Expected string slug.' }] };
+            }
+
+            if (typeof record.taxonomy !== 'string') {
+              return { issues: [{ message: 'Expected string taxonomy.' }] };
+            }
+
+            return {
+              value: {
+                id: record.id,
+                slug: record.slug,
+                taxonomy: record.taxonomy,
+              },
+            };
+          },
+        },
+      };
+
+      const genres = publicClient.terms('genre', genreSchema);
+      const genre = await genres.getById(seedGenreId);
+
+      expect(genre.id).toBe(seedGenreId);
+      expect(genre.slug).toBe(seedGenreSlug);
+      expect(genre.taxonomy).toBe('genre');
+    });
+
+    it('terms() validates collection reads when a schema is provided', async () => {
+      const rejectSeedGenreSchema: WordPressStandardSchema<{ id: number }> = {
+        '~standard': {
+          version: 1,
+          vendor: 'integration-test',
+          validate(value) {
+            if (typeof value !== 'object' || value === null) {
+              return { issues: [{ message: 'Expected term object response.' }] };
+            }
+
+            const record = value as Record<string, unknown>;
+
+            if (typeof record.id !== 'number') {
+              return { issues: [{ message: 'Expected numeric id.' }] };
+            }
+
+            if (record.id === seedGenreId) {
+              return { issues: [{ message: 'Expected seeded genre validation failure.' }] };
+            }
+
+            return { value: { id: record.id } };
+          },
+        },
+      };
+
+      await expect(
+        publicClient.terms('genre', rejectSeedGenreSchema).list(),
+      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
     });
   });
 

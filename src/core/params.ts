@@ -1,5 +1,5 @@
 import type { WordPressWritePayload } from '../types/payloads.js';
-import type { QueryParams, SerializedQueryParams } from '../types/resources.js';
+import type { QueryParams, SerializedQueryParams, WordPressDeleteResult } from '../types/resources.js';
 
 /**
  * Converts one filter object to WordPress API query params.
@@ -38,6 +38,30 @@ export function filterToParams(
   }
 
   return params;
+}
+
+/**
+ * Normalizes a raw WordPress delete response into a typed WordPressDeleteResult.
+ *
+ * WordPress returns `{ deleted: true, previous: {...} }` on success and a
+ * non-deleted object (or redirect) when the delete was conditional. This helper
+ * centralizes that check so individual resource methods don't repeat it.
+ */
+export function normalizeDeleteResult(id: number, data: unknown): WordPressDeleteResult {
+  if (
+    typeof data === 'object'
+    && data !== null
+    && 'deleted' in data
+    && (data as Record<string, unknown>).deleted === true
+  ) {
+    return {
+      id,
+      deleted: true,
+      previous: (data as Record<string, unknown>).previous,
+    };
+  }
+
+  return { id, deleted: false };
 }
 
 /**

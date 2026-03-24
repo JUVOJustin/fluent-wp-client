@@ -1,61 +1,70 @@
 import type { WordPressComment } from '../schemas.js';
-import type { WordPressRequestOverrides } from '../client-types.js';
+import type { WordPressRequestOverrides, PaginatedResponse } from '../types/resources.js';
 import type { CommentsFilter } from '../types/filters.js';
-import type { ExtensibleFilter, FetchResult, PaginatedResponse, SerializedQueryParams } from '../types/resources.js';
-import { createWordPressPaginator } from '../core/pagination.js';
-import { filterToParams } from '../core/params.js';
+import type { ExtensibleFilter } from '../types/resources.js';
+import type { WordPressWritePayload } from '../types/payloads.js';
+import { commentSchema } from '../standard-schemas.js';
+import { BaseCrudResource } from '../core/resource-base.js';
+import type { WordPressRuntime } from '../core/transport.js';
 
 /**
- * Comments API methods factory for typed read operations.
+ * WordPress comments resource with full CRUD support.
+ * 
+ * @example
+ * ```typescript
+ * const comments = CommentsResource.create(runtime);
+ * const allComments = await comments.getComments();
+ * const comment = await comments.getComment(123);
+ * ```
  */
-export function createCommentsMethods(
-  fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
-) {
-  const paginator = createWordPressPaginator<ExtensibleFilter<CommentsFilter>, WordPressComment>({
-    fetchPage: (currentFilter, context) => {
-      const params = filterToParams(currentFilter);
-      return fetchAPIPaginated<WordPressComment[]>('/comments', params, context as WordPressRequestOverrides | undefined);
-    },
-  });
+export class CommentsResource extends BaseCrudResource<
+  WordPressComment,
+  ExtensibleFilter<CommentsFilter>,
+  WordPressWritePayload,
+  WordPressWritePayload
+> {
+  /**
+   * Creates a comments resource instance.
+   */
+  static create(runtime: WordPressRuntime): CommentsResource {
+    return new CommentsResource({
+      runtime,
+      endpoint: '/comments',
+      defaultSchema: commentSchema,
+    });
+  }
 
-  return {
-    /**
-     * Gets comments with optional filtering.
-     */
-    async getComments(
-      filter: ExtensibleFilter<CommentsFilter> = {},
-      requestOptions?: WordPressRequestOverrides,
-    ): Promise<WordPressComment[]> {
-      const params = filterToParams(filter);
-      return fetchAPI<WordPressComment[]>('/comments', params, requestOptions);
-    },
+  /**
+   * Alias for list() - gets comments matching filter.
+   */
+  getComments(filter?: ExtensibleFilter<CommentsFilter>, options?: WordPressRequestOverrides): Promise<WordPressComment[]> {
+    return this.list(filter, options);
+  }
 
-    /**
-     * Gets all comments by paginating every page.
-     */
-    async getAllComments(
-      filter: Omit<ExtensibleFilter<CommentsFilter>, 'page'> = {},
-      requestOptions?: WordPressRequestOverrides,
-    ): Promise<WordPressComment[]> {
-      return paginator.listAll(filter, requestOptions);
-    },
+  /**
+   * Alias for listAll() - gets all comments via pagination.
+   */
+  getAllComments(
+    filter?: Omit<ExtensibleFilter<CommentsFilter>, 'page'>,
+    options?: WordPressRequestOverrides,
+  ): Promise<WordPressComment[]> {
+    return this.listAll(filter, options);
+  }
 
-    /**
-     * Gets comments with pagination metadata.
-     */
-    async getCommentsPaginated(
-      filter: ExtensibleFilter<CommentsFilter> = {},
-      requestOptions?: WordPressRequestOverrides,
-    ): Promise<PaginatedResponse<WordPressComment>> {
-      return paginator.listPaginated(filter, requestOptions);
-    },
+  /**
+   * Alias for listPaginated() - gets comments with pagination metadata.
+   */
+  getCommentsPaginated(
+    filter?: ExtensibleFilter<CommentsFilter>,
+    options?: WordPressRequestOverrides,
+  ): Promise<PaginatedResponse<WordPressComment>> {
+    return this.listPaginated(filter, options);
+  }
 
-    /**
-     * Gets one comment by ID.
-     */
-    async getComment(id: number, requestOptions?: WordPressRequestOverrides): Promise<WordPressComment> {
-      return fetchAPI<WordPressComment>(`/comments/${id}`, undefined, requestOptions);
-    },
-  };
+  /**
+   * Alias for getById() - gets comment by ID.
+   */
+  getComment(id: number, options?: WordPressRequestOverrides): Promise<WordPressComment> {
+    return this.getById(id, options);
+  }
 }

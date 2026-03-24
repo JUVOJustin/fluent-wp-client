@@ -3,8 +3,8 @@ import type {
   WordPressAuthHeaders,
   WordPressAuthHeadersProvider,
   WordPressAuthInput,
-} from './auth.js';
-import type { WordPressBlockParser } from './blocks.js';
+} from '../auth.js';
+import type { WordPressBlockParser } from '../blocks.js';
 
 /**
  * WordPress client configuration.
@@ -35,13 +35,6 @@ export interface WordPressRequestOptions {
   cookies?: string;
   credentials?: RequestCredentials;
   omitContentType?: boolean;
-}
-
-/**
- * Per-request transport overrides supported by high-level helper methods.
- */
-export interface WordPressRequestOverrides {
-  headers?: Record<string, string>;
 }
 
 /**

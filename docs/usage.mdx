@@ -1,30 +1,14 @@
 ---
 title: Usage
 short_title: Usage
-description: Primary developer guide for fluent-wp-client covering CRUD, auth, abilities, and WPAPI-compatible syntax.
+description: Primary developer guide for fluent-wp-client covering CRUD, auth, and abilities.
 sidebar:
   order: 2
 ---
 
-import { CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+import { CardGrid, Steps, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
 
-This guide covers all main client methods, CRUD patterns, WordPress abilities, WPAPI-compatible fluent syntax, validation, auth, pagination, and error handling.
-
-## Install
-
-```bash
-npm install fluent-wp-client
-```
-
-## Create a client
-
-```ts
-import { WordPressClient } from 'fluent-wp-client';
-
-const wp = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-});
-```
+Fluent WP Client is built to easily interact with the WordPress Rest API keeping developer experience, type safety, and extensibility in mind. Using the client is straightforward, but the library also provides powerful tools for advanced use cases like custom authentication strategies and schema validation.
 
 <CardGrid>
   <LinkCard
@@ -34,215 +18,41 @@ const wp = new WordPressClient({
   />
 </CardGrid>
 
-### Resolve auth from SSR request context
-
-`ResolvableWordPressAuth<TContext>` lets you keep the client itself framework-agnostic while resolving auth from the server context that your app already has.
-
-Use `RequestAuthResolver` when your handler receives a web-standard `Request`, or `createAuthResolver()` when you want typed inference for a richer framework context.
-
-<Tabs>
-  <TabItem label="Generic">
-
-```ts title="Generic Request handlers"
-import {
-  WordPressClient,
-  createAuthResolver,
-  resolveWordPressAuth,
-  type RequestAuthResolver,
-} from 'fluent-wp-client';
-
-function readCookie(cookieHeader: string | null, name: string): string | null {
-  if (!cookieHeader) {
-    return null;
-  }
-
-  const cookie = cookieHeader
-    .split(';')
-    .map((segment) => segment.trim())
-    .find((segment) => segment.startsWith(`${name}=`));
-
-  return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : null;
-}
-
-const requestAuthResolver: RequestAuthResolver = createAuthResolver((request) => {
-  const jwt = readCookie(request.headers.get('cookie'), 'wp_jwt');
-
-  if (jwt) {
-    return { token: jwt };
-  }
-
-  const sessionId = request.headers.get('x-session-id');
-
-  if (sessionId) {
-    return { authorization: `Session ${sessionId}` };
-  }
-
-  if (process.env.WP_APP_PASSWORD) {
-    return {
-      username: process.env.WP_APP_USER ?? 'admin',
-      password: process.env.WP_APP_PASSWORD,
-    };
-  }
-
-  return null;
-});
-
-export async function handleRequest(request: Request) {
-  const auth = await resolveWordPressAuth(requestAuthResolver, request);
-
-  const wp = new WordPressClient({
-    baseUrl: 'https://your-wordpress-site.com',
-    auth,
-  });
-
-  return wp.getCurrentUser();
-}
-```
-
-This pattern covers common SSR fallbacks:
-
-- cookie-to-JWT token extraction
-- session ID forwarding from request headers
-  - application passwords from server environment variables
-
-</TabItem>
-
-<TabItem label="Astro">
-
-```ts title="Astro Actions"
-import type { ActionAPIContext } from 'astro:actions';
-import {
-  createAuthResolver,
-  resolveWordPressAuth,
-  type ResolvableWordPressAuth,
-} from 'fluent-wp-client';
-
-export type ActionAuthConfig = ResolvableWordPressAuth<ActionAPIContext>;
-
-export const actionAuth = createAuthResolver<ActionAPIContext>((context) => {
-  const jwt = context.cookies.get('wp_jwt')?.value;
-
-  if (jwt) {
-    return { token: jwt };
-  }
-
-  const sessionId = context.request.headers.get('x-session-id');
-
-  if (sessionId) {
-    return { authorization: `Session ${sessionId}` };
-  }
-
-  if (process.env.WP_APP_PASSWORD) {
-    return {
-      username: process.env.WP_APP_USER ?? 'admin',
-      password: process.env.WP_APP_PASSWORD,
-    };
-  }
-
-  return null;
-});
-
-export async function resolveActionRequestAuth(
-  config: { auth?: ActionAuthConfig },
-  context: ActionAPIContext,
-) {
-  return config.auth ? await resolveWordPressAuth(config.auth, context) : null;
-}
-```
-
-This mirrors the pattern used by Astro integrations: keep `auth` configurable, then resolve it against the current `ActionAPIContext` right before you build request headers.
-
-  </TabItem>
-
-  <TabItem label="Next.js">
-
-```ts title="Next.js App Router"
-import {
-  WordPressClient,
-  createAuthResolver,
-  resolveWordPressAuth,
-} from 'fluent-wp-client';
-
-type NextRouteContext = {
-  request: Request;
-  params: { slug: string };
-};
-
-const nextRouteAuth = createAuthResolver<NextRouteContext>(({ request }) => {
-  const bearer = request.headers.get('authorization');
-
-  if (bearer) {
-    return bearer;
-  }
-
-  const jwtCookie = request.headers
-    .get('cookie')
-    ?.split(';')
-    .map((segment) => segment.trim())
-    .find((segment) => segment.startsWith('wp_jwt='))
-    ?.slice('wp_jwt='.length);
-
-  return jwtCookie ? { token: decodeURIComponent(jwtCookie) } : null;
-});
-
-export async function GET(request: Request, { params }: { params: { slug: string } }) {
-  const auth = await resolveWordPressAuth(nextRouteAuth, { request, params });
-
-  const wp = new WordPressClient({
-    baseUrl: process.env.WORDPRESS_BASE_URL!,
-    auth,
-  });
-
-  return Response.json(await wp.getPostBySlug(params.slug));
-}
-```
-
-  </TabItem>
-</Tabs>
-
-The same resolver pattern also works in:
-
-- Next.js server actions or route handlers
-- Astro endpoints and middleware
-- SvelteKit `RequestEvent`
-- custom fetch handlers on Cloudflare Workers, Bun, or Deno
-
 ## API styles
 
-The client exposes five complementary styles.
+The client exposes four complementary styles.
 
 <Tabs>
+  <TabItem label="Content builders">
+
+```ts title="1) Unified post-like resource API (recommended default)"
+const posts = wp.content('posts');
+const recentPosts = await posts.list({ perPage: 10, page: 1 });
+const post = await posts.item('hello-world');
+const blocks = await posts.item('hello-world').getBlocks();
+
+const books = wp.content('books');
+const allBooks = await books.listAll();
+
+const genres = await wp.terms('genre').list({ perPage: 100 });
+```
+
+  </TabItem>
+
   <TabItem label="Typed helpers">
 
-```ts title="1) Typed resource helpers (recommended default)"
-const posts = await wp.getPosts({ perPage: 10, page: 1 });
-const post = await wp.getPostBySlug('hello-world');
-const blocks = await wp.getPostBySlug('hello-world').getBlocks();
-```
-
-  </TabItem>
-
-  <TabItem label="Generic helpers">
-
-```ts title="2) Generic resource helpers for CPTs/taxonomies"
-const books = await wp.getContentCollection('books', { perPage: 20 });
-const genres = await wp.getTermCollection('genre', { perPage: 100 });
-```
-
-  </TabItem>
-
-  <TabItem label="WPAPI builder">
-
-```ts title="3) WPAPI-compatible fluent builder"
-const chainPosts = await wp.posts().perPage(10).page(1).embed().get();
-const chainPost = await wp.posts().slug('hello-world').get();
+```ts title="2) Typed helpers for media, users, comments, and settings"
+const media = await wp.getMedia({ perPage: 20 });
+const me = await wp.getCurrentUser();
+const comments = await wp.getComments({ post: 42 });
+const settings = await wp.getSettings();
 ```
 
   </TabItem>
 
   <TabItem label="Low-level request">
 
-```ts title="4) Low-level request transport"
+```ts title="3) Low-level request transport"
 const { data, response } = await wp.request({
   endpoint: '/wp-json/my-plugin/v1/sync',
   method: 'POST',
@@ -254,7 +64,7 @@ const { data, response } = await wp.request({
 
   <TabItem label="Abilities">
 
-```ts title="5) WordPress abilities"
+```ts title="4) WordPress abilities"
 const definitions = await wp.getAbilities();
 const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
 
@@ -274,34 +84,32 @@ console.log(definitions.length, siteTitle.title, processed.processed);
 
 ### Read helpers
 
-- `getPosts`, `getAllPosts`, `getPostsPaginated`, `getPost`, `getPostBySlug`
-- `getPages`, `getAllPages`, `getPagesPaginated`, `getPage`, `getPageBySlug`
+- `content('posts')` / `content('pages')` / `content(resource)`
 - `getMedia`, `getAllMedia`, `getMediaPaginated`, `getMediaItem`, `getMediaBySlug`, `getImageUrl`
-- `getCategories`, `getAllCategories`, `getCategoriesPaginated`, `getCategory`, `getCategoryBySlug`
-- `getTags`, `getAllTags`, `getTagsPaginated`, `getTag`, `getTagBySlug`
+- `terms('categories')` / `terms('tags')` / `terms(resource)`
 - `getUsers`, `getAllUsers`, `getUsersPaginated`, `getUser`, `getCurrentUser`
 - `getComments`, `getAllComments`, `getCommentsPaginated`, `getComment`
 - `getSettings`
 - `searchContent(query, filter?)`
 
-`getPost`, `getPostBySlug`, `getPage`, and `getPageBySlug` return promise-like queries.
-You can still `await` them directly, and you can also call:
+`content(resource).item(idOrSlug)` returns one promise-like query.
+You can `await` it directly, and you can also call:
 
 - `.get()` for explicit resource resolution
 - `.getContent()` for `{ raw, rendered, protected }` via `context=edit`
 - `.getBlocks()` for parsed Gutenberg blocks
 
-Post/page list methods (`getPosts`, `getAllPosts`, `getPages`, etc.) return plain serializable DTO arrays without block helpers. Use a single-item query for block access:
+Post/page list methods (`content('posts').list()`, `content('pages').list()`) return plain serializable DTO arrays without block helpers. Use a single-item query for block access:
 
 ```ts
-const posts = await wp.getPosts({ perPage: 5 });
-const blocks = await wp.getPost(posts[0].id).getBlocks();
+const posts = await wp.content('posts').list({ perPage: 5 });
+const blocks = await wp.content('posts').item(posts[0].id).getBlocks();
 ```
 
 Read helpers also accept request-scoped custom headers as the last argument:
 
 ```ts
-const posts = await wp.getPosts(
+const posts = await wp.content('posts').list(
   { perPage: 5 },
   {
     headers: {
@@ -313,13 +121,11 @@ const posts = await wp.getPosts(
 
 Media uses a different schema (`description`/`caption`, no `content.raw`), so media helpers do not expose `getBlocks()`.
 
-### Generic resource helpers
+### Generic resource builders
 
-- Content collections: `getContentCollection`, `getAllContentCollection`, `getContentCollectionPaginated`, `getContent`, `getContentBySlug`
-- Term collections: `getTermCollection`, `getAllTermCollection`, `getTermCollectionPaginated`, `getTerm`, `getTermBySlug`
 - Builders: `content(resource, schema?)`, `terms(resource, schema?)`
 
-`content(resource)` and `terms(resource)` also expose unified pagination helpers:
+`content(resource)` and `terms(resource)` expose the shared pagination helpers used by posts, pages, CPTs, and custom taxonomies:
 
 - `.list(filter?)`
 - `.listAll(filter?)`
@@ -327,32 +133,32 @@ Media uses a different schema (`description`/`caption`, no `content.raw`), so me
 
 If `page`/`perPage` are omitted, endpoint defaults are preserved.
 
-Passing a schema to `content(resource, schema)` validates generic content reads and mutations for that resource client.
+Passing a schema to `content(resource, schema)` validates content reads and mutations for that resource client, including schema-backed `item(...).with(...)` and `getWithRelations(...)` calls.
 
-All collection helpers (`getContentCollection`, `getAllContentCollection`, the `content()` builder, and built-in helpers like `getPosts`) accept a `search` string to filter results by keyword:
+Passing a schema to `terms(resource, schema)` validates generic taxonomy reads and mutations for that resource client.
+
+The content and term builders accept a `search` string to filter results by keyword:
 
 ```ts
-// Built-in helpers
-const posts = await wp.getPosts({ search: 'hello world' });
-const allPosts = await wp.getAllPosts({ search: 'hello world' });
+const posts = await wp.content('posts').list({ search: 'hello world' });
+const allPosts = await wp.content('posts').listAll({ search: 'hello world' });
 
-// Generic collection helpers
-const books = await wp.getContentCollection('books', { search: 'Test Book' });
-const allBooks = await wp.getAllContentCollection('books', { search: 'Test Book' });
-
-// content() builder
+// Generic content builder
 const bookResults = await wp.content('books').list({ search: 'Test Book' });
 const allBookResults = await wp.content('books').listAll({ search: 'Test Book' });
+
+// Generic taxonomy builder
+const genreResults = await wp.terms('genre').list({ search: 'Science Fiction' });
 ```
 
 ### Extensible collection filters
 
-Built-in collection helpers keep their typed core filters and also accept extra endpoint-specific params for plugin routes or project-specific REST extensions.
+Known content builders keep their typed core filters and also accept extra endpoint-specific params for plugin routes or project-specific REST extensions.
 
 Unknown keys are forwarded through the normal query serializer, so camelCase filter names become snake_case query params and array values are emitted as repeated `param[]` entries.
 
 ```ts
-const posts = await wp.getPosts({
+const posts = await wp.content('posts').list({
   search: 'hello world',
   include: [4, 8],
   slug: ['hello-world', 'release-notes'],
@@ -365,7 +171,7 @@ const books = await wp.content('books').list({
 });
 ```
 
-Use the typed helper when the endpoint shape is known, and drop to `route().param()` or `request()` when a plugin expects exact raw param names that should not be camelCase-normalized.
+Use `content('posts')` / `content('pages')` when the endpoint shape is known, and drop to `request()` when a plugin expects exact raw param names that should not be camelCase-normalized.
 
 ### Post-like typing
 
@@ -383,10 +189,8 @@ type ContentBook = WordPressPostBase & { type: 'book' };
 
 ### Mutation helpers
 
-- Content: `createContent`, `updateContent`, `deleteContent`
-- Terms: `createTerm`, `updateTerm`, `deleteTerm`
-- Posts/pages: `createPost`, `updatePost`, `deletePost`, `createPage`, `updatePage`, `deletePage`
-- Taxonomy built-ins: `createCategory`, `updateCategory`, `deleteCategory`, `createTag`, `updateTag`, `deleteTag`
+- Content: `content('posts').create/update/delete`, `content('pages').create/update/delete`, `content(resource).create/update/delete`
+- Terms: `terms(resource).create/update/delete`
 - Users: `createUser`, `updateUser`, `deleteUser`
 - Comments: `createComment`, `updateComment`, `deleteComment`
 - Media: `createMedia`, `uploadMedia`, `updateMedia`, `deleteMedia`
@@ -395,7 +199,7 @@ type ContentBook = WordPressPostBase & { type: 'book' };
 Helpers accept request-scoped custom headers so you can pass one-off metadata without mutating shared client defaults.
 
 ```ts
-const createdPost = await wp.createPost(
+const createdPost = await wp.content('posts').create(
   { title: 'Post title', status: 'draft' },
   {
     headers: {
@@ -406,7 +210,7 @@ const createdPost = await wp.createPost(
   },
 );
 
-await wp.deletePost(createdPost.id, {
+await wp.content('posts').delete(createdPost.id, {
   force: true,
   headers: {
     'x-crossposter-source-entity-id': '42',
@@ -414,11 +218,11 @@ await wp.deletePost(createdPost.id, {
 });
 ```
 
-`create*` / `update*` helper signatures support both patterns:
+`content(resource).create()` / `.update()` support both patterns:
 
-- `createPost(input, responseSchema?)`
-- `createPost(input, requestOptions?)`
-- `createPost(input, responseSchema?, requestOptions?)`
+- `content('posts').create(input, responseSchema?)`
+- `content('posts').create(input, requestOptions?)`
+- `content('posts').create(input, responseSchema?, requestOptions?)`
 
 Auth overrides are intentionally blocked on mutation helper options. If you need different auth credentials or auth headers, create a new `WordPressClient` instance with the desired auth configuration.
 
@@ -437,8 +241,10 @@ The same auth-override rule applies to read and listing helpers.
 
 ### Relation helpers
 
-- `post(idOrSlug).with(...relations).get()`
-- `getPostWithRelations(idOrSlug, ...relations)`
+- `content('posts').item(idOrSlug).with(...relations)`
+- `content('posts').getWithRelations(idOrSlug, ...relations)`
+- `post(idOrSlug).with(...relations)`
+- `content(resource).getWithRelations(idOrSlug, ...relations)`
 
 Supported relation names:
 
@@ -447,6 +253,8 @@ Supported relation names:
 - `tags`
 - `terms`
 - `featuredMedia`
+
+`terms` always returns core `categories` and `tags` arrays when available, plus `terms.taxonomies` for generic taxonomy access. For custom post types, custom taxonomies such as `genre` are exposed under `terms.taxonomies.<taxonomy>`.
 
 ### Transport and request control
 
@@ -461,27 +269,29 @@ Supported relation names:
 ### Posts
 
 ```ts
-const createdPost = await wp.createPost({ title: 'Post title', status: 'draft' });
+const posts = wp.content('posts');
 
-const updatedPost = await wp.updatePost(createdPost.id, {
+const createdPost = await posts.create({ title: 'Post title', status: 'draft' });
+
+const updatedPost = await posts.update(createdPost.id, {
   title: 'Post title updated',
   status: 'publish',
 });
 
-await wp.deletePost(createdPost.id, { force: true });
+await posts.delete(createdPost.id, { force: true });
 ```
 
 ### Gutenberg block parsing
 
 ```ts
-const postQuery = wp.getPostBySlug('hello-world');
-const pageQuery = wp.getPageBySlug('about');
+const postQuery = wp.content('posts').item('hello-world');
+const pageQuery = wp.content('pages').item('about');
 
 const postBlocks = await postQuery.getBlocks();
 const pageBlocks = await pageQuery.getBlocks();
 
-const postList = await wp.getPosts({ perPage: 5 });
-const firstListItemBlocks = await wp.getPost(postList[0].id).getBlocks();
+const postList = await wp.content('posts').list({ perPage: 5 });
+const firstListItemBlocks = await wp.content('posts').item(postList[0].id).getBlocks();
 ```
 
 `getBlocks()` requires edit capabilities because it reads `content.raw` using `context=edit`.
@@ -490,29 +300,34 @@ When credentials cannot access edit context, WordPress returns the expected auth
 ### Pages
 
 ```ts
-const createdPage = await wp.createPage({ title: 'About us', status: 'draft' });
+const pages = wp.content('pages');
 
-await wp.updatePage(createdPage.id, { status: 'publish' });
-await wp.deletePage(createdPage.id, { force: true });
+const createdPage = await pages.create({ title: 'About us', status: 'draft' });
+
+await pages.update(createdPage.id, { status: 'publish' });
+await pages.delete(createdPage.id, { force: true });
 ```
 
 ### Categories and tags
 
 ```ts
-const category = await wp.createCategory({ name: 'News' });
-const tag = await wp.createTag({ name: 'featured' });
+const categories = wp.terms('categories');
+const tags = wp.terms('tags');
 
-await wp.updateCategory(category.id, { name: 'Company News' });
-await wp.updateTag(tag.id, { name: 'featured-updated' });
+const category = await categories.create({ name: 'News' });
+const tag = await tags.create({ name: 'featured' });
 
-await wp.deleteCategory(category.id, { force: true });
-await wp.deleteTag(tag.id, { force: true });
+await categories.update(category.id, { name: 'Company News' });
+await tags.update(tag.id, { name: 'featured-updated' });
+
+await categories.delete(category.id, { force: true });
+await tags.delete(tag.id, { force: true });
 ```
 
 ### Comments
 
 ```ts
-const post = await wp.getPostBySlug('hello-world');
+const post = await wp.content('posts').getBySlug('hello-world');
 
 if (!post) {
   throw new Error('Post not found.');
@@ -585,16 +400,6 @@ await genres.delete(createdGenre.id, {
 });
 ```
 
-### WPAPI-style CRUD chain
-
-```ts
-const created = await wp.posts().create({ title: 'Chain post', status: 'draft' });
-const postId = (created as { id: number }).id;
-
-await wp.posts().id(postId).update({ status: 'publish' });
-await wp.posts().id(postId).delete({ force: true });
-```
-
 ## Cross-resource search
 
 `searchContent(query, filter?)` searches across posts, pages, and custom post types using the WordPress `/wp/v2/search` endpoint.
@@ -631,87 +436,6 @@ const paged = await wp.searchContent('hello', {
 
 Each result has the shape `{ id, title, url, type, subtype }`.
 
-### WPAPI chain search
-
-The `search(query)` starter provides the same features through the fluent builder. Pass the query directly to the starter — a separate chained `.search()` call is not needed:
-
-```ts
-// Basic search
-const results = await wp.search('hello').perPage(5).get();
-
-// Filter by type and single subtype
-const pages = await wp.search('about').param('type', 'post').subtype('page').get();
-
-// Filter by multiple subtypes — bracket notation is handled automatically
-const mixed = await wp
-  .search('test')
-  .param('type', 'post')
-  .subtype(['post', 'page', 'book'])
-  .perPage(10)
-  .get();
-
-// Use context, include, and exclude
-const withContext = await wp
-  .search('hello')
-  .context('embed')
-  .include([5, 15])
-  .exclude([10, 20])
-  .get();
-```
-
-## Full WPAPI-compatible syntax
-
-### Root chain starters
-
-- `posts()`
-- `pages()`
-- `media()`
-- `categories()`
-- `tags()`
-- `users()`
-- `comments()`
-- `settings()`
-- `types()`
-- `taxonomies()`
-- `statuses()`
-- `search(query?)`
-- `blocks()`
-
-### Chain query methods
-
-- `id(value)`
-- `param(name, value)`
-- `params(record)`
-- `slug(value)`
-- `page(value)`
-- `perPage(value)`
-- `offset(value)`
-- `search(value)`
-- `status(value)`
-- `author(value)`
-- `categories(value)`
-- `tags(value)`
-- `include(value)`
-- `exclude(value)`
-- `order('asc' | 'desc')`
-- `orderby(value)`
-- `context(value)`
-- `subtype(value)` — single string or array; arrays use bracket notation (`subtype[]=…`)
-- `fields(value)` — single field name or array; restricts the response via `_fields`
-- `password(value)`
-- `embed()`
-- `setHeaders(...)` / `headers(...)`
-- `toString()`
-- `get()`
-- `create(payload)`
-- `update(payload)`
-- `delete({ force? })`
-- thenable support: `await wp.posts().slug('hello-world')`
-
-WPAPI chains intentionally block auth-like header overrides via `setHeaders` (for example `Authorization`, `Cookie`, and `X-WP-Nonce`). Use a different `WordPressClient` instance when auth settings need to change.
-
-When `param(name, value)` receives an array it encodes each element using WordPress bracket notation (`name[]=a&name[]=b`). This is the correct format for multi-value parameters on the search endpoint (e.g. `subtype`) and is also accepted by WordPress for other array params such as `categories`, `tags`, `include`, and `exclude`.
-
 ### Namespace and route helpers
 
 - `route(resource, namespace?)`
@@ -733,7 +457,7 @@ const postSchema = v.object({
   status: v.string(),
 });
 
-const created = await wp.createPost(
+const created = await wp.content('posts').create(
   { title: 'Schema validated', status: 'draft' },
   postSchema,
 );
@@ -745,8 +469,8 @@ const created = await wp.createPost(
 ## Pagination guidance
 
 - WordPress caps `per_page` at `100`.
-- Use `getAll*()` helpers for complete datasets.
-- Use `get*Paginated()` helpers when you need totals and page metadata.
+- Use `content(resource).listAll()` or `terms(resource).listAll()` for complete datasets.
+- Use `listPaginated()` when you need totals and page metadata.
 
 ## Error handling guidance
 

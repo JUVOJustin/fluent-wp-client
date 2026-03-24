@@ -54,7 +54,7 @@ describe('Client: request-scoped mutation overrides', () => {
 
     try {
       const client = new WordPressClient({ baseUrl: getBaseUrl() });
-      const posts = await client.getPosts({ perPage: 1 });
+      const posts = await client.content('posts').list({ perPage: 1 });
 
       expect(posts).toHaveLength(1);
       expect(observedThis).toBe(globalThis);
@@ -63,33 +63,7 @@ describe('Client: request-scoped mutation overrides', () => {
     }
   });
 
-  it('rejects auth header overrides on mutation helper options', async () => {
-    const client = createObservedAuthClient(() => undefined);
-
-    await expect(
-      client.createPost(
-        {
-          title: 'Request overrides: auth header should fail',
-          status: 'draft',
-        },
-        {
-          headers: {
-            Authorization: 'Bearer should-not-be-allowed',
-          },
-        },
-      ),
-    ).rejects.toThrow(/auth header overrides are not supported/i);
-  });
-
-  it('rejects auth-like header overrides on WPAPI chains', () => {
-    const client = createObservedAuthClient(() => undefined);
-
-    expect(() => client.posts().setHeaders('Authorization', 'Bearer blocked')).toThrow(
-      /auth header overrides are not supported/i,
-    );
-  });
-
-  it('forwards custom headers for post create/update/delete helpers', async () => {
+  it('forwards custom headers for content(\'posts\') create/update/delete helpers', async () => {
     const seen = {
       create: false,
       update: false,
@@ -110,7 +84,9 @@ describe('Client: request-scoped mutation overrides', () => {
       }
     });
 
-    const created = await client.createPost(
+    const posts = client.content('posts');
+
+    const created = await posts.create(
       {
         title: 'Request overrides: post create',
         status: 'draft',
@@ -122,7 +98,7 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const updated = await client.updatePost(
+    const updated = await posts.update(
       created.id,
       {
         title: 'Request overrides: post update',
@@ -135,7 +111,7 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const deleted = await client.deletePost(created.id, {
+    const deleted = await posts.delete(created.id, {
       force: true,
       headers: {
         'x-test-source': 'post-delete',
@@ -354,7 +330,7 @@ describe('Client: request-scoped mutation overrides', () => {
 
     });
 
-    const posts = await client.getPosts(
+    const posts = await client.content('posts').list(
       { perPage: 1 },
       {
         headers: {
@@ -363,13 +339,13 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const postQuery = client.getPost(posts[0].id, {
+    const postQuery = client.content('posts').item(posts[0].id, {
       headers: {
         'x-test-source': 'read-post-by-id',
       },
     });
 
-    await postQuery.get();
+    await postQuery;
     await postQuery.getBlocks();
 
     const books = await client.content('books').list(
@@ -404,7 +380,7 @@ describe('Client: request-scoped mutation overrides', () => {
     const client = createObservedAuthClient(() => undefined);
 
     await expect(
-      client.getPosts(
+      client.content('posts').list(
         { perPage: 1 },
         {
           headers: {
@@ -413,6 +389,27 @@ describe('Client: request-scoped mutation overrides', () => {
         },
       ),
     ).rejects.toThrow(/auth header overrides are not supported/i);
+  });
+
+  it('rejects auth header overrides case-insensitively', async () => {
+    const client = createObservedAuthClient(() => undefined);
+
+    // Test various case combinations
+    const authVariations: Record<string, string>[] = [
+      { authorization: 'Bearer blocked-lowercase' },
+      { AUTHORIZATION: 'Bearer blocked-uppercase' },
+      { AuthoriZation: 'Bearer blocked-mixed' },
+      { AuThOrIzAtIoN: 'Bearer blocked-mixed2' },
+    ];
+
+    for (const headers of authVariations) {
+      await expect(
+        client.content('posts').list(
+          { perPage: 1 },
+          { headers },
+        ),
+      ).rejects.toThrow(/auth header overrides are not supported/i);
+    }
   });
 
   it('ignores non-header override keys for mutation helpers even when passed as any', async () => {
@@ -433,7 +430,7 @@ describe('Client: request-scoped mutation overrides', () => {
       }
     });
 
-    const created = await client.createPost(
+    const created = await client.content('posts').create(
       {
         title: 'Request overrides: ignore non-header keys',
         status: 'draft',
@@ -448,7 +445,7 @@ describe('Client: request-scoped mutation overrides', () => {
       } as unknown as never,
     );
 
-    await client.deletePost(created.id, { force: true });
+    await client.content('posts').delete(created.id, { force: true });
 
     expect(created.id).toBeGreaterThan(0);
     expect(seen.usedPostsEndpoint).toBe(true);
@@ -473,7 +470,7 @@ describe('Client: request-scoped mutation overrides', () => {
       }
     });
 
-    const posts = await client.getPosts(
+    const posts = await client.content('posts').list(
       { perPage: 1 },
       {
         headers: {
@@ -487,5 +484,53 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(posts.length).toBe(1);
     expect(seen.usedPostsEndpoint).toBe(true);
     expect(seen.usedInjectedSlugParam).toBe(false);
+  });
+
+  it('merges nested headers instead of overwriting them', async () => {
+    const seen: { headers?: Record<string, string> } = {};
+
+    const client = createObservedAuthClient((method, url, headers) => {
+      if (method !== 'POST') {
+        return;
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts')) {
+        // Convert Headers to plain object for inspection
+        const headerObj: Record<string, string> = {};
+        headers.forEach((value, key) => {
+          headerObj[key] = value;
+        });
+        seen.headers = headerObj;
+      }
+    });
+
+    // Create with headers in both arguments - should merge, not overwrite
+    const created = await client.content('posts').create(
+      {
+        title: 'Headers merge test',
+        status: 'draft',
+      },
+      {
+        headers: {
+          'x-base-header': 'base-value',
+          'x-shared-header': 'base-shared',
+        },
+      },
+      {
+        headers: {
+          'x-override-header': 'override-value',
+          'x-shared-header': 'override-shared',
+        },
+      },
+    );
+
+    await client.content('posts').delete(created.id, { force: true });
+
+    // Verify headers were merged properly
+    expect(seen.headers).toBeDefined();
+    expect(seen.headers?.['x-base-header']).toBe('base-value');
+    expect(seen.headers?.['x-override-header']).toBe('override-value');
+    // Second headers should override first for same key
+    expect(seen.headers?.['x-shared-header']).toBe('override-shared');
   });
 });

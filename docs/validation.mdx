@@ -23,7 +23,7 @@ Core mutation helpers use built-in response validation by default. Pass your own
 | Use Zod schema in your app | Import from `fluent-wp-client/zod` | Use `.parse()`, `.extend()`, `.shape`, then pass the schema to client methods |
 | Extend built-in schemas for custom fields or CPTs | Import from `fluent-wp-client/zod` | Start from `postSchema`, `postLikeWordPressSchema`, or `postWriteBaseSchema`, extend, then pass as `responseSchema` |
 | Use custom validator library (Valibot, ArkType, etc.) | Import root package schemas or pass your own library schema | Call `schema['~standard'].validate(...)` directly, or pass the schema to `responseSchema` / `inputSchema` / `outputSchema` |
-| Use custom validator with custom post types and extended shapes | Prefer library-native schema composition | Build a schema for your CPT response shape in your library, then pass it to `content('books', schema)` / `createContent(..., schema)` |
+| Use custom validator with custom post types and extended shapes | Prefer library-native schema composition | Build a schema for your CPT response shape in your library, then pass it to `content('books', schema)` and call `.create()` / `.update()` on that resource client |
 
 ## Quick hints
 

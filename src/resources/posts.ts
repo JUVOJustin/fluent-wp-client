@@ -3,9 +3,8 @@ import type { WordPressPost, WordPressPostWriteBase } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../types/resources.js';
 import type { ExtensibleFilter, PaginatedResponse } from '../types/resources.js';
 import type { PostsFilter } from '../types/filters.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
 import { postSchema } from '../standard-schemas.js';
-import { BasePostLikeResource, type PostLikeResourceContext } from '../core/resource-base.js';
+import { BasePostLikeResource } from '../core/resource-base.js';
 import { WordPressContentQuery } from '../content-query.js';
 import type { WordPressRuntime } from '../core/transport.js';
 
@@ -27,10 +26,6 @@ export class PostsResource extends BasePostLikeResource<
   ExtensibleFilter<PostsFilter>,
   WordPressPostWriteBase
 > {
-  protected override get defaultSchema(): WordPressStandardSchema<WordPressPost> | undefined {
-    return postSchema as WordPressStandardSchema<WordPressPost>;
-  }
-
   /**
    * Creates a posts resource instance.
    */
@@ -40,6 +35,7 @@ export class PostsResource extends BasePostLikeResource<
       endpoint: '/posts',
       missingRawMessage: missingRawPostMessage,
       defaultBlockParser,
+      defaultSchema: postSchema,
     });
   }
 
@@ -83,53 +79,4 @@ export class PostsResource extends BasePostLikeResource<
   getPostBySlug(slug: string, options?: WordPressRequestOverrides): WordPressContentQuery<WordPressPost | undefined> {
     return this.getBySlugAsQuery(slug, options);
   }
-
-  /**
-   * Alias for create() - creates a new post.
-   */
-  override create<TResponse = WordPressPost>(
-    input: WordPressPostWriteBase,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return super.create(input, responseSchemaOrRequestOptions, requestOptions);
-  }
-
-  /**
-   * Alias for update() - updates an existing post.
-   */
-  override update<TResponse = WordPressPost>(
-    id: number,
-    input: WordPressPostWriteBase,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return super.update(id, input, responseSchemaOrRequestOptions, requestOptions);
-  }
-
-  /**
-   * Alias for delete() - deletes a post.
-   */
-  override delete(
-    id: number,
-    options?: Parameters<BasePostLikeResource<WordPressPost, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase>['delete']>[1],
-  ): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
-    return super.delete(id, options);
-  }
 }
-
-/**
- * Legacy factory function - now delegates to PostsResource.create().
- * @deprecated Use PostsResource.create() or new PostsResource() directly.
- */
-export function createPostsResource(
-  runtime: WordPressRuntime,
-  defaultBlockParser?: WordPressBlockParser,
-): PostsResource {
-  return PostsResource.create(runtime, defaultBlockParser);
-}
-
-/**
- * @deprecated Import PostMethods from '../types/resources.js' instead.
- */
-export interface PostMethods extends PostsResource {}

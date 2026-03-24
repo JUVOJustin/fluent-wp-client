@@ -7,6 +7,7 @@
 - Treat `WordPressClient` as the package's core integration layer. Add or harden client abilities before introducing convenience helpers that depend on them.
 - Build higher-level helpers on top of proven client primitives. If a feature needs a new REST ability, implement that ability in the client first.
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
+- Prefer `content()` and `terms()` as the public generic resource API. Do not reintroduce legacy direct generic client wrappers.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Root package schema exports must be typed as Standard Schema (`WordPressStandardSchema`) to keep the default API validator-agnostic.
 - Native Zod schema exports belong in the dedicated `fluent-wp-client/zod` entrypoint only.
@@ -31,7 +32,7 @@
 src/
   index.ts                     # Public exports barrel
   client.ts                    # WordPressClient class
-  client-types.ts              # Client config and request option types
+  types/client.ts              # Client config and low-level request types
   schemas.ts                   # Zod schemas and inferred DTO types
   standard-schemas.ts          # Root Standard Schema exports mapped from Zod definitions
   zod.ts                       # Optional native Zod export entrypoint
@@ -43,17 +44,21 @@ src/
 
   core/                        # Core infrastructure
     errors.ts                  # WordPressApiError, throwIfWordPressError
+    mutation-helpers.ts        # Shared mutation overload resolution
     pagination.ts              # createWordPressPaginator
+    query-base.ts              # ExecutableQuery and immutable builder primitives
     validation.ts              # Standard Schema validation helpers
     params.ts                  # filterToParams, compactPayload
-    post-like-read-factory.ts  # Shared post-like read method implementation
+    request-overrides.ts       # Per-request non-auth header overrides
+    resource-base.ts           # Shared resource classes
+    transport.ts               # Runtime transport layer
 
   types/                       # Pure type definitions (no runtime)
     filters.ts                 # PostsFilter, PagesFilter, MediaFilter, etc.
     payloads.ts                # WordPressWritePayload, TermWriteInput, DeleteOptions, etc.
     resources.ts               # ContentResourceClient, PaginatedResponse, FetchResult, etc.
 
-  resources/                   # Resource method factories
+  resources/                   # Resource classes and generic registries
     posts.ts                   # PostsResource
     pages.ts                   # PagesResource
     media.ts                   # MediaResource
@@ -67,13 +72,13 @@ src/
   builders/                    # Fluent query/request builders
     wpapi-request.ts           # WordPressRequestBuilder (WPAPI compat chain)
     relations.ts               # PostRelationQueryBuilder
+    acf-relations.ts           # ACF relation factories built on shared contracts
     relation-contracts.ts      # Relation registry contracts + parsing helpers
     relation-definitions.ts    # Class-backed relation definition factories
-    relation-reference-resolvers.ts # Shared post/content/term reference resolvers
 ```
 
 When adding new files:
-- Resource-specific method factories go in `resources/`.
+- Resource-specific classes and registries go in `resources/`.
 - Fluent builder/query classes go in `builders/`.
 - Pure type definitions (no runtime code) go in `types/`.
 - Runtime utilities shared across resources go in `core/`.

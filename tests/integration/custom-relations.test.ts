@@ -75,11 +75,11 @@ describe('Client: Custom Relation Resolvers', () => {
     }
 
     for (const id of createdBookIds) {
-      await authClient.deleteContent('books', id, { force: true }).catch(() => undefined);
+      await authClient.content('books').delete(id, { force: true }).catch(() => undefined);
     }
 
     for (const id of createdGenreIds) {
-      await authClient.deleteTerm('genre', id, { force: true }).catch(() => undefined);
+      await authClient.terms('genre').delete(id, { force: true }).catch(() => undefined);
     }
   });
 
@@ -314,11 +314,11 @@ describe('Client: Custom Relation Resolvers', () => {
 
     it('builds one shared-bucket taxonomy relation from the public factory', async () => {
       const [first, second] = await Promise.all([
-        authClient.createTerm('genre', {
+        authClient.terms('genre').create({
           name: 'shared-bucket-genre-one',
           slug: 'shared-bucket-genre-one',
         }),
-        authClient.createTerm('genre', {
+        authClient.terms('genre').create({
           name: 'shared-bucket-genre-two',
           slug: 'shared-bucket-genre-two',
         }),
@@ -414,7 +414,7 @@ describe('Client: Custom Relation Resolvers', () => {
     });
 
     it('resolves one custom taxonomy term through the generic helper', async () => {
-      const created = await authClient.createTerm('genre', {
+      const created = await authClient.terms('genre').create({
         name: 'custom-relations-genre-single',
         slug: 'custom-relations-genre-single',
       });
@@ -429,11 +429,11 @@ describe('Client: Custom Relation Resolvers', () => {
     });
 
     it('resolves many custom taxonomy terms through the generic helper', async () => {
-      const first = await authClient.createTerm('genre', {
+      const first = await authClient.terms('genre').create({
         name: 'custom-relations-genre-many-1',
         slug: 'custom-relations-genre-many-1',
       });
-      const second = await authClient.createTerm('genre', {
+      const second = await authClient.terms('genre').create({
         name: 'custom-relations-genre-many-2',
         slug: 'custom-relations-genre-many-2',
       });
@@ -450,11 +450,11 @@ describe('Client: Custom Relation Resolvers', () => {
     });
 
     it('hydrates ACF taxonomy fields through the dedicated helper', async () => {
-      const first = await authClient.createTerm('genre', {
+      const first = await authClient.terms('genre').create({
         name: 'acf-taxonomy-helper-1',
         slug: 'acf-taxonomy-helper-1',
       });
-      const second = await authClient.createTerm('genre', {
+      const second = await authClient.terms('genre').create({
         name: 'acf-taxonomy-helper-2',
         slug: 'acf-taxonomy-helper-2',
       });
@@ -503,7 +503,7 @@ describe('Client: Custom Relation Resolvers', () => {
     });
 
     it('hydrates custom taxonomy terms for custom post types through content().getWithRelations()', async () => {
-      const genre = await authClient.createTerm('genre', {
+      const genre = await authClient.terms('genre').create({
         name: 'custom-relations-book-genre',
         slug: 'custom-relations-book-genre',
       });

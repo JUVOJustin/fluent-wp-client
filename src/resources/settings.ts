@@ -2,6 +2,7 @@ import type { WordPressSettings } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../types/resources.js';
 import { settingsSchema } from '../standard-schemas.js';
 import { compactPayload } from '../core/params.js';
+import { resolveMutationArguments } from '../core/mutation-helpers.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { throwIfWordPressError } from '../core/errors.js';
 import { validateWithStandardSchema } from '../core/validation.js';
@@ -34,12 +35,19 @@ export class SettingsResource {
   }
 
   /**
-   * Gets WordPress site settings.
+   * Ensures settings reads and writes only run when authentication is configured.
    */
-  async getSettings(requestOptions?: WordPressRequestOverrides): Promise<WordPressSettings> {
+  private assertAuthenticated(): void {
     if (!this.runtime.hasAuth()) {
       throw new Error('Authentication required for /settings endpoint. Configure auth in client options.');
     }
+  }
+
+  /**
+   * Gets WordPress site settings.
+   */
+  async getSettings(requestOptions?: WordPressRequestOverrides): Promise<WordPressSettings> {
+    this.assertAuthenticated();
 
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: this.endpoint,
@@ -58,25 +66,12 @@ export class SettingsResource {
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TSettings> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TSettings> {
-    if (!this.runtime.hasAuth()) {
-      throw new Error('Authentication required for /settings endpoint. Configure auth in client options.');
-    }
+    this.assertAuthenticated();
 
-    let resolved: { responseSchema?: WordPressStandardSchema<TSettings>; requestOptions?: WordPressRequestOverrides };
-
-    if (responseSchemaOrRequestOptions && typeof responseSchemaOrRequestOptions === 'object' && '~standard' in responseSchemaOrRequestOptions) {
-      resolved = {
-        responseSchema: responseSchemaOrRequestOptions as WordPressStandardSchema<TSettings>,
-        requestOptions,
-      };
-    } else if (!responseSchemaOrRequestOptions) {
-      resolved = { responseSchema: undefined, requestOptions };
-    } else {
-      resolved = {
-        responseSchema: undefined,
-        requestOptions: { ...responseSchemaOrRequestOptions, ...requestOptions },
-      };
-    }
+    const resolved = resolveMutationArguments<TSettings>(
+      responseSchemaOrRequestOptions,
+      requestOptions,
+    );
 
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: this.endpoint,
@@ -86,27 +81,10 @@ export class SettingsResource {
 
     throwIfWordPressError(response, data);
 
-    if (resolved.responseSchema) {
-      return validateWithStandardSchema(resolved.responseSchema, data, 'Settings response validation failed');
-    }
-
     return validateWithStandardSchema(
-      settingsSchema as WordPressStandardSchema<TSettings>,
+      resolved.responseSchema ?? (settingsSchema as WordPressStandardSchema<TSettings>),
       data,
       'Settings response validation failed',
     );
   }
 }
-
-/**
- * Legacy factory function - now delegates to SettingsResource.create().
- * @deprecated Use SettingsResource.create() or new SettingsResource() directly.
- */
-export function createSettingsMethods(runtime: WordPressRuntime): SettingsResource {
-  return SettingsResource.create(runtime);
-}
-
-/**
- * @deprecated Import SettingsMethods from '../types/resources.js' instead.
- */
-export interface SettingsMethods extends SettingsResource {}

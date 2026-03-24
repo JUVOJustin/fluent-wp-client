@@ -1,7 +1,6 @@
 import {
   type WordPressAuthor,
   type WordPressCategory,
-  type WordPressContent,
   type WordPressMedia,
   type WordPressPost,
   type WordPressPostLike,
@@ -11,14 +10,13 @@ import {
 import {
   customRelationRegistry,
   defaultParseReferenceId,
+  extractEmbeddedData,
+  createSingleExtractor,
+  toRelatedTermReference,
   type CustomRelationConfig,
   type PostRelationClient,
   type RelatedTermReference,
-  extractEmbeddedData,
-  createArrayExtractor,
-  createSingleExtractor,
-  toRelatedTermReference,
-} from './relation-resolvers.js';
+} from './relation-contracts.js';
 
 /**
  * Supported relation names for fluent post hydration (built-in).
@@ -281,7 +279,7 @@ class PostTermRelationsResolver {
   private async resolveLinkedTerms(
     existingTaxonomies: Record<string, RelatedTermReference[]>,
   ): Promise<Record<string, RelatedTermReference[]>> {
-    if (!this.client.getTermCollection) {
+    if (!this.client.terms) {
       return {};
     }
 
@@ -296,7 +294,7 @@ class PostTermRelationsResolver {
 
     for (const entry of linkedResources) {
       try {
-        const terms = await this.client.getTermCollection<WordPressCategory>(entry.resource, {
+        const terms = await this.client.terms<WordPressCategory>(entry.resource).list({
           post: this.post.id,
           perPage: 100,
         });
@@ -676,42 +674,44 @@ export class PostRelationQueryBuilder<
   }
 }
 
-// Re-export types for consumers
 export type {
-  PostRelationClient,
-  CustomRelationConfig,
-  CustomRelationRegistry,
   EmbeddedDataExtractor,
   RelationFallbackResolver,
+  CustomRelationConfig,
   IdCollectionRelationOptions,
   IdSingleRelationOptions,
   LinkedEmbeddedCollectionRelationOptions,
   LinkedEmbeddedSingleRelationOptions,
+  PostRelationClient,
   RelatedContentReference,
   RelatedPostReference,
   RelatedTermReference,
-} from './relation-resolvers.js';
+} from './relation-contracts.js';
 
 export {
+  CustomRelationRegistry,
   customRelationRegistry,
   createArrayExtractor,
   createSingleExtractor,
-  createIdCollectionRelation,
-  createIdSingleRelation,
-  createLinkedEmbeddedCollectionRelation,
-  createLinkedEmbeddedSingleRelation,
-  defaultParseLinkId,
   defaultParseReferenceId,
   extractEmbeddedData,
   getEmbeddedRelationItems,
   getLinkedRelationIds,
+  toRelatedContentReference,
+  toRelatedPostReference,
+  toRelatedTermReference,
+  defaultParseLinkId,
   resolveContentReference,
   resolveContentReferences,
   resolvePostReference,
   resolvePostReferences,
   resolveTermReference,
   resolveTermReferences,
-  toRelatedContentReference,
-  toRelatedPostReference,
-  toRelatedTermReference,
-} from './relation-resolvers.js';
+} from './relation-contracts.js';
+
+export {
+  createIdCollectionRelation,
+  createIdSingleRelation,
+  createLinkedEmbeddedCollectionRelation,
+  createLinkedEmbeddedSingleRelation,
+} from './relation-definitions.js';

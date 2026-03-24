@@ -40,34 +40,90 @@ function asStandardSchema<TSchema extends z.ZodType>(
 }
 
 /**
+ * Converts one object of Zod schemas to Standard Schema exports with matching keys.
+ */
+function toStandardSchemaMap<TSchemas extends Record<string, z.ZodType>>(
+  schemas: TSchemas,
+): {
+  [TKey in keyof TSchemas]: WordPressStandardSchema<
+    z.output<TSchemas[TKey]>,
+    z.input<TSchemas[TKey]>
+  >;
+} {
+  return Object.fromEntries(
+    Object.entries(schemas).map(([name, schema]) => [name, asStandardSchema(schema)]),
+  ) as {
+    [TKey in keyof TSchemas]: WordPressStandardSchema<
+      z.output<TSchemas[TKey]>,
+      z.input<TSchemas[TKey]>
+    >;
+  };
+}
+
+/**
  * Standard Schema exports for WordPress core resource payloads.
  */
-export const baseWordPressSchema = asStandardSchema(zodBaseWordPressSchema);
-export const postLikeWordPressSchema = asStandardSchema(zodPostLikeWordPressSchema);
-export const contentWordPressSchema = asStandardSchema(zodContentWordPressSchema);
-export const postSchema = asStandardSchema(zodPostSchema);
-export const pageSchema = asStandardSchema(zodPageSchema);
-export const mediaSchema = asStandardSchema(zodMediaSchema);
-export const categorySchema = asStandardSchema(zodCategorySchema);
-export const tagSchema = asStandardSchema(zodTagSchema);
-export const embeddedMediaSchema = asStandardSchema(zodEmbeddedMediaSchema);
-export const abilityAnnotationsSchema = asStandardSchema(zodAbilityAnnotationsSchema);
-export const abilitySchema = asStandardSchema(zodAbilitySchema);
-export const abilityCategorySchema = asStandardSchema(zodAbilityCategorySchema);
-export const authorSchema = asStandardSchema(zodAuthorSchema);
-export const commentSchema = asStandardSchema(zodCommentSchema);
-export const updatePostFieldsSchema = asStandardSchema(zodUpdatePostFieldsSchema);
-export const postWriteBaseSchema = asStandardSchema(zodPostWriteBaseSchema);
-export const jwtAuthTokenResponseSchema = asStandardSchema(zodJwtAuthTokenResponseSchema);
-export const jwtAuthErrorResponseSchema = asStandardSchema(zodJwtAuthErrorResponseSchema);
-export const jwtAuthValidationResponseSchema = asStandardSchema(zodJwtAuthValidationResponseSchema);
-export const wordPressErrorSchema = asStandardSchema(zodWordPressErrorSchema);
-export const settingsSchema = asStandardSchema(zodSettingsSchema);
-export const searchResultSchema = asStandardSchema(zodSearchResultSchema);
+const standardSchemas = toStandardSchemaMap({
+  baseWordPressSchema: zodBaseWordPressSchema,
+  postLikeWordPressSchema: zodPostLikeWordPressSchema,
+  contentWordPressSchema: zodContentWordPressSchema,
+  postSchema: zodPostSchema,
+  pageSchema: zodPageSchema,
+  mediaSchema: zodMediaSchema,
+  categorySchema: zodCategorySchema,
+  tagSchema: zodTagSchema,
+  embeddedMediaSchema: zodEmbeddedMediaSchema,
+  abilityAnnotationsSchema: zodAbilityAnnotationsSchema,
+  abilitySchema: zodAbilitySchema,
+  abilityCategorySchema: zodAbilityCategorySchema,
+  authorSchema: zodAuthorSchema,
+  commentSchema: zodCommentSchema,
+  updatePostFieldsSchema: zodUpdatePostFieldsSchema,
+  postWriteBaseSchema: zodPostWriteBaseSchema,
+  jwtAuthTokenResponseSchema: zodJwtAuthTokenResponseSchema,
+  jwtAuthErrorResponseSchema: zodJwtAuthErrorResponseSchema,
+  jwtAuthValidationResponseSchema: zodJwtAuthValidationResponseSchema,
+  wordPressErrorSchema: zodWordPressErrorSchema,
+  settingsSchema: zodSettingsSchema,
+  searchResultSchema: zodSearchResultSchema,
+});
+
+export const {
+  baseWordPressSchema,
+  postLikeWordPressSchema,
+  contentWordPressSchema,
+  postSchema,
+  pageSchema,
+  mediaSchema,
+  categorySchema,
+  tagSchema,
+  embeddedMediaSchema,
+  abilityAnnotationsSchema,
+  abilitySchema,
+  abilityCategorySchema,
+  authorSchema,
+  commentSchema,
+  updatePostFieldsSchema,
+  postWriteBaseSchema,
+  jwtAuthTokenResponseSchema,
+  jwtAuthErrorResponseSchema,
+  jwtAuthValidationResponseSchema,
+  wordPressErrorSchema,
+  settingsSchema,
+  searchResultSchema,
+} = standardSchemas;
 
 /**
  * Standard Schema exports for ability execution input wrappers.
  */
-export const getAbilityInputSchema = asStandardSchema(zodGetAbilityInputSchema);
-export const runAbilityInputSchema = asStandardSchema(zodRunAbilityInputSchema);
-export const deleteAbilityInputSchema = asStandardSchema(zodDeleteAbilityInputSchema);
+const abilityInputSchemas = toStandardSchemaMap({
+  getAbilityInputSchema: zodGetAbilityInputSchema,
+  runAbilityInputSchema: zodRunAbilityInputSchema,
+  deleteAbilityInputSchema: zodDeleteAbilityInputSchema,
+});
+
+export const {
+  getAbilityInputSchema,
+  runAbilityInputSchema,
+  deleteAbilityInputSchema,
+} = abilityInputSchemas;

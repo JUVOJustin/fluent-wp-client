@@ -33,8 +33,8 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 
 - **Typed helpers** for posts, pages, media, categories, tags, users, comments, and settings
 - **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
-- **Extensible collection filters** — built-in list helpers accept typed core filters plus extra endpoint-specific query params
-- **Generic CPT and taxonomy APIs** — `content('books')` and `terms('genre')` work for any registered resource
+- **Extensible collection filters** — built-in list helpers and generic resource builders accept typed core filters plus extra endpoint-specific query params
+- **Generic CPT and taxonomy builders** — `content('books')` and `terms('genre')` work for any registered resource
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
 - **Gutenberg block parsing** — single-post queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
@@ -111,7 +111,7 @@ npm test
 npm run wp:stop
 ```
 
-Core transport and base resource classes live under `src/core/`, while relation definition, registry, and reference resolver internals live under `src/builders/relation-*.ts`. Package consumers continue to import the public API from `src/index.ts`.
+Core transport, mutation helpers, query primitives, and base resource classes live under `src/core/`, while relation contracts, relation definition factories, and the fluent relation builder live under `src/builders/`. Package consumers continue to import the public API from `src/index.ts`.
 
 Tests run against a real WordPress Docker container managed by [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/). See [`tests/`](./tests/) for setup details.
 

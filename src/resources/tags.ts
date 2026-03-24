@@ -3,9 +3,8 @@ import type { WordPressRequestOverrides, PaginatedResponse } from '../types/reso
 import type { TagsFilter } from '../types/filters.js';
 import type { ExtensibleFilter } from '../types/resources.js';
 import type { TermWriteInput } from '../types/payloads.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
 import { tagSchema } from '../standard-schemas.js';
-import { BaseCrudResource, type ResourceContext } from '../core/resource-base.js';
+import { BaseCrudResource } from '../core/resource-base.js';
 import type { WordPressRuntime } from '../core/transport.js';
 
 /**
@@ -24,10 +23,6 @@ export class TagsResource extends BaseCrudResource<
   TermWriteInput,
   TermWriteInput
 > {
-  protected override get defaultSchema(): WordPressStandardSchema<WordPressTag> | undefined {
-    return tagSchema as WordPressStandardSchema<WordPressTag>;
-  }
-
   /**
    * Creates a tags resource instance.
    */
@@ -35,6 +30,7 @@ export class TagsResource extends BaseCrudResource<
     return new TagsResource({
       runtime,
       endpoint: '/tags',
+      defaultSchema: tagSchema,
     });
   }
 
@@ -79,16 +75,3 @@ export class TagsResource extends BaseCrudResource<
     return this.getBySlug(slug, options);
   }
 }
-
-/**
- * Legacy factory function - now delegates to TagsResource.create().
- * @deprecated Use TagsResource.create() or new TagsResource() directly.
- */
-export function createTagsResource(runtime: WordPressRuntime): TagsResource {
-  return TagsResource.create(runtime);
-}
-
-/**
- * @deprecated Import TagMethods from '../types/resources.js' instead.
- */
-export interface TagMethods extends TagsResource {}

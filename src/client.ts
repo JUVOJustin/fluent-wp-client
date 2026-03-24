@@ -8,7 +8,12 @@ import type {
   WordPressRequestOptions,
   WordPressRequestResult,
 } from './types/client.js';
-import type { JwtLoginCredentials, JwtAuthTokenResponse, JwtAuthCredentials, JwtAuthValidationResponse } from './auth.js';
+import type {
+  JwtAuthCredentials,
+  JwtAuthTokenResponse,
+  JwtAuthValidationResponse,
+  JwtLoginCredentials,
+} from './auth.js';
 import type { WordPressRequestOverrides } from './types/resources.js';
 import { PostsResource } from './resources/posts.js';
 import { PagesResource } from './resources/pages.js';
@@ -19,7 +24,6 @@ import { UsersResource } from './resources/users.js';
 import { SettingsResource } from './resources/settings.js';
 import { CommentsResource } from './resources/comments.js';
 import { GenericResourceRegistry } from './resources/content-terms.js';
-import { postSchema, pageSchema, mediaSchema } from './standard-schemas.js';
 import {
   type WordPressAuthor,
   type WordPressCategory,
@@ -37,10 +41,9 @@ import {
   PostRelationQueryBuilder,
   type PostRelation,
   type SelectedPostRelations,
-  type PostRelationClient,
 } from './builders/relations.js';
 import { WordPressRequestBuilder } from './builders/wpapi-request.js';
-import { compactPayload, filterToParams } from './core/params.js';
+import { filterToParams } from './core/params.js';
 import { WordPressTransport, createRuntime, type WordPressRuntime } from './core/transport.js';
 import type {
   PostsFilter,
@@ -59,9 +62,10 @@ import type {
   ExtensibleFilter,
   QueryParams,
   PaginationParams,
+  WordPressDeleteResult,
 } from './types/resources.js';
 import type { WordPressStandardSchema } from './core/validation.js';
-import type { WordPressWritePayload, TermWriteInput, UserWriteInput, UserDeleteOptions } from './types/payloads.js';
+import type { DeleteOptions, WordPressWritePayload, TermWriteInput, UserWriteInput, UserDeleteOptions } from './types/payloads.js';
 
 /**
  * Namespace-scoped request factory for WPAPI-style route chaining.
@@ -125,6 +129,7 @@ export class WordPressClient {
   private readonly settingsResource: SettingsResource;
   private readonly commentsResource: CommentsResource;
   private readonly genericResourcesRegistry: GenericResourceRegistry;
+  private readonly abilityMethods: ReturnType<typeof createAbilityMethods>;
 
   /**
    * Creates a new WordPress API client.
@@ -155,6 +160,10 @@ export class WordPressClient {
     this.genericResourcesRegistry = new GenericResourceRegistry({
       runtime: this.runtime,
       relationClient: this,
+    });
+    this.abilityMethods = createAbilityMethods({
+      fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
+      request: this.runtime.request.bind(this.runtime),
     });
   }
 
@@ -227,7 +236,7 @@ export class WordPressClient {
     return this.postsResource.update(id, input, responseSchemaOrRequestOptions, requestOptions);
   }
 
-  deletePost(id: number, options?: WordPressRequestOverrides): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+  deletePost(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
     return this.postsResource.delete(id, options);
   }
 
@@ -270,7 +279,7 @@ export class WordPressClient {
     return this.pagesResource.update(id, input, responseSchemaOrRequestOptions, requestOptions);
   }
 
-  deletePage(id: number, options?: WordPressRequestOverrides): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+  deletePage(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
     return this.pagesResource.delete(id, options);
   }
 
@@ -301,7 +310,7 @@ export class WordPressClient {
   }
 
   createMedia(input: WordPressWritePayload, options?: WordPressRequestOverrides): Promise<WordPressMedia> {
-    return this.mediaResource.create(input, undefined, options);
+    return this.mediaResource.create(input, options);
   }
 
   uploadMedia(input: WordPressMediaUploadInput, options?: WordPressRequestOverrides): Promise<WordPressMedia> {
@@ -309,10 +318,10 @@ export class WordPressClient {
   }
 
   updateMedia(id: number, input: WordPressWritePayload, options?: WordPressRequestOverrides): Promise<WordPressMedia> {
-    return this.mediaResource.update(id, input, undefined, options);
+    return this.mediaResource.update(id, input, options);
   }
 
-  deleteMedia(id: number, options?: WordPressRequestOverrides): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+  deleteMedia(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
     return this.mediaResource.delete(id, options);
   }
 
@@ -338,15 +347,15 @@ export class WordPressClient {
     return this.categoriesResource.getCategoryBySlug(slug, options);
   }
 
-  createCategory(input: import('./types/payloads.js').TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressCategory> {
-    return this.categoriesResource.create(input, undefined, options);
+  createCategory(input: TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressCategory> {
+    return this.categoriesResource.create(input, options);
   }
 
-  updateCategory(id: number, input: import('./types/payloads.js').TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressCategory> {
-    return this.categoriesResource.update(id, input, undefined, options);
+  updateCategory(id: number, input: TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressCategory> {
+    return this.categoriesResource.update(id, input, options);
   }
 
-  deleteCategory(id: number, options?: WordPressRequestOverrides): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+  deleteCategory(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
     return this.categoriesResource.delete(id, options);
   }
 
@@ -372,15 +381,15 @@ export class WordPressClient {
     return this.tagsResource.getTagBySlug(slug, options);
   }
 
-  createTag(input: import('./types/payloads.js').TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressTag> {
-    return this.tagsResource.create(input, undefined, options);
+  createTag(input: TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressTag> {
+    return this.tagsResource.create(input, options);
   }
 
-  updateTag(id: number, input: import('./types/payloads.js').TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressTag> {
-    return this.tagsResource.update(id, input, undefined, options);
+  updateTag(id: number, input: TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressTag> {
+    return this.tagsResource.update(id, input, options);
   }
 
-  deleteTag(id: number, options?: WordPressRequestOverrides): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+  deleteTag(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
     return this.tagsResource.delete(id, options);
   }
 
@@ -406,15 +415,15 @@ export class WordPressClient {
     return this.usersResource.getCurrentUser(options);
   }
 
-  createUser(input: import('./types/payloads.js').UserWriteInput, options?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-    return this.usersResource.create(input, undefined, options);
+  createUser(input: UserWriteInput, options?: WordPressRequestOverrides): Promise<WordPressAuthor> {
+    return this.usersResource.create(input, options);
   }
 
-  updateUser(id: number, input: import('./types/payloads.js').UserWriteInput, options?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-    return this.usersResource.update(id, input, undefined, options);
+  updateUser(id: number, input: UserWriteInput, options?: WordPressRequestOverrides): Promise<WordPressAuthor> {
+    return this.usersResource.update(id, input, options);
   }
 
-  deleteUser(id: number, options?: WordPressRequestOverrides & import('./types/payloads.js').UserDeleteOptions): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+  deleteUser(id: number, options?: WordPressRequestOverrides & UserDeleteOptions): Promise<WordPressDeleteResult> {
     return this.usersResource.delete(id, options);
   }
 
@@ -429,17 +438,7 @@ export class WordPressClient {
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TSettings> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TSettings> {
-    let responseSchema: WordPressStandardSchema<TSettings> | undefined;
-    let options: WordPressRequestOverrides | undefined;
-    
-    if (responseSchemaOrRequestOptions && typeof responseSchemaOrRequestOptions === 'object' && '~standard' in responseSchemaOrRequestOptions) {
-      responseSchema = responseSchemaOrRequestOptions as WordPressStandardSchema<TSettings>;
-      options = requestOptions;
-    } else {
-      options = { ...responseSchemaOrRequestOptions, ...requestOptions };
-    }
-    
-    return this.settingsResource.updateSettings(input, responseSchema, options);
+    return this.settingsResource.updateSettings(input, responseSchemaOrRequestOptions, requestOptions);
   }
 
   // ============= COMMENTS API =============
@@ -461,83 +460,18 @@ export class WordPressClient {
   }
 
   createComment(input: WordPressWritePayload, options?: WordPressRequestOverrides): Promise<WordPressComment> {
-    return this.commentsResource.create(input, undefined, options);
+    return this.commentsResource.create(input, options);
   }
 
   updateComment(id: number, input: WordPressWritePayload, options?: WordPressRequestOverrides): Promise<WordPressComment> {
-    return this.commentsResource.update(id, input, undefined, options);
+    return this.commentsResource.update(id, input, options);
   }
 
-  deleteComment(id: number, options?: WordPressRequestOverrides): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+  deleteComment(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
     return this.commentsResource.delete(id, options);
   }
 
   // ============= GENERIC CONTENT API =============
-
-  getContentCollection<TContent = WordPressPostLike>(
-    resource: string,
-    filter: QueryParams = {},
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent[]> {
-    return this.genericResourcesRegistry.getContentCollection(resource, filter, options);
-  }
-
-  getAllContentCollection<TContent = WordPressPostLike>(
-    resource: string,
-    filter: Omit<QueryParams, 'page'> = {},
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent[]> {
-    return this.genericResourcesRegistry.getAllContentCollection(resource, filter, options);
-  }
-
-  getContentCollectionPaginated<TContent = WordPressPostLike>(
-    resource: string,
-    filter: QueryParams & PaginationParams = {},
-    options?: WordPressRequestOverrides,
-  ): Promise<PaginatedResponse<TContent>> {
-    return this.genericResourcesRegistry.getContentCollectionPaginated(resource, filter, options);
-  }
-
-  getContent<TContent = WordPressPostLike>(
-    resource: string,
-    id: number,
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent> {
-    return this.genericResourcesRegistry.getContent(resource, id, options);
-  }
-
-  getContentBySlug<TContent = WordPressPostLike>(
-    resource: string,
-    slug: string,
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent | undefined> {
-    return this.genericResourcesRegistry.getContentBySlug(resource, slug, options);
-  }
-
-  createContent<TContent = WordPressPostLike>(
-    resource: string,
-    input: WordPressWritePayload,
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent> {
-    return this.genericResourcesRegistry.createContent(resource, input, undefined, options);
-  }
-
-  updateContent<TContent = WordPressPostLike>(
-    resource: string,
-    id: number,
-    input: WordPressWritePayload,
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent> {
-    return this.genericResourcesRegistry.updateContent(resource, id, input, undefined, options);
-  }
-
-  deleteContent(
-    resource: string,
-    id: number,
-    options?: WordPressRequestOverrides,
-  ): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
-    return this.genericResourcesRegistry.deleteContent(resource, id, options);
-  }
 
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
@@ -548,75 +482,10 @@ export class WordPressClient {
 
   // ============= GENERIC TERMS API =============
 
-  getTermCollection<TTerm = WordPressCategory>(
-    resource: string,
-    filter: QueryParams = {},
-    options?: WordPressRequestOverrides,
-  ): Promise<TTerm[]> {
-    return this.genericResourcesRegistry.getTermCollection(resource, filter, options);
-  }
-
-  getAllTermCollection<TTerm = WordPressCategory>(
-    resource: string,
-    filter: Omit<QueryParams, 'page'> = {},
-    options?: WordPressRequestOverrides,
-  ): Promise<TTerm[]> {
-    return this.genericResourcesRegistry.getAllTermCollection(resource, filter, options);
-  }
-
-  getTermCollectionPaginated<TTerm = WordPressCategory>(
-    resource: string,
-    filter: QueryParams & PaginationParams = {},
-    options?: WordPressRequestOverrides,
-  ): Promise<PaginatedResponse<TTerm>> {
-    return this.genericResourcesRegistry.getTermCollectionPaginated(resource, filter, options);
-  }
-
-  getTerm<TTerm = WordPressCategory>(
-    resource: string,
-    id: number,
-    options?: WordPressRequestOverrides,
-  ): Promise<TTerm> {
-    return this.genericResourcesRegistry.getTerm(resource, id, options);
-  }
-
-  getTermBySlug<TTerm = WordPressCategory>(
-    resource: string,
-    slug: string,
-    options?: WordPressRequestOverrides,
-  ): Promise<TTerm | undefined> {
-    return this.genericResourcesRegistry.getTermBySlug(resource, slug, options);
-  }
-
-  createTerm<TTerm = WordPressCategory>(
-    resource: string,
-    input: import('./types/payloads.js').TermWriteInput,
-    options?: WordPressRequestOverrides,
-  ): Promise<TTerm> {
-    return this.genericResourcesRegistry.createTerm(resource, input, undefined, options);
-  }
-
-  updateTerm<TTerm = WordPressCategory>(
-    resource: string,
-    id: number,
-    input: import('./types/payloads.js').TermWriteInput,
-    options?: WordPressRequestOverrides,
-  ): Promise<TTerm> {
-    return this.genericResourcesRegistry.updateTerm(resource, id, input, undefined, options);
-  }
-
-  deleteTerm(
-    resource: string,
-    id: number,
-    options?: WordPressRequestOverrides,
-  ): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
-    return this.genericResourcesRegistry.deleteTerm(resource, id, options);
-  }
-
   terms<TResource = WordPressCategory>(
     resource: string,
     responseSchema?: WordPressStandardSchema<TResource>,
-  ): TermsResourceClient<TResource, import('./types/payloads.js').TermWriteInput, import('./types/payloads.js').TermWriteInput> {
+  ): TermsResourceClient<TResource, TermWriteInput, TermWriteInput> {
     return this.genericResourcesRegistry.terms(resource, responseSchema);
   }
 
@@ -718,21 +587,21 @@ export class WordPressClient {
   /**
    * Starts a WPAPI-style categories request chain.
    */
-  categories(): WordPressRequestBuilder<WordPressCategory | WordPressCategory[], import('./types/payloads.js').TermWriteInput, import('./types/payloads.js').TermWriteInput> {
+  categories(): WordPressRequestBuilder<WordPressCategory | WordPressCategory[], TermWriteInput, TermWriteInput> {
     return this.route('categories');
   }
 
   /**
    * Starts a WPAPI-style tags request chain.
    */
-  tags(): WordPressRequestBuilder<WordPressTag | WordPressTag[], import('./types/payloads.js').TermWriteInput, import('./types/payloads.js').TermWriteInput> {
+  tags(): WordPressRequestBuilder<WordPressTag | WordPressTag[], TermWriteInput, TermWriteInput> {
     return this.route('tags');
   }
 
   /**
    * Starts a WPAPI-style users request chain.
    */
-  users(): WordPressRequestBuilder<WordPressAuthor | WordPressAuthor[], import('./types/payloads.js').UserWriteInput, import('./types/payloads.js').UserWriteInput> {
+  users(): WordPressRequestBuilder<WordPressAuthor | WordPressAuthor[], UserWriteInput, UserWriteInput> {
     return this.route('users');
   }
 
@@ -804,10 +673,12 @@ export class WordPressClient {
    * Starts a fluent post relation query by ID or slug.
    */
   post(idOrSlug: number | string): PostRelationQueryBuilder<[]> {
-    if (typeof idOrSlug === 'number') {
-      return new PostRelationQueryBuilder(this, { id: idOrSlug }, (id) => this.getPost(id), (slug) => this.getPostBySlug(slug));
-    }
-    return new PostRelationQueryBuilder(this, { slug: idOrSlug }, (id) => this.getPost(id), (slug) => this.getPostBySlug(slug));
+    return new PostRelationQueryBuilder(
+      this,
+      typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
+      (id) => this.getPost(id),
+      (slug) => this.getPostBySlug(slug),
+    );
   }
 
   /**
@@ -827,57 +698,35 @@ export class WordPressClient {
    * Starts a fluent REST ability builder with optional input/output validation.
    */
   ability<TInput = unknown, TOutput = unknown>(name: string): WordPressAbilityBuilder<TInput, TOutput> {
-    return new WordPressAbilityBuilder<TInput, TOutput>(
-      {
-        fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
-        request: this.runtime.request.bind(this.runtime),
-      },
-      name,
-    );
+    return this.abilityMethods.ability<TInput, TOutput>(name);
   }
 
   /**
    * Lists all registered abilities exposed to the current caller.
    */
   async getAbilities(options?: WordPressRequestOverrides) {
-    const abilityMethods = createAbilityMethods({
-      fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
-      request: this.runtime.request.bind(this.runtime),
-    });
-    return abilityMethods.getAbilities(options);
+    return this.abilityMethods.getAbilities(options);
   }
 
   /**
    * Fetches metadata for one registered ability.
    */
   async getAbility(name: string, options?: WordPressRequestOverrides) {
-    const abilityMethods = createAbilityMethods({
-      fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
-      request: this.runtime.request.bind(this.runtime),
-    });
-    return abilityMethods.getAbility(name, options);
+    return this.abilityMethods.getAbility(name, options);
   }
 
   /**
    * Lists all ability categories exposed to the current caller.
    */
   async getAbilityCategories(options?: WordPressRequestOverrides) {
-    const abilityMethods = createAbilityMethods({
-      fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
-      request: this.runtime.request.bind(this.runtime),
-    });
-    return abilityMethods.getAbilityCategories(options);
+    return this.abilityMethods.getAbilityCategories(options);
   }
 
   /**
    * Fetches one ability category by slug.
    */
   async getAbilityCategory(slug: string, options?: WordPressRequestOverrides) {
-    const abilityMethods = createAbilityMethods({
-      fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
-      request: this.runtime.request.bind(this.runtime),
-    });
-    return abilityMethods.getAbilityCategory(slug, options);
+    return this.abilityMethods.getAbilityCategory(slug, options);
   }
 
   /**
@@ -889,7 +738,7 @@ export class WordPressClient {
     responseSchema?: WordPressStandardSchema<TOutput>,
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
-    return this.ability(name).outputSchema(responseSchema as WordPressStandardSchema<unknown>).get(input, options) as Promise<TOutput>;
+    return this.abilityMethods.executeGetAbility(name, input, responseSchema, options);
   }
 
   /**
@@ -901,7 +750,7 @@ export class WordPressClient {
     responseSchema?: WordPressStandardSchema<TOutput>,
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
-    return this.ability(name).outputSchema(responseSchema as WordPressStandardSchema<unknown>).run(input, options) as Promise<TOutput>;
+    return this.abilityMethods.executeRunAbility(name, input, responseSchema, options);
   }
 
   /**
@@ -913,7 +762,7 @@ export class WordPressClient {
     responseSchema?: WordPressStandardSchema<TOutput>,
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
-    return this.ability(name).outputSchema(responseSchema as WordPressStandardSchema<unknown>).delete(input, options) as Promise<TOutput>;
+    return this.abilityMethods.executeDeleteAbility(name, input, responseSchema, options);
   }
 
   // ============= AUTHENTICATION HELPERS =============
@@ -922,9 +771,9 @@ export class WordPressClient {
    * Performs username/password JWT login against the WP JWT plugin endpoint.
    */
   async loginWithJwt(
-    credentials: import('./auth.js').JwtLoginCredentials,
+    credentials: JwtLoginCredentials,
     options?: WordPressRequestOverrides,
-  ): Promise<import('./auth.js').JwtAuthTokenResponse> {
+  ): Promise<JwtAuthTokenResponse> {
     return this.transport.loginWithJwt(credentials);
   }
 
@@ -932,9 +781,9 @@ export class WordPressClient {
    * Validates one JWT token with the WP JWT plugin endpoint.
    */
   async validateJwtToken(
-    token?: string | import('./auth.js').JwtAuthCredentials,
+    token?: string | JwtAuthCredentials,
     options?: WordPressRequestOverrides,
-  ): Promise<import('./auth.js').JwtAuthValidationResponse> {
+  ): Promise<JwtAuthValidationResponse> {
     return this.transport.validateJwtToken(token);
   }
 }

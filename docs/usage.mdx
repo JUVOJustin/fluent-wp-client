@@ -222,11 +222,11 @@ const blocks = await wp.getPostBySlug('hello-world').getBlocks();
 
   </TabItem>
 
-  <TabItem label="Generic helpers">
+  <TabItem label="Generic builders">
 
-```ts title="2) Generic resource helpers for CPTs/taxonomies"
-const books = await wp.getContentCollection('books', { perPage: 20 });
-const genres = await wp.getTermCollection('genre', { perPage: 100 });
+```ts title="2) Generic resource builders for CPTs/taxonomies"
+const books = await wp.content('books').list({ perPage: 20 });
+const genres = await wp.terms('genre').list({ perPage: 100 });
 ```
 
   </TabItem>
@@ -313,10 +313,8 @@ const posts = await wp.getPosts(
 
 Media uses a different schema (`description`/`caption`, no `content.raw`), so media helpers do not expose `getBlocks()`.
 
-### Generic resource helpers
+### Generic resource builders
 
-- Content collections: `getContentCollection`, `getAllContentCollection`, `getContentCollectionPaginated`, `getContent`, `getContentBySlug`
-- Term collections: `getTermCollection`, `getAllTermCollection`, `getTermCollectionPaginated`, `getTerm`, `getTermBySlug`
 - Builders: `content(resource, schema?)`, `terms(resource, schema?)`
 
 `content(resource)` and `terms(resource)` also expose unified pagination helpers:
@@ -329,20 +327,19 @@ If `page`/`perPage` are omitted, endpoint defaults are preserved.
 
 Passing a schema to `content(resource, schema)` validates generic content reads and mutations for that resource client.
 
-All collection helpers (`getContentCollection`, `getAllContentCollection`, the `content()` builder, and built-in helpers like `getPosts`) accept a `search` string to filter results by keyword:
+The generic builders and built-in helpers like `getPosts` accept a `search` string to filter results by keyword:
 
 ```ts
 // Built-in helpers
 const posts = await wp.getPosts({ search: 'hello world' });
 const allPosts = await wp.getAllPosts({ search: 'hello world' });
 
-// Generic collection helpers
-const books = await wp.getContentCollection('books', { search: 'Test Book' });
-const allBooks = await wp.getAllContentCollection('books', { search: 'Test Book' });
-
-// content() builder
+// Generic content builder
 const bookResults = await wp.content('books').list({ search: 'Test Book' });
 const allBookResults = await wp.content('books').listAll({ search: 'Test Book' });
+
+// Generic taxonomy builder
+const genreResults = await wp.terms('genre').list({ search: 'Science Fiction' });
 ```
 
 ### Extensible collection filters

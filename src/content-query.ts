@@ -4,6 +4,7 @@ import {
   type WordPressBlockParser,
   type WordPressParsedBlock,
 } from './blocks.js';
+import { ExecutableQuery } from './core/query-base.js';
 
 /**
  * Normalized content payload returned for block-oriented workflows.
@@ -42,7 +43,8 @@ export function resolveWordPressRawContent(
 /**
  * Promise-like content query that adds Gutenberg block parsing helpers.
  */
-export class WordPressContentQuery<TContent extends WordPressPostBase | undefined> implements PromiseLike<TContent> {
+export class WordPressContentQuery<TContent extends WordPressPostBase | undefined>
+  extends ExecutableQuery<TContent> {
   private viewPromise: Promise<TContent> | undefined;
   private editPromise: Promise<TContent> | undefined;
 
@@ -51,7 +53,9 @@ export class WordPressContentQuery<TContent extends WordPressPostBase | undefine
     private readonly loadEdit: () => Promise<TContent>,
     private readonly missingRawMessage: string,
     private readonly defaultBlockParser?: WordPressBlockParser,
-  ) {}
+  ) {
+    super();
+  }
 
   /**
    * Resolves the standard resource payload from one view-context request.
@@ -95,12 +99,9 @@ export class WordPressContentQuery<TContent extends WordPressPostBase | undefine
   }
 
   /**
-   * Supports direct `await` usage by delegating to `get()`.
+   * Resolves the standard resource payload for Promise-like usage.
    */
-  then<TResult1 = TContent, TResult2 = never>(
-    onfulfilled?: ((value: TContent) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
-  ): Promise<TResult1 | TResult2> {
-    return this.get().then(onfulfilled, onrejected);
+  protected execute(): Promise<TContent> {
+    return this.get();
   }
 }

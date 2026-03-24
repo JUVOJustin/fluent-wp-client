@@ -1,14 +1,20 @@
 import type { WordPressPostBase } from '../schemas.js';
-import type { WordPressRequestOverrides, PaginatedResponse, PaginationParams, QueryParams } from '../types/resources.js';
+import type {
+  WordPressRequestOverrides,
+  PaginatedResponse,
+  PaginationParams,
+  QueryParams,
+  WordPressDeleteResult,
+} from '../types/resources.js';
 import type { WordPressWritePayload, DeleteOptions } from '../types/payloads.js';
 import type { WordPressStandardSchema } from './validation.js';
 import type { WordPressRuntime } from './transport.js';
-import { ExecutableQuery } from './query-base.js';
 import { createWordPressPaginator } from './pagination.js';
 import { filterToParams, compactPayload, normalizeDeleteResult } from './params.js';
 import { applyRequestOverrides } from './request-overrides.js';
 import { throwIfWordPressError } from './errors.js';
 import { validateWithStandardSchema } from './validation.js';
+import { resolveMutationArguments } from './mutation-helpers.js';
 import { WordPressContentQuery } from '../content-query.js';
 import type { WordPressBlockParser } from '../blocks.js';
 
@@ -18,6 +24,13 @@ import type { WordPressBlockParser } from '../blocks.js';
 export interface ResourceContext {
   runtime: WordPressRuntime;
   endpoint: string;
+}
+
+/**
+ * Shared CRUD resource context with optional default mutation validation.
+ */
+export interface CrudResourceContext<TResource> extends ResourceContext {
+  defaultSchema?: WordPressStandardSchema<TResource>;
 }
 
 /**
@@ -120,42 +133,11 @@ export abstract class BaseCrudResource<
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > extends BaseCollectionResource<TResource, TFilter> {
-  /**
-   * Optional default response schema for validation.
-   * Override in subclasses to provide default schema.
-   */
-  protected get defaultSchema(): WordPressStandardSchema<TResource> | undefined {
-    return undefined;
-  }
+  protected readonly defaultSchema?: WordPressStandardSchema<TResource>;
 
-  /**
-   * Resolves mutation arguments from overloaded signatures.
-   */
-  protected resolveMutationArguments<TResponse>(
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): {
-    responseSchema?: WordPressStandardSchema<TResponse>;
-    requestOptions?: WordPressRequestOverrides;
-  } {
-    if (responseSchemaOrRequestOptions && typeof responseSchemaOrRequestOptions === 'object' && '~standard' in responseSchemaOrRequestOptions) {
-      return {
-        responseSchema: responseSchemaOrRequestOptions as WordPressStandardSchema<TResponse>,
-        requestOptions,
-      };
-    }
-
-    if (!responseSchemaOrRequestOptions) {
-      return {
-        responseSchema: undefined,
-        requestOptions,
-      };
-    }
-
-    return {
-      responseSchema: undefined,
-      requestOptions: { ...responseSchemaOrRequestOptions, ...requestOptions },
-    };
+  constructor(context: CrudResourceContext<TResource>) {
+    super(context);
+    this.defaultSchema = context.defaultSchema;
   }
 
   /**
@@ -176,6 +158,30 @@ export abstract class BaseCrudResource<
   }
 
   /**
+   * Executes one create or update mutation with shared request/schema handling.
+   */
+  protected mutate<TResponse>(
+    endpoint: string,
+    input: TCreate | TUpdate,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TResponse> {
+    const resolved = resolveMutationArguments<TResponse>(
+      responseSchemaOrRequestOptions,
+      requestOptions,
+    );
+
+    return this.executeMutation<TResponse>(
+      applyRequestOverrides({
+        endpoint,
+        method: 'POST',
+        body: compactPayload(input),
+      }, resolved.requestOptions, 'Mutation helper options'),
+      resolved.responseSchema ?? (this.defaultSchema as WordPressStandardSchema<TResponse> | undefined),
+    );
+  }
+
+  /**
    * Creates a new resource.
    */
   async create<TResponse = TResource>(
@@ -183,15 +189,11 @@ export abstract class BaseCrudResource<
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResponse> {
-    const resolved = this.resolveMutationArguments<TResponse>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.executeMutation<TResponse>(
-      applyRequestOverrides({
-        endpoint: this.endpoint,
-        method: 'POST',
-        body: compactPayload(input),
-      }, resolved.requestOptions, 'Mutation helper options'),
-      resolved.responseSchema ?? (this.defaultSchema as WordPressStandardSchema<TResponse> | undefined),
+    return this.mutate(
+      this.endpoint,
+      input,
+      responseSchemaOrRequestOptions,
+      requestOptions,
     );
   }
 
@@ -204,22 +206,18 @@ export abstract class BaseCrudResource<
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResponse> {
-    const resolved = this.resolveMutationArguments<TResponse>(responseSchemaOrRequestOptions, requestOptions);
-
-    return this.executeMutation<TResponse>(
-      applyRequestOverrides({
-        endpoint: `${this.endpoint}/${id}`,
-        method: 'POST',
-        body: compactPayload(input),
-      }, resolved.requestOptions, 'Mutation helper options'),
-      resolved.responseSchema ?? (this.defaultSchema as WordPressStandardSchema<TResponse> | undefined),
+    return this.mutate(
+      `${this.endpoint}/${id}`,
+      input,
+      responseSchemaOrRequestOptions,
+      requestOptions,
     );
   }
 
   /**
    * Deletes a resource.
    */
-  async delete(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
+  async delete(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
     const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: `${this.endpoint}/${id}`,
@@ -234,7 +232,8 @@ export abstract class BaseCrudResource<
 /**
  * Configuration for post-like resources.
  */
-export interface PostLikeResourceContext extends ResourceContext {
+export interface PostLikeResourceContext<TContent extends WordPressPostBase = WordPressPostBase>
+  extends CrudResourceContext<TContent> {
   missingRawMessage: string;
   defaultBlockParser?: WordPressBlockParser;
 }
@@ -255,7 +254,7 @@ export abstract class BasePostLikeResource<
   protected readonly missingRawMessage: string;
   protected readonly defaultBlockParser?: WordPressBlockParser;
 
-  constructor(context: PostLikeResourceContext) {
+  constructor(context: PostLikeResourceContext<TContent>) {
     super(context);
     this.missingRawMessage = context.missingRawMessage;
     this.defaultBlockParser = context.defaultBlockParser;
@@ -287,12 +286,44 @@ export abstract class BasePostLikeResource<
   }
 
   /**
+   * Fetches one post-like record by ID in view or edit context.
+   */
+  protected fetchContentById(
+    id: number,
+    options?: WordPressRequestOverrides,
+    context?: 'edit',
+  ): Promise<TContent> {
+    return this.runtime.fetchAPI<TContent>(
+      `${this.endpoint}/${id}`,
+      context ? { _embed: 'true', context } : { _embed: 'true' },
+      options,
+    );
+  }
+
+  /**
+   * Fetches the first post-like record matching one slug in view or edit context.
+   */
+  protected async fetchContentBySlug(
+    slug: string,
+    options?: WordPressRequestOverrides,
+    context?: 'edit',
+  ): Promise<TContent | undefined> {
+    const items = await this.runtime.fetchAPI<TContent[]>(
+      this.endpoint,
+      context ? { slug, _embed: 'true', context } : { slug, _embed: 'true' },
+      options,
+    );
+
+    return items[0];
+  }
+
+  /**
    * Gets one post by ID as a content query (supports .getBlocks(), .getContent()).
    */
   getByIdAsQuery(id: number, options?: WordPressRequestOverrides): WordPressContentQuery<TContent> {
     return this.createContentQuery<TContent>(
-      () => this.runtime.fetchAPI<TContent>(`${this.endpoint}/${id}`, { _embed: 'true' }, options),
-      () => this.runtime.fetchAPI<TContent>(`${this.endpoint}/${id}`, { _embed: 'true', context: 'edit' }, options),
+      () => this.fetchContentById(id, options),
+      () => this.fetchContentById(id, options, 'edit'),
     );
   }
 
@@ -301,16 +332,8 @@ export abstract class BasePostLikeResource<
    */
   getBySlugAsQuery(slug: string, options?: WordPressRequestOverrides): WordPressContentQuery<TContent | undefined> {
     return this.createContentQuery<TContent | undefined>(
-      async () => {
-        const params = { slug, _embed: 'true' };
-        const items = await this.runtime.fetchAPI<TContent[]>(this.endpoint, params, options);
-        return items[0];
-      },
-      async () => {
-        const params = { slug, _embed: 'true', context: 'edit' };
-        const items = await this.runtime.fetchAPI<TContent[]>(this.endpoint, params, options);
-        return items[0];
-      },
+      () => this.fetchContentBySlug(slug, options),
+      () => this.fetchContentBySlug(slug, options, 'edit'),
     );
   }
 }

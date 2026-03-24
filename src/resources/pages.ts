@@ -3,9 +3,8 @@ import type { WordPressPage, WordPressPostWriteBase } from '../schemas.js';
 import type { WordPressRequestOverrides } from '../types/resources.js';
 import type { ExtensibleFilter, PaginatedResponse } from '../types/resources.js';
 import type { PagesFilter } from '../types/filters.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
 import { pageSchema } from '../standard-schemas.js';
-import { BasePostLikeResource, type PostLikeResourceContext } from '../core/resource-base.js';
+import { BasePostLikeResource } from '../core/resource-base.js';
 import { WordPressContentQuery } from '../content-query.js';
 import type { WordPressRuntime } from '../core/transport.js';
 
@@ -27,10 +26,6 @@ export class PagesResource extends BasePostLikeResource<
   ExtensibleFilter<PagesFilter>,
   WordPressPostWriteBase
 > {
-  protected override get defaultSchema(): WordPressStandardSchema<WordPressPage> | undefined {
-    return pageSchema as WordPressStandardSchema<WordPressPage>;
-  }
-
   /**
    * Creates a pages resource instance.
    */
@@ -40,6 +35,7 @@ export class PagesResource extends BasePostLikeResource<
       endpoint: '/pages',
       missingRawMessage: missingRawPageMessage,
       defaultBlockParser,
+      defaultSchema: pageSchema,
     });
   }
 
@@ -83,53 +79,4 @@ export class PagesResource extends BasePostLikeResource<
   getPageBySlug(slug: string, options?: WordPressRequestOverrides): WordPressContentQuery<WordPressPage | undefined> {
     return this.getBySlugAsQuery(slug, options);
   }
-
-  /**
-   * Alias for create() - creates a new page.
-   */
-  override create<TResponse = WordPressPage>(
-    input: WordPressPostWriteBase,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return super.create(input, responseSchemaOrRequestOptions, requestOptions);
-  }
-
-  /**
-   * Alias for update() - updates an existing page.
-   */
-  override update<TResponse = WordPressPage>(
-    id: number,
-    input: WordPressPostWriteBase,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return super.update(id, input, responseSchemaOrRequestOptions, requestOptions);
-  }
-
-  /**
-   * Alias for delete() - deletes a page.
-   */
-  override delete(
-    id: number,
-    options?: Parameters<BasePostLikeResource<WordPressPage, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase>['delete']>[1],
-  ): Promise<{ id: number; deleted: boolean; previous?: unknown }> {
-    return super.delete(id, options);
-  }
 }
-
-/**
- * Legacy factory function - now delegates to PagesResource.create().
- * @deprecated Use PagesResource.create() or new PagesResource() directly.
- */
-export function createPagesResource(
-  runtime: WordPressRuntime,
-  defaultBlockParser?: WordPressBlockParser,
-): PagesResource {
-  return PagesResource.create(runtime, defaultBlockParser);
-}
-
-/**
- * @deprecated Import PageMethods from '../types/resources.js' instead.
- */
-export interface PageMethods extends PagesResource {}

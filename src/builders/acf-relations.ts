@@ -1,7 +1,5 @@
 import type { WordPressCategory, WordPressContent, WordPressPost } from '../schemas.js';
 import {
-  createLinkedEmbeddedCollectionRelation,
-  createLinkedEmbeddedSingleRelation,
   defaultParseReferenceId,
   getEmbeddedRelationItems,
   getLinkedRelationIds,
@@ -15,7 +13,11 @@ import {
   type PostRelationClient,
   type RelatedContentReference,
   type RelatedTermReference,
-} from './relation-resolvers.js';
+} from './relation-contracts.js';
+import {
+  createLinkedEmbeddedCollectionRelation,
+  createLinkedEmbeddedSingleRelation,
+} from './relation-definitions.js';
 
 /**
  * Lightweight content shape returned by ACF post embeds.
@@ -130,6 +132,18 @@ interface AcfSharedBucketRelationOptions<T extends { id: number }> extends Resol
   resolveOne?: (client: PostRelationClient, id: number) => Promise<T | null>;
 }
 
+type AcfResolveMany<T> = (
+  client: PostRelationClient,
+  resource: string,
+  ids: number[],
+) => Promise<T[]>;
+
+type AcfResolveOne<T> = (
+  client: PostRelationClient,
+  resource: string,
+  id: number,
+) => Promise<T | null>;
+
 /**
  * Reads one ACF object map from a content response.
  */
@@ -187,35 +201,83 @@ function resolveAcfRelationOptions(
 /**
  * Normalizes one embedded content item to a lightweight DTO.
  */
-function extractAcfContent(item: unknown): AcfRelatedContent | null {
+function extractAcfReference<T>(
+  item: unknown,
+  isSupported: (record: Record<string, unknown>) => boolean,
+  toReference: (record: Record<string, unknown>) => T,
+): T | null {
   if (!item || typeof item !== 'object') {
     return null;
   }
 
-  const content = item as Record<string, unknown>;
+  const record = item as Record<string, unknown>;
 
-  if (typeof content.id !== 'number') {
+  if (!isSupported(record)) {
     return null;
   }
 
-  return toRelatedContentReference(content as WordPressContent);
+  return toReference(record);
+}
+
+/**
+ * Normalizes one embedded content item to a lightweight DTO.
+ */
+function extractAcfContent(item: unknown): AcfRelatedContent | null {
+  return extractAcfReference(
+    item,
+    (content) => typeof content.id === 'number',
+    (content) => toRelatedContentReference(content as WordPressContent),
+  );
 }
 
 /**
  * Normalizes one embedded term item to a lightweight DTO.
  */
 function extractAcfTerm(item: unknown): AcfRelatedTerm | null {
-  if (!item || typeof item !== 'object') {
-    return null;
+  return extractAcfReference(
+    item,
+    (term) => typeof term.id === 'number' && typeof term.taxonomy === 'string',
+    (term) => toRelatedTermReference(term as WordPressCategory),
+  );
+}
+
+function createAcfFallbackResolvers<T>(
+  resource: string,
+  resolveMany: AcfResolveMany<T>,
+  resolveOne: AcfResolveOne<T>,
+): {
+  resolveMany: (client: PostRelationClient, ids: number[]) => Promise<T[]>;
+  resolveOne: (client: PostRelationClient, id: number) => Promise<T | null>;
+};
+
+function createAcfFallbackResolvers<T>(
+  resource: string | undefined,
+  resolveMany: AcfResolveMany<T>,
+  resolveOne: AcfResolveOne<T>,
+): {
+  resolveMany?: (client: PostRelationClient, ids: number[]) => Promise<T[]>;
+  resolveOne?: (client: PostRelationClient, id: number) => Promise<T | null>;
+};
+
+/**
+ * Adapts one resource-aware relation resolver pair to ACF field callbacks.
+ */
+function createAcfFallbackResolvers<T>(
+  resource: string | undefined,
+  resolveMany: AcfResolveMany<T>,
+  resolveOne: AcfResolveOne<T>,
+): {
+  resolveMany?: (client: PostRelationClient, ids: number[]) => Promise<T[]>;
+  resolveOne?: (client: PostRelationClient, id: number) => Promise<T | null>;
+} {
+  if (!resource) {
+    return {};
   }
 
-  const term = item as Record<string, unknown>;
-
-  if (typeof term.id !== 'number' || typeof term.taxonomy !== 'string') {
-    return null;
-  }
-
-  return toRelatedTermReference(term as WordPressCategory);
+  return {
+    resolveMany: (client, ids) => resolveMany(client, resource, ids),
+    resolveOne: (client, id) => resolveOne(client, resource, id),
+  };
 }
 
 /**
@@ -279,14 +341,7 @@ function createAcfContentFallbackResolvers(resource?: string): {
   resolveMany?: (client: PostRelationClient, ids: number[]) => Promise<AcfRelatedContent[]>;
   resolveOne?: (client: PostRelationClient, id: number) => Promise<AcfRelatedContent | null>;
 } {
-  if (!resource) {
-    return {};
-  }
-
-  return {
-    resolveMany: (client, ids) => resolveContentReferences(client, resource, ids),
-    resolveOne: (client, id) => resolveContentReference(client, resource, id),
-  };
+  return createAcfFallbackResolvers(resource, resolveContentReferences, resolveContentReference);
 }
 
 /**
@@ -296,10 +351,7 @@ function createAcfTermFallbackResolvers(resource: string): {
   resolveMany: (client: PostRelationClient, ids: number[]) => Promise<AcfRelatedTerm[]>;
   resolveOne: (client: PostRelationClient, id: number) => Promise<AcfRelatedTerm | null>;
 } {
-  return {
-    resolveMany: (client, ids) => resolveTermReferences(client, resource, ids),
-    resolveOne: (client, id) => resolveTermReference(client, resource, id),
-  };
+  return createAcfFallbackResolvers(resource, resolveTermReferences, resolveTermReference);
 }
 
 /**
@@ -311,14 +363,10 @@ function createAcfTermFallbackResolvers(resource: string): {
 export function createAcfRelationshipRelation(
   options: AcfContentRelationOptions,
 ): CustomRelationConfig<AcfRelatedContent[]> {
-  const resolved = resolveAcfRelationOptions(options, DEFAULT_ACF_POSTS_LINK_KEY);
-  const fallbackResolvers = createAcfContentFallbackResolvers(options.resource);
-
-  return createAcfSharedBucketCollectionRelation(
-    resolved,
-    extractAcfContent,
-    fallbackResolvers.resolveMany,
-  );
+  return createAcfPostObjectRelation({
+    ...options,
+    multiple: true,
+  });
 }
 
 export function createAcfPostObjectRelation(

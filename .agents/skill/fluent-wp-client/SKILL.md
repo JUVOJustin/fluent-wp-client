@@ -292,7 +292,7 @@ type Book = WordPressCustomPost<{
   acf?: { acf_subtitle?: string; acf_summary?: string };
 }>;
 
-const books = await wp.getContentCollection<Book>('books');
+const books = await wp.content<Book>('books').list();
 ```
 
 For full CPT/taxonomy patterns and namespace routing, read

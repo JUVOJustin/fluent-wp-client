@@ -20,37 +20,37 @@ describe('Client: Books', () => {
 
   afterAll(async () => {
     for (const id of createdBookIds) {
-      await authClient.deleteContent('books', id, { force: true }).catch(() => undefined);
+      await authClient.content('books').delete(id, { force: true }).catch(() => undefined);
     }
   });
 
   describe('reads', () => {
-    it('getContentCollection returns seeded books', async () => {
-      const books = await publicClient.getContentCollection('books');
+    it('content() list() returns seeded books', async () => {
+      const books = await publicClient.content('books').list();
 
       expect(Array.isArray(books)).toBe(true);
       expect(books).toHaveLength(10);
       expect(books[0]?.type).toBe('book');
     });
 
-    it('getContentBySlug fetches a known seeded book', async () => {
-      const book = await publicClient.getContentBySlug('books', 'test-book-001');
+    it('content() getBySlug fetches a known seeded book', async () => {
+      const book = await publicClient.content('books').getBySlug('test-book-001');
 
       expect(book).toBeDefined();
       expect(book?.slug).toBe('test-book-001');
       expect(book?.type).toBe('book');
     });
 
-    it('getContentCollection supports the search parameter', async () => {
-      const books = await publicClient.getContentCollection('books', { search: 'Test Book 001' });
+    it('content() list() supports the search parameter', async () => {
+      const books = await publicClient.content('books').list({ search: 'Test Book 001' });
 
       expect(Array.isArray(books)).toBe(true);
       expect(books.length).toBeGreaterThan(0);
       expect(books[0]?.slug).toBe('test-book-001');
     });
 
-    it('getAllContentCollection supports the search parameter', async () => {
-      const books = await publicClient.getAllContentCollection('books', { search: 'Test Book' });
+    it('content() listAll() supports the search parameter', async () => {
+      const books = await publicClient.content('books').listAll({ search: 'Test Book' });
 
       expect(Array.isArray(books)).toBe(true);
       expect(books.length).toBeGreaterThan(0);
@@ -59,7 +59,7 @@ describe('Client: Books', () => {
       }
     });
 
-    it('content() list() supports the search parameter', async () => {
+    it('content() list() supports the search parameter with validation', async () => {
       const booksClient = publicClient.content('books', contentWordPressSchema);
       const results = await booksClient.list({ search: 'Test Book 001' });
 
@@ -68,14 +68,14 @@ describe('Client: Books', () => {
       expect(results[0]?.slug).toBe('test-book-001');
     });
 
-    it('getContentCollection supports include arrays on custom post type endpoints', async () => {
-      const first = await publicClient.getContentBySlug('books', 'test-book-001');
-      const second = await publicClient.getContentBySlug('books', 'test-book-002');
+    it('content() list() supports include arrays on custom post type endpoints', async () => {
+      const first = await publicClient.content('books').getBySlug('test-book-001');
+      const second = await publicClient.content('books').getBySlug('test-book-002');
 
       expect(first).toBeDefined();
       expect(second).toBeDefined();
 
-      const books = await publicClient.getContentCollection('books', {
+      const books = await publicClient.content('books').list({
         include: [first!.id, second!.id],
       });
 

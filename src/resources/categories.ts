@@ -3,9 +3,8 @@ import type { WordPressRequestOverrides, PaginatedResponse } from '../types/reso
 import type { CategoriesFilter } from '../types/filters.js';
 import type { ExtensibleFilter } from '../types/resources.js';
 import type { TermWriteInput } from '../types/payloads.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
 import { categorySchema } from '../standard-schemas.js';
-import { BaseCrudResource, type ResourceContext } from '../core/resource-base.js';
+import { BaseCrudResource } from '../core/resource-base.js';
 import type { WordPressRuntime } from '../core/transport.js';
 
 /**
@@ -24,10 +23,6 @@ export class CategoriesResource extends BaseCrudResource<
   TermWriteInput,
   TermWriteInput
 > {
-  protected override get defaultSchema(): WordPressStandardSchema<WordPressCategory> | undefined {
-    return categorySchema as WordPressStandardSchema<WordPressCategory>;
-  }
-
   /**
    * Creates a categories resource instance.
    */
@@ -35,6 +30,7 @@ export class CategoriesResource extends BaseCrudResource<
     return new CategoriesResource({
       runtime,
       endpoint: '/categories',
+      defaultSchema: categorySchema,
     });
   }
 
@@ -79,16 +75,3 @@ export class CategoriesResource extends BaseCrudResource<
     return this.getBySlug(slug, options);
   }
 }
-
-/**
- * Legacy factory function - now delegates to CategoriesResource.create().
- * @deprecated Use CategoriesResource.create() or new CategoriesResource() directly.
- */
-export function createCategoriesResource(runtime: WordPressRuntime): CategoriesResource {
-  return CategoriesResource.create(runtime);
-}
-
-/**
- * @deprecated Import CategoryMethods from '../types/resources.js' instead.
- */
-export interface CategoryMethods extends CategoriesResource {}

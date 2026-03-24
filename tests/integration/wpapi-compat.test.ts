@@ -27,7 +27,7 @@ describe('Client: WPAPI compatibility syntax', () => {
     }
 
     for (const id of createdGenreIds) {
-      await authClient.deleteTerm('genre', id, { force: true }).catch(() => undefined);
+      await authClient.terms('genre').delete(id, { force: true }).catch(() => undefined);
     }
   });
 

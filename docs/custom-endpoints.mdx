@@ -136,7 +136,7 @@ import { parseWordPressBlocks, type WordPressPostBase } from 'fluent-wp-client';
 
 type Book = WordPressPostBase & { type: 'book' };
 
-const books = await wp.getContentCollection<Book>('books', {
+const books = await wp.content<Book>('books').list({
   slug: 'test-book-001',
   context: 'edit',
 });

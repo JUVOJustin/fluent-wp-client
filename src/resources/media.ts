@@ -1,12 +1,11 @@
 import type { WordPressMedia } from '../schemas.js';
 import type { WordPressMediaUploadInput } from '../types/client.js';
-import type { WordPressRequestOverrides, PaginatedResponse, WordPressDeleteResult } from '../types/resources.js';
+import type { WordPressRequestOverrides, PaginatedResponse } from '../types/resources.js';
 import type { MediaFilter } from '../types/filters.js';
 import type { ExtensibleFilter } from '../types/resources.js';
 import type { WordPressWritePayload } from '../types/payloads.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
 import { mediaSchema } from '../standard-schemas.js';
-import { BaseCrudResource, type ResourceContext } from '../core/resource-base.js';
+import { BaseCrudResource } from '../core/resource-base.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import type { WordPressRuntime } from '../core/transport.js';
 
@@ -26,10 +25,6 @@ export class MediaResource extends BaseCrudResource<
   WordPressWritePayload,
   WordPressWritePayload
 > {
-  protected override get defaultSchema(): WordPressStandardSchema<WordPressMedia> | undefined {
-    return mediaSchema as WordPressStandardSchema<WordPressMedia>;
-  }
-
   /**
    * Creates a media resource instance.
    */
@@ -37,6 +32,7 @@ export class MediaResource extends BaseCrudResource<
     return new MediaResource({
       runtime,
       endpoint: '/media',
+      defaultSchema: mediaSchema,
     });
   }
 
@@ -134,19 +130,6 @@ export class MediaResource extends BaseCrudResource<
       return created;
     }
 
-    return this.update(created.id, metadata, undefined, requestOptions);
+    return this.update(created.id, metadata, requestOptions);
   }
 }
-
-/**
- * Legacy factory function - now delegates to MediaResource.create().
- * @deprecated Use MediaResource.create() or new MediaResource() directly.
- */
-export function createMediaResource(runtime: WordPressRuntime): MediaResource {
-  return MediaResource.create(runtime);
-}
-
-/**
- * @deprecated Import MediaMethods from '../types/resources.js' instead.
- */
-export interface MediaMethods extends MediaResource {}

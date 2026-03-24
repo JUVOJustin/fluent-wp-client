@@ -95,4 +95,4 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 
 ## Development notes
 
-Contributor-facing transport and base resource classes live in `src/core/`, while relation definitions, registries, and reference resolvers live in `src/builders/relation-*.ts`. Package consumers continue to import the public API from `src/index.ts`.
+Contributor-facing transport, mutation helpers, query primitives, and base resource classes live in `src/core/`, while relation contracts, definition factories, and the fluent relation builder live in `src/builders/`. Package consumers continue to import the public API from `src/index.ts`.

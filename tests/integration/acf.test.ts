@@ -253,7 +253,7 @@ describe('Client: ACF fields', () => {
     }
 
     for (const id of createdGenreIds) {
-      await client.deleteTerm('genre', id, { force: true }).catch(() => undefined);
+      await client.terms('genre').delete(id, { force: true }).catch(() => undefined);
     }
   });
 
@@ -362,11 +362,11 @@ describe('Client: ACF fields', () => {
 
   it('creates taxonomy ACF fields as numeric term ids with term links and embeds', async () => {
     const [genre1, genre2] = await Promise.all([
-      client.createTerm('genre', {
+      client.terms('genre').create({
         name: 'Client ACF Genre One',
         slug: 'client-acf-genre-one',
       }),
-      client.createTerm('genre', {
+      client.terms('genre').create({
         name: 'Client ACF Genre Two',
         slug: 'client-acf-genre-two',
       }),

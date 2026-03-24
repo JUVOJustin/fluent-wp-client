@@ -2,10 +2,9 @@ import type { WordPressAuthor } from '../schemas.js';
 import type { WordPressRequestOverrides, PaginatedResponse } from '../types/resources.js';
 import type { UsersFilter } from '../types/filters.js';
 import type { ExtensibleFilter } from '../types/resources.js';
-import type { UserWriteInput, UserDeleteOptions } from '../types/payloads.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
+import type { UserWriteInput } from '../types/payloads.js';
 import { authorSchema } from '../standard-schemas.js';
-import { BaseCrudResource, type ResourceContext } from '../core/resource-base.js';
+import { BaseCrudResource } from '../core/resource-base.js';
 import type { WordPressRuntime } from '../core/transport.js';
 
 /**
@@ -24,10 +23,6 @@ export class UsersResource extends BaseCrudResource<
   UserWriteInput,
   UserWriteInput
 > {
-  protected override get defaultSchema(): WordPressStandardSchema<WordPressAuthor> | undefined {
-    return authorSchema as WordPressStandardSchema<WordPressAuthor>;
-  }
-
   /**
    * Creates a users resource instance.
    */
@@ -35,6 +30,7 @@ export class UsersResource extends BaseCrudResource<
     return new UsersResource({
       runtime,
       endpoint: '/users',
+      defaultSchema: authorSchema,
     });
   }
 
@@ -89,16 +85,3 @@ export class UsersResource extends BaseCrudResource<
     return this.runtime.fetchAPI<WordPressAuthor>('/users/me', undefined, requestOptions);
   }
 }
-
-/**
- * Legacy factory function - now delegates to UsersResource.create().
- * @deprecated Use UsersResource.create() or new UsersResource() directly.
- */
-export function createUsersResource(runtime: WordPressRuntime): UsersResource {
-  return UsersResource.create(runtime);
-}
-
-/**
- * @deprecated Import UserMethods from '../types/resources.js' instead.
- */
-export interface UserMethods extends UsersResource {}

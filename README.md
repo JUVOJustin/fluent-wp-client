@@ -40,7 +40,7 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
 - **WPAPI-compatible fluent syntax** — migrate from `node-wpapi` with minimal changes
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
-- **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`
+- **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`, with schema-backed generic builders validating reads and mutations
 - **Extensible relation API** — fluent relations for posts and custom entities, plus generic ID-backed and shared link/embed relation factories
 
 ## Flexible collection filters

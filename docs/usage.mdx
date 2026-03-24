@@ -325,7 +325,9 @@ Media uses a different schema (`description`/`caption`, no `content.raw`), so me
 
 If `page`/`perPage` are omitted, endpoint defaults are preserved.
 
-Passing a schema to `content(resource, schema)` validates generic content reads and mutations for that resource client.
+Passing a schema to `content(resource, schema)` validates generic content reads and mutations for that resource client, including schema-backed `item(...).with(...).get()` and `getWithRelations(...)` calls.
+
+Passing a schema to `terms(resource, schema)` validates generic taxonomy reads and mutations for that resource client.
 
 The generic builders and built-in helpers like `getPosts` accept a `search` string to filter results by keyword:
 

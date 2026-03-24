@@ -44,6 +44,8 @@ const withTerms = await books.getWithRelations('test-book-001', 'terms');
 console.log(withTerms.related.terms.taxonomies);
 ```
 
+When you pass a schema to `content('books', schema)`, the base book payload is validated before fluent relation data is attached under `related`.
+
 For custom taxonomies such as `genre`, hydrated term data is available under `related.terms.taxonomies.genre`.
 
 ### Pagination for CPT and custom taxonomies

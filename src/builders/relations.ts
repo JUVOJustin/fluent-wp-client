@@ -394,6 +394,7 @@ export class PostRelationQueryBuilder<
     private readonly getById: (id: number) => PromiseLike<TContent>,
     private readonly getBySlug: (slug: string) => PromiseLike<TContent | undefined>,
     relations: readonly AllPostRelations[] = [],
+    private readonly finalizeContent?: (content: TContent) => PromiseLike<TContent>,
   ) {
     this.relationSet = new Set(relations);
   }
@@ -624,6 +625,7 @@ export class PostRelationQueryBuilder<
       this.getById,
       this.getBySlug,
       Array.from(nextRelations),
+      this.finalizeContent,
     ) as PostRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
   }
 
@@ -640,9 +642,12 @@ export class PostRelationQueryBuilder<
   async get(): Promise<TContent & { related: SelectedPostRelations<TRelations> }> {
     const post = await this.loadSelectedPost();
     const related = await this.resolveRelated(post);
+    const content = this.finalizeContent
+      ? await this.finalizeContent(post)
+      : post;
 
     return {
-      ...post,
+      ...content,
       related: related as SelectedPostRelations<TRelations>,
     };
   }

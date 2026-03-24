@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
+import {
+  WordPressClient,
+  WordPressSchemaValidationError,
+  type WordPressStandardSchema,
+} from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
@@ -88,6 +92,79 @@ describe('Client: Terms', () => {
 
       expect(bySlug?.id).toBe(seedGenreId);
       expect(all.some((genre) => genre.id === seedGenreId)).toBe(true);
+    });
+
+    it('terms() validates single-item reads when a schema is provided', async () => {
+      const genreSchema: WordPressStandardSchema<{ id: number; slug: string; taxonomy: string }> = {
+        '~standard': {
+          version: 1,
+          vendor: 'integration-test',
+          validate(value) {
+            if (typeof value !== 'object' || value === null) {
+              return { issues: [{ message: 'Expected term object response.' }] };
+            }
+
+            const record = value as Record<string, unknown>;
+
+            if (typeof record.id !== 'number') {
+              return { issues: [{ message: 'Expected numeric id.' }] };
+            }
+
+            if (typeof record.slug !== 'string') {
+              return { issues: [{ message: 'Expected string slug.' }] };
+            }
+
+            if (typeof record.taxonomy !== 'string') {
+              return { issues: [{ message: 'Expected string taxonomy.' }] };
+            }
+
+            return {
+              value: {
+                id: record.id,
+                slug: record.slug,
+                taxonomy: record.taxonomy,
+              },
+            };
+          },
+        },
+      };
+
+      const genres = publicClient.terms('genre', genreSchema);
+      const genre = await genres.getById(seedGenreId);
+
+      expect(genre.id).toBe(seedGenreId);
+      expect(genre.slug).toBe(seedGenreSlug);
+      expect(genre.taxonomy).toBe('genre');
+    });
+
+    it('terms() validates collection reads when a schema is provided', async () => {
+      const rejectSeedGenreSchema: WordPressStandardSchema<{ id: number }> = {
+        '~standard': {
+          version: 1,
+          vendor: 'integration-test',
+          validate(value) {
+            if (typeof value !== 'object' || value === null) {
+              return { issues: [{ message: 'Expected term object response.' }] };
+            }
+
+            const record = value as Record<string, unknown>;
+
+            if (typeof record.id !== 'number') {
+              return { issues: [{ message: 'Expected numeric id.' }] };
+            }
+
+            if (record.id === seedGenreId) {
+              return { issues: [{ message: 'Expected seeded genre validation failure.' }] };
+            }
+
+            return { value: { id: record.id } };
+          },
+        },
+      };
+
+      await expect(
+        publicClient.terms('genre', rejectSeedGenreSchema).list(),
+      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
     });
   });
 

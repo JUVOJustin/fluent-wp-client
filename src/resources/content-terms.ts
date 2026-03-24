@@ -145,7 +145,106 @@ class GenericTermResource<
   TTerm = WordPressCategory,
   TCreate extends WordPressWritePayload = TermWriteInput,
   TUpdate extends WordPressWritePayload = TCreate,
-> extends BaseCrudResource<TTerm, QueryParams & PaginationParams, TCreate, TUpdate> {}
+> extends BaseCrudResource<TTerm, QueryParams & PaginationParams, TCreate, TUpdate> {
+  private responseSchema?: WordPressStandardSchema<TTerm>;
+
+  constructor(context: {
+    runtime: WordPressRuntime;
+    endpoint: string;
+    responseSchema?: WordPressStandardSchema<TTerm>;
+  }) {
+    super(context);
+    this.responseSchema = context.responseSchema;
+  }
+
+  /**
+   * Validates term items when a schema is configured.
+   */
+  private async validate<T>(value: unknown): Promise<T> {
+    if (!this.responseSchema) {
+      return value as T;
+    }
+
+    const { validateWithStandardSchema } = await import('../core/validation.js');
+    // @ts-ignore - Schema type complexity
+    return validateWithStandardSchema(this.responseSchema, value, 'Term response validation failed');
+  }
+
+  /**
+   * Validates a term collection.
+   */
+  private async validateCollection<T>(values: unknown[]): Promise<T[]> {
+    if (!this.responseSchema) {
+      return values as T[];
+    }
+
+    return Promise.all(values.map((value) => this.validate<T>(value)));
+  }
+
+  /**
+   * Lists terms with optional validation.
+   */
+  async listWithValidation(
+    filter: QueryParams & PaginationParams = {},
+    options?: WordPressRequestOverrides,
+  ): Promise<TTerm[]> {
+    const items = await this.list(filter, options);
+    return this.validateCollection<TTerm>(items as unknown[]);
+  }
+
+  /**
+   * Lists every page of terms with optional validation.
+   */
+  async listAllWithValidation(
+    filter: Omit<QueryParams & PaginationParams, 'page'> = {},
+    options?: WordPressRequestOverrides,
+  ): Promise<TTerm[]> {
+    const items = await this.listAll(filter, options);
+    return this.validateCollection<TTerm>(items as unknown[]);
+  }
+
+  /**
+   * Lists one page of terms with pagination metadata and optional validation.
+   */
+  async listPaginatedWithValidation(
+    filter: QueryParams & PaginationParams = {},
+    options?: WordPressRequestOverrides,
+  ): Promise<PaginatedResponse<TTerm>> {
+    const result = await this.listPaginated(filter, options);
+
+    return {
+      ...result,
+      data: await this.validateCollection<TTerm>(result.data as unknown[]),
+    };
+  }
+
+  /**
+   * Gets single term by ID with optional validation.
+   */
+  async getWithValidation(
+    id: number,
+    options?: WordPressRequestOverrides,
+  ): Promise<TTerm> {
+    const item = await this.getById(id, options);
+    return this.validate<TTerm>(item as unknown);
+  }
+
+  /**
+   * Gets single term by slug with optional validation.
+   */
+  async getBySlugWithValidation(
+    slug: string,
+    options?: WordPressRequestOverrides,
+  ): Promise<TTerm | undefined> {
+    const item = await this.getBySlug(slug, options);
+
+    if (item === undefined) {
+      return undefined;
+    }
+
+    return this.validate<TTerm>(item as unknown);
+  }
+}
 
 /**
  * Registry for managing generic content and term resources.
@@ -204,6 +303,19 @@ export class GenericResourceRegistry {
     resource: GenericContentResource<TResource>,
     responseSchema?: WordPressStandardSchema<TResource>,
   ): ContentResourceClient<TResource, WordPressWritePayload, WordPressWritePayload> {
+    const validateContent = async (value: TResource): Promise<TResource> => {
+      if (!responseSchema) {
+        return value;
+      }
+
+      const { validateWithStandardSchema } = await import('../core/validation.js');
+      return validateWithStandardSchema(
+        responseSchema,
+        value,
+        'Content response validation failed',
+      );
+    };
+
     const createRelationQuery = <TRelations extends readonly AllPostRelations[]>(
       idOrSlug: number | string,
       relations: TRelations,
@@ -213,6 +325,7 @@ export class GenericResourceRegistry {
       (id) => resource.getByIdAsQuery(id),
       (slug) => resource.getBySlugAsQuery(slug),
       relations,
+      validateContent,
     );
 
     return {
@@ -249,15 +362,6 @@ export class GenericResourceRegistry {
       ): Promise<TResource & { related: SelectedPostRelations<TRelations> }> => {
         const query = createRelationQuery(idOrSlug, relations);
         const result = await query.get();
-        if (responseSchema) {
-          const { validateWithStandardSchema } = await import('../core/validation.js');
-          // @ts-ignore - Validation returns Promise, we await it
-          return await validateWithStandardSchema(
-            responseSchema,
-            result,
-            'Content with relations validation failed',
-          ) as TResource & { related: SelectedPostRelations<TRelations> };
-        }
         return result as TResource & { related: SelectedPostRelations<TRelations> };
       },
       create: (input, options) => resource.create(input, responseSchema as WordPressStandardSchema<TResource>, options),
@@ -273,24 +377,34 @@ export class GenericResourceRegistry {
     resource: string,
     responseSchema?: WordPressStandardSchema<TTerm>,
   ): TermsResourceClient<TTerm, TermWriteInput, TermWriteInput> {
-    const cacheKey = resource;
+    const cacheKey = responseSchema
+      ? null
+      : `${resource}:raw`;
 
-    let baseResource = this.termCache.get(cacheKey) as GenericTermResource<TTerm> | undefined;
+    let baseResource: GenericTermResource<TTerm> | undefined;
+
+    if (cacheKey) {
+      baseResource = this.termCache.get(cacheKey) as GenericTermResource<TTerm> | undefined;
+    }
 
     if (!baseResource) {
       baseResource = new GenericTermResource<TTerm>({
         runtime: this.context.runtime,
         endpoint: `/${resource}`,
+        responseSchema,
       });
-      this.termCache.set(cacheKey, baseResource as GenericTermResource);
+
+      if (cacheKey) {
+        this.termCache.set(cacheKey, baseResource as GenericTermResource);
+      }
     }
 
     return {
-      list: (filter = {}, options) => baseResource.list(filter as QueryParams & PaginationParams, options) as Promise<TTerm[]>,
-      listAll: (filter = {}, options) => baseResource.listAll(filter as Omit<QueryParams & PaginationParams, 'page'>, options) as Promise<TTerm[]>,
-      listPaginated: (filter = {}, options) => baseResource.listPaginated(filter as QueryParams & PaginationParams, options) as Promise<PaginatedResponse<TTerm>>,
-      getById: (id, options) => baseResource.getById(id, options) as Promise<TTerm>,
-      getBySlug: (slug, options) => baseResource.getBySlug(slug, options) as Promise<TTerm | undefined>,
+      list: (filter = {}, options) => baseResource.listWithValidation(filter as QueryParams & PaginationParams, options) as Promise<TTerm[]>,
+      listAll: (filter = {}, options) => baseResource.listAllWithValidation(filter as Omit<QueryParams & PaginationParams, 'page'>, options) as Promise<TTerm[]>,
+      listPaginated: (filter = {}, options) => baseResource.listPaginatedWithValidation(filter as QueryParams & PaginationParams, options) as Promise<PaginatedResponse<TTerm>>,
+      getById: (id, options) => baseResource.getWithValidation(id, options) as Promise<TTerm>,
+      getBySlug: (slug, options) => baseResource.getBySlugWithValidation(slug, options) as Promise<TTerm | undefined>,
       create: (input, options) => baseResource.create(input, responseSchema, options) as Promise<TTerm>,
       update: (id, input, options) => baseResource.update(id, input, responseSchema, options) as Promise<TTerm>,
       delete: (id, options) => baseResource.delete(id, options),

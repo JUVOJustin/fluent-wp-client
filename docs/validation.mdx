@@ -30,7 +30,8 @@ Core mutation helpers use built-in response validation by default. Pass your own
 - Start with `/zod` when you need schema extension ergonomics.
 - Start with root exports when you want validator-agnostic app code.
 - Core mutation helpers auto-validate with built-in schemas.
-- `content(resource, schema)` validates generic CPT reads and mutations for that resource client.
+- `content(resource, schema)` validates generic CPT reads and mutations for that resource client, including fluent relation-hydrated single-item reads.
+- `terms(resource, schema)` validates generic taxonomy reads and mutations for that resource client.
 - Pass your own schema to `responseSchema`, `inputSchema`, or `outputSchema` whenever you need custom validation rules.
 - `schema['~standard'].validate(...)` is implemented by the schema's library (Zod, Valibot, ArkType, etc.).
 - For non-Zod extension workflows, model the final response shape in your validator library and pass that schema to the client.
@@ -97,6 +98,8 @@ const createdBook = await books.create({
   status: 'draft',
 });
 ```
+
+The same schema-backed resource client also validates `list()`, `getBySlug()`, `item(...).with(...).get()`, and `getWithRelations(...)` for that custom post type.
 
 ## Example: sparse CPT validation with built-in schemas
 

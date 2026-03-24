@@ -331,7 +331,7 @@ export async function GET(request: Request, { params }: { params: { slug: string
     auth,
   });
 
-  return Response.json(await wp.getPostBySlug(params.slug));
+  return Response.json(await wp.content('posts').getBySlug(params.slug));
 }
 ```
 

@@ -18,9 +18,17 @@ describe('Client: DTO serialization', () => {
     authClient = createAuthClient();
   });
 
+  function postsClient(client: WordPressClient) {
+    return client.content('posts');
+  }
+
+  function pagesClient(client: WordPressClient) {
+    return client.content('pages');
+  }
+
   describe('post list DTOs', () => {
-    it('getPosts() items are structuredClone-safe', async () => {
-      const posts = await publicClient.getPosts({ perPage: 1 });
+    it('content(\'posts\').list() items are structuredClone-safe', async () => {
+      const posts = await postsClient(publicClient).list({ perPage: 1 });
 
       expect(posts.length).toBeGreaterThan(0);
 
@@ -30,8 +38,8 @@ describe('Client: DTO serialization', () => {
       expect(cloned[0].slug).toBe(posts[0].slug);
     });
 
-    it('getPosts() items have no helper methods or thenable', async () => {
-      const posts = await publicClient.getPosts({ perPage: 1 });
+    it('content(\'posts\').list() items have no helper methods or thenable', async () => {
+      const posts = await postsClient(publicClient).list({ perPage: 1 });
       const first = posts[0];
 
       expect('getBlocks' in first).toBe(false);
@@ -40,8 +48,8 @@ describe('Client: DTO serialization', () => {
       expect('then' in first).toBe(false);
     });
 
-    it('getPosts() items round-trip through JSON', async () => {
-      const posts = await publicClient.getPosts({ perPage: 2 });
+    it('content(\'posts\').list() items round-trip through JSON', async () => {
+      const posts = await postsClient(publicClient).list({ perPage: 2 });
       const json = JSON.stringify(posts);
       const parsed = JSON.parse(json);
 
@@ -51,8 +59,8 @@ describe('Client: DTO serialization', () => {
   });
 
   describe('page list DTOs', () => {
-    it('getPages() items are structuredClone-safe', async () => {
-      const pages = await publicClient.getPages({ perPage: 1 });
+    it('content(\'pages\').list() items are structuredClone-safe', async () => {
+      const pages = await pagesClient(publicClient).list({ perPage: 1 });
 
       expect(pages.length).toBeGreaterThan(0);
 
@@ -61,8 +69,8 @@ describe('Client: DTO serialization', () => {
       expect(cloned[0].id).toBe(pages[0].id);
     });
 
-    it('getPages() items have no helper methods or thenable', async () => {
-      const pages = await publicClient.getPages({ perPage: 1 });
+    it('content(\'pages\').list() items have no helper methods or thenable', async () => {
+      const pages = await pagesClient(publicClient).list({ perPage: 1 });
       const first = pages[0];
 
       expect('getBlocks' in first).toBe(false);
@@ -73,8 +81,8 @@ describe('Client: DTO serialization', () => {
   });
 
   describe('paginated DTOs', () => {
-    it('getPostsPaginated().data items are plain DTOs', async () => {
-      const result = await publicClient.getPostsPaginated({ perPage: 1 });
+    it('content(\'posts\').listPaginated().data items are plain DTOs', async () => {
+      const result = await postsClient(publicClient).listPaginated({ perPage: 1 });
 
       expect(result.data.length).toBeGreaterThan(0);
       expect('getBlocks' in result.data[0]).toBe(false);
@@ -84,8 +92,8 @@ describe('Client: DTO serialization', () => {
       expect(cloned[0].id).toBe(result.data[0].id);
     });
 
-    it('getPagesPaginated().data items are plain DTOs', async () => {
-      const result = await publicClient.getPagesPaginated({ perPage: 1 });
+    it('content(\'pages\').listPaginated().data items are plain DTOs', async () => {
+      const result = await pagesClient(publicClient).listPaginated({ perPage: 1 });
 
       expect(result.data.length).toBeGreaterThan(0);
       expect('getBlocks' in result.data[0]).toBe(false);
@@ -97,20 +105,20 @@ describe('Client: DTO serialization', () => {
   });
 
   describe('single-item query resolution', () => {
-    it('getPost() resolves to a structuredClone-safe DTO', async () => {
-      const lookup = await publicClient.getPostBySlug('test-post-001');
+    it('content(\'posts\').item() resolves to a structuredClone-safe DTO', async () => {
+      const lookup = await postsClient(publicClient).getBySlug('test-post-001');
 
       expect(lookup).toBeDefined();
 
-      const post = await publicClient.getPost(lookup!.id);
+      const post = await postsClient(publicClient).item(lookup!.id);
       const cloned = structuredClone(post);
 
       expect(cloned.id).toBe(post.id);
       expect(cloned.slug).toBe(post.slug);
     });
 
-    it('getPostBySlug() resolves to a plain DTO without helpers', async () => {
-      const post = await publicClient.getPostBySlug('test-post-001');
+    it('content(\'posts\').getBySlug() resolves to a plain DTO without helpers', async () => {
+      const post = await postsClient(publicClient).getBySlug('test-post-001');
 
       expect(post).toBeDefined();
       expect('getBlocks' in (post as object)).toBe(false);
@@ -123,9 +131,9 @@ describe('Client: DTO serialization', () => {
     });
   });
 
-  describe('getAllPosts DTOs', () => {
-    it('getAllPosts() items are structuredClone-safe', async () => {
-      const posts = await publicClient.getAllPosts();
+  describe('all-pages DTOs', () => {
+    it('content(\'posts\').listAll() items are structuredClone-safe', async () => {
+      const posts = await postsClient(publicClient).listAll();
 
       expect(posts.length).toBeGreaterThan(0);
 
@@ -134,8 +142,8 @@ describe('Client: DTO serialization', () => {
       expect(cloned[0].id).toBe(posts[0].id);
     });
 
-    it('getAllPosts() items have no helper methods', async () => {
-      const posts = await publicClient.getAllPosts();
+    it('content(\'posts\').listAll() items have no helper methods', async () => {
+      const posts = await postsClient(publicClient).listAll();
       const first = posts[0];
 
       expect('getBlocks' in first).toBe(false);
@@ -144,8 +152,8 @@ describe('Client: DTO serialization', () => {
   });
 
   describe('list to query block workflow', () => {
-    it('iterates post list and retrieves blocks via new query instance', async () => {
-      const posts = await authClient.getPosts({ perPage: 5 });
+    it('iterates post list and retrieves blocks via a new query instance', async () => {
+      const posts = await postsClient(authClient).list({ perPage: 5 });
 
       expect(posts.length).toBeGreaterThan(0);
 
@@ -155,18 +163,18 @@ describe('Client: DTO serialization', () => {
         return;
       }
 
-      const blocks = await authClient.getPost(firstWithContent.id).getBlocks();
+      const blocks = await postsClient(authClient).item(firstWithContent.id).getBlocks();
 
       expect(blocks).toBeDefined();
       expect(Array.isArray(blocks)).toBe(true);
     });
 
-    it('iterates page list and retrieves content via new query instance', async () => {
-      const pages = await authClient.getPages({ perPage: 5 });
+    it('iterates page list and retrieves content via a new query instance', async () => {
+      const pages = await pagesClient(authClient).list({ perPage: 5 });
 
       expect(pages.length).toBeGreaterThan(0);
 
-      const content = await authClient.getPage(pages[0].id).getContent();
+      const content = await pagesClient(authClient).item(pages[0].id).getContent();
 
       expect(content).toBeDefined();
       expect(typeof content?.raw).toBe('string');

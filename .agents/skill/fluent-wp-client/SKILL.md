@@ -37,9 +37,9 @@ const wp = new WordPressClient({
 ### 3. Read content
 
 ```ts
-const posts = await wp.getPosts({ perPage: 10 });
-const post  = await wp.getPostBySlug('hello-world');
-const pages = await wp.getAllPages();
+const posts = await wp.content('posts').list({ perPage: 10 });
+const post  = await wp.content('posts').item('hello-world');
+const pages = await wp.content('pages').listAll();
 ```
 
 ### 4. Create content (requires auth)
@@ -50,7 +50,7 @@ const wp = new WordPressClient({
   auth: { username: 'admin', password: 'xxxx xxxx xxxx xxxx' },
 });
 
-const draft = await wp.createPost({
+const draft = await wp.content('posts').create({
   title: 'New post',
   content: '<p>Body content.</p>',
   status: 'draft',
@@ -151,44 +151,47 @@ const { data } = await wp.request({
 
 ```ts
 // Read
-const posts     = await wp.getPosts({ categories: [3], perPage: 20 });
-const allPosts  = await wp.getAllPosts({ status: 'publish' });
-const paginated = await wp.getPostsPaginated({ page: 2, perPage: 10 });
-const post      = await wp.getPost(42);
-const bySlug    = await wp.getPostBySlug('hello-world');
+const posts     = await wp.content('posts').list({ categories: [3], perPage: 20 });
+const allPosts  = await wp.content('posts').listAll({ status: 'publish' });
+const paginated = await wp.content('posts').listPaginated({ page: 2, perPage: 10 });
+const post      = await wp.content('posts').item(42);
+const bySlug    = await wp.content('posts').getBySlug('hello-world');
 
 // Create, update, delete
-const created = await wp.createPost({ title: 'Title', status: 'draft' });
-const updated = await wp.updatePost(created.id, { status: 'publish' });
-await wp.deletePost(created.id, { force: true });
+const created = await wp.content('posts').create({ title: 'Title', status: 'draft' });
+const updated = await wp.content('posts').update(created.id, { status: 'publish' });
+await wp.content('posts').delete(created.id, { force: true });
 ```
 
 ### Pages
 
 ```ts
-const pages    = await wp.getPages({ perPage: 50 });
-const allPages = await wp.getAllPages();
-const page     = await wp.getPage(10);
-const bySlug   = await wp.getPageBySlug('about');
+const pages    = await wp.content('pages').list({ perPage: 50 });
+const allPages = await wp.content('pages').listAll();
+const page     = await wp.content('pages').item(10);
+const bySlug   = await wp.content('pages').getBySlug('about');
 
-const created = await wp.createPage({ title: 'About us', status: 'draft' });
-await wp.updatePage(created.id, { status: 'publish' });
-await wp.deletePage(created.id, { force: true });
+const created = await wp.content('pages').create({ title: 'About us', status: 'draft' });
+await wp.content('pages').update(created.id, { status: 'publish' });
+await wp.content('pages').delete(created.id, { force: true });
 ```
 
 ### Categories and tags
 
 ```ts
-const cats = await wp.getAllCategories();
-const cat  = await wp.getCategoryBySlug('technology');
+const categories = wp.terms('categories');
+const tags = wp.terms('tags');
 
-const created = await wp.createCategory({ name: 'News' });
-await wp.updateCategory(created.id, { description: 'Latest news' });
-await wp.deleteCategory(created.id, { force: true });
+const cats = await categories.listAll();
+const cat  = await categories.getBySlug('technology');
+
+const created = await categories.create({ name: 'News' });
+await categories.update(created.id, { description: 'Latest news' });
+await categories.delete(created.id, { force: true });
 
 // Tags follow the same pattern
-const tags = await wp.getAllTags();
-const tag  = await wp.createTag({ name: 'featured' });
+const allTags = await tags.listAll();
+const tag = await tags.create({ name: 'featured' });
 ```
 
 ### Comments
@@ -304,15 +307,15 @@ Parse serialized block markup into structured block trees.
 
 ```ts
 // From a single post/page query
-const blocks = await wp.getPostBySlug('hello-world').getBlocks();
-const pageBlocks = await wp.getPageBySlug('about').getBlocks();
+const blocks = await wp.content('posts').item('hello-world').getBlocks();
+const pageBlocks = await wp.content('pages').item('about').getBlocks();
 
 // From list records
-const posts = await wp.getPosts({ perPage: 5 });
+const posts = await wp.content('posts').list({ perPage: 5 });
 const firstBlocks = await posts[0].getBlocks();
 
 // Raw + rendered content together
-const content = await wp.getPostBySlug('hello-world').getContent();
+const content = await wp.content('posts').item('hello-world').getContent();
 // content.raw, content.rendered, content.protected
 
 // Parse raw content directly
@@ -332,7 +335,7 @@ Hydrate related entities in a single fluent call.
 ```ts
 // Fluent chain
 const result = await wp
-  .post('hello-world')
+  .content('posts').item('hello-world')
   .with('author', 'categories', 'tags', 'featuredMedia')
   .get();
 
@@ -342,7 +345,7 @@ result.related.tags;          // WordPressTag[]
 result.related.featuredMedia; // WordPressMedia | null
 
 // Shorthand
-const post = await wp.getPostWithRelations(42, 'author', 'terms');
+const post = await wp.content('posts').getWithRelations(42, 'author', 'terms');
 post.related.terms; // { categories: [...], tags: [...] }
 ```
 
@@ -418,7 +421,7 @@ For a full migration mapping from node-wpapi, read
 ### Native WordPress meta
 
 ```ts
-const post = await wp.createPost({
+const post = await wp.content('posts').create({
   title: 'Post with meta',
   status: 'draft',
   meta: {
@@ -432,7 +435,7 @@ const post = await wp.createPost({
 ### ACF fields
 
 ```ts
-const post = await wp.createPost({
+const post = await wp.content('posts').create({
   title: 'Post with ACF',
   status: 'draft',
   acf: {
@@ -454,7 +457,7 @@ Mutation helpers accept any Standard Schema-compatible validator (Zod, Valibot, 
 import { z } from 'zod';
 
 // Validate mutation response
-const created = await wp.createPost(
+const created = await wp.content('posts').create(
   { title: 'Validated', status: 'draft' },
   z.object({ id: z.number(), slug: z.string(), status: z.string() }),
 );
@@ -500,10 +503,10 @@ const result = await wp.fetchAPIPaginated<WordPressPost>('/wp-json/wp/v2/posts',
 
 ```ts
 // All posts (auto-paginates internally)
-const all = await wp.getAllPosts();
+const all = await wp.content('posts').listAll();
 
 // One page with metadata
-const page = await wp.getPostsPaginated({ page: 3, perPage: 25 });
+const page = await wp.content('posts').listPaginated({ page: 3, perPage: 25 });
 console.log(`Page ${page.page} of ${page.totalPages} (${page.total} total)`);
 ```
 
@@ -513,7 +516,7 @@ console.log(`Page ${page.page} of ${page.totalPages} (${page.total} total)`);
 import { WordPressApiError, WordPressSchemaValidationError } from 'fluent-wp-client';
 
 try {
-  await wp.getPost(999999);
+  await wp.content('posts').item(999999);
 } catch (error) {
   if (error instanceof WordPressApiError) {
     console.log(error.status);       // HTTP status (e.g. 404)
@@ -562,7 +565,7 @@ All schemas use `.passthrough()` so custom fields (ACF, meta, plugin data) survi
 
 ### Block types
 `WordPressParsedBlock`, `WordPressBlockParser`, `WordPressContentRecord<T>`,
-`WordPressContentQuery<T>`
+`PostRelationQueryBuilder<T>`
 
 ## Reference docs
 

@@ -19,24 +19,25 @@ const wp = new WordPressClient({
   baseUrl: 'https://your-wordpress-site.com',
 });
 
+const posts = wp.content('posts');
+
 // Read a list of posts
-const posts = await wp.getPosts({ perPage: 10 });
+const recentPosts = await posts.list({ perPage: 10 });
 
 // Read a single post and parse its Gutenberg blocks
-const blocks = await wp.getPostBySlug('hello-world').getBlocks();
+const blocks = await posts.item('hello-world').getBlocks();
 
 // Create a draft post (requires auth)
-const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
+const draft = await posts.create({ title: 'Hello', status: 'draft' });
 ```
 
 ## Features
 
-- **Typed helpers** for posts, pages, media, categories, tags, users, comments, and settings
+- **Unified typed content builders** — `content('posts')`, `content('pages')`, `content('books')`, and `terms('genre')` share one API shape, with stricter typing for built-in resources
 - **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
 - **Extensible collection filters** — built-in list helpers and generic resource builders accept typed core filters plus extra endpoint-specific query params
-- **Generic CPT and taxonomy builders** — `content('books')` and `terms('genre')` work for any registered resource
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
-- **Gutenberg block parsing** — single-post queries expose `.getBlocks()` and `.getContent()`
+- **Gutenberg block parsing** — single-item queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`, with schema-backed generic builders validating reads and mutations
@@ -47,7 +48,7 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 Collection helpers keep typed core filters like `search`, `include`, `exclude`, and `slug`, and they also forward extra endpoint-specific params for plugin or project-specific REST extensions.
 
 ```ts
-const posts = await wp.getPosts({
+const posts = await wp.content('posts').list({
   search: 'hello world',
   include: [4, 8],
   titleSearch: 'Hello',

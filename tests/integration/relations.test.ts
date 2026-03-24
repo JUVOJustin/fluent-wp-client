@@ -14,6 +14,10 @@ describe('Client: post relation hydration', () => {
     authClient = createAuthClient();
   });
 
+  function postsClient(client: WordPressClient) {
+    return client.content('posts');
+  }
+
   /**
    * Asserts author relation behavior for environments that expose or mask author IDs.
    */
@@ -27,8 +31,8 @@ describe('Client: post relation hydration', () => {
     expect(relatedAuthor?.slug).toBe('admin');
   }
 
-  it('hydrates related entities with getPostWithRelations', async () => {
-    const post = await authClient.getPostWithRelations('test-post-001', 'author', 'terms');
+  it('hydrates related entities with content(\'posts\').getWithRelations()', async () => {
+    const post = await postsClient(authClient).getWithRelations('test-post-001', 'author', 'terms');
 
     expect(post.slug).toBe('test-post-001');
     expectAuthorRelation(post.author, post.related.author);
@@ -36,11 +40,11 @@ describe('Client: post relation hydration', () => {
     expect(post.related.terms.tags.length).toBeGreaterThan(0);
   });
 
-  it('hydrates relation data with fluent post().with().get()', async () => {
+  it('hydrates relation data with awaitable content(\'posts\').item().with()', async () => {
     const hydrated = await authClient
-      .post('test-post-002')
-      .with('author', 'categories', 'tags', 'featuredMedia')
-      .get();
+      .content('posts')
+      .item('test-post-002')
+      .with('author', 'categories', 'tags', 'featuredMedia');
 
     expect(hydrated.slug).toBe('test-post-002');
     expectAuthorRelation(hydrated.author, hydrated.related.author);
@@ -50,7 +54,7 @@ describe('Client: post relation hydration', () => {
   });
 
   it('returns null author relation when public API masks author IDs', async () => {
-    const hydrated = await publicClient.getPostWithRelations('test-post-001', 'author');
+    const hydrated = await postsClient(publicClient).item('test-post-001').with('author');
 
     expect(hydrated.author).toBe(0);
     expect(hydrated.related.author).toBeNull();

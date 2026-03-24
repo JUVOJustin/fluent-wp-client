@@ -52,17 +52,17 @@ function getMetaRecord(entry: unknown): Record<string, unknown> {
 function createResourceHarness(client: WordPressClient, resource: ResourceName): ResourceHarness {
   if (resource === 'posts') {
     return {
-      create: (input) => client.createPost(input),
-      update: (id, input) => client.updatePost(id, input),
-      remove: (id) => client.deletePost(id, { force: true }),
+      create: (input) => client.content('posts').create(input),
+      update: (id, input) => client.content('posts').update(id, input),
+      remove: (id) => client.content('posts').delete(id, { force: true }),
     };
   }
 
   if (resource === 'pages') {
     return {
-      create: (input) => client.createPage(input),
-      update: (id, input) => client.updatePage(id, input),
-      remove: (id) => client.deletePage(id, { force: true }),
+      create: (input) => client.content('pages').create(input),
+      update: (id, input) => client.content('pages').update(id, input),
+      remove: (id) => client.content('pages').delete(id, { force: true }),
     };
   }
 
@@ -283,7 +283,7 @@ describe('Client: meta fields', () => {
 
   it('rejects writes to readonly registered meta fields', async () => {
     await expect(
-      client.createPost({
+      client.content('posts').create({
         title: 'Client Meta Readonly Reject',
         status: 'draft',
         meta: {
@@ -314,7 +314,7 @@ describe('Client: meta fields', () => {
     const publicClient = createPublicClient();
 
     await expect(
-      publicClient.createPost({
+      publicClient.content('posts').create({
         title: 'Client Meta Public Reject',
         status: 'draft',
         meta: {

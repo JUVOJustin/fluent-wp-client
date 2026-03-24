@@ -143,12 +143,12 @@ export type {
 
 export {
   PostRelationQueryBuilder,
+  type ContentItemResult,
   type PostRelation,
   type SelectedPostRelations,
 } from './builders/relations.js';
 
 export {
-  WordPressContentQuery,
   type WordPressGetBlocksOptions,
   type WordPressRawContentResult,
 } from './content-query.js';

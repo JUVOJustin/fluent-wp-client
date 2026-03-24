@@ -37,7 +37,7 @@ describe('Client: Auth CRUD', () => {
 
   afterAll(async () => {
     for (const id of createdPostIds) {
-      await basicClient.deletePost(id, { force: true }).catch(() => undefined);
+      await basicClient.content('posts').delete(id, { force: true }).catch(() => undefined);
     }
   });
 
@@ -46,7 +46,7 @@ describe('Client: Auth CRUD', () => {
    * Returns the created post ID so the caller can track it for cleanup.
    */
   async function runCrudLifecycle(client: WordPressClient, label: string): Promise<number> {
-    const created = await client.createPost(
+    const created = await client.content('posts').create(
       {
         title: `Auth CRUD: ${label} create`,
         content: `<p>Created with ${label} auth.</p>`,
@@ -62,7 +62,7 @@ describe('Client: Auth CRUD', () => {
     expect(created.content.rendered).toContain(`Created with ${label} auth.`);
     expect(created.status).toBe('draft');
 
-    const updated = await client.updatePost(
+    const updated = await client.content('posts').update(
       created.id,
       {
         title: `Auth CRUD: ${label} update`,
@@ -74,7 +74,7 @@ describe('Client: Auth CRUD', () => {
     expect(updated.title.rendered).toBe(`Auth CRUD: ${label} update`);
     expect(updated.status).toBe('private');
 
-    const deleted = await client.deletePost(created.id, { force: true });
+    const deleted = await client.content('posts').delete(created.id, { force: true });
 
     expect(deleted.deleted).toBe(true);
 
@@ -93,7 +93,7 @@ describe('Client: Auth CRUD', () => {
     });
 
     it('creates a post with rich content and category assignment', async () => {
-      const created = await cookieClient.createPost(
+      const created = await cookieClient.content('posts').create(
         {
           title: 'Auth CRUD: cookie rich content',
           content: '<p>Paragraph from cookie auth.</p>',

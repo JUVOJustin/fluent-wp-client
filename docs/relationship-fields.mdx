@@ -7,7 +7,7 @@ sidebar:
 
 ## Overview
 
-When using relationship hydration methods like `getPostWithRelations()`, `content(resource).getWithRelations()`, or the fluent `.with().get()` API, the client automatically ensures that critical fields required for relationship resolution are preserved in the response, even when you use field filtering options.
+When using relationship hydration methods like `content(resource).getWithRelations()` or the fluent `content(resource).item(...).with(...)` API, the client automatically ensures that critical fields required for relationship resolution are preserved in the response, even when you use field filtering options.
 
 ## Why Fields Are Automatically Preserved
 
@@ -37,7 +37,7 @@ When you call relationship methods, `_embed: 'true'` is automatically added to t
 
 ```typescript
 // This automatically includes _embed parameter
-const post = await client.getPostWithRelations('my-post', 'author', 'categories');
+const post = await client.content('posts').getWithRelations('my-post', 'author', 'categories');
 
 const book = await client.content('books').getWithRelations('my-book', 'terms');
 
@@ -50,10 +50,10 @@ Even if you use field filtering, the client ensures required fields are present:
 
 ```typescript
 // The fields filter restricts the response
-const posts = await client.getPosts({ fields: ['id', 'title'] });
+const posts = await client.content('posts').list({ fields: ['id', 'title'] });
 
 // But when using relations, required fields are preserved
-const post = await client.post('my-post').with('author').get();
+const post = await client.content('posts').item('my-post').with('author');
 // author field is preserved even if not in the original fields list
 ```
 
@@ -62,7 +62,7 @@ const post = await client.post('my-post').with('author').get();
 If `_embedded` data is missing but ID fields are present, the client makes separate API calls:
 
 ```typescript
-const post = await client.getPostWithRelations('my-post', 'author');
+const post = await client.content('posts').getWithRelations('my-post', 'author');
 
 // If _embedded.author is missing:
 // 1. Uses post.author ID to fetch author separately
@@ -77,7 +77,7 @@ If the WordPress REST API masks certain fields (e.g., author IDs for unauthentic
 
 ```typescript
 // Public client may receive author: 0
-const post = await publicClient.getPostWithRelations('my-post', 'author');
+const post = await publicClient.content('posts').getWithRelations('my-post', 'author');
 // post.related.author will be null
 ```
 
@@ -87,11 +87,11 @@ Posts without certain relations are handled gracefully:
 
 ```typescript
 // Post without categories
-const post = await client.getPostWithRelations('my-post', 'categories');
+const post = await client.content('posts').getWithRelations('my-post', 'categories');
 // post.related.categories will be an empty array []
 
 // Post without featured media
-const post = await client.getPostWithRelations('my-post', 'featuredMedia');
+const post = await client.content('posts').getWithRelations('my-post', 'featuredMedia');
 // post.related.featuredMedia will be null
 ```
 
@@ -100,7 +100,7 @@ const post = await client.getPostWithRelations('my-post', 'featuredMedia');
 When requesting multiple relations, the client efficiently batches fallback requests:
 
 ```typescript
-const post = await client.getPostWithRelations(
+const post = await client.content('posts').getWithRelations(
   'my-post',
   'author',
   'categories',

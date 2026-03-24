@@ -125,7 +125,7 @@ describe('Client: Auth', () => {
       },
     });
 
-    const posts = await browserPublicClient.getPosts({ perPage: 5 });
+    const posts = await browserPublicClient.content('posts').list({ perPage: 5 });
 
     expect(Array.isArray(posts)).toBe(true);
     expect(posts.length).toBeGreaterThan(0);

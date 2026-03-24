@@ -15,7 +15,6 @@ import { applyRequestOverrides } from './request-overrides.js';
 import { throwIfWordPressError } from './errors.js';
 import { validateWithStandardSchema } from './validation.js';
 import { resolveMutationArguments } from './mutation-helpers.js';
-import { WordPressContentQuery } from '../content-query.js';
 import type { WordPressBlockParser } from '../blocks.js';
 
 /**
@@ -271,21 +270,6 @@ export abstract class BasePostLikeResource<
   }
 
   /**
-   * Creates a content query for lazy block/content access.
-   */
-  protected createContentQuery<TResult extends TContent | undefined>(
-    loadView: () => Promise<TResult>,
-    loadEdit: () => Promise<TResult>,
-  ): WordPressContentQuery<TResult> {
-    return new WordPressContentQuery<TResult>(
-      loadView,
-      loadEdit,
-      this.missingRawMessage,
-      this.defaultBlockParser,
-    );
-  }
-
-  /**
    * Fetches one post-like record by ID in view or edit context.
    */
   protected fetchContentById(
@@ -317,23 +301,4 @@ export abstract class BasePostLikeResource<
     return items[0];
   }
 
-  /**
-   * Gets one post by ID as a content query (supports .getBlocks(), .getContent()).
-   */
-  getByIdAsQuery(id: number, options?: WordPressRequestOverrides): WordPressContentQuery<TContent> {
-    return this.createContentQuery<TContent>(
-      () => this.fetchContentById(id, options),
-      () => this.fetchContentById(id, options, 'edit'),
-    );
-  }
-
-  /**
-   * Gets one post by slug as a content query.
-   */
-  getBySlugAsQuery(slug: string, options?: WordPressRequestOverrides): WordPressContentQuery<TContent | undefined> {
-    return this.createContentQuery<TContent | undefined>(
-      () => this.fetchContentBySlug(slug, options),
-      () => this.fetchContentBySlug(slug, options, 'edit'),
-    );
-  }
 }

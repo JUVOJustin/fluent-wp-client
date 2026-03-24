@@ -5,7 +5,6 @@ import type {
   WordPressMedia,
   WordPressPost,
   WordPressPostLike,
-  WordPressTag,
 } from '../schemas.js';
 import type { WordPressRequestOptions, WordPressRequestResult } from '../types/client.js';
 import type { QueryParams, WordPressRequestOverrides } from '../types/resources.js';
@@ -135,18 +134,15 @@ export const customRelationRegistry = new CustomRelationRegistry();
  * Client surface required by the post relation hydrator.
  */
 export interface PostRelationClient {
-  getPost: (id: number) => PromiseLike<WordPressPost>;
-  getPostBySlug: (slug: string) => PromiseLike<WordPressPost | undefined>;
-  content?: <TContent extends WordPressPostLike = WordPressContent>(resource: string) => {
+  content: <TContent extends WordPressPostLike = WordPressContent>(resource: string) => {
     getById: (id: number, options?: WordPressRequestOverrides) => Promise<TContent>;
+    getBySlug: (slug: string, options?: WordPressRequestOverrides) => Promise<TContent | undefined>;
   };
   request?: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
   getUser: (id: number) => Promise<WordPressAuthor>;
   getUsers?: (filter?: { include?: number[]; perPage?: number }) => Promise<WordPressAuthor[]>;
-  getCategories: (filter?: { include?: number[] }) => Promise<WordPressCategory[]>;
-  getTags: (filter?: { include?: number[] }) => Promise<WordPressTag[]>;
   getMediaItem: (id: number) => Promise<WordPressMedia>;
-  terms?: <TTerm = WordPressCategory>(resource: string) => {
+  terms: <TTerm = WordPressCategory>(resource: string) => {
     list: (filter?: QueryParams, options?: WordPressRequestOverrides) => Promise<TTerm[]>;
     getById: (id: number, options?: WordPressRequestOverrides) => Promise<TTerm>;
   };
@@ -497,8 +493,10 @@ class ClientReferenceResolver<TItem, TReference extends { id: number }>
 function createPostReferenceResolver(
   client: PostRelationClient,
 ): ClientReferenceResolver<WordPressPost, RelatedPostReference> {
+  const posts = client.content<WordPressPost>('posts');
+
   return new ClientReferenceResolver<WordPressPost, RelatedPostReference>({
-    singleFetch: (id) => client.getPost(id),
+    singleFetch: (id) => posts.getById(id),
     toReference: toRelatedPostReference,
   });
 }
@@ -510,10 +508,6 @@ function createContentReferenceResolver(
   client: PostRelationClient,
   resource: string,
 ): ClientReferenceResolver<WordPressContent, RelatedContentReference> | null {
-  if (!client.content) {
-    return null;
-  }
-
   const resourceClient = client.content<WordPressContent>(resource);
 
   return new ClientReferenceResolver<WordPressContent, RelatedContentReference>({
@@ -523,16 +517,12 @@ function createContentReferenceResolver(
 }
 
 /**
- * Creates a resolver for lightweight term references when the client supports them.
+ * Creates a resolver for lightweight term references through the shared terms API.
  */
 function createTermReferenceResolver(
   client: PostRelationClient,
   resource: string,
-): ClientReferenceResolver<WordPressCategory, RelatedTermReference> | null {
-  if (!client.terms) {
-    return null;
-  }
-
+): ClientReferenceResolver<WordPressCategory, RelatedTermReference> {
   const resourceClient = client.terms<WordPressCategory>(resource);
 
   return new ClientReferenceResolver<WordPressCategory, RelatedTermReference>({
@@ -620,13 +610,7 @@ export async function resolveTermReferences(
   resource: string,
   ids: number[],
 ): Promise<RelatedTermReference[]> {
-  const resolver = createTermReferenceResolver(client, resource);
-
-  if (!resolver) {
-    return [];
-  }
-
-  return resolver.resolveMany(ids);
+  return createTermReferenceResolver(client, resource).resolveMany(ids);
 }
 
 /**
@@ -637,11 +621,5 @@ export async function resolveTermReference(
   resource: string,
   id: number,
 ): Promise<RelatedTermReference | null> {
-  const resolver = createTermReferenceResolver(client, resource);
-
-  if (!resolver) {
-    return null;
-  }
-
-  return resolver.resolveOne(id);
+  return createTermReferenceResolver(client, resource).resolveOne(id);
 }

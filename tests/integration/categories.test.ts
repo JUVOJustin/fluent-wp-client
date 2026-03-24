@@ -12,12 +12,16 @@ describe('Client: Categories', () => {
   let seededCategoryIds: number[] = [];
   const createdCategoryIds: number[] = [];
 
+  function categoriesClient(client: WordPressClient) {
+    return client.terms('categories');
+  }
+
   beforeAll(async () => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
 
     const seedSlugs = ['technology', 'science', 'travel', 'food', 'health', 'uncategorized'];
-    const seedCategories = await Promise.all(seedSlugs.map((slug) => publicClient.getCategoryBySlug(slug)));
+    const seedCategories = await Promise.all(seedSlugs.map((slug) => categoriesClient(publicClient).getBySlug(slug)));
 
     seededCategoryIds = seedCategories
       .map((category) => category?.id)
@@ -26,20 +30,20 @@ describe('Client: Categories', () => {
 
   afterAll(async () => {
     for (const id of createdCategoryIds) {
-      await authClient.deleteCategory(id, { force: true }).catch(() => undefined);
+      await categoriesClient(authClient).delete(id, { force: true }).catch(() => undefined);
     }
   });
 
   describe('reads', () => {
-    it('getCategories returns an array', async () => {
-      const categories = await publicClient.getCategories();
+    it('terms(\'categories\').list() returns an array', async () => {
+      const categories = await categoriesClient(publicClient).list();
 
       expect(Array.isArray(categories)).toBe(true);
       expect(categories.length).toBeGreaterThan(0);
     });
 
     it('every category has required fields', async () => {
-      const categories = await publicClient.getCategories();
+      const categories = await categoriesClient(publicClient).list();
 
       for (const cat of categories) {
         expect(cat).toHaveProperty('id');
@@ -51,8 +55,8 @@ describe('Client: Categories', () => {
       }
     });
 
-    it('getCategoryBySlug fetches a known seed category', async () => {
-      const category = await publicClient.getCategoryBySlug('technology');
+    it('terms(\'categories\').getBySlug() fetches a known seed category', async () => {
+      const category = await categoriesClient(publicClient).getBySlug('technology');
 
       expect(category).toBeDefined();
       expect(category!.slug).toBe('technology');
@@ -60,14 +64,14 @@ describe('Client: Categories', () => {
       expect(category!.count).toBe(30);
     });
 
-    it('getCategoryBySlug returns undefined for non-existent slug', async () => {
-      const category = await publicClient.getCategoryBySlug('nonexistent-cat-999');
+    it('terms(\'categories\').getBySlug() returns undefined for non-existent slug', async () => {
+      const category = await categoriesClient(publicClient).getBySlug('nonexistent-cat-999');
 
       expect(category).toBeUndefined();
     });
 
-    it('getAllCategories returns all 6 categories', async () => {
-      const all = await publicClient.getAllCategories({ include: seededCategoryIds });
+    it('terms(\'categories\').listAll() returns all 6 categories', async () => {
+      const all = await categoriesClient(publicClient).listAll({ include: seededCategoryIds });
 
       expect(all).toHaveLength(6);
 
@@ -80,8 +84,8 @@ describe('Client: Categories', () => {
       expect(slugs).toContain('uncategorized');
     });
 
-    it('getCategoriesPaginated returns pagination metadata', async () => {
-      const result = await publicClient.getCategoriesPaginated({
+    it('terms(\'categories\').listPaginated() returns pagination metadata', async () => {
+      const result = await categoriesClient(publicClient).listPaginated({
         include: seededCategoryIds,
         perPage: 2,
         page: 1,
@@ -96,7 +100,7 @@ describe('Client: Categories', () => {
 
   describe('crud', () => {
     it('creates, updates, and deletes categories', async () => {
-      const created = await authClient.createCategory({
+      const created = await categoriesClient(authClient).create({
         name: 'Client CRUD Category',
         description: 'Category created by integration tests.',
       });
@@ -106,19 +110,19 @@ describe('Client: Categories', () => {
       expect(created.name).toBe('Client CRUD Category');
       expect(created.taxonomy).toBe('category');
 
-      const updated = await authClient.updateCategory(created.id, {
+      const updated = await categoriesClient(authClient).update(created.id, {
         name: 'Client CRUD Category Updated',
       });
 
       expect(updated.name).toBe('Client CRUD Category Updated');
 
-      const deleted = await authClient.deleteCategory(created.id, { force: true });
+      const deleted = await categoriesClient(authClient).delete(created.id, { force: true });
       expect(deleted.deleted).toBe(true);
     });
 
     it('throws for unauthenticated category creation', async () => {
       await expect(
-        publicClient.createCategory({
+        categoriesClient(publicClient).create({
           name: 'Client CRUD Public Category',
         }),
       ).rejects.toMatchObject({
@@ -128,7 +132,7 @@ describe('Client: Categories', () => {
 
     it('throws for a non-existent category on update', async () => {
       await expect(
-        authClient.updateCategory(999999, { name: 'Ghost Category' }),
+        categoriesClient(authClient).update(999999, { name: 'Ghost Category' }),
       ).rejects.toMatchObject({
         name: 'WordPressApiError',
         status: 404,

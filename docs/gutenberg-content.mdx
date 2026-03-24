@@ -13,19 +13,15 @@ This guide shows two Gutenberg-focused workflows:
 - read rendered content for display
 - parse serialized block markup into structured block trees
 
-`fluent-wp-client` exposes both through post/page query helpers.
+`fluent-wp-client` exposes both through `content('posts').item(...)` and `content('pages').item(...)` queries.
 
 ## Rendered content
 
-Use `get()` when you need the normal REST payload (`context=view`), including `content.rendered`.
+Use `item()` when you need the normal REST payload (`context=view`), including `content.rendered`.
 
 ```ts title="Rendered post content"
-const postQuery = wp.getPostBySlug('hello-world');
+const postQuery = wp.content('posts').item('hello-world');
 const post = await postQuery;
-
-if (!post) {
-  throw new Error('Post not found.');
-}
 
 const html = post.content.rendered;
 ```
@@ -40,12 +36,8 @@ Use `getContent()` when you need both:
 - `raw` for block-aware transforms
 
 ```ts title="Get raw and rendered content"
-const postQuery = wp.getPostBySlug('hello-world');
+const postQuery = wp.content('posts').item('hello-world');
 const content = await postQuery.getContent();
-
-if (!content) {
-  throw new Error('Post not found.');
-}
 
 console.log(content.rendered);
 console.log(content.raw);
@@ -67,12 +59,8 @@ import { LinkCard } from '@astrojs/starlight/components';
 Use `getBlocks()` to parse Gutenberg blocks from `content.raw`.
 
 ```ts title="Parse blocks from one post"
-const postQuery = wp.getPostBySlug('hello-world');
+const postQuery = wp.content('posts').item('hello-world');
 const blocks = await postQuery.getBlocks();
-
-if (!blocks) {
-  throw new Error('Post not found.');
-}
 
 for (const block of blocks) {
   console.log(block.blockName, block.attrs);
@@ -92,14 +80,14 @@ The returned block shape includes:
 List methods return plain serializable DTO arrays without block helpers. Use a single-item query on a known ID for block access:
 
 ```ts title="Parse blocks from a posts list"
-const posts = await wp.getPosts({ perPage: 5 });
+const posts = await wp.content('posts').list({ perPage: 5 });
 const first = posts[0];
 
 if (!first) {
   throw new Error('No posts returned.');
 }
 
-const firstBlocks = await wp.getPost(first.id).getBlocks();
+const firstBlocks = await wp.content('posts').item(first.id).getBlocks();
 console.log(firstBlocks.length);
 ```
 
@@ -120,7 +108,7 @@ const wp = new WordPressClient({
   blockParser: parser,
 });
 
-const blocks = await wp.getPostBySlug('hello-world').getBlocks({
+const blocks = await wp.content('posts').item('hello-world').getBlocks({
   parser,
 });
 ```
@@ -130,11 +118,7 @@ You can also parse already-fetched raw content directly:
 ```ts title="Parse raw content directly"
 import { parseWordPressBlocks } from 'fluent-wp-client';
 
-const content = await wp.getPostBySlug('hello-world').getContent();
-
-if (!content) {
-  throw new Error('Post not found.');
-}
+const content = await wp.content('posts').item('hello-world').getContent();
 
 const blocks = await parseWordPressBlocks(content.raw);
 ```

@@ -7,7 +7,7 @@
 - Treat `WordPressClient` as the package's core integration layer. Add or harden client abilities before introducing convenience helpers that depend on them.
 - Build higher-level helpers on top of proven client primitives. If a feature needs a new REST ability, implement that ability in the client first.
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
-- Prefer `content()` and `terms()` as the public generic resource API. Do not reintroduce legacy direct generic client wrappers.
+- Prefer `content()` and `terms()` as the public post-like and term resource API. Do not reintroduce legacy direct convenience wrappers for posts/pages/categories/tags.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Root package schema exports must be typed as Standard Schema (`WordPressStandardSchema`) to keep the default API validator-agnostic.
 - Native Zod schema exports belong in the dedicated `fluent-wp-client/zod` entrypoint only.
@@ -21,10 +21,11 @@
 
 - All terminal read methods return plain serializable DTOs by default. Returned data must survive `structuredClone()`, `JSON.stringify()`, and cross-boundary transport (SSR, RSC, `postMessage`, cache).
 - No fetched DTO should contain functions, `then`, `PromiseLike`, or hidden closures. Never mutate API response objects with runtime helpers via `Object.assign` or similar.
-- Runtime query helpers (`WordPressContentQuery`, `WordPressRequestBuilder`, `PostRelationQueryBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
+- Runtime query helpers (`PostRelationQueryBuilder`, `WordPressRequestBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
 - Standalone utility functions (like `parseWordPressBlocks`) handle stateless transforms on already-fetched DTOs.
-- List methods (`getPosts`, `getPages`, `getAllPosts`, etc.) return plain DTO arrays. Single-item getters (`getPost`, `getPostBySlug`, etc.) return `WordPressContentQuery` instances (thenable, with `.getBlocks()` / `.getContent()`).
-- When adding new resource helpers, follow the same contract: collections return plain arrays, single-item getters return query wrappers only when block/content helpers are needed.
+- Post-like collection methods (`content('posts').list()`, `content('pages').list()`, `content(resource).list()`) return plain DTO arrays.
+- Single post-like item access goes through `content(resource).item(idOrSlug)`, which returns an awaitable `PostRelationQueryBuilder` with `.getBlocks()` / `.getContent()` and relation hydration.
+- When adding new resource helpers, follow the same contract: collections return plain arrays, and single-item post-like access returns explicit query wrappers only when block/content helpers or relation hydration are needed.
 
 ## File Structure
 
@@ -39,7 +40,7 @@ src/
   auth.ts                      # Auth types, helpers, resolvers
   blocks.ts                    # Block parser types and parseWordPressBlocks
   abilities.ts                 # Ability methods and builder
-  content-query.ts             # WordPressContentQuery class
+  content-query.ts             # Raw content helper types and resolver
   types.ts                     # Re-export barrel for types/ subdirectory
 
   core/                        # Core infrastructure
@@ -59,15 +60,14 @@ src/
     resources.ts               # ContentResourceClient, PaginatedResponse, FetchResult, etc.
 
   resources/                   # Resource classes and generic registries
-    posts.ts                   # PostsResource
-    pages.ts                   # PagesResource
     media.ts                   # MediaResource
-    categories.ts              # CategoriesResource
-    tags.ts                    # TagsResource
     users.ts                   # UsersResource
     comments.ts                # CommentsResource
     settings.ts                # SettingsResource
-    content-terms.ts           # GenericResourceRegistry
+    content.ts                 # Generic post-like resource + client factory
+    terms.ts                   # Generic term resource + client factory
+    registry.ts                # Shared generic resource registry
+    schema-validation.ts       # Shared read-validation helpers for resources
 
   builders/                    # Fluent query/request builders
     relations.ts               # PostRelationQueryBuilder
@@ -197,12 +197,12 @@ npm run wp:clean
 
 Reference integration suites:
 
-- `tests/integration/posts.test.ts` — post read and CRUD coverage, including auth variants.
-- `tests/integration/pages.test.ts` — page read and CRUD coverage.
+- `tests/integration/posts.test.ts` — `content('posts')` read and CRUD coverage, including auth variants.
+- `tests/integration/pages.test.ts` — `content('pages')` read and CRUD coverage.
 - `tests/integration/books.test.ts` — generic custom post type coverage through `content('books')`.
 - `tests/integration/artifacts.test.ts` — sparse custom post type coverage through `content('artifacts')` and `postLikeWordPressSchema`.
-- `tests/integration/categories.test.ts` — category read and CRUD coverage.
-- `tests/integration/tags.test.ts` — tag read and CRUD coverage.
+- `tests/integration/categories.test.ts` — `terms('categories')` read and CRUD coverage.
+- `tests/integration/tags.test.ts` — `terms('tags')` read and CRUD coverage.
 - `tests/integration/comments.test.ts` — comment read and CRUD coverage.
 - `tests/integration/terms.test.ts` — generic custom taxonomy coverage through `terms('genre')`.
 - `tests/integration/auth.test.ts` — JWT helper and cookie+nonce auth coverage.

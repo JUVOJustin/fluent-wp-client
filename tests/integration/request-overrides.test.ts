@@ -54,7 +54,7 @@ describe('Client: request-scoped mutation overrides', () => {
 
     try {
       const client = new WordPressClient({ baseUrl: getBaseUrl() });
-      const posts = await client.getPosts({ perPage: 1 });
+      const posts = await client.content('posts').list({ perPage: 1 });
 
       expect(posts).toHaveLength(1);
       expect(observedThis).toBe(globalThis);
@@ -63,7 +63,7 @@ describe('Client: request-scoped mutation overrides', () => {
     }
   });
 
-  it('forwards custom headers for post create/update/delete helpers', async () => {
+  it('forwards custom headers for content(\'posts\') create/update/delete helpers', async () => {
     const seen = {
       create: false,
       update: false,
@@ -84,7 +84,9 @@ describe('Client: request-scoped mutation overrides', () => {
       }
     });
 
-    const created = await client.createPost(
+    const posts = client.content('posts');
+
+    const created = await posts.create(
       {
         title: 'Request overrides: post create',
         status: 'draft',
@@ -96,7 +98,7 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const updated = await client.updatePost(
+    const updated = await posts.update(
       created.id,
       {
         title: 'Request overrides: post update',
@@ -109,7 +111,7 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const deleted = await client.deletePost(created.id, {
+    const deleted = await posts.delete(created.id, {
       force: true,
       headers: {
         'x-test-source': 'post-delete',
@@ -328,7 +330,7 @@ describe('Client: request-scoped mutation overrides', () => {
 
     });
 
-    const posts = await client.getPosts(
+    const posts = await client.content('posts').list(
       { perPage: 1 },
       {
         headers: {
@@ -337,13 +339,13 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const postQuery = client.getPost(posts[0].id, {
+    const postQuery = client.content('posts').item(posts[0].id, {
       headers: {
         'x-test-source': 'read-post-by-id',
       },
     });
 
-    await postQuery.get();
+    await postQuery;
     await postQuery.getBlocks();
 
     const books = await client.content('books').list(
@@ -378,7 +380,7 @@ describe('Client: request-scoped mutation overrides', () => {
     const client = createObservedAuthClient(() => undefined);
 
     await expect(
-      client.getPosts(
+      client.content('posts').list(
         { perPage: 1 },
         {
           headers: {
@@ -407,7 +409,7 @@ describe('Client: request-scoped mutation overrides', () => {
       }
     });
 
-    const created = await client.createPost(
+    const created = await client.content('posts').create(
       {
         title: 'Request overrides: ignore non-header keys',
         status: 'draft',
@@ -422,7 +424,7 @@ describe('Client: request-scoped mutation overrides', () => {
       } as unknown as never,
     );
 
-    await client.deletePost(created.id, { force: true });
+    await client.content('posts').delete(created.id, { force: true });
 
     expect(created.id).toBeGreaterThan(0);
     expect(seen.usedPostsEndpoint).toBe(true);
@@ -447,7 +449,7 @@ describe('Client: request-scoped mutation overrides', () => {
       }
     });
 
-    const posts = await client.getPosts(
+    const posts = await client.content('posts').list(
       { perPage: 1 },
       {
         headers: {

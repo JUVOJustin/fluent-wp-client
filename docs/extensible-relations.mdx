@@ -202,9 +202,10 @@ const genreTerms = createIdCollectionRelation({
 
 ### Current builder scope
 
-The fluent relation query builder works for both core posts and custom post types:
+The fluent relation query builder works for core posts, pages, and custom post types through the same `content(resource).item(...)` entry point:
 
-- `client.post(idOrSlug).with(...)`
+- `client.content('posts').item(idOrSlug).with(...)`
+- `client.content('pages').item(idOrSlug).with(...)`
 - `client.content('books').item(idOrSlug).with(...)`
 - `client.content('books').getWithRelations(idOrSlug, ...relations)`
 
@@ -245,9 +246,9 @@ customRelationRegistry.register(createAcfTaxonomyRelation({
 
 // Use ACF relations alongside built-in ones
 const post = await client
-  .post('my-post')
-  .with('author', 'categories', 'linkedArticles', 'primaryArticle', 'linkedGenres')
-  .get();
+  .content('posts')
+  .item('my-post')
+  .with('author', 'categories', 'linkedArticles', 'primaryArticle', 'linkedGenres');
 
 // Access related data
 console.log(post.related.author);
@@ -388,9 +389,9 @@ customRelationRegistry.register(wooRelatedProducts);
 
 // Use it
 const product = await client
-  .post('product-slug')
-  .with('relatedProducts')
-  .get();
+  .content('posts')
+  .item('product-slug')
+  .with('relatedProducts');
 
 console.log(product.related.relatedProducts);
 ```
@@ -537,7 +538,7 @@ const config: CustomRelationConfig<MyType[]> = {
 Use `getRequiredFields()` to check what fields are needed:
 
 ```typescript
-const builder = client.post('my-post').with('author', 'myCustomRelation');
+const builder = client.content('posts').item('my-post').with('author', 'myCustomRelation');
 const requiredFields = builder.getRequiredFields();
 // ['author', 'meta'] (assuming myCustomRelation requires 'meta')
 ```
@@ -548,7 +549,8 @@ const requiredFields = builder.getRequiredFields();
 
 ```typescript
 const post = await client
-  .post('my-post')
+  .content('posts')
+  .item('my-post')
   .with(
     'author',           // Built-in
     'categories',       // Built-in
@@ -556,7 +558,7 @@ const post = await client
     'relatedProducts',  // Custom (WooCommerce)
     'customPluginData'  // Custom (your plugin)
   )
-  .get();
+;
 
 // All relations available in post.related
 ```
@@ -566,7 +568,7 @@ const post = await client
 Built-in relations are strongly typed. Runtime-registered custom relations are currently exposed as `unknown` in `post.related`, so cast them at the call site when you need strict typing:
 
 ```typescript
-const post = await client.post('my-post').with('relatedProducts').get();
+const post = await client.content('posts').item('my-post').with('relatedProducts');
 const relatedProducts = post.related.relatedProducts as WooProduct[];
 ```
 
@@ -611,10 +613,10 @@ If you currently extract ACF relations manually:
 
 **Before:**
 ```typescript
-const post = await client.getPost(123);
+const post = await client.content('posts').getById(123);
 const relatedIds = post.acf?.acf_related_posts;
 const relatedPosts = await Promise.all(
-  relatedIds?.map(id => client.getPost(id)) ?? []
+  relatedIds?.map(id => client.content('posts').getById(id)) ?? []
 );
 ```
 
@@ -626,9 +628,9 @@ customRelationRegistry.register(createAcfRelationshipRelation({
 }));
 
 const post = await client
-  .post(123)
-  .with('linkedArticles')
-  .get();
+  .content('posts')
+  .item(123)
+  .with('linkedArticles');
 
 // Data is already hydrated
 console.log(post.related.linkedArticles);

@@ -8,6 +8,17 @@ import {
   embeddedMediaSchema,
 } from '../schemas.js';
 import {
+  parseWordPressBlocks,
+  type WordPressBlockParser,
+  type WordPressParsedBlock,
+} from '../blocks.js';
+import { ExecutableQuery } from '../core/query-base.js';
+import {
+  resolveWordPressRawContent,
+  type WordPressGetBlocksOptions,
+  type WordPressRawContentResult,
+} from '../content-query.js';
+import {
   customRelationRegistry,
   defaultParseReferenceId,
   extractEmbeddedData,
@@ -111,6 +122,17 @@ export type SelectedPostRelations<TRelations extends readonly AllPostRelations[]
             : never
         >
       >;
+
+/**
+ * Resolves to the base DTO when no relations are selected, and adds a
+ * `related` payload only when the fluent query requests relations.
+ */
+export type ContentItemResult<
+  TContent extends WordPressPostLike,
+  TRelations extends readonly AllPostRelations[],
+> = [TRelations[number]] extends [never]
+  ? TContent
+  : TContent & { related: SelectedPostRelations<TRelations> };
 
 /**
  * Extracts the first author from an _embedded author array.
@@ -245,14 +267,14 @@ class PostTermRelationsResolver {
    * Fetches categories through the client fallback API.
    */
   private async fetchCategories(ids: number[]): Promise<WordPressCategory[]> {
-    return this.client.getCategories({ include: ids }).catch(() => []);
+    return this.client.terms<WordPressCategory>('categories').list({ include: ids }).catch(() => []);
   }
 
   /**
    * Fetches tags through the client fallback API.
    */
   private async fetchTags(ids: number[]): Promise<WordPressTag[]> {
-    return this.client.getTags({ include: ids }).catch(() => []);
+    return this.client.terms<WordPressTag>('tags').list({ include: ids }).catch(() => []);
   }
 
   /**
@@ -371,22 +393,29 @@ class PostTermRelationsResolver {
  * ```typescript
  * // Built-in relations
  * const post = await client
- *   .post('my-post')
- *   .with('author', 'categories')
- *   .get();
+ *   .content('posts')
+ *   .item('my-post')
+ *   .with('author', 'categories');
  * 
  * // Custom relations (e.g., ACF)
  * const post = await client
- *   .post('my-post')
- *   .with('linkedArticles', 'primaryArticle')
- *   .get();
+ *   .content('posts')
+ *   .item('my-post')
+ *   .with('linkedArticles', 'primaryArticle');
  * ```
  */
 export class PostRelationQueryBuilder<
   TRelations extends readonly AllPostRelations[] = [],
   TContent extends WordPressPostLike = WordPressPost,
-> {
+> extends ExecutableQuery<ContentItemResult<TContent, TRelations>> {
   private readonly relationSet: Set<AllPostRelations>;
+  private readonly getEditById?: (id: number) => PromiseLike<TContent>;
+  private readonly getEditBySlug?: (slug: string) => PromiseLike<TContent | undefined>;
+  private readonly missingRawMessage: string;
+  private readonly defaultBlockParser?: WordPressBlockParser;
+  private viewPromise: Promise<TContent> | undefined;
+  private editPromise: Promise<TContent | undefined> | undefined;
+  private resultPromise: Promise<ContentItemResult<TContent, TRelations>> | undefined;
 
   constructor(
     private readonly client: PostRelationClient,
@@ -395,14 +424,26 @@ export class PostRelationQueryBuilder<
     private readonly getBySlug: (slug: string) => PromiseLike<TContent | undefined>,
     relations: readonly AllPostRelations[] = [],
     private readonly finalizeContent?: (content: TContent) => PromiseLike<TContent>,
+    options: {
+      getEditById?: (id: number) => PromiseLike<TContent>;
+      getEditBySlug?: (slug: string) => PromiseLike<TContent | undefined>;
+      missingRawMessage?: string;
+      defaultBlockParser?: WordPressBlockParser;
+    } = {},
   ) {
+    super();
     this.relationSet = new Set(relations);
+    this.getEditById = options.getEditById;
+    this.getEditBySlug = options.getEditBySlug;
+    this.missingRawMessage = options.missingRawMessage
+      ?? 'Raw post content is unavailable. The current credentials may not have edit capabilities for this content item.';
+    this.defaultBlockParser = options.defaultBlockParser;
   }
 
   /**
    * Loads the selected post by ID or slug.
    */
-  private async loadSelectedPost(): Promise<TContent> {
+  private async loadSelectedPostOnce(): Promise<TContent> {
     let post: TContent | undefined;
 
     if (typeof this.selector.id === 'number') {
@@ -418,6 +459,43 @@ export class PostRelationQueryBuilder<
     }
 
     return post;
+  }
+
+  /**
+   * Loads and memoizes the selected view-context item.
+   */
+  private async loadSelectedPost(): Promise<TContent> {
+    if (!this.viewPromise) {
+      this.viewPromise = this.loadSelectedPostOnce();
+    }
+
+    return this.viewPromise;
+  }
+
+  /**
+   * Loads the selected item in edit context when raw content helpers need it.
+   */
+  private async loadEditablePostOnce(): Promise<TContent | undefined> {
+    if (typeof this.selector.id === 'number' && this.getEditById) {
+      return this.getEditById(this.selector.id);
+    }
+
+    if (typeof this.selector.slug === 'string' && this.getEditBySlug) {
+      return this.getEditBySlug(this.selector.slug);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Loads and memoizes the selected edit-context item.
+   */
+  private async loadEditablePost(): Promise<TContent | undefined> {
+    if (!this.editPromise) {
+      this.editPromise = this.loadEditablePostOnce();
+    }
+
+    return this.editPromise;
   }
 
   /**
@@ -626,7 +704,39 @@ export class PostRelationQueryBuilder<
       this.getBySlug,
       Array.from(nextRelations),
       this.finalizeContent,
+      {
+        getEditById: this.getEditById,
+        getEditBySlug: this.getEditBySlug,
+        missingRawMessage: this.missingRawMessage,
+        defaultBlockParser: this.defaultBlockParser,
+      },
     ) as PostRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
+  }
+
+  /**
+   * Resolves raw and rendered content from one edit-context request.
+   */
+  async getContent(): Promise<WordPressRawContentResult | undefined> {
+    const post = await this.loadEditablePost();
+
+    if (!post) {
+      return undefined;
+    }
+
+    return resolveWordPressRawContent(post, this.missingRawMessage);
+  }
+
+  /**
+   * Parses raw content into Gutenberg blocks from one edit-context request.
+   */
+  async getBlocks(options: WordPressGetBlocksOptions = {}): Promise<WordPressParsedBlock[] | undefined> {
+    const content = await this.getContent();
+
+    if (!content) {
+      return undefined;
+    }
+
+    return parseWordPressBlocks(content.raw, options.parser ?? this.defaultBlockParser);
   }
 
   /**
@@ -639,17 +749,32 @@ export class PostRelationQueryBuilder<
   * 
   * Custom relations are resolved using their registered configurations.
   */
-  async get(): Promise<TContent & { related: SelectedPostRelations<TRelations> }> {
+  async get(): Promise<ContentItemResult<TContent, TRelations>> {
+    if (!this.resultPromise) {
+      this.resultPromise = this.resolveResult();
+    }
+
+    return this.resultPromise;
+  }
+
+  /**
+   * Resolves and memoizes the final fluent query result.
+   */
+  private async resolveResult(): Promise<ContentItemResult<TContent, TRelations>> {
     const post = await this.loadSelectedPost();
     const related = await this.resolveRelated(post);
     const content = this.finalizeContent
       ? await this.finalizeContent(post)
       : post;
 
+    if (this.relationSet.size === 0) {
+      return content as ContentItemResult<TContent, TRelations>;
+    }
+
     return {
       ...content,
       related: related as SelectedPostRelations<TRelations>,
-    };
+    } as ContentItemResult<TContent, TRelations>;
   }
 
   /**
@@ -676,6 +801,13 @@ export class PostRelationQueryBuilder<
     }
 
     return Array.from(fields);
+  }
+
+  /**
+   * Resolves the standard resource payload for Promise-like usage.
+   */
+  protected execute(): Promise<ContentItemResult<TContent, TRelations>> {
+    return this.get();
   }
 }
 

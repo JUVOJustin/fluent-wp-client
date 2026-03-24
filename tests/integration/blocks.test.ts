@@ -5,11 +5,11 @@ import { createAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-
 /**
  * Integration coverage for Gutenberg block parsing helpers.
  *
- * Single-item queries (`getPost`, `getPostBySlug`, `getPage`, `getPageBySlug`)
- * return `WordPressContentQuery` instances with `.getBlocks()` and `.getContent()`.
+ * Single-item `content(resource).item(...)` queries are awaitable and expose
+ * `.getBlocks()` and `.getContent()`.
  *
- * List methods (`getPosts`, `getPages`, etc.) return plain serializable DTOs
- * without block helpers. Use a single-item query on a known ID for block access.
+ * List methods return plain serializable DTOs without block helpers. Use a
+ * single-item query on a known ID for block access.
  */
 describe('Client: Gutenberg block parsing', () => {
   let authClient: WordPressClient;
@@ -22,19 +22,27 @@ describe('Client: Gutenberg block parsing', () => {
     publicClient = createPublicClient();
   });
 
+  function postsClient(client: WordPressClient) {
+    return client.content('posts');
+  }
+
+  function pagesClient(client: WordPressClient) {
+    return client.content('pages');
+  }
+
   afterAll(async () => {
     for (const id of createdPostIds) {
-      await authClient.deletePost(id, { force: true }).catch(() => undefined);
+      await postsClient(authClient).delete(id, { force: true }).catch(() => undefined);
     }
 
     for (const id of createdPageIds) {
-      await authClient.deletePage(id, { force: true }).catch(() => undefined);
+      await pagesClient(authClient).delete(id, { force: true }).catch(() => undefined);
     }
   });
 
   it('parses post blocks from one slug query chain', async () => {
     const slug = `client-blocks-post-${Date.now()}`;
-    const created = await authClient.createPost({
+    const created = await postsClient(authClient).create({
       title: 'Client Blocks: post',
       slug,
       status: 'publish',
@@ -43,7 +51,7 @@ describe('Client: Gutenberg block parsing', () => {
 
     createdPostIds.push(created.id);
 
-    const blocks = await authClient.getPostBySlug(slug).getBlocks();
+    const blocks = await postsClient(authClient).item(slug).getBlocks();
 
     expect(blocks).toBeDefined();
     expect(blocks).toHaveLength(1);
@@ -54,7 +62,7 @@ describe('Client: Gutenberg block parsing', () => {
 
   it('parses page blocks from one slug query chain', async () => {
     const slug = `client-blocks-page-${Date.now()}`;
-    const created = await authClient.createPage({
+    const created = await pagesClient(authClient).create({
       title: 'Client Blocks: page',
       slug,
       status: 'publish',
@@ -63,7 +71,7 @@ describe('Client: Gutenberg block parsing', () => {
 
     createdPageIds.push(created.id);
 
-    const blocks = await authClient.getPageBySlug(slug).getBlocks();
+    const blocks = await pagesClient(authClient).item(slug).getBlocks();
 
     expect(blocks).toBeDefined();
     expect(blocks).toHaveLength(1);
@@ -74,7 +82,7 @@ describe('Client: Gutenberg block parsing', () => {
 
   it('returns raw and rendered content from getContent()', async () => {
     const slug = `client-blocks-content-${Date.now()}`;
-    const created = await authClient.createPost({
+    const created = await postsClient(authClient).create({
       title: 'Client Blocks: content payload',
       slug,
       status: 'publish',
@@ -83,7 +91,7 @@ describe('Client: Gutenberg block parsing', () => {
 
     createdPostIds.push(created.id);
 
-    const content = await authClient.getPostBySlug(slug).getContent();
+    const content = await postsClient(authClient).item(slug).getContent();
 
     expect(content).toBeDefined();
     expect(content?.raw).toContain('<!-- wp:paragraph -->');
@@ -107,14 +115,14 @@ describe('Client: Gutenberg block parsing', () => {
       },
     });
 
-    await countingClient.getPostBySlug('test-post-001').getBlocks().catch(() => undefined);
+    await countingClient.content('posts').item('test-post-001').getBlocks().catch(() => undefined);
 
     expect(requestCount).toBe(1);
   });
 
   it('throws auth/capability error when public client calls getBlocks()', async () => {
     await expect(
-      publicClient.getPostBySlug('test-post-001').getBlocks(),
+      publicClient.content('posts').item('test-post-001').getBlocks(),
     ).rejects.toMatchObject({
       name: 'WordPressApiError',
     });
@@ -122,7 +130,7 @@ describe('Client: Gutenberg block parsing', () => {
 
   it('retrieves blocks from list items via single-item query', async () => {
     const slug = `client-blocks-list-query-${Date.now()}`;
-    const created = await authClient.createPost({
+    const created = await postsClient(authClient).create({
       title: 'Client Blocks: list to query',
       slug,
       status: 'publish',
@@ -131,12 +139,12 @@ describe('Client: Gutenberg block parsing', () => {
 
     createdPostIds.push(created.id);
 
-    const posts = await authClient.getPosts({ perPage: 100, page: 1 });
+    const posts = await postsClient(authClient).list({ perPage: 100, page: 1 });
     const match = posts.find((post) => post.id === created.id);
 
     expect(match).toBeDefined();
 
-    const blocks = await authClient.getPost(match!.id).getBlocks();
+    const blocks = await postsClient(authClient).item(match!.id).getBlocks();
 
     expect(blocks).toBeDefined();
     expect(blocks!.length).toBeGreaterThan(0);
@@ -146,7 +154,7 @@ describe('Client: Gutenberg block parsing', () => {
 
   it('retrieves blocks from page list items via single-item query', async () => {
     const slug = `client-blocks-list-page-${Date.now()}`;
-    const created = await authClient.createPage({
+    const created = await pagesClient(authClient).create({
       title: 'Client Blocks: page list to query',
       slug,
       status: 'publish',
@@ -155,12 +163,12 @@ describe('Client: Gutenberg block parsing', () => {
 
     createdPageIds.push(created.id);
 
-    const pages = await authClient.getPages({ perPage: 100, page: 1 });
+    const pages = await pagesClient(authClient).list({ perPage: 100, page: 1 });
     const match = pages.find((page) => page.id === created.id);
 
     expect(match).toBeDefined();
 
-    const blocks = await authClient.getPage(match!.id).getBlocks();
+    const blocks = await pagesClient(authClient).item(match!.id).getBlocks();
 
     expect(blocks).toBeDefined();
     expect(blocks!.length).toBeGreaterThan(0);

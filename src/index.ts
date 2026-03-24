@@ -5,11 +5,7 @@ export {
   WordPressClient,
 } from './client.js';
 
-export { PostsResource } from './resources/posts.js';
-export { PagesResource } from './resources/pages.js';
 export { MediaResource } from './resources/media.js';
-export { CategoriesResource } from './resources/categories.js';
-export { TagsResource } from './resources/tags.js';
 export { UsersResource } from './resources/users.js';
 export { CommentsResource } from './resources/comments.js';
 export { SettingsResource } from './resources/settings.js';
@@ -17,7 +13,7 @@ export { SettingsResource } from './resources/settings.js';
 export {
   GenericResourceRegistry,
   type GenericResourceContext,
-} from './resources/content-terms.js';
+} from './resources/registry.js';
 
 // Export core base classes
 export {
@@ -190,6 +186,7 @@ export type {
 
 export {
   PostRelationQueryBuilder,
+  type ContentItemResult,
   type PostRelation,
   type SelectedPostRelations,
   type AllPostRelations,
@@ -247,7 +244,6 @@ export {
 } from './builders/acf-relations.js';
 
 export {
-  WordPressContentQuery,
   type WordPressGetBlocksOptions,
   type WordPressRawContentResult,
 } from './content-query.js';

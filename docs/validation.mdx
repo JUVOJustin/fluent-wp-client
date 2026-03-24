@@ -54,7 +54,7 @@ const extendedPostSchema = postSchema.extend({
   }).optional(),
 });
 
-const created = await wp.createPost(
+const created = await wp.content('posts').create(
   { title: 'Schema validated', status: 'draft' },
   extendedPostSchema,
 );
@@ -76,7 +76,7 @@ const postResponseSchema = v.object({
   status: v.string(),
 });
 
-const created = await wp.createPost(
+const created = await wp.content('posts').create(
   { title: 'Valibot validation', status: 'draft' },
   postResponseSchema,
 );
@@ -99,7 +99,7 @@ const createdBook = await books.create({
 });
 ```
 
-The same schema-backed resource client also validates `list()`, `getBySlug()`, `item(...).with(...).get()`, and `getWithRelations(...)` for that custom post type.
+The same schema-backed resource client also validates `list()`, `getBySlug()`, `item(...).with(...)`, and `getWithRelations(...)` for that custom post type.
 
 ## Example: sparse CPT validation with built-in schemas
 

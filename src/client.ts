@@ -15,15 +15,11 @@ import type {
   JwtLoginCredentials,
 } from './auth.js';
 import type { WordPressRequestOverrides } from './types/resources.js';
-import { PostsResource } from './resources/posts.js';
-import { PagesResource } from './resources/pages.js';
 import { MediaResource } from './resources/media.js';
-import { CategoriesResource } from './resources/categories.js';
-import { TagsResource } from './resources/tags.js';
 import { UsersResource } from './resources/users.js';
 import { SettingsResource } from './resources/settings.js';
 import { CommentsResource } from './resources/comments.js';
-import { GenericResourceRegistry } from './resources/content-terms.js';
+import { GenericResourceRegistry } from './resources/registry.js';
 import {
   type WordPressAuthor,
   type WordPressCategory,
@@ -37,11 +33,6 @@ import {
   type WordPressSettings,
   type WordPressTag,
 } from './schemas.js';
-import {
-  PostRelationQueryBuilder,
-  type PostRelation,
-  type SelectedPostRelations,
-} from './builders/relations.js';
 import { filterToParams } from './core/params.js';
 import { WordPressTransport, createRuntime, type WordPressRuntime } from './core/transport.js';
 import type {
@@ -56,10 +47,10 @@ import type {
 } from './types/filters.js';
 import type {
   ContentResourceClient,
-  PaginatedResponse,
-  TermsResourceClient,
   ExtensibleFilter,
+  PaginatedResponse,
   QueryParams,
+  TermsResourceClient,
   PaginationParams,
   WordPressDeleteResult,
 } from './types/resources.js';
@@ -79,14 +70,15 @@ import type { DeleteOptions, WordPressWritePayload, TermWriteInput, UserWriteInp
  *   auth: { username: 'admin', password: 'secret' }
  * });
  * 
- * // Get posts
- * const posts = await client.getPosts();
+ * // Read posts through the unified content API
+ * const posts = client.content('posts');
+ * const recentPosts = await posts.list({ perPage: 10 });
  * 
- * // Get single post with block parsing
- * const post = await client.getPost(123).get();
- * const blocks = await client.getPost(123).getBlocks();
+ * // Single-item queries are awaitable and expose block helpers
+ * const post = await posts.item(123);
+ * const blocks = await posts.item(123).getBlocks();
  * 
- * // Generic content (custom post types)
+ * // Custom post types use the same API surface
  * const books = client.content('books');
  * const allBooks = await books.list();
  * ```
@@ -96,11 +88,7 @@ export class WordPressClient {
   private readonly runtime: WordPressRuntime;
   
   // Resource instances (private to avoid naming conflicts with public methods)
-  private readonly postsResource: PostsResource;
-  private readonly pagesResource: PagesResource;
   private readonly mediaResource: MediaResource;
-  private readonly categoriesResource: CategoriesResource;
-  private readonly tagsResource: TagsResource;
   private readonly usersResource: UsersResource;
   private readonly settingsResource: SettingsResource;
   private readonly commentsResource: CommentsResource;
@@ -125,15 +113,12 @@ export class WordPressClient {
     this.runtime = createRuntime(this.transport);
 
     // Initialize resource instances
-    this.postsResource = PostsResource.create(this.runtime, config.blockParser);
-    this.pagesResource = PagesResource.create(this.runtime, config.blockParser);
     this.mediaResource = MediaResource.create(this.runtime);
-    this.categoriesResource = CategoriesResource.create(this.runtime);
-    this.tagsResource = TagsResource.create(this.runtime);
     this.usersResource = UsersResource.create(this.runtime);
     this.settingsResource = SettingsResource.create(this.runtime);
     this.commentsResource = CommentsResource.create(this.runtime);
     this.genericResourcesRegistry = new GenericResourceRegistry({
+      defaultBlockParser: config.blockParser,
       runtime: this.runtime,
       relationClient: this,
     });
@@ -171,92 +156,6 @@ export class WordPressClient {
    */
   request<T = unknown>(options: WordPressRequestOptions): Promise<WordPressRequestResult<T>> {
     return this.runtime.request(options);
-  }
-
-  // ============= POSTS API =============
-
-  getPosts(filter?: ExtensibleFilter<PostsFilter>, options?: WordPressRequestOverrides): Promise<WordPressPost[]> {
-    return this.postsResource.getPosts(filter, options);
-  }
-
-  getAllPosts(filter?: Omit<ExtensibleFilter<PostsFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressPost[]> {
-    return this.postsResource.getAllPosts(filter, options);
-  }
-
-  getPostsPaginated(filter?: ExtensibleFilter<PostsFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressPost>> {
-    return this.postsResource.getPostsPaginated(filter, options);
-  }
-
-  getPost(id: number, options?: WordPressRequestOverrides) {
-    return this.postsResource.getPost(id, options);
-  }
-
-  getPostBySlug(slug: string, options?: WordPressRequestOverrides) {
-    return this.postsResource.getPostBySlug(slug, options);
-  }
-
-  createPost<TResponse = WordPressPost>(
-    input: WordPressPostWriteBase,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return this.postsResource.create(input, responseSchemaOrRequestOptions, requestOptions);
-  }
-
-  updatePost<TResponse = WordPressPost>(
-    id: number,
-    input: WordPressPostWriteBase,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return this.postsResource.update(id, input, responseSchemaOrRequestOptions, requestOptions);
-  }
-
-  deletePost(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
-    return this.postsResource.delete(id, options);
-  }
-
-  // ============= PAGES API =============
-
-  getPages(filter?: ExtensibleFilter<PagesFilter>, options?: WordPressRequestOverrides): Promise<WordPressPage[]> {
-    return this.pagesResource.getPages(filter, options);
-  }
-
-  getAllPages(filter?: Omit<ExtensibleFilter<PagesFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressPage[]> {
-    return this.pagesResource.getAllPages(filter, options);
-  }
-
-  getPagesPaginated(filter?: ExtensibleFilter<PagesFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressPage>> {
-    return this.pagesResource.getPagesPaginated(filter, options);
-  }
-
-  getPage(id: number, options?: WordPressRequestOverrides) {
-    return this.pagesResource.getPage(id, options);
-  }
-
-  getPageBySlug(slug: string, options?: WordPressRequestOverrides) {
-    return this.pagesResource.getPageBySlug(slug, options);
-  }
-
-  createPage<TResponse = WordPressPage>(
-    input: WordPressPostWriteBase,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return this.pagesResource.create(input, responseSchemaOrRequestOptions, requestOptions);
-  }
-
-  updatePage<TResponse = WordPressPage>(
-    id: number,
-    input: WordPressPostWriteBase,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return this.pagesResource.update(id, input, responseSchemaOrRequestOptions, requestOptions);
-  }
-
-  deletePage(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
-    return this.pagesResource.delete(id, options);
   }
 
   // ============= MEDIA API =============
@@ -299,74 +198,6 @@ export class WordPressClient {
 
   deleteMedia(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
     return this.mediaResource.delete(id, options);
-  }
-
-  // ============= CATEGORIES API =============
-
-  getCategories(filter?: ExtensibleFilter<CategoriesFilter>, options?: WordPressRequestOverrides): Promise<WordPressCategory[]> {
-    return this.categoriesResource.getCategories(filter, options);
-  }
-
-  getAllCategories(filter?: Omit<ExtensibleFilter<CategoriesFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressCategory[]> {
-    return this.categoriesResource.getAllCategories(filter, options);
-  }
-
-  getCategoriesPaginated(filter?: ExtensibleFilter<CategoriesFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressCategory>> {
-    return this.categoriesResource.getCategoriesPaginated(filter, options);
-  }
-
-  getCategory(id: number, options?: WordPressRequestOverrides): Promise<WordPressCategory> {
-    return this.categoriesResource.getCategory(id, options);
-  }
-
-  getCategoryBySlug(slug: string, options?: WordPressRequestOverrides): Promise<WordPressCategory | undefined> {
-    return this.categoriesResource.getCategoryBySlug(slug, options);
-  }
-
-  createCategory(input: TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressCategory> {
-    return this.categoriesResource.create(input, options);
-  }
-
-  updateCategory(id: number, input: TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressCategory> {
-    return this.categoriesResource.update(id, input, options);
-  }
-
-  deleteCategory(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
-    return this.categoriesResource.delete(id, options);
-  }
-
-  // ============= TAGS API =============
-
-  getTags(filter?: ExtensibleFilter<TagsFilter>, options?: WordPressRequestOverrides): Promise<WordPressTag[]> {
-    return this.tagsResource.getTags(filter, options);
-  }
-
-  getAllTags(filter?: Omit<ExtensibleFilter<TagsFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressTag[]> {
-    return this.tagsResource.getAllTags(filter, options);
-  }
-
-  getTagsPaginated(filter?: ExtensibleFilter<TagsFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressTag>> {
-    return this.tagsResource.getTagsPaginated(filter, options);
-  }
-
-  getTag(id: number, options?: WordPressRequestOverrides): Promise<WordPressTag> {
-    return this.tagsResource.getTag(id, options);
-  }
-
-  getTagBySlug(slug: string, options?: WordPressRequestOverrides): Promise<WordPressTag | undefined> {
-    return this.tagsResource.getTagBySlug(slug, options);
-  }
-
-  createTag(input: TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressTag> {
-    return this.tagsResource.create(input, options);
-  }
-
-  updateTag(id: number, input: TermWriteInput, options?: WordPressRequestOverrides): Promise<WordPressTag> {
-    return this.tagsResource.update(id, input, options);
-  }
-
-  deleteTag(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
-    return this.tagsResource.delete(id, options);
   }
 
   // ============= USERS API =============
@@ -449,19 +280,55 @@ export class WordPressClient {
 
   // ============= GENERIC CONTENT API =============
 
+  content(
+    resource: 'posts',
+  ): ContentResourceClient<WordPressPost, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
+  content<TResource extends WordPressPostLike>(
+    resource: 'posts',
+    responseSchema: WordPressStandardSchema<TResource>,
+  ): ContentResourceClient<TResource, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
+  content(
+    resource: 'pages',
+  ): ContentResourceClient<WordPressPage, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
+  content<TResource extends WordPressPostLike>(
+    resource: 'pages',
+    responseSchema: WordPressStandardSchema<TResource>,
+  ): ContentResourceClient<TResource, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
     responseSchema?: WordPressStandardSchema<TResource>,
-  ): ContentResourceClient<TResource, WordPressWritePayload, WordPressWritePayload> {
+  ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload>;
+  content<TResource extends WordPressPostLike = WordPressPostLike>(
+    resource: string,
+    responseSchema?: WordPressStandardSchema<TResource>,
+  ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
     return this.genericResourcesRegistry.content(resource, responseSchema);
   }
 
   // ============= GENERIC TERMS API =============
 
+  terms(
+    resource: 'categories',
+  ): TermsResourceClient<WordPressCategory, ExtensibleFilter<CategoriesFilter>, TermWriteInput, TermWriteInput>;
+  terms<TResource>(
+    resource: 'categories',
+    responseSchema: WordPressStandardSchema<TResource>,
+  ): TermsResourceClient<TResource, ExtensibleFilter<CategoriesFilter>, TermWriteInput, TermWriteInput>;
+  terms(
+    resource: 'tags',
+  ): TermsResourceClient<WordPressTag, ExtensibleFilter<TagsFilter>, TermWriteInput, TermWriteInput>;
+  terms<TResource>(
+    resource: 'tags',
+    responseSchema: WordPressStandardSchema<TResource>,
+  ): TermsResourceClient<TResource, ExtensibleFilter<TagsFilter>, TermWriteInput, TermWriteInput>;
   terms<TResource = WordPressCategory>(
     resource: string,
     responseSchema?: WordPressStandardSchema<TResource>,
-  ): TermsResourceClient<TResource, TermWriteInput, TermWriteInput> {
+  ): TermsResourceClient<TResource, QueryParams & PaginationParams, TermWriteInput, TermWriteInput>;
+  terms<TResource = WordPressCategory>(
+    resource: string,
+    responseSchema?: WordPressStandardSchema<TResource>,
+  ): TermsResourceClient<TResource, QueryParams & PaginationParams, TermWriteInput, TermWriteInput> {
     return this.genericResourcesRegistry.terms(resource, responseSchema);
   }
 
@@ -477,31 +344,6 @@ export class WordPressClient {
   ): Promise<TResult[]> {
     const params = filterToParams({ ...filter, search: query });
     return this.runtime.fetchAPI<TResult[]>('/search', params, options);
-  }
-
-  // ============= RELATION API =============
-
-  /**
-   * Starts a fluent post relation query by ID or slug.
-   */
-  post(idOrSlug: number | string): PostRelationQueryBuilder<[]> {
-    return new PostRelationQueryBuilder(
-      this,
-      typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
-      (id) => this.getPost(id),
-      (slug) => this.getPostBySlug(slug),
-    );
-  }
-
-  /**
-   * Fetches a post and resolves selected related entities in one call.
-   */
-  async getPostWithRelations<TRelations extends readonly PostRelation[]>(
-    idOrSlug: number | string,
-    ...relations: TRelations
-  ): Promise<WordPressPost & { related: SelectedPostRelations<TRelations> }> {
-    const query = this.post(idOrSlug).with(...relations);
-    return query.get() as Promise<WordPressPost & { related: SelectedPostRelations<TRelations> }>;
   }
 
   // ============= ABILITIES API =============

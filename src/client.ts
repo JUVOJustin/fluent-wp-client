@@ -42,7 +42,6 @@ import {
   type PostRelation,
   type SelectedPostRelations,
 } from './builders/relations.js';
-import { WordPressRequestBuilder } from './builders/wpapi-request.js';
 import { filterToParams } from './core/params.js';
 import { WordPressTransport, createRuntime, type WordPressRuntime } from './core/transport.js';
 import type {
@@ -68,26 +67,6 @@ import type { WordPressStandardSchema } from './core/validation.js';
 import type { DeleteOptions, WordPressWritePayload, TermWriteInput, UserWriteInput, UserDeleteOptions } from './types/payloads.js';
 
 /**
- * Namespace-scoped request factory for WPAPI-style route chaining.
- */
-export interface WordPressNamespaceClient {
-  route: <
-    TResponse = unknown,
-    TCreate extends Record<string, unknown> = Record<string, unknown>,
-    TUpdate extends Record<string, unknown> = TCreate,
-  >(
-    resource: string,
-  ) => WordPressRequestBuilder<TResponse, TCreate, TUpdate>;
-  resource: <
-    TResponse = unknown,
-    TCreate extends Record<string, unknown> = Record<string, unknown>,
-    TUpdate extends Record<string, unknown> = TCreate,
-  >(
-    resource: string,
-  ) => WordPressRequestBuilder<TResponse, TCreate, TUpdate>;
-}
-
-/**
  * Runtime-agnostic WordPress API client with typed resources and CRUD helpers.
  * 
  * This is the main entry point for the fluent-wp-client library.
@@ -106,9 +85,6 @@ export interface WordPressNamespaceClient {
  * // Get single post with block parsing
  * const post = await client.getPost(123).get();
  * const blocks = await client.getPost(123).getBlocks();
- * 
- * // WPAPI-style chaining
- * const published = await client.posts().status('publish').get();
  * 
  * // Generic content (custom post types)
  * const books = client.content('books');
@@ -489,164 +465,7 @@ export class WordPressClient {
     return this.genericResourcesRegistry.terms(resource, responseSchema);
   }
 
-  // ============= WPAPI-STYLE CHAINING API =============
-
-  /**
-   * Creates a WPAPI-style request builder for any REST namespace/resource pair.
-   */
-  route<
-    TResponse = unknown,
-    TCreate extends Record<string, unknown> = Record<string, unknown>,
-    TUpdate extends Record<string, unknown> = TCreate,
-  >(
-    resource: string,
-    namespace = 'wp/v2',
-  ): WordPressRequestBuilder<TResponse, TCreate, TUpdate> {
-    const normalizedNamespace = namespace.replace(/^\/+|\/+$/g, '');
-    const normalizedResource = resource.replace(/^\/+|\/+$/g, '');
-
-    if (!normalizedResource) {
-      throw new Error('Resource path must not be empty.');
-    }
-
-    const endpoint = normalizedNamespace === 'wp/v2'
-      ? `/${normalizedResource}`
-      : `/wp-json/${normalizedNamespace}/${normalizedResource}`;
-
-    return new WordPressRequestBuilder<TResponse, TCreate, TUpdate>(
-      {
-        request: this.runtime.request.bind(this.runtime),
-        createUrl: this.transport.createApiUrlString.bind(this.transport),
-      },
-      endpoint,
-    );
-  }
-
-  /**
-   * Returns a namespace-scoped request factory for custom/plugin routes.
-   */
-  namespace(namespace: string): WordPressNamespaceClient {
-    const route = <
-      TResponse = unknown,
-      TCreate extends Record<string, unknown> = Record<string, unknown>,
-      TUpdate extends Record<string, unknown> = TCreate,
-    >(
-      resource: string,
-    ) => this.route<TResponse, TCreate, TUpdate>(resource, namespace);
-
-    return {
-      route,
-      resource: route,
-    };
-  }
-
-  /**
-   * Registers a route factory following node-wpapi style route declarations.
-   */
-  registerRoute(
-    namespace: string,
-    route: string,
-  ): () => WordPressRequestBuilder<unknown, Record<string, unknown>, Record<string, unknown>> {
-    const normalizedRoute = route
-      .replace(/\/\(\?P<[^>]+>[^)]+\)/g, '')
-      .replace(/\/\(\?P<[^>]+>\)/g, '')
-      .replace(/^\/+|\/+$/g, '');
-
-    return () => this.route(normalizedRoute, namespace);
-  }
-
-  /**
-   * Starts a WPAPI-style posts request chain.
-   */
-  posts(): WordPressRequestBuilder<
-    WordPressPost | WordPressPost[],
-    WordPressPostWriteBase & Record<string, unknown>,
-    WordPressPostWriteBase & Record<string, unknown>
-  > {
-    return this.route('posts');
-  }
-
-  /**
-   * Starts a WPAPI-style pages request chain.
-   */
-  pages(): WordPressRequestBuilder<
-    WordPressPage | WordPressPage[],
-    WordPressPostWriteBase & Record<string, unknown>,
-    WordPressPostWriteBase & Record<string, unknown>
-  > {
-    return this.route('pages');
-  }
-
-  /**
-   * Starts a WPAPI-style media request chain.
-   */
-  media(): WordPressRequestBuilder<WordPressMedia | WordPressMedia[], WordPressWritePayload, WordPressWritePayload> {
-    return this.route('media');
-  }
-
-  /**
-   * Starts a WPAPI-style categories request chain.
-   */
-  categories(): WordPressRequestBuilder<WordPressCategory | WordPressCategory[], TermWriteInput, TermWriteInput> {
-    return this.route('categories');
-  }
-
-  /**
-   * Starts a WPAPI-style tags request chain.
-   */
-  tags(): WordPressRequestBuilder<WordPressTag | WordPressTag[], TermWriteInput, TermWriteInput> {
-    return this.route('tags');
-  }
-
-  /**
-   * Starts a WPAPI-style users request chain.
-   */
-  users(): WordPressRequestBuilder<WordPressAuthor | WordPressAuthor[], UserWriteInput, UserWriteInput> {
-    return this.route('users');
-  }
-
-  /**
-   * Starts a WPAPI-style comments request chain.
-   */
-  comments(): WordPressRequestBuilder<WordPressComment | WordPressComment[], WordPressWritePayload, WordPressWritePayload> {
-    return this.route('comments');
-  }
-
-  /**
-   * Starts a WPAPI-style settings request chain.
-   */
-  settings(): WordPressRequestBuilder<WordPressSettings, Partial<WordPressSettings> & Record<string, unknown>> {
-    return this.route('settings');
-  }
-
-  /**
-   * Starts a WPAPI-style post types request chain.
-   */
-  types(): WordPressRequestBuilder<unknown> {
-    return this.route('types');
-  }
-
-  /**
-   * Starts a WPAPI-style taxonomies request chain.
-   */
-  taxonomies(): WordPressRequestBuilder<unknown> {
-    return this.route('taxonomies');
-  }
-
-  /**
-   * Starts a WPAPI-style statuses request chain.
-   */
-  statuses(): WordPressRequestBuilder<unknown> {
-    return this.route('statuses');
-  }
-
-  /**
-   * Starts a WPAPI-style search request chain.
-   */
-  search(query?: string): WordPressRequestBuilder<WordPressSearchResult[]> {
-    const builder = this.route('search') as WordPressRequestBuilder<WordPressSearchResult[]>;
-    return query !== undefined ? builder.search(query) : builder;
-  }
+  // ============= CROSS-RESOURCE SEARCH =============
 
   /**
    * Performs a typed cross-resource search against the /wp/v2/search endpoint.
@@ -658,13 +477,6 @@ export class WordPressClient {
   ): Promise<TResult[]> {
     const params = filterToParams({ ...filter, search: query });
     return this.runtime.fetchAPI<TResult[]>('/search', params, options);
-  }
-
-  /**
-   * Starts a WPAPI-style block request chain.
-   */
-  blocks(): WordPressRequestBuilder<unknown, WordPressWritePayload, WordPressWritePayload> {
-    return this.route('blocks');
   }
 
   // ============= RELATION API =============

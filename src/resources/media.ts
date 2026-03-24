@@ -115,7 +115,7 @@ export class MediaResource extends BaseCrudResource<
         rawBody: fileBody,
         headers: uploadHeaders,
         omitContentType: true,
-      }, requestOptions, 'Mutation helper options'),
+      }, requestOptions),
       mediaSchema,
     );
 

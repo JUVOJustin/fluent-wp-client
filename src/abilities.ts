@@ -231,7 +231,7 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
       endpoint: createAbilityRunEndpoint(this.abilityName),
       method: 'GET',
       params: createAbilityQueryParams(validatedInput),
-    }, requestOptions, 'Ability helper options'));
+    }, requestOptions));
 
     return parseAbilityResponse(response, data, this.outputValidator);
   }
@@ -245,7 +245,7 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
       endpoint: createAbilityRunEndpoint(this.abilityName),
       method: 'POST',
       body: createAbilityRequestBody(validatedInput),
-    }, requestOptions, 'Ability helper options'));
+    }, requestOptions));
 
     return parseAbilityResponse(response, data, this.outputValidator);
   }
@@ -259,7 +259,7 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
       endpoint: createAbilityRunEndpoint(this.abilityName),
       method: 'DELETE',
       params: createAbilityQueryParams(validatedInput),
-    }, requestOptions, 'Ability helper options'));
+    }, requestOptions));
 
     return parseAbilityResponse(response, data, this.outputValidator);
   }

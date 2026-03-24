@@ -181,24 +181,4 @@ describe('Client: Search', () => {
       expect(filtered.map((result) => result.id)).not.toContain(ids[1]);
     });
   });
-
-  describe('search() WPAPI builder', () => {
-    it('returns results via the WPAPI-style search chain', async () => {
-      const results = await publicClient.search('001').get();
-
-      expect(Array.isArray(results)).toBe(true);
-      expect(results.length).toBeGreaterThan(0);
-
-      const first = results[0];
-      expect(typeof (first as Record<string, unknown>)?.id).toBe('number');
-      expect(typeof (first as Record<string, unknown>)?.title).toBe('string');
-    });
-
-    it('supports perPage via the WPAPI chain', async () => {
-      const results = await publicClient.search('Test Post').perPage(2).get();
-
-      expect(Array.isArray(results)).toBe(true);
-      expect(results).toHaveLength(2);
-    });
-  });
 });

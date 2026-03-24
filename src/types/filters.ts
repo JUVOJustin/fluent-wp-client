@@ -125,8 +125,7 @@ export interface CommentsFilter extends PaginationParams {
  *
  * The `search` field is required by the WordPress API but is accepted as a
  * separate first argument in the `searchContent()` convenience method. Use this
- * interface directly when calling the lower-level WPAPI builder chain or when
- * composing filter objects manually.
+ * interface directly when composing filter objects manually for the search endpoint.
  *
  * When `subtype` is an array it is serialised using WordPress bracket notation
  * (`subtype[]=post&subtype[]=page`) so that multiple subtypes can be filtered

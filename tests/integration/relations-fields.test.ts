@@ -95,20 +95,13 @@ describe('Client: relationship field requirements', () => {
     });
   });
 
-  describe('WPAPI builder field restrictions with relations', () => {
-    it('includes embedded relation data on collection requests with .embed()', async () => {
-      // WPAPI-style collection requests still expose embedded data when requested.
-      const posts = await authClient
-        .posts()
-        .slug('test-post-001')
-        .embed()
-        .get();
+  describe('embedded data handling with relations', () => {
+    it('includes embedded relation data when _embed is used', async () => {
+      // Requests with _embed=true expose embedded data for relation hydration
+      // Using the getPost helper which automatically uses _embed for relations
+      const post = await authClient.getPostBySlug('test-post-001').get();
 
-      expect(Array.isArray(posts)).toBe(true);
-      expect(posts.length).toBeGreaterThan(0);
-      const post = posts[0];
-
-      // _embedded should be present due to .embed()
+      // When using relation methods, _embed is automatically included
       expect(post).toHaveProperty('_embedded');
       // Critical fields should be present for relation use
       expect(post).toHaveProperty('author');

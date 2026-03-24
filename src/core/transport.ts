@@ -338,7 +338,7 @@ export class WordPressTransport {
       endpoint,
       method: 'GET',
       params,
-    }, requestOptions, 'Helper request options'));
+    }, requestOptions));
 
     throwIfWordPressError(response, data);
 

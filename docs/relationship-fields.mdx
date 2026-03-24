@@ -129,6 +129,6 @@ Tests verify:
 ## Best Practices
 
 1. **Let the client handle fields**: Don't manually exclude critical fields when using relations
-2. **Use `.embed()` for collections**: When using the WPAPI builder, add `.embed()` to ensure embedded data is available
+2. **Use `_embed` for collections**: When fetching collections with relations, ensure `_embed` is set to get embedded data
 3. **Check for null**: Always handle cases where relations may be null (e.g., no featured media)
 4. **Auth for full data**: Use authenticated clients to get complete author information

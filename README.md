@@ -38,7 +38,6 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
 - **Gutenberg block parsing** — single-post queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
-- **WPAPI-compatible fluent syntax** — migrate from `node-wpapi` with minimal changes
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`, with schema-backed generic builders validating reads and mutations
 - **Extensible relation API** — fluent relations for posts and custom entities, plus generic ID-backed and shared link/embed relation factories
@@ -96,7 +95,6 @@ Full documentation lives in the [`docs/`](./docs/) folder:
 - [Abilities](./docs/abilities.mdx) — WordPress Abilities API
 - [Validation](./docs/validation.mdx) — Standard Schema, Zod, and custom validators
 - [Extensible relations](./docs/extensible-relations.mdx) — ACF field-type helpers, custom relation registration, and generic relation factories for IDs and shared link/embed buckets
-- [Migrate from node-wpapi](./docs/migration-from-node-wpapi.mdx) — migration guide
 
 ## Development
 

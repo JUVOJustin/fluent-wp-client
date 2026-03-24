@@ -175,37 +175,6 @@ await genres.update(created.id, { name: 'Sci-Fi' });
 await genres.delete(created.id, { force: true });
 ```
 
-## Plugin/custom namespace routes
-
-For endpoints outside `wp/v2`, use namespace-scoped chains:
-
-```ts title="Namespace route request"
-const syncResult = await wp
-  .namespace('my-plugin/v1')
-  .route('sync')
-  .param('mode', 'full')
-  .get();
-```
-
-You can also create/update/delete in custom namespaces:
-
-```ts title="Namespace CRUD"
-const inventory = wp.namespace('inventory/v1').route('items');
-
-const created = await inventory.create({ sku: 'abc-123', stock: 20 });
-await inventory.id((created as { id: number }).id).update({ stock: 18 });
-await inventory.id((created as { id: number }).id).delete();
-```
-
-## node-wpapi `registerRoute` compatibility
-
-```ts title="registerRoute compatibility"
-const authorRoute = wp.registerRoute('my-plugin/v1', '/authors/(?P<id>)');
-
-const url = authorRoute().id(7).toString();
-const author = await authorRoute().id(7).get();
-```
-
 ## Low-level custom endpoint requests
 
 Use `request()` if you need direct access to headers/response metadata.

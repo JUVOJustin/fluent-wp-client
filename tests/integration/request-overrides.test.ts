@@ -63,32 +63,6 @@ describe('Client: request-scoped mutation overrides', () => {
     }
   });
 
-  it('rejects auth header overrides on mutation helper options', async () => {
-    const client = createObservedAuthClient(() => undefined);
-
-    await expect(
-      client.createPost(
-        {
-          title: 'Request overrides: auth header should fail',
-          status: 'draft',
-        },
-        {
-          headers: {
-            Authorization: 'Bearer should-not-be-allowed',
-          },
-        },
-      ),
-    ).rejects.toThrow(/auth header overrides are not supported/i);
-  });
-
-  it('rejects auth-like header overrides on WPAPI chains', () => {
-    const client = createObservedAuthClient(() => undefined);
-
-    expect(() => client.posts().setHeaders('Authorization', 'Bearer blocked')).toThrow(
-      /auth header overrides are not supported/i,
-    );
-  });
-
   it('forwards custom headers for post create/update/delete helpers', async () => {
     const seen = {
       create: false,

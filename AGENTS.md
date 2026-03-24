@@ -70,7 +70,6 @@ src/
     content-terms.ts           # GenericResourceRegistry
 
   builders/                    # Fluent query/request builders
-    wpapi-request.ts           # WordPressRequestBuilder (WPAPI compat chain)
     relations.ts               # PostRelationQueryBuilder
     acf-relations.ts           # ACF relation factories built on shared contracts
     relation-contracts.ts      # Relation registry contracts + parsing helpers
@@ -212,7 +211,6 @@ Reference integration suites:
 - `tests/integration/meta.test.ts` — registered REST meta coverage across posts, pages, and books.
 - `tests/integration/acf.test.ts` — ACF REST field coverage across seeded and mutated content.
 - `tests/integration/relations.test.ts` — fluent post relation hydration coverage.
-- `tests/integration/wpapi-compat.test.ts` — WPAPI-compatible request builder coverage.
 - `tests/integration/serialization.test.ts` — DTO serialization safety (`structuredClone`, `JSON.stringify`, no helper leakage).
 
 ### What to test when adding new features

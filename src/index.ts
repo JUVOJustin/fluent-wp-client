@@ -3,7 +3,6 @@
  */
 export {
   WordPressClient,
-  type WordPressNamespaceClient,
 } from './client.js';
 
 export { PostsResource } from './resources/posts.js';
@@ -72,11 +71,6 @@ export {
   type RunAbilityInput,
   type DeleteAbilityInput,
 } from './abilities.js';
-
-export {
-  WordPressRequestBuilder,
-  type WordPressRequestDeleteOptions,
-} from './builders/wpapi-request.js';
 
 export {
   createBasicAuthHeader,

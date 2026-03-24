@@ -52,7 +52,7 @@ export class SettingsResource {
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: this.endpoint,
       method: 'GET',
-    }, requestOptions, 'Settings request options'));
+    }, requestOptions));
 
     throwIfWordPressError(response, data);
     return validateWithStandardSchema(settingsSchema, data, 'Settings response validation failed');
@@ -77,7 +77,7 @@ export class SettingsResource {
       endpoint: this.endpoint,
       method: 'POST',
       body: compactPayload(input),
-    }, resolved.requestOptions, 'Settings update options'));
+    }, resolved.requestOptions));
 
     throwIfWordPressError(response, data);
 

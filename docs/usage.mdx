@@ -1,30 +1,51 @@
 ---
 title: Usage
 short_title: Usage
-description: Primary developer guide for fluent-wp-client covering CRUD, auth, abilities, and WPAPI-compatible syntax.
+description: Primary developer guide for fluent-wp-client covering CRUD, auth, and abilities.
 sidebar:
   order: 2
 ---
 
-import { CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+import { CardGrid, Steps, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
 
-This guide covers all main client methods, CRUD patterns, WordPress abilities, WPAPI-compatible fluent syntax, validation, auth, pagination, and error handling.
+Fluent WP Client is built to easily interact with the WordPress Rest API keeping developer experience, type safety, and extensibility in mind. Using the client is straightforward, but the library also provides powerful tools for advanced use cases like custom authentication strategies and schema validation.
 
-## Install
+## Quick Start
 
-```bash
-npm install fluent-wp-client
-```
+<Steps>
 
-## Create a client
+1. Install
+  ```bash
+  npm install fluent-wp-client
+  ```
 
-```ts
-import { WordPressClient } from 'fluent-wp-client';
+2. Create a client
+  ```ts
+  import { WordPressClient } from 'fluent-wp-client';
 
-const wp = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-});
-```
+  const wp = new WordPressClient({
+    baseUrl: 'https://your-wordpress-site.com',
+  });
+  ```
+
+3. Interact with the API
+  ```ts 
+  // Read a list of posts
+  const posts = await wp.getPosts({ perPage: 10 });
+
+
+  // Custom post type example
+  const books = wp.content('books');
+  const allBooks = await books.listAll();
+
+  // Get item directly
+  const bySlug = await books.getBySlug('my-book');
+
+  // Get the item with relations
+  const hydrated = await books.item('my-book').with('author', 'terms').get();
+  ```
+
+</Steps>
 
 <CardGrid>
   <LinkCard
@@ -231,18 +252,9 @@ const genres = await wp.terms('genre').list({ perPage: 100 });
 
   </TabItem>
 
-  <TabItem label="WPAPI builder">
-
-```ts title="3) WPAPI-compatible fluent builder"
-const chainPosts = await wp.posts().perPage(10).page(1).embed().get();
-const chainPost = await wp.posts().slug('hello-world').get();
-```
-
-  </TabItem>
-
   <TabItem label="Low-level request">
 
-```ts title="4) Low-level request transport"
+```ts title="3) Low-level request transport"
 const { data, response } = await wp.request({
   endpoint: '/wp-json/my-plugin/v1/sync',
   method: 'POST',
@@ -254,7 +266,7 @@ const { data, response } = await wp.request({
 
   <TabItem label="Abilities">
 
-```ts title="5) WordPress abilities"
+```ts title="4) WordPress abilities"
 const definitions = await wp.getAbilities();
 const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
 
@@ -588,16 +600,6 @@ await genres.delete(createdGenre.id, {
 });
 ```
 
-### WPAPI-style CRUD chain
-
-```ts
-const created = await wp.posts().create({ title: 'Chain post', status: 'draft' });
-const postId = (created as { id: number }).id;
-
-await wp.posts().id(postId).update({ status: 'publish' });
-await wp.posts().id(postId).delete({ force: true });
-```
-
 ## Cross-resource search
 
 `searchContent(query, filter?)` searches across posts, pages, and custom post types using the WordPress `/wp/v2/search` endpoint.
@@ -633,87 +635,6 @@ const paged = await wp.searchContent('hello', {
 ```
 
 Each result has the shape `{ id, title, url, type, subtype }`.
-
-### WPAPI chain search
-
-The `search(query)` starter provides the same features through the fluent builder. Pass the query directly to the starter — a separate chained `.search()` call is not needed:
-
-```ts
-// Basic search
-const results = await wp.search('hello').perPage(5).get();
-
-// Filter by type and single subtype
-const pages = await wp.search('about').param('type', 'post').subtype('page').get();
-
-// Filter by multiple subtypes — bracket notation is handled automatically
-const mixed = await wp
-  .search('test')
-  .param('type', 'post')
-  .subtype(['post', 'page', 'book'])
-  .perPage(10)
-  .get();
-
-// Use context, include, and exclude
-const withContext = await wp
-  .search('hello')
-  .context('embed')
-  .include([5, 15])
-  .exclude([10, 20])
-  .get();
-```
-
-## Full WPAPI-compatible syntax
-
-### Root chain starters
-
-- `posts()`
-- `pages()`
-- `media()`
-- `categories()`
-- `tags()`
-- `users()`
-- `comments()`
-- `settings()`
-- `types()`
-- `taxonomies()`
-- `statuses()`
-- `search(query?)`
-- `blocks()`
-
-### Chain query methods
-
-- `id(value)`
-- `param(name, value)`
-- `params(record)`
-- `slug(value)`
-- `page(value)`
-- `perPage(value)`
-- `offset(value)`
-- `search(value)`
-- `status(value)`
-- `author(value)`
-- `categories(value)`
-- `tags(value)`
-- `include(value)`
-- `exclude(value)`
-- `order('asc' | 'desc')`
-- `orderby(value)`
-- `context(value)`
-- `subtype(value)` — single string or array; arrays use bracket notation (`subtype[]=…`)
-- `fields(value)` — single field name or array; restricts the response via `_fields`
-- `password(value)`
-- `embed()`
-- `setHeaders(...)` / `headers(...)`
-- `toString()`
-- `get()`
-- `create(payload)`
-- `update(payload)`
-- `delete({ force? })`
-- thenable support: `await wp.posts().slug('hello-world')`
-
-WPAPI chains intentionally block auth-like header overrides via `setHeaders` (for example `Authorization`, `Cookie`, and `X-WP-Nonce`). Use a different `WordPressClient` instance when auth settings need to change.
-
-When `param(name, value)` receives an array it encodes each element using WordPress bracket notation (`name[]=a&name[]=b`). This is the correct format for multi-value parameters on the search endpoint (e.g. `subtype`) and is also accepted by WordPress for other array params such as `categories`, `tags`, `include`, and `exclude`.
 
 ### Namespace and route helpers
 

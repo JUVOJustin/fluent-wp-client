@@ -176,7 +176,7 @@ export abstract class BaseCrudResource<
         endpoint,
         method: 'POST',
         body: compactPayload(input),
-      }, resolved.requestOptions, 'Mutation helper options'),
+      }, resolved.requestOptions),
       resolved.responseSchema ?? (this.defaultSchema as WordPressStandardSchema<TResponse> | undefined),
     );
   }
@@ -223,7 +223,7 @@ export abstract class BaseCrudResource<
       endpoint: `${this.endpoint}/${id}`,
       method: 'DELETE',
       params,
-    }, options, 'Mutation helper options'));
+    }, options));
 
     return normalizeDeleteResult(id, data);
   }

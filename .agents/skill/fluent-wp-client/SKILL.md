@@ -360,7 +360,7 @@ Before writing mutations against an unfamiliar resource or ability, call `.descr
 - `wp.ability(name).describe()` — `input` and `output` schemas
 - `wp.explore()` — full catalog of all resources and abilities at once
 
-See [references/schema-discovery.mdx](references/schema-discovery.mdx) for full examples.
+See `docs/schema-discovery.mdx` for examples.
 
 ## WordPress Abilities API
 
@@ -588,5 +588,5 @@ Consult these when deeper guidance is needed for a specific topic:
 | [references/gutenberg-content.mdx](references/gutenberg-content.mdx) | Rendered vs raw content, block parsing workflows, custom parser setup, CPT block parsing |
 | [references/custom-endpoints.mdx](references/custom-endpoints.mdx) | CPT/taxonomy patterns, namespace routing, registerRoute, low-level requests, per-request auth |
 | [references/abilities.mdx](references/abilities.mdx) | Ability metadata, direct execution helpers, fluent builder with schemas, exported ability schemas |
-| [references/schema-discovery.mdx](references/schema-discovery.mdx) | `.describe()`, `explore()`, `z.fromJSONSchema()` integration, result shapes, caching |
+| `docs/schema-discovery.mdx` | `.describe()`, `explore()`, `z.fromJSONSchema()` integration and examples |
 | [references/migration-from-node-wpapi.mdx](references/migration-from-node-wpapi.mdx) | Side-by-side mapping from node-wpapi, auth migration, behavioral differences |

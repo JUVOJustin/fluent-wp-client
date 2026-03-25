@@ -49,6 +49,12 @@ describe('Discovery APIs', () => {
       expect(description.resource).toBe('books');
       expect(description.schemas).toBeDefined();
     });
+
+    it('returns serializable resource descriptions without dropping schema keys', async () => {
+      const description = await authClient.content('posts').describe();
+
+      expect(JSON.parse(JSON.stringify(description))).toEqual(description);
+    });
   });
 
   describe('wp.terms().describe()', () => {
@@ -83,6 +89,12 @@ describe('Discovery APIs', () => {
       expect(description.name).toBe('test/process-complex');
       expect(description.route).toContain('/wp-json/wp-abilities/v1/abilities/test/process-complex');
       expect(description.schemas).toBeDefined();
+    });
+
+    it('returns serializable ability descriptions without dropping schema keys', async () => {
+      const description = await authClient.ability('test/process-complex').describe();
+
+      expect(JSON.parse(JSON.stringify(description))).toEqual(description);
     });
   });
 
@@ -126,6 +138,18 @@ describe('Discovery APIs', () => {
       expect(Object.keys(catalog.terms).length).toBe(0);
       expect(Object.keys(catalog.resources).length).toBe(0);
       expect(Object.keys(catalog.abilities).length).toBe(0);
+    });
+
+    it('does not treat a partial explore() result as the cached full catalog', async () => {
+      const client = createAuthClient();
+
+      const partialCatalog = await client.explore({ include: ['content'] });
+      expect(Object.keys(partialCatalog.terms).length).toBe(0);
+
+      const fullCatalog = await client.explore();
+      expect(Object.keys(fullCatalog.terms).length).toBeGreaterThan(0);
+      expect(Object.keys(fullCatalog.resources).length).toBeGreaterThan(0);
+      expect(Object.keys(fullCatalog.abilities).length).toBeGreaterThan(0);
     });
 
     it('returns serializable DTOs', async () => {
@@ -185,7 +209,7 @@ describe('Discovery APIs', () => {
               status: 'draft',
             },
             createSchema
-          );
+          ) as { id: number; type: string };
           
           expect(book).toBeDefined();
           expect(book.type).toBe('book');

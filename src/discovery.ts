@@ -19,226 +19,10 @@ import type {
   WordPressJsonSchema,
 } from './types/discovery.js';
 import type { WordPressAbility } from './schemas.js';
+import { throwIfWordPressError } from './core/errors.js';
+import { applyRequestOverrides } from './core/request-overrides.js';
 import type { WordPressRuntime } from './core/transport.js';
 import type { WordPressRequestOverrides } from './types/resources.js';
-import type { WordPressStandardSchema } from './core/validation.js';
-
-/**
- * Creates a Standard Schema-compatible validator from a JSON Schema.
- * This allows discovered JSON Schemas to be used directly with the client's
- * existing validation methods (create, update, ability.run, etc.).
- * 
- * @example
- * ```typescript
- * const description = await wp.content('posts').describe();
- * const post = await wp.content('posts').create(
- *   { title: 'Hello', content: 'World' },
- *   jsonSchemaToValidator(description.schemas.create)
- * );
- * ```
- */
-export function jsonSchemaToValidator<T = unknown>(
-  jsonSchema: WordPressJsonSchema | undefined,
-): WordPressStandardSchema<T> | undefined {
-  if (!jsonSchema) {
-    return undefined;
-  }
-
-  // Return a Standard Schema-compatible wrapper
-  return {
-    '~standard': {
-      version: 1,
-      vendor: 'fluent-wp-client',
-      validate: (value: unknown) => {
-        const errors = validateAgainstJsonSchema(value, jsonSchema);
-        
-        if (errors.length > 0) {
-          return {
-            issues: errors.map(err => ({
-              message: err.message,
-              path: err.path,
-            })),
-          };
-        }
-
-        return { value: value as T };
-      },
-    },
-  };
-}
-
-/**
- * Validation error from JSON Schema validation.
- */
-interface JsonSchemaValidationError {
-  message: string;
-  path: Array<string | number | { key: string | number }>;
-}
-
-/**
- * Validates a value against a JSON Schema.
- * This is a simplified validator that handles common WordPress REST API patterns.
- */
-function validateAgainstJsonSchema(
-  value: unknown,
-  schema: WordPressJsonSchema,
-): JsonSchemaValidationError[] {
-  const errors: JsonSchemaValidationError[] = [];
-
-  if (!schema || typeof schema !== 'object') {
-    return errors;
-  }
-
-  // Handle object schemas (most common for WordPress create/update)
-  if (schema.type === 'object') {
-    if (typeof value !== 'object' || value === null) {
-      errors.push({
-        message: `Expected object, received ${typeof value}`,
-        path: [],
-      });
-      return errors;
-    }
-
-    const obj = value as Record<string, unknown>;
-    const properties = schema.properties as Record<string, WordPressJsonSchema> | undefined;
-    const required = schema.required as string[] | undefined;
-
-    // Check required fields
-    if (required && Array.isArray(required)) {
-      for (const key of required) {
-        if (!(key in obj) || obj[key] === undefined || obj[key] === null) {
-          errors.push({
-            message: `Required field`,
-            path: [{ key }],
-          });
-        }
-      }
-    }
-
-    // Validate properties
-    if (properties && typeof properties === 'object') {
-      for (const [key, propSchema] of Object.entries(properties)) {
-        if (key in obj && obj[key] !== undefined) {
-          const propErrors = validateProperty(obj[key], propSchema, [{ key }]);
-          errors.push(...propErrors);
-        }
-      }
-    }
-  }
-
-  return errors;
-}
-
-/**
- * Validates a single property against its schema.
- */
-function validateProperty(
-  value: unknown,
-  schema: WordPressJsonSchema,
-  path: Array<string | number | { key: string | number }>,
-): JsonSchemaValidationError[] {
-  const errors: JsonSchemaValidationError[] = [];
-
-  if (!schema || typeof schema !== 'object') {
-    return errors;
-  }
-
-  // Type validation
-  if (schema.type) {
-    const typeError = validateType(value, schema.type as string, path);
-    if (typeError) {
-      errors.push(typeError);
-      return errors; // Stop on type error
-    }
-  }
-
-  // Enum validation
-  if (schema.enum && Array.isArray(schema.enum)) {
-    if (!schema.enum.includes(value)) {
-      errors.push({
-        message: `Value must be one of: ${schema.enum.join(', ')}`,
-        path,
-      });
-    }
-  }
-
-  // Nested object validation
-  if (schema.type === 'object' && schema.properties) {
-    if (typeof value === 'object' && value !== null) {
-      const obj = value as Record<string, unknown>;
-      const required = schema.required as string[] | undefined;
-
-      if (required && Array.isArray(required)) {
-        for (const key of required) {
-          if (!(key in obj) || obj[key] === undefined || obj[key] === null) {
-            errors.push({
-              message: `Required field`,
-              path: [...path, { key }],
-            });
-          }
-        }
-      }
-
-      for (const [key, propSchema] of Object.entries(schema.properties)) {
-        if (key in obj && obj[key] !== undefined) {
-          const propErrors = validateProperty(obj[key], propSchema, [...path, { key }]);
-          errors.push(...propErrors);
-        }
-      }
-    }
-  }
-
-  // Array validation
-  if (schema.type === 'array' && schema.items && typeof value === 'object' && Array.isArray(value)) {
-    const itemsSchema = schema.items as WordPressJsonSchema;
-    for (let i = 0; i < value.length; i++) {
-      const itemErrors = validateProperty(value[i], itemsSchema, [...path, i]);
-      errors.push(...itemErrors);
-    }
-  }
-
-  return errors;
-}
-
-/**
- * Validates a value against a specific JSON Schema type.
- */
-function validateType(
-  value: unknown,
-  expectedType: string,
-  path: Array<string | number | { key: string | number }>,
-): JsonSchemaValidationError | null {
-  const actualType = getJsonType(value);
-
-  // Handle type arrays (e.g., ["string", "null"])
-  const types = expectedType.includes(',') || Array.isArray(expectedType)
-    ? (Array.isArray(expectedType) ? expectedType : expectedType.split(',').map(t => t.trim()))
-    : [expectedType];
-
-  if (types.includes(actualType) || (types.includes('null') && value === null)) {
-    return null;
-  }
-
-  // Special case: WordPress sometimes uses "integer" for whole numbers
-  if (types.includes('integer') && actualType === 'number' && Number.isInteger(value)) {
-    return null;
-  }
-
-  return {
-    message: `Expected ${types.join(' or ')}, received ${actualType}`,
-    path,
-  };
-}
-
-/**
- * Gets the JSON Schema type of a value.
- */
-function getJsonType(value: unknown): string {
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'array';
-  if (typeof value === 'number' && Number.isInteger(value)) return 'integer';
-  return typeof value;
-}
 
 /**
  * Cache for discovery results per client instance.
@@ -262,17 +46,117 @@ function createDiscoveryCache(): DiscoveryCache {
 }
 
 /**
+ * Omits undefined properties so discovery DTOs survive JSON round-tripping.
+ */
+function compactOptionalProperties<T extends object>(value: T): T {
+  const compacted: Record<string, unknown> = {};
+
+  for (const [key, propertyValue] of Object.entries(value)) {
+    if (propertyValue !== undefined) {
+      compacted[key] = propertyValue;
+    }
+  }
+
+  return compacted as T;
+}
+
+/**
+ * Creates one resource schema set without undefined keys.
+ */
+function createResourceSchemaSet(value: WordPressResourceSchemaSet): WordPressResourceSchemaSet {
+  return compactOptionalProperties(value);
+}
+
+/**
+ * Creates one ability schema set without undefined keys.
+ */
+function createAbilitySchemaSet(value: WordPressAbilitySchemaSet): WordPressAbilitySchemaSet {
+  return compactOptionalProperties(value);
+}
+
+/**
+ * Builds one serializable resource description from one OPTIONS response.
+ */
+function createResourceDescription(config: {
+  kind: WordPressResourceDescription['kind'];
+  resource: string;
+  namespace: string;
+  route: string;
+  restBase?: string;
+  slug?: string;
+  endpointSchema: WordPressEndpointSchema;
+}): WordPressResourceDescription {
+  const itemSchema = config.endpointSchema.schema;
+  const collectionSchema = itemSchema
+    ? { type: 'array', items: itemSchema }
+    : undefined;
+  const createSchema = buildCreateSchema(config.endpointSchema);
+  const updateSchema = buildUpdateSchema(createSchema);
+
+  return {
+    kind: config.kind,
+    resource: config.resource,
+    slug: config.slug,
+    restBase: config.restBase,
+    namespace: config.namespace,
+    route: config.route,
+    schemas: createResourceSchemaSet({
+      item: itemSchema,
+      collection: collectionSchema,
+      create: createSchema,
+      update: updateSchema,
+    }),
+    raw: config.endpointSchema,
+  };
+}
+
+/**
+ * Resolves one post type descriptor from the `/types` response.
+ */
+function findContentTypeInfo(
+  types: WordPressTypesResponse,
+  resource: string,
+): { slug: string; rest_base?: string; rest_namespace?: string } | undefined {
+  for (const [slug, info] of Object.entries(types)) {
+    if (info.rest_base === resource) {
+      return { slug, rest_base: info.rest_base, rest_namespace: info.rest_namespace };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Resolves one taxonomy descriptor from the `/taxonomies` response.
+ */
+function findTaxonomyInfo(
+  taxonomies: WordPressTaxonomiesResponse,
+  resource: string,
+): { slug: string; rest_base?: string; rest_namespace?: string } | undefined {
+  for (const [slug, info] of Object.entries(taxonomies)) {
+    if (info.rest_base === resource) {
+      return { slug, rest_base: info.rest_base, rest_namespace: info.rest_namespace };
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Fetches and parses OPTIONS response from a REST endpoint.
  */
 async function fetchEndpointSchema(
   runtime: WordPressRuntime,
   endpoint: string,
+  options?: WordPressRequestOverrides,
 ): Promise<WordPressEndpointSchema | undefined> {
   try {
-    const result = await runtime.request<WordPressEndpointSchema>({
+    const result = await runtime.request<WordPressEndpointSchema>(applyRequestOverrides({
       endpoint,
       method: 'OPTIONS',
-    });
+    }, options));
+
+    throwIfWordPressError(result.response, result.data);
 
     return result.data;
   } catch (error) {
@@ -382,22 +266,26 @@ async function discoverContentResource(
   resource: string,
   options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
-  // Step 1: Get post type info from /types endpoint
   const types = await runtime.fetchAPI<WordPressTypesResponse>('/wp-json/wp/v2/types', undefined, options);
-
-  let typeInfo: { slug: string; rest_base?: string; rest_namespace?: string } | undefined;
-
-  for (const [slug, info] of Object.entries(types)) {
-    if (info.rest_base === resource) {
-      typeInfo = { slug, rest_base: info.rest_base, rest_namespace: info.rest_namespace };
-      break;
-    }
-  }
+  const typeInfo = findContentTypeInfo(types, resource);
 
   if (!typeInfo) {
     throw new Error(`Content resource '${resource}' not found in WordPress types`);
   }
 
+  return discoverContentResourceFromTypeInfo(runtime, resource, typeInfo, options);
+}
+
+/**
+ * Discovers schema for a content resource using one pre-fetched type descriptor.
+ */
+async function discoverContentResourceFromTypeInfo(
+  runtime: WordPressRuntime,
+  resource: string,
+  typeInfo: { slug: string; rest_base?: string; rest_namespace?: string },
+  options?: WordPressRequestOverrides,
+): Promise<WordPressResourceDescription> {
+  
   const namespace = typeInfo.rest_namespace || 'wp/v2';
   const restBase = typeInfo.rest_base || resource;
   const route = `/wp-json/${namespace}/${restBase}`;
@@ -406,35 +294,22 @@ async function discoverContentResource(
   const endpointSchema = await fetchEndpointSchema(
     runtime,
     route,
+    options,
   );
 
   if (!endpointSchema) {
     throw new Error(`Failed to fetch schema for content resource '${resource}'`);
   }
 
-  // Step 3: Build schema set
-  const itemSchema = endpointSchema.schema;
-  const collectionSchema = itemSchema
-    ? { type: 'array', items: itemSchema }
-    : undefined;
-  const createSchema = buildCreateSchema(endpointSchema);
-  const updateSchema = buildUpdateSchema(createSchema);
-
-  return {
+  return createResourceDescription({
     kind: 'content',
     resource,
     slug: typeInfo.slug,
     restBase,
     namespace,
     route,
-    schemas: {
-      item: itemSchema,
-      collection: collectionSchema,
-      create: createSchema,
-      update: updateSchema,
-    },
-    raw: endpointSchema,
-  };
+    endpointSchema,
+  });
 }
 
 /**
@@ -445,21 +320,25 @@ async function discoverTermResource(
   resource: string,
   options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
-  // Step 1: Get taxonomy info from /taxonomies endpoint
   const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>('/wp-json/wp/v2/taxonomies', undefined, options);
-
-  let taxonomyInfo: { slug: string; rest_base?: string; rest_namespace?: string } | undefined;
-
-  for (const [slug, info] of Object.entries(taxonomies)) {
-    if (info.rest_base === resource) {
-      taxonomyInfo = { slug, rest_base: info.rest_base, rest_namespace: info.rest_namespace };
-      break;
-    }
-  }
+  const taxonomyInfo = findTaxonomyInfo(taxonomies, resource);
 
   if (!taxonomyInfo) {
     throw new Error(`Term resource '${resource}' not found in WordPress taxonomies`);
   }
+
+  return discoverTermResourceFromTypeInfo(runtime, resource, taxonomyInfo, options);
+}
+
+/**
+ * Discovers schema for a term resource using one pre-fetched taxonomy descriptor.
+ */
+async function discoverTermResourceFromTypeInfo(
+  runtime: WordPressRuntime,
+  resource: string,
+  taxonomyInfo: { slug: string; rest_base?: string; rest_namespace?: string },
+  options?: WordPressRequestOverrides,
+): Promise<WordPressResourceDescription> {
 
   const namespace = taxonomyInfo.rest_namespace || 'wp/v2';
   const restBase = taxonomyInfo.rest_base || resource;
@@ -469,35 +348,22 @@ async function discoverTermResource(
   const endpointSchema = await fetchEndpointSchema(
     runtime,
     route,
+    options,
   );
 
   if (!endpointSchema) {
     throw new Error(`Failed to fetch schema for term resource '${resource}'`);
   }
 
-  // Step 3: Build schema set
-  const itemSchema = endpointSchema.schema;
-  const collectionSchema = itemSchema
-    ? { type: 'array', items: itemSchema }
-    : undefined;
-  const createSchema = buildCreateSchema(endpointSchema);
-  const updateSchema = buildUpdateSchema(createSchema);
-
-  return {
+  return createResourceDescription({
     kind: 'term',
     resource,
     slug: taxonomyInfo.slug,
     restBase,
     namespace,
     route,
-    schemas: {
-      item: itemSchema,
-      collection: collectionSchema,
-      create: createSchema,
-      update: updateSchema,
-    },
-    raw: endpointSchema,
-  };
+    endpointSchema,
+  });
 }
 
 /**
@@ -515,33 +381,21 @@ async function discoverFirstClassResource(
   const endpointSchema = await fetchEndpointSchema(
     runtime,
     route,
+    options,
   );
 
   if (!endpointSchema) {
     throw new Error(`Failed to fetch schema for resource '${resource}'`);
   }
 
-  const itemSchema = endpointSchema.schema;
-  const collectionSchema = itemSchema
-    ? { type: 'array', items: itemSchema }
-    : undefined;
-  const createSchema = buildCreateSchema(endpointSchema);
-  const updateSchema = buildUpdateSchema(createSchema);
-
-  return {
+  return createResourceDescription({
     kind: 'resource',
     resource,
     restBase,
     namespace,
     route,
-    schemas: {
-      item: itemSchema,
-      collection: collectionSchema,
-      create: createSchema,
-      update: updateSchema,
-    },
-    raw: endpointSchema,
-  };
+    endpointSchema,
+  });
 }
 
 /**
@@ -557,21 +411,14 @@ async function discoverAbility(
 
   const ability = await runtime.fetchAPI<WordPressAbility>(route, undefined, options);
 
-  const schemas: WordPressAbilitySchemaSet = {};
-
-  if (ability.input_schema) {
-    schemas.input = ability.input_schema as WordPressAbilityDescription['schemas']['input'];
-  }
-
-  if (ability.output_schema) {
-    schemas.output = ability.output_schema as WordPressAbilityDescription['schemas']['output'];
-  }
-
   return {
     kind: 'ability',
     name,
     route,
-    schemas,
+    schemas: createAbilitySchemaSet({
+      input: ability.input_schema as WordPressAbilityDescription['schemas']['input'],
+      output: ability.output_schema as WordPressAbilityDescription['schemas']['output'],
+    }),
     annotations: ability.meta?.annotations || {},
     raw: ability,
   };
@@ -593,15 +440,20 @@ async function discoverAllContent(
   try {
     const types = await runtime.fetchAPI<WordPressTypesResponse>('/wp-json/wp/v2/types', undefined, options);
 
-    for (const [slug, info] of Object.entries(types)) {
+    for (const [, info] of Object.entries(types)) {
       if (!info.rest_base) {
         continue;
       }
 
       try {
-        const description = await discoverContentResource(
+        const description = await discoverContentResourceFromTypeInfo(
           runtime,
           info.rest_base,
+          {
+            slug: info.slug,
+            rest_base: info.rest_base,
+            rest_namespace: info.rest_namespace,
+          },
           options,
         );
         resources[info.rest_base] = description;
@@ -638,15 +490,20 @@ async function discoverAllTerms(
   try {
     const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>('/wp-json/wp/v2/taxonomies', undefined, options);
 
-    for (const [slug, info] of Object.entries(taxonomies)) {
+    for (const [, info] of Object.entries(taxonomies)) {
       if (!info.rest_base) {
         continue;
       }
 
       try {
-        const description = await discoverTermResource(
+        const description = await discoverTermResourceFromTypeInfo(
           runtime,
           info.rest_base,
+          {
+            slug: info.slug,
+            rest_base: info.rest_base,
+            rest_namespace: info.rest_namespace,
+          },
           options,
         );
         resources[info.rest_base] = description;
@@ -760,6 +617,24 @@ async function discoverAllAbilities(
 export function createDiscoveryMethods(runtime: WordPressRuntime) {
   const cache = createDiscoveryCache();
 
+  function cacheDescriptions(catalog: {
+    content?: Record<string, WordPressResourceDescription>;
+    terms?: Record<string, WordPressResourceDescription>;
+    abilities?: Record<string, WordPressAbilityDescription>;
+  }): void {
+    for (const [resource, description] of Object.entries(catalog.content || {})) {
+      cache.resources.set(resource, description);
+    }
+
+    for (const [resource, description] of Object.entries(catalog.terms || {})) {
+      cache.terms.set(resource, description);
+    }
+
+    for (const [name, description] of Object.entries(catalog.abilities || {})) {
+      cache.abilities.set(name, description);
+    }
+  }
+
   /**
    * Describes a content resource (post type) schema.
    */
@@ -824,10 +699,15 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
     options?: WordPressDiscoveryOptions & WordPressRequestOverrides,
   ): Promise<WordPressDiscoveryCatalog> {
     const { refresh, include, ...requestOptions } = options || {};
+    const shouldCacheFullCatalog = !include || include.length === 4;
 
     // Return cached catalog if available and not refreshing
     if (!refresh && cache.catalog) {
       return filterCatalog(cache.catalog, include);
+    }
+
+    if (refresh && !shouldCacheFullCatalog) {
+      cache.catalog = undefined;
     }
 
     const includeKinds = include || ['content', 'terms', 'resources', 'abilities'];
@@ -845,6 +725,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       const { resources, warnings } = await discoverAllContent(runtime, requestOptions);
       catalog.content = resources;
       catalog.warnings!.push(...warnings);
+      cacheDescriptions({ content: resources });
     }
 
     // Discover term resources
@@ -852,6 +733,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       const { resources, warnings } = await discoverAllTerms(runtime, requestOptions);
       catalog.terms = resources;
       catalog.warnings!.push(...warnings);
+      cacheDescriptions({ terms: resources });
     }
 
     // Discover first-class resources
@@ -866,10 +748,12 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       const { abilities, warnings } = await discoverAllAbilities(runtime, requestOptions);
       catalog.abilities = abilities;
       catalog.warnings!.push(...warnings);
+      cacheDescriptions({ abilities });
     }
 
-    // Cache the full catalog
-    cache.catalog = catalog;
+    if (shouldCacheFullCatalog) {
+      cache.catalog = catalog;
+    }
 
     return filterCatalog(catalog, include);
   }

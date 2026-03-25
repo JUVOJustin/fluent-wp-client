@@ -8,7 +8,6 @@ export {
 export {
   createDiscoveryMethods,
   type DiscoveryMethods,
-  jsonSchemaToValidator,
 } from './discovery.js';
 
 export { MediaResource } from './resources/media.js';

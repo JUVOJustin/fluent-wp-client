@@ -10,7 +10,7 @@ import type {
   TermsResourceClient,
 } from '../types/resources.js';
 import type { TermWriteInput, WordPressWritePayload } from '../types/payloads.js';
-import { createDiscoveryMethods } from '../discovery.js';
+import { createDiscoveryMethods, type DiscoveryMethods } from '../discovery.js';
 import {
   GenericContentResource,
   createContentClient,
@@ -29,6 +29,7 @@ export interface GenericResourceContext {
   runtime: WordPressRuntime;
   relationClient: PostRelationClient;
   defaultBlockParser?: WordPressBlockParser;
+  discoveryMethods?: DiscoveryMethods;
 }
 
 /**
@@ -40,7 +41,7 @@ export class GenericResourceRegistry {
   private readonly discoveryMethods: ReturnType<typeof createDiscoveryMethods>;
 
   constructor(private readonly context: GenericResourceContext) {
-    this.discoveryMethods = createDiscoveryMethods(context.runtime);
+    this.discoveryMethods = context.discoveryMethods ?? createDiscoveryMethods(context.runtime);
   }
 
   /**

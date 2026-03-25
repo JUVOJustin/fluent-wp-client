@@ -276,14 +276,21 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
       requestOptions,
     );
 
+    const schemas: WordPressAbilityDescription['schemas'] = {};
+
+    if (ability.input_schema) {
+      schemas.input = ability.input_schema as WordPressAbilityDescription['schemas']['input'];
+    }
+
+    if (ability.output_schema) {
+      schemas.output = ability.output_schema as WordPressAbilityDescription['schemas']['output'];
+    }
+
     return {
       kind: 'ability',
       name: this.abilityName,
       route: createAbilityEndpoint(this.abilityName),
-      schemas: {
-        input: ability.input_schema as WordPressAbilityDescription['schemas']['input'],
-        output: ability.output_schema as WordPressAbilityDescription['schemas']['output'],
-      },
+      schemas,
       annotations: ability.meta?.annotations || {},
       raw: ability,
     };

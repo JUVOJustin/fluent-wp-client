@@ -128,16 +128,17 @@ export class WordPressClient {
     this.usersResource = UsersResource.create(this.runtime);
     this.settingsResource = SettingsResource.create(this.runtime);
     this.commentsResource = CommentsResource.create(this.runtime);
+    this.discoveryMethods = createDiscoveryMethods(this.runtime);
     this.genericResourcesRegistry = new GenericResourceRegistry({
       defaultBlockParser: config.blockParser,
       runtime: this.runtime,
       relationClient: this,
+      discoveryMethods: this.discoveryMethods,
     });
     this.abilityMethods = createAbilityMethods({
       fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
       request: this.runtime.request.bind(this.runtime),
     });
-    this.discoveryMethods = createDiscoveryMethods(this.runtime);
   }
 
   // ============= TRANSPORT FACADE =============

@@ -99,7 +99,7 @@ You can `await` it directly, and you can also call:
 - `.getContent()` for `{ raw, rendered, protected }` via `context=edit`
 - `.getBlocks()` for parsed Gutenberg blocks
 
-Plain DTO reads keep `_embed` disabled by default. Relation queries such as `.item(...).with(...)` and `.getWithRelations(...)` automatically add `_embed` when hydration can use it.
+See [Embedded data](#embedded-data-is-opt-in-for-dto-reads) for `_embed` behavior on DTO reads and relation hydration.
 
 Post/page list methods (`content('posts').list()`, `content('pages').list()`) return plain serializable DTO arrays without block helpers. Use a single-item query for block access:
 
@@ -175,7 +175,7 @@ const books = await wp.content('books').list({
 
 ### Embedded data is opt-in for DTO reads
 
-Use `embed: true` when you need raw `_embedded` data on collection responses. When you use relation hydration, the client adds `_embed` automatically.
+Use `embed: true` when you need raw `_embedded` data on collection responses. Relation queries such as `.item(...).with(...)` and `.getWithRelations(...)` add `_embed` automatically.
 
 ```ts
 const embeddedPosts = await wp.content('posts').list({

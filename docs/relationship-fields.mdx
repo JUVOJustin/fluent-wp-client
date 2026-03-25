@@ -7,7 +7,7 @@ sidebar:
 
 ## Overview
 
-When using relationship hydration methods like `content(resource).getWithRelations()` or the fluent `content(resource).item(...).with(...)` API, the client automatically enables `_embed` and preserves the fields required for relationship resolution. Plain DTO reads stay lean until you explicitly opt into embedded data.
+When using relationship hydration methods like `content(resource).getWithRelations()` or the fluent `content(resource).item(...).with(...)` API, the client automatically enables `_embed` and preserves the fields required for relationship resolution.
 
 ## Why Fields Are Automatically Preserved
 
@@ -44,7 +44,7 @@ const book = await client.content('books').getWithRelations('my-book', 'terms');
 // The request includes: ?_embed=true
 ```
 
-By contrast, plain DTO reads such as `content('posts').list()` and `content('posts').item('my-post')` skip `_embed` unless you explicitly request it on collection filters with `embed: true`.
+Outside relation hydration, use `embed: true` on collection filters when you need raw `_embedded` data.
 
 ### Field Preservation
 

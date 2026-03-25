@@ -1,0 +1,82 @@
+import { ExecutableQuery } from '../core/query-base.js';
+import type { WordPressPostLike } from '../schemas.js';
+import type { PostRelationClient } from './relation-contracts.js';
+import type { AllPostRelations } from './item-relation-resolver.js';
+import { ItemRelationResolver } from './item-relation-resolver.js';
+
+/**
+ * Abstract base class for relation query builders (single item and collections).
+ * 
+ * Provides shared functionality:
+ * - Relation set management
+ * - with() method pattern
+ * - getRequiredFields() using ItemRelationResolver
+ * - execute() delegation for Promise-like behavior
+ * - get() alias for explicit resolution
+ * 
+ * Subclasses must implement:
+ * - resolveResult(): Promise<TResult> - the actual data fetching and hydration
+ */
+export abstract class RelationQueryBuilderBase<
+  TRelations extends readonly AllPostRelations[] = [],
+  TContent extends WordPressPostLike = WordPressPostLike,
+  TResult = unknown,
+> extends ExecutableQuery<TResult> {
+  protected readonly relationSet: Set<AllPostRelations>;
+
+  constructor(
+    protected readonly client: PostRelationClient,
+    relations: readonly AllPostRelations[] = [],
+  ) {
+    super();
+    this.relationSet = new Set(relations);
+  }
+
+  /**
+   * Gets the list of required fields for the current relations.
+   * Useful for ensuring fields aren't excluded when using _fields filter.
+   */
+  getRequiredFields(): string[] {
+    const resolver = new ItemRelationResolver(this.client, this.relationSet);
+    return resolver.getRequiredFields();
+  }
+
+  /**
+   * Abstract method to resolve the final result.
+   * Must be implemented by subclasses.
+   */
+  protected abstract resolveResult(): Promise<TResult>;
+
+  /**
+   * Executes the query - implements ExecutableQuery requirement.
+   * Delegates to resolveResult().
+   */
+  protected execute(): Promise<TResult> {
+    return this.resolveResult();
+  }
+
+  /**
+   * Returns the resolved result. Alias for direct await usage.
+   * 
+   * Note: Builders are PromiseLike, so you can await them directly
+   * without calling .get(). This method is provided for explicitness.
+   * 
+   * @example
+   * ```typescript
+   * // Both work the same:
+   * const posts = await client.content('posts').list();
+   * const posts = await client.content('posts').list().get();
+   * ```
+   */
+  async get(): Promise<TResult> {
+    return this.resolveResult();
+  }
+}
+
+/**
+ * Type helper for building the relations array in with() methods.
+ */
+export type BuildRelations<
+  TCurrent extends readonly AllPostRelations[],
+  TNext extends readonly AllPostRelations[],
+> = [...TCurrent, ...TNext];

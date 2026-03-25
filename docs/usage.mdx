@@ -93,9 +93,9 @@ console.log(definitions.length, siteTitle.title, processed.processed);
 - `searchContent(query, filter?)`
 
 `content(resource).item(idOrSlug)` returns one promise-like query.
-You can `await` it directly, and you can also call:
+You can `await` it directly for the resource, and you can also call:
 
-- `.get()` for explicit resource resolution
+- `.get()` for explicit resolution (optional, equivalent to direct await)
 - `.getContent()` for `{ raw, rendered, protected }` via `context=edit`
 - `.getBlocks()` for parsed Gutenberg blocks
 

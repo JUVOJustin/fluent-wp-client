@@ -10,6 +10,7 @@ import type { PostRelationClient } from './relation-contracts.js';
 import type { AllPostRelations } from './item-relation-resolver.js';
 import { ItemRelationResolver } from './item-relation-resolver.js';
 import type { ContentItemResult, SelectedPostRelations } from './relations.js';
+import { RelationQueryBuilderBase, type BuildRelations } from './relation-base.js';
 
 /**
  * Fluent builder that hydrates multiple post-like content records with selected related entities.
@@ -35,12 +36,11 @@ import type { ContentItemResult, SelectedPostRelations } from './relations.js';
 export class ListRelationQueryBuilder<
   TRelations extends readonly AllPostRelations[] = [],
   TContent extends WordPressPostLike = WordPressPostLike,
-> extends ExecutableQuery<Array<ContentItemResult<TContent, TRelations>>> {
-  private readonly relationSet: Set<AllPostRelations>;
+> extends RelationQueryBuilderBase<TRelations, TContent, Array<ContentItemResult<TContent, TRelations>>> {
   private listPromise: Promise<TContent[]> | undefined;
 
   constructor(
-    private readonly client: PostRelationClient,
+    client: PostRelationClient,
     private readonly filter: QueryParams & PaginationParams,
     private readonly fetchList: (
       filter: QueryParams & PaginationParams,
@@ -49,8 +49,7 @@ export class ListRelationQueryBuilder<
     private readonly requestOptions: WordPressRequestOverrides | undefined,
     relations: readonly AllPostRelations[] = [],
   ) {
-    super();
-    this.relationSet = new Set(relations);
+    super(client, relations);
   }
 
   /**
@@ -61,7 +60,7 @@ export class ListRelationQueryBuilder<
    */
   with<TNext extends readonly AllPostRelations[]>(
     ...relations: TNext
-  ): ListRelationQueryBuilder<[...TRelations, ...TNext], TContent> {
+  ): ListRelationQueryBuilder<BuildRelations<TRelations, TNext>, TContent> {
     const nextRelations = new Set(this.relationSet);
 
     for (const relation of relations) {
@@ -74,7 +73,7 @@ export class ListRelationQueryBuilder<
       this.fetchList,
       this.requestOptions,
       Array.from(nextRelations),
-    ) as ListRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
+    );
   }
 
   /**
@@ -114,8 +113,9 @@ export class ListRelationQueryBuilder<
 
   /**
    * Resolves and memoizes the final fluent query result.
+   * Implementation of abstract method from RelationQueryBuilderBase.
    */
-  private async resolveResult(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
+  protected async resolveResult(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
     const items = await this.loadList();
 
     if (this.relationSet.size === 0) {
@@ -138,29 +138,6 @@ export class ListRelationQueryBuilder<
 
     return results;
   }
-
-  /**
-   * Gets the list of required fields for the current relations.
-   * Useful for ensuring fields aren't excluded when using _fields filter.
-   */
-  getRequiredFields(): string[] {
-    const resolver = new ItemRelationResolver(this.client, this.relationSet);
-    return resolver.getRequiredFields();
-  }
-
-  /**
-   * Resolves the standard resource payload for Promise-like usage.
-   */
-  protected execute(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
-    return this.resolveResult();
-  }
-
-  /**
-   * Returns the hydrated list. Alias for direct await usage.
-   */
-  async get(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
-    return this.resolveResult();
-  }
 }
 
 /**
@@ -169,12 +146,11 @@ export class ListRelationQueryBuilder<
 export class PaginatedListRelationQueryBuilder<
   TRelations extends readonly AllPostRelations[] = [],
   TContent extends WordPressPostLike = WordPressPostLike,
-> extends ExecutableQuery<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
-  private readonly relationSet: Set<AllPostRelations>;
+> extends RelationQueryBuilderBase<TRelations, TContent, PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
   private listPromise: Promise<PaginatedResponse<TContent>> | undefined;
 
   constructor(
-    private readonly client: PostRelationClient,
+    client: PostRelationClient,
     private readonly filter: QueryParams & PaginationParams,
     private readonly fetchPaginated: (
       filter: QueryParams & PaginationParams,
@@ -183,8 +159,7 @@ export class PaginatedListRelationQueryBuilder<
     private readonly requestOptions: WordPressRequestOverrides | undefined,
     relations: readonly AllPostRelations[] = [],
   ) {
-    super();
-    this.relationSet = new Set(relations);
+    super(client, relations);
   }
 
   /**
@@ -192,7 +167,7 @@ export class PaginatedListRelationQueryBuilder<
    */
   with<TNext extends readonly AllPostRelations[]>(
     ...relations: TNext
-  ): PaginatedListRelationQueryBuilder<[...TRelations, ...TNext], TContent> {
+  ): PaginatedListRelationQueryBuilder<BuildRelations<TRelations, TNext>, TContent> {
     const nextRelations = new Set(this.relationSet);
 
     for (const relation of relations) {
@@ -205,7 +180,7 @@ export class PaginatedListRelationQueryBuilder<
       this.fetchPaginated,
       this.requestOptions,
       Array.from(nextRelations),
-    ) as PaginatedListRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
+    );
   }
 
   /**
@@ -234,8 +209,9 @@ export class PaginatedListRelationQueryBuilder<
 
   /**
    * Resolves and memoizes the final fluent query result.
+   * Implementation of abstract method from RelationQueryBuilderBase.
    */
-  private async resolveResult(): Promise<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
+  protected async resolveResult(): Promise<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
     const result = await this.loadPaginated();
 
     if (this.relationSet.size === 0) {
@@ -259,20 +235,6 @@ export class PaginatedListRelationQueryBuilder<
       data: hydratedData,
     };
   }
-
-  /**
-   * Resolves the standard resource payload for Promise-like usage.
-   */
-  protected execute(): Promise<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
-    return this.resolveResult();
-  }
-
-  /**
-   * Returns the hydrated paginated result. Alias for direct await usage.
-   */
-  async get(): Promise<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
-    return this.resolveResult();
-  }
 }
 
 /**
@@ -281,12 +243,11 @@ export class PaginatedListRelationQueryBuilder<
 export class ListAllRelationQueryBuilder<
   TRelations extends readonly AllPostRelations[] = [],
   TContent extends WordPressPostLike = WordPressPostLike,
-> extends ExecutableQuery<Array<ContentItemResult<TContent, TRelations>>> {
-  private readonly relationSet: Set<AllPostRelations>;
+> extends RelationQueryBuilderBase<TRelations, TContent, Array<ContentItemResult<TContent, TRelations>>> {
   private listPromise: Promise<TContent[]> | undefined;
 
   constructor(
-    private readonly client: PostRelationClient,
+    client: PostRelationClient,
     private readonly filter: Omit<QueryParams & PaginationParams, 'page'>,
     private readonly fetchListAll: (
       filter: Omit<QueryParams & PaginationParams, 'page'>,
@@ -295,8 +256,7 @@ export class ListAllRelationQueryBuilder<
     private readonly requestOptions: WordPressRequestOverrides | undefined,
     relations: readonly AllPostRelations[] = [],
   ) {
-    super();
-    this.relationSet = new Set(relations);
+    super(client, relations);
   }
 
   /**
@@ -304,7 +264,7 @@ export class ListAllRelationQueryBuilder<
    */
   with<TNext extends readonly AllPostRelations[]>(
     ...relations: TNext
-  ): ListAllRelationQueryBuilder<[...TRelations, ...TNext], TContent> {
+  ): ListAllRelationQueryBuilder<BuildRelations<TRelations, TNext>, TContent> {
     const nextRelations = new Set(this.relationSet);
 
     for (const relation of relations) {
@@ -317,7 +277,7 @@ export class ListAllRelationQueryBuilder<
       this.fetchListAll,
       this.requestOptions,
       Array.from(nextRelations),
-    ) as ListAllRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
+    );
   }
 
   /**
@@ -348,8 +308,9 @@ export class ListAllRelationQueryBuilder<
 
   /**
    * Resolves and memoizes the final fluent query result.
+   * Implementation of abstract method from RelationQueryBuilderBase.
    */
-  private async resolveResult(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
+  protected async resolveResult(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
     const items = await this.loadListAll();
 
     if (this.relationSet.size === 0) {
@@ -369,19 +330,5 @@ export class ListAllRelationQueryBuilder<
     );
 
     return results;
-  }
-
-  /**
-   * Resolves the standard resource payload for Promise-like usage.
-   */
-  protected execute(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
-    return this.resolveResult();
-  }
-
-  /**
-   * Returns the hydrated list. Alias for direct await usage.
-   */
-  async get(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
-    return this.resolveResult();
   }
 }

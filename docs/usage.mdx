@@ -135,7 +135,7 @@ Media uses a different schema (`description`/`caption`, no `content.raw`), so me
 
 If `page`/`perPage` are omitted, endpoint defaults are preserved.
 
-Passing a schema to `content(resource, schema)` validates content reads and mutations for that resource client, including schema-backed `item(...).with(...)` and `getWithRelations(...)` calls.
+Passing a schema to `content(resource, schema)` validates content reads and mutations for that resource client, including schema-backed `item(...).with(...)` calls.
 
 Passing a schema to `terms(resource, schema)` validates generic taxonomy reads and mutations for that resource client.
 
@@ -175,7 +175,7 @@ const books = await wp.content('books').list({
 
 ### Embedded data is opt-in for DTO reads
 
-Use `embed: true` when you need raw `_embedded` data on collection responses. Relation queries such as `.item(...).with(...)` and `.getWithRelations(...)` add `_embed` automatically.
+Use `embed: true` when you need raw `_embedded` data on collection responses. Relation queries such as `.item(...).with(...)` add `_embed` automatically.
 
 ```ts
 const embeddedPosts = await wp.content('posts').list({
@@ -262,8 +262,6 @@ The same auth-override rule applies to read and listing helpers.
 ### Relation helpers
 
 - `content('posts').item(idOrSlug).with(...relations)`
-- `content('posts').getWithRelations(idOrSlug, ...relations)`
-- `content(resource).getWithRelations(idOrSlug, ...relations)`
 
 Supported relation names:
 

@@ -100,10 +100,6 @@ export interface ContentResourceClient<
   getById: (id: number, options?: WordPressRequestOverrides) => Promise<TResource>;
   getBySlug: (slug: string, options?: WordPressRequestOverrides) => Promise<TResource | undefined>;
   item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => PostRelationQueryBuilder<[], TResource>;
-  getWithRelations: <TRelations extends readonly AllPostRelations[]>(
-    idOrSlug: number | string,
-    ...relations: TRelations
-  ) => Promise<ContentItemResult<TResource, TRelations>>;
   create: <TResponse = TResource>(
     input: TCreate,
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,

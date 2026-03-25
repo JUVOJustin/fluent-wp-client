@@ -24,7 +24,7 @@
 - Runtime query helpers (`PostRelationQueryBuilder`, `WordPressRequestBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
 - Standalone utility functions (like `parseWordPressBlocks`) handle stateless transforms on already-fetched DTOs.
 - Post-like collection methods (`content('posts').list()`, `content('pages').list()`, `content(resource).list()`) return plain DTO arrays.
-- Post-like DTO reads keep `_embed` disabled by default; opt into collection embedding with `embed: true`. Relation queries created through `content(resource).item(...).with(...)` or `getWithRelations(...)` automatically request `_embed`.
+- Post-like DTO reads keep `_embed` disabled by default; opt into collection embedding with `embed: true`. Relation queries created through `content(resource).item(...).with(...)` automatically request `_embed`.
 - Single post-like item access goes through `content(resource).item(idOrSlug)`, which returns an awaitable `PostRelationQueryBuilder` with `.getBlocks()` / `.getContent()` and relation hydration.
 - When adding new resource helpers, follow the same contract: collections return plain arrays, and single-item post-like access returns explicit query wrappers only when block/content helpers or relation hydration are needed.
 
@@ -50,8 +50,7 @@ src/
     pagination.ts              # createWordPressPaginator
     query-base.ts              # ExecutableQuery and immutable builder primitives
     validation.ts              # Standard Schema validation helpers
-    embed.ts                   # Shared `_embed` opt-in helpers
-    params.ts                  # filterToParams, compactPayload
+    params.ts                  # filterToParams, compactPayload, embed normalization
     request-overrides.ts       # Per-request non-auth header overrides
     resource-base.ts           # Shared resource classes
     transport.ts               # Runtime transport layer

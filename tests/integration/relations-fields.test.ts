@@ -36,9 +36,9 @@ describe('Client: relationship field requirements', () => {
   }
 
   describe('automatic field preservation for relations', () => {
-    it('includes _embedded data when using content(\'posts\').getWithRelations()', async () => {
+    it('includes _embedded data when using content(\'posts\').item().with()', async () => {
       // Relationship hydration depends on embedded data being present.
-      const post = await postsClient(authClient).getWithRelations('test-post-001', 'author', 'terms');
+      const post = await postsClient(authClient).item('test-post-001').with('author', 'terms');
 
       expect(post.slug).toBe('test-post-001');
       // _embedded should be present because relations need it
@@ -63,7 +63,7 @@ describe('Client: relationship field requirements', () => {
 
     it('preserves author field when requesting author relation', async () => {
       // The author ID field is required to fetch author details if _embedded fails
-      const post = await postsClient(authClient).getWithRelations('test-post-003', 'author');
+      const post = await postsClient(authClient).item('test-post-003').with('author');
 
       // author field should be present (number or 0)
       expect(typeof post.author).toBe('number');
@@ -71,7 +71,7 @@ describe('Client: relationship field requirements', () => {
     });
 
     it('preserves categories field when requesting categories relation', async () => {
-      const post = await postsClient(authClient).getWithRelations('test-post-004', 'categories');
+      const post = await postsClient(authClient).item('test-post-004').with('categories');
 
       // categories array should be present for fallback fetching
       expect(post).toHaveProperty('categories');
@@ -81,7 +81,7 @@ describe('Client: relationship field requirements', () => {
     });
 
     it('preserves tags field when requesting tags relation', async () => {
-      const post = await postsClient(authClient).getWithRelations('test-post-005', 'tags');
+      const post = await postsClient(authClient).item('test-post-005').with('tags');
 
       // tags array should be present for fallback fetching
       expect(post).toHaveProperty('tags');
@@ -91,7 +91,7 @@ describe('Client: relationship field requirements', () => {
     });
 
     it('preserves featured_media field when requesting featuredMedia relation', async () => {
-      const post = await postsClient(authClient).getWithRelations('test-post-006', 'featuredMedia');
+      const post = await postsClient(authClient).item('test-post-006').with('featuredMedia');
 
       // featured_media field should be present
       expect(post).toHaveProperty('featured_media');
@@ -122,7 +122,7 @@ describe('Client: relationship field requirements', () => {
   describe('edge cases and error handling', () => {
     it('handles posts without categories gracefully', async () => {
       // Some posts might not have categories - ensure this doesn't break
-      const post = await postsClient(authClient).getWithRelations('test-post-008', 'categories');
+      const post = await postsClient(authClient).item('test-post-008').with('categories');
 
       expect(post).toHaveProperty('categories');
       expect(Array.isArray(post.categories)).toBe(true);
@@ -131,7 +131,7 @@ describe('Client: relationship field requirements', () => {
     });
 
     it('handles posts without tags gracefully', async () => {
-      const post = await postsClient(authClient).getWithRelations('test-post-009', 'tags');
+      const post = await postsClient(authClient).item('test-post-009').with('tags');
 
       expect(post).toHaveProperty('tags');
       expect(Array.isArray(post.tags)).toBe(true);
@@ -139,7 +139,7 @@ describe('Client: relationship field requirements', () => {
     });
 
     it('handles posts without featured media gracefully', async () => {
-      const post = await postsClient(authClient).getWithRelations('test-post-010', 'featuredMedia');
+      const post = await postsClient(authClient).item('test-post-010').with('featuredMedia');
 
       expect(post).toHaveProperty('featured_media');
       // Should resolve to null when no featured media
@@ -148,13 +148,9 @@ describe('Client: relationship field requirements', () => {
 
     it('handles multiple relations with partial embedded data', async () => {
       // Request multiple relations - some may have embedded data, others may need fallback
-      const post = await postsClient(authClient).getWithRelations(
-        'test-post-011',
-        'author',
-        'categories',
-        'tags',
-        'featuredMedia'
-      );
+      const post = await postsClient(authClient)
+        .item('test-post-011')
+        .with('author', 'categories', 'tags', 'featuredMedia');
 
       expect(post.slug).toBe('test-post-011');
       expectAuthorRelation(post.author, post.related.author);
@@ -167,7 +163,7 @@ describe('Client: relationship field requirements', () => {
 
   describe('public client behavior (no auth)', () => {
     it('returns null for author when public API masks author IDs but preserves field structure', async () => {
-      const post = await postsClient(publicClient).getWithRelations('test-post-012', 'author');
+      const post = await postsClient(publicClient).item('test-post-012').with('author');
 
       // author field should still be present (value 0 for masked)
       expect(post).toHaveProperty('author');
@@ -176,7 +172,7 @@ describe('Client: relationship field requirements', () => {
     });
 
     it('still provides categories and tags for public client', async () => {
-      const post = await postsClient(publicClient).getWithRelations('test-post-013', 'categories', 'tags');
+      const post = await postsClient(publicClient).item('test-post-013').with('categories', 'tags');
 
       // These should work even without auth
       expect(Array.isArray(post.related.categories)).toBe(true);

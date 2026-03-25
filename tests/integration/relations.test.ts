@@ -31,8 +31,8 @@ describe('Client: post relation hydration', () => {
     expect(relatedAuthor?.slug).toBe('admin');
   }
 
-  it('hydrates related entities with content(\'posts\').getWithRelations()', async () => {
-    const post = await postsClient(authClient).getWithRelations('test-post-001', 'author', 'terms');
+  it('hydrates related entities with content(\'posts\').item().with()', async () => {
+    const post = await postsClient(authClient).item('test-post-001').with('author', 'terms');
 
     expect(post.slug).toBe('test-post-001');
     expectAuthorRelation(post.author, post.related.author);

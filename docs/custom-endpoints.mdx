@@ -42,7 +42,7 @@ Custom post type clients expose the same relation builder pattern as core posts:
 const books = wp.content('books');
 
 const book = await books.item('test-book-001').with('author');
-const withTerms = await books.getWithRelations('test-book-001', 'terms');
+const withTerms = await books.item('test-book-001').with('terms');
 
 console.log(withTerms.related.terms.taxonomies);
 ```

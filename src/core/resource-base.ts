@@ -10,9 +10,13 @@ import type { WordPressWritePayload, DeleteOptions } from '../types/payloads.js'
 import type { WordPressStandardSchema } from './validation.js';
 import type { WordPressRuntime } from './transport.js';
 import { createWordPressPaginator } from './pagination.js';
-import { filterToParams, compactPayload, normalizeDeleteResult } from './params.js';
+import {
+  filterToParams,
+  compactPayload,
+  normalizeDeleteResult,
+  resolveEmbedQueryParams,
+} from './params.js';
 import { applyRequestOverrides } from './request-overrides.js';
-import { resolveEmbedQueryParams } from './embed.js';
 import { throwIfWordPressError } from './errors.js';
 import { validateWithStandardSchema } from './validation.js';
 import { resolveMutationArguments } from './mutation-helpers.js';

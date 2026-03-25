@@ -539,7 +539,7 @@ describe('Client: Custom Relation Resolvers', () => {
       ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
     });
 
-    it('validates the base content before adding related data in getWithRelations()', async () => {
+    it('validates the base content before adding related data with item().with()', async () => {
       const baseOnlyBookSchema: WordPressStandardSchema<WordPressPostLike> = {
         '~standard': {
           version: 1,
@@ -568,13 +568,14 @@ describe('Client: Custom Relation Resolvers', () => {
 
       const book = await publicClient
         .content('books', baseOnlyBookSchema)
-        .getWithRelations('test-book-001', 'author');
+        .item('test-book-001')
+        .with('author');
 
       expect(book.slug).toBe('test-book-001');
       expect(book.related.author).toBeDefined();
     });
 
-    it('hydrates custom taxonomy terms for custom post types through content().getWithRelations()', async () => {
+    it('hydrates custom taxonomy terms for custom post types through content().item().with()', async () => {
       const genre = await authClient.terms('genre').create({
         name: 'custom-relations-book-genre',
         slug: 'custom-relations-book-genre',
@@ -590,7 +591,8 @@ describe('Client: Custom Relation Resolvers', () => {
 
       const hydrated = await authClient
         .content('books', contentWordPressSchema)
-        .getWithRelations(book.id, 'terms');
+        .item(book.id)
+        .with('terms');
 
       expect(hydrated.related.terms.taxonomies.genre).toBeDefined();
       expect(hydrated.related.terms.taxonomies.genre?.length).toBeGreaterThan(0);

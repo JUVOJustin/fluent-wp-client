@@ -241,13 +241,6 @@ export function createContentClient<TResource extends WordPressPostLike>(
     getById: async (id, options) => resource.getWithValidation(id, options) as Promise<TResource>,
     getBySlug: async (slug, options) => resource.getBySlugWithValidation(slug, options) as Promise<TResource | undefined>,
     item: (idOrSlug, options) => createRelationQuery(idOrSlug, options, []),
-    getWithRelations: async <TRelations extends readonly AllPostRelations[]>(
-      idOrSlug: number | string,
-      ...relations: TRelations
-    ): Promise<ContentItemResult<TResource, TRelations>> => {
-      const query = createRelationQuery(idOrSlug, undefined, relations);
-      return query.get() as Promise<ContentItemResult<TResource, TRelations>>;
-    },
     create: <TResponse = TResource>(
       input: WordPressWritePayload,
       responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,

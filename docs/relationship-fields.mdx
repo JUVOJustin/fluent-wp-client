@@ -7,7 +7,7 @@ sidebar:
 
 ## Overview
 
-When using relationship hydration methods like `content(resource).getWithRelations()` or the fluent `content(resource).item(...).with(...)` API, the client automatically enables `_embed` and preserves the fields required for relationship resolution.
+When using relationship hydration methods like the fluent `content(resource).item(...).with(...)` API, the client automatically enables `_embed` and preserves the fields required for relationship resolution.
 
 ## Why Fields Are Automatically Preserved
 
@@ -37,9 +37,9 @@ When you call relationship methods, `_embed: 'true'` is automatically added to t
 
 ```typescript
 // This automatically includes _embed parameter
-const post = await client.content('posts').getWithRelations('my-post', 'author', 'categories');
+const post = await client.content('posts').item('my-post').with('author', 'categories');
 
-const book = await client.content('books').getWithRelations('my-book', 'terms');
+const book = await client.content('books').item('my-book').with('terms');
 
 // The request includes: ?_embed=true
 ```
@@ -64,7 +64,7 @@ const post = await client.content('posts').item('my-post').with('author');
 If `_embedded` data is missing but ID fields are present, the client makes separate API calls:
 
 ```typescript
-const post = await client.content('posts').getWithRelations('my-post', 'author');
+const post = await client.content('posts').item('my-post').with('author');
 
 // If _embedded.author is missing:
 // 1. Uses post.author ID to fetch author separately
@@ -79,7 +79,7 @@ If the WordPress REST API masks certain fields (e.g., author IDs for unauthentic
 
 ```typescript
 // Public client may receive author: 0
-const post = await publicClient.content('posts').getWithRelations('my-post', 'author');
+const post = await publicClient.content('posts').item('my-post').with('author');
 // post.related.author will be null
 ```
 
@@ -89,11 +89,11 @@ Posts without certain relations are handled gracefully:
 
 ```typescript
 // Post without categories
-const post = await client.content('posts').getWithRelations('my-post', 'categories');
+const post = await client.content('posts').item('my-post').with('categories');
 // post.related.categories will be an empty array []
 
 // Post without featured media
-const post = await client.content('posts').getWithRelations('my-post', 'featuredMedia');
+const post = await client.content('posts').item('my-post').with('featuredMedia');
 // post.related.featuredMedia will be null
 ```
 

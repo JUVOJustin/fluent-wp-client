@@ -36,7 +36,7 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 - **Unified typed content builders** — `content('posts')`, `content('pages')`, `content('books')`, and `terms('genre')` share one API shape, with stricter typing for built-in resources
 - **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
 - **Extensible collection filters** — built-in list helpers and generic resource builders accept typed core filters plus extra endpoint-specific query params
-- **Lean embedded payloads** — post-like DTO reads skip `_embed` by default, while relation hydration turns it on automatically when `.with(...)` or `getWithRelations(...)` is used
+- **Lean embedded payloads** — post-like DTO reads skip `_embed` by default, while relation hydration turns it on automatically when `.with(...)` is used
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
 - **Gutenberg block parsing** — single-item queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing

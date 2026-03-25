@@ -368,17 +368,14 @@ export class ItemRelationResolver {
    * Resolves one author by preferring direct lookup and then list fallback.
    */
   private async fetchAuthorById(authorId: number): Promise<WordPressAuthor | null> {
-    const direct = await this.client.getUser(authorId).catch(() => null);
+    const usersClient = this.client.users();
+    const direct = await usersClient.get(authorId).catch(() => null);
 
     if (direct) {
       return direct;
     }
 
-    if (!this.client.getUsers) {
-      return null;
-    }
-
-    const users = await this.client.getUsers({ include: [authorId], perPage: 1 }).catch(() => []);
+    const users = await usersClient.list({ include: [authorId], perPage: 1 }).catch(() => []);
     return users[0] ?? null;
   }
 
@@ -410,7 +407,7 @@ export class ItemRelationResolver {
     }
 
     if (typeof featuredMediaId === 'number' && featuredMediaId > 0) {
-      return this.client.getMediaItem(featuredMediaId).catch(() => null);
+      return this.client.media().get(featuredMediaId).catch(() => null);
     }
 
     return null;

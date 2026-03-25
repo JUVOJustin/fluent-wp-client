@@ -172,18 +172,22 @@ export {
 } from './core/params.js';
 
 export type {
+  CommentsResourceClient,
   ContentResourceClient,
   DeleteOptions,
   ExtensibleFilter,
   FetchResult,
+  MediaResourceClient,
   PaginatedResponse,
   PaginationParams,
   QueryParamPrimitive,
   QueryParams,
   SerializedQueryParams,
+  SettingsResourceClient,
   TermsResourceClient,
   TermWriteInput,
   UserDeleteOptions,
+  UsersResourceClient,
   UserWriteInput,
   WordPressDeleteResult,
   WordPressWritePayload,

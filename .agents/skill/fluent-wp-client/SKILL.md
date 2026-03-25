@@ -118,7 +118,7 @@ const wp = new WordPressClient({
   },
 });
 
-const me = await wp.getCurrentUser();
+const me = await wp.users().me();
 ```
 
 ### Request-aware signing (HMAC / custom)
@@ -197,27 +197,27 @@ const tag = await tags.create({ name: 'featured' });
 ### Comments
 
 ```ts
-const comments = await wp.getComments({ post: 42 });
+const comments = await wp.comments().list({ post: 42 });
 
-const comment = await wp.createComment({
+const comment = await wp.comments().create({
   post: 42,
   content: 'Great article!',
   status: 'approve',
 });
 
-await wp.updateComment(comment.id, { content: 'Updated comment.' });
-await wp.deleteComment(comment.id, { force: true });
+await wp.comments().update(comment.id, { content: 'Updated comment.' });
+await wp.comments().delete(comment.id, { force: true });
 ```
 
 ### Media
 
 ```ts
-const items = await wp.getMedia({ mediaType: 'image' });
-const item  = await wp.getMediaItem(55);
-const url   = wp.getImageUrl(item, 'medium');
+const items = await wp.media().list({ mediaType: 'image' });
+const item  = await wp.media().get(55);
+const url   = wp.media().getImageUrl(item, 'medium');
 
 // Binary upload
-const media = await wp.uploadMedia({
+const media = await wp.media().upload({
   file: imageBlob,
   filename: 'cover.jpg',
   mimeType: 'image/jpeg',
@@ -225,33 +225,33 @@ const media = await wp.uploadMedia({
   alt_text: 'A book cover',
 });
 
-await wp.updateMedia(media.id, { caption: 'New caption' });
-await wp.deleteMedia(media.id, { force: true });
+await wp.media().update(media.id, { caption: 'New caption' });
+await wp.media().delete(media.id, { force: true });
 ```
 
 ### Users
 
 ```ts
-const users = await wp.getUsers({ roles: ['author'] });
-const user  = await wp.getUser(1);
-const me    = await wp.getCurrentUser();
+const users = await wp.users().list({ roles: ['author'] });
+const user  = await wp.users().get(1);
+const me    = await wp.users().me();
 
-const created = await wp.createUser({
+const created = await wp.users().create({
   username: 'newauthor',
   email: 'author@example.com',
   password: 'securepass',
   roles: ['author'],
 });
 
-await wp.updateUser(created.id, { first_name: 'Jane' });
-await wp.deleteUser(created.id, { reassign: 1, force: true });
+await wp.users().update(created.id, { first_name: 'Jane' });
+await wp.users().delete(created.id, { reassign: 1, force: true });
 ```
 
 ### Settings
 
 ```ts
-const settings = await wp.getSettings();
-await wp.updateSettings({ title: 'New Site Title' });
+const settings = await wp.settings().get();
+await wp.settings().update({ title: 'New Site Title' });
 ```
 
 ## Custom post types and taxonomies
@@ -504,9 +504,9 @@ const result = await wp.fetchAPIPaginated<WordPressPost>('/wp-json/wp/v2/posts',
 ## Pagination
 
 - WordPress caps `per_page` at 100.
-- `get*()` methods return one page of results.
-- `getAll*()` methods auto-paginate through every page internally.
-- `get*Paginated()` methods return `{ data, total, totalPages, page, perPage }`.
+- `.list()` methods return one page of results.
+- `.listAll()` methods auto-paginate through every page internally.
+- `.listPaginated()` methods return `{ data, total, totalPages, page, perPage }`.
 
 ```ts
 // All posts (auto-paginates internally)

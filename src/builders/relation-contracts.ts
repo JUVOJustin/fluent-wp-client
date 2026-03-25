@@ -138,9 +138,13 @@ export interface PostRelationClient {
     item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => PromiseLike<TContent | undefined>;
   };
   request?: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
-  getUser: (id: number) => Promise<WordPressAuthor>;
-  getUsers?: (filter?: { include?: number[]; perPage?: number }) => Promise<WordPressAuthor[]>;
-  getMediaItem: (id: number) => Promise<WordPressMedia>;
+  users: () => {
+    get: (id: number) => Promise<WordPressAuthor>;
+    list: (filter?: { include?: number[]; perPage?: number }) => Promise<WordPressAuthor[]>;
+  };
+  media: () => {
+    get: (id: number) => Promise<WordPressMedia>;
+  };
   terms: <TTerm = WordPressCategory>(resource: string) => {
     list: (filter?: QueryParams, options?: WordPressRequestOverrides) => Promise<TTerm[]>;
     item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => Promise<TTerm | undefined>;

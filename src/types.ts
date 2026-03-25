@@ -39,6 +39,7 @@ export type {
 } from './types/payloads.js';
 
 export type {
+  CommentsResourceClient,
   ExtensibleFilter,
   QueryParamPrimitive,
   QueryParamValue,
@@ -46,8 +47,11 @@ export type {
   SerializedQueryParams,
   IncludeExcludeParam,
   FetchResult,
+  MediaResourceClient,
   PaginationParams,
   PaginatedResponse,
+  SettingsResourceClient,
+  UsersResourceClient,
   WordPressDeleteResult,
   ContentResourceClient,
   TermsResourceClient,

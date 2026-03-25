@@ -125,7 +125,7 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.delete).toBe(true);
   });
 
-  it('forwards custom headers for uploadMedia including metadata update', async () => {
+  it('forwards custom headers for media().upload including metadata update', async () => {
     const seen = {
       upload: false,
       metadataUpdate: false,
@@ -165,7 +165,7 @@ describe('Client: request-scoped mutation overrides', () => {
       0x42, 0x60, 0x82,
     ]);
 
-    const media = await client.uploadMedia(
+    const media = await client.media().upload(
       {
         file: png1x1,
         filename: 'request-overrides-1x1.png',
@@ -179,7 +179,7 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    await client.deleteMedia(media.id, { force: true });
+    await client.media().delete(media.id, { force: true });
 
     expect(seen.upload).toBe(true);
     expect(seen.metadataUpdate).toBe(true);

@@ -8,6 +8,7 @@
 - Build higher-level helpers on top of proven client primitives. If a feature needs a new REST ability, implement that ability in the client first.
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
 - Prefer `content()` and `terms()` as the public post-like and term resource API. Do not reintroduce legacy direct convenience wrappers for posts/pages/categories/tags.
+- Prefer `media()`, `comments()`, `users()`, and `settings()` as the public first-class resource API. Do not reintroduce legacy direct convenience wrappers such as `getMedia()` or `getCurrentUser()`.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Root package schema exports must be typed as Standard Schema (`WordPressStandardSchema`) to keep the default API validator-agnostic.
 - Native Zod schema exports belong in the dedicated `fluent-wp-client/zod` entrypoint only.
@@ -26,6 +27,7 @@
 - Post-like collection methods (`content('posts').list()`, `content('pages').list()`, `content(resource).list()`) return plain DTO arrays.
 - Post-like DTO reads keep `_embed` disabled by default; opt into collection embedding with `embed: true`. Relation queries created through `content(resource).item(...).with(...)` automatically request `_embed`.
 - Single post-like item access goes through `content(resource).item(idOrSlug)`, which returns an awaitable `PostRelationQueryBuilder` with `.getBlocks()` / `.getContent()` and relation hydration.
+- First-class collection helpers (`media().list()`, `comments().list()`, `users().list()`) return plain DTO arrays, while `settings()` remains a singleton with `.get()` / `.update()` / `.describe()`.
 - When adding new resource helpers, follow the same contract: collections return plain arrays, and single-item post-like access returns explicit query wrappers only when block/content helpers or relation hydration are needed.
 
 ## File Structure
@@ -204,7 +206,10 @@ Reference integration suites:
 - `tests/integration/artifacts.test.ts` — sparse custom post type coverage through `content('artifacts')` and `postLikeWordPressSchema`.
 - `tests/integration/categories.test.ts` — `terms('categories')` read and CRUD coverage.
 - `tests/integration/tags.test.ts` — `terms('tags')` read and CRUD coverage.
-- `tests/integration/comments.test.ts` — comment read and CRUD coverage.
+- `tests/integration/comments.test.ts` — `comments()` read, CRUD, and discovery coverage.
+- `tests/integration/media.test.ts` — `media()` reads, upload/update/delete, and discovery coverage.
+- `tests/integration/users.test.ts` — `users()` reads, `/me`, CRUD, and discovery coverage.
+- `tests/integration/settings.test.ts` — `settings()` reads, updates, and discovery coverage.
 - `tests/integration/terms.test.ts` — generic custom taxonomy coverage through `terms('genre')`.
 - `tests/integration/auth.test.ts` — JWT helper and cookie+nonce auth coverage.
 - `tests/integration/cookie-auth-crud.test.ts` — full CRUD coverage across all auth methods (cookie+nonce, browser-style cookie, basic, JWT).
@@ -234,7 +239,7 @@ The `.wp-env.json` file configures:
 - Vitest `globalSetup` runs in a separate process, so `process.env` changes do not propagate to test workers. Env vars are bridged via `.test-env.json`, written by global setup and read by `tests/setup/env-loader.ts`.
 - WordPress application passwords require HTTPS by default. `tests/wp-env/mu-plugins/enable-app-passwords.php` overrides this for HTTP localhost.
 - JWT auth relies on `tests/wp-env/mu-plugins/enable-jwt-auth-header.php` so `Authorization` headers survive local wp-env rewrites.
-- The WP REST API caps `per_page` at 100. Use `getAll*()` methods for full pagination instead of setting very high `perPage` values.
+- The WP REST API caps `per_page` at 100. Use `.listAll()` helpers for full pagination instead of setting very high `perPage` values.
 - WordPress creates a default `Privacy Policy` page in draft status. The seed script detects this and publishes it to ensure 10 pages are available.
 - The `afterStart` lifecycle script runs on the host, not inside the container. It uses `npx wp-env run cli -- wp ...` to execute WP-CLI commands inside the container.
 
@@ -250,6 +255,7 @@ const book = await wp.content('books').create(input, schema);
 
 - `wp.content(resource).describe()` — `item`, `collection`, `create`, `update` schemas
 - `wp.terms(resource).describe()` — same for taxonomies
+- `wp.media().describe()` / `wp.comments().describe()` / `wp.users().describe()` / `wp.settings().describe()` — first-class resource schemas
 - `wp.ability(name).describe()` — `input` and `output` schemas
 - `wp.explore()` — full catalog of all resources and abilities at once
 

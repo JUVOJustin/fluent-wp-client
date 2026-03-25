@@ -118,7 +118,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with(acfRelationshipRelationName)
-        .get();
+        ;
 
       expect(post.slug).toBe('test-post-001');
       const relatedPosts = post.related[acfRelationshipRelationName] as Array<{ id: number; slug?: string }>;
@@ -134,7 +134,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with(acfPostObjectRelationName)
-        .get();
+        ;
 
       const selectedPost = post.related[acfPostObjectRelationName] as { id: number; slug?: string } | null;
 
@@ -147,7 +147,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-002')
         .with('author', 'categories', acfRelationshipRelationName, acfPostObjectRelationName)
-        .get();
+        ;
 
       // Built-in relations
       expect(post.related.author).toBeDefined();
@@ -172,7 +172,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with(acfRelationshipRelationName)
-        .get();
+        ;
       
       // Should still resolve the relation
       expect(Array.isArray(post.related[acfRelationshipRelationName])).toBe(true);
@@ -192,7 +192,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('heroPosts', 'heroLinkedPost')
-        .get();
+        ;
 
       expect(Array.isArray(post.related.heroPosts)).toBe(true);
       expect(post.related.heroLinkedPost !== undefined).toBe(true);
@@ -220,7 +220,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('genericAcfRelatedPosts')
-        .get();
+        ;
 
       expect(Array.isArray(post.related.genericAcfRelatedPosts)).toBe(true);
       expect((post.related.genericAcfRelatedPosts as Array<{ id: number }>).length).toBeGreaterThan(0);
@@ -246,7 +246,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('genericAcfPostObject')
-        .get();
+        ;
 
       expect(post.related.genericAcfPostObject).not.toBeNull();
       expect(typeof (post.related.genericAcfPostObject as { id: number }).id).toBe('number');
@@ -280,7 +280,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('sharedBucketArticles')
-        .get();
+        ;
 
       const related = post.related.sharedBucketArticles as Array<{ id: number }>;
 
@@ -310,7 +310,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('sharedBucketPrimaryArticle')
-        .get();
+        ;
 
       expect((post.related.sharedBucketPrimaryArticle as { id: number } | null)?.id).toBe(expectedId);
     });
@@ -368,7 +368,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const hydrated = await authClient
         .content('posts').item(created.id)
         .with('sharedBucketGenres')
-        .get();
+        ;
 
       const genres = hydrated.related.sharedBucketGenres as Array<{ id: number; taxonomy: string }>;
 
@@ -408,7 +408,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('genericCategoryTerms')
-        .get();
+        ;
 
       const terms = post.related.genericCategoryTerms as Array<{ taxonomy: string }>;
       expect(Array.isArray(terms)).toBe(true);
@@ -477,7 +477,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const hydrated = await authClient
         .content('posts').item(created.id)
         .with(acfTaxonomyRelationName)
-        .get();
+        ;
 
       const genres = hydrated.related[acfTaxonomyRelationName] as Array<{ id: number; taxonomy: string }>;
 
@@ -498,7 +498,7 @@ describe('Client: Custom Relation Resolvers', () => {
         .content('books', contentWordPressSchema)
         .item('test-book-001')
         .with('author', 'bookLinkedPost')
-        .get();
+        ;
 
       expect(book.slug).toBe('test-book-001');
       expect(book.related.author !== undefined).toBe(true);
@@ -535,7 +535,7 @@ describe('Client: Custom Relation Resolvers', () => {
           .content('books', rejectSeedBookSchema)
           .item('test-book-001')
           .with('author')
-          .get(),
+          ,
       ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
     });
 
@@ -641,7 +641,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('nonExistentCustomRelation' as any)
-        .get();
+        ;
 
       // Should return the post but the custom relation won't be in related
       expect(post.slug).toBe('test-post-001');
@@ -672,7 +672,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('testFallbackRelation')
-        .get();
+        ;
 
       // The fallback should have been invoked
       expect(post.related.testFallbackRelation).toBeDefined();
@@ -710,7 +710,7 @@ describe('Client: Custom Relation Resolvers', () => {
           acfRelationshipRelationName,
           acfPostObjectRelationName,
         )
-        .get();
+        ;
 
       // All built-in relations should be present
       expect(post.related.author).toBeDefined();
@@ -728,7 +728,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-004')
         .with(acfRelationshipRelationName, acfPostObjectRelationName)
-        .get();
+        ;
 
       // Should handle gracefully even if some ACF fields are empty
       expect(post.slug).toBe('test-post-004');
@@ -789,7 +789,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('testEmptyRelation')
-        .get();
+        ;
 
       // When embedded data is not present and no fallback, returns null
       expect(post.related.testEmptyRelation).toBeNull();
@@ -805,7 +805,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('testNullRelation')
-        .get();
+        ;
 
       expect(post.related.testNullRelation).toBeNull();
     });
@@ -825,7 +825,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await authClient
         .content('posts').item('test-post-001')
         .with('testErrorRelation')
-        .get();
+        ;
 
       // Should return null when fallback fails
       expect(post.related.testErrorRelation).toBeNull();
@@ -838,7 +838,7 @@ describe('Client: Custom Relation Resolvers', () => {
       const post = await publicClient
         .content('posts').item('test-post-001')
         .with(acfRelationshipRelationName)
-        .get();
+        ;
 
       expect(post.slug).toBe('test-post-001');
       // Result may vary based on public API access to ACF
@@ -881,7 +881,7 @@ describe('Client: Custom Relation Resolvers', () => {
       expect(requiredFields).toContain('meta');
 
       // Should successfully fetch the post
-      const post = await query.get();
+      const post = await query;
       expect(post.slug).toBe('test-post-001');
 
       // The prototype-related names should not have polluted anything

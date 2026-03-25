@@ -420,7 +420,6 @@ export class PostRelationQueryBuilder<
   private readonly defaultBlockParser?: WordPressBlockParser;
   private viewPromise: Promise<TContent> | undefined;
   private editPromise: Promise<TContent | undefined> | undefined;
-  private resultPromise: Promise<ContentItemResult<TContent, TRelations>> | undefined;
 
   constructor(
     private readonly client: PostRelationClient,
@@ -746,27 +745,9 @@ export class PostRelationQueryBuilder<
   }
 
   /**
-   * Fetches the selected post and resolves requested relations.
-   * 
-   * For each requested relation:
-   * 1. Attempts to extract from `_embedded` data
-   * 2. Falls back to API calls if configured
-  * 3. Returns null/empty if unavailable
-  * 
-  * Custom relations are resolved using their registered configurations.
-  */
-  async get(): Promise<ContentItemResult<TContent, TRelations>> {
-    if (!this.resultPromise) {
-      this.resultPromise = this.resolveResult();
-    }
-
-    return this.resultPromise;
-  }
-
-  /**
    * Resolves and memoizes the final fluent query result.
    */
-  private async resolveResult(): Promise<ContentItemResult<TContent, TRelations>> {
+  protected async resolveResult(): Promise<ContentItemResult<TContent, TRelations>> {
     const post = await this.loadSelectedPost();
     const related = await this.resolveRelated(post);
     const content = this.finalizeContent
@@ -813,7 +794,7 @@ export class PostRelationQueryBuilder<
    * Resolves the standard resource payload for Promise-like usage.
    */
   protected execute(): Promise<ContentItemResult<TContent, TRelations>> {
-    return this.get();
+    return this.resolveResult();
   }
 }
 

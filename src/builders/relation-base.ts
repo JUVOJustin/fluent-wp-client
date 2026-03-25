@@ -12,7 +12,9 @@ import { ItemRelationResolver } from './item-relation-resolver.js';
  * - with() method pattern
  * - getRequiredFields() using ItemRelationResolver
  * - execute() delegation for Promise-like behavior
- * - get() alias for explicit resolution
+ * 
+ * Builders extend ExecutableQuery and implement PromiseLike, so they can be
+ * awaited directly without calling any explicit resolution method.
  * 
  * Subclasses must implement:
  * - resolveResult(): Promise<TResult> - the actual data fetching and hydration
@@ -52,23 +54,6 @@ export abstract class RelationQueryBuilderBase<
    * Delegates to resolveResult().
    */
   protected execute(): Promise<TResult> {
-    return this.resolveResult();
-  }
-
-  /**
-   * Returns the resolved result. Alias for direct await usage.
-   * 
-   * Note: Builders are PromiseLike, so you can await them directly
-   * without calling .get(). This method is provided for explicitness.
-   * 
-   * @example
-   * ```typescript
-   * // Both work the same:
-   * const posts = await client.content('posts').list();
-   * const posts = await client.content('posts').list().get();
-   * ```
-   */
-  async get(): Promise<TResult> {
     return this.resolveResult();
   }
 }

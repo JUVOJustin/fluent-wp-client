@@ -30,12 +30,12 @@ describe('Client: internal caching', () => {
   });
 
   describe('query builder memoization', () => {
-    it('caches .get() results and returns same object', async () => {
+    it('caches  results and returns same object', async () => {
       const { client, count } = createCountingClient();
       const query = client.content('posts').item('test-post-001');
       
-      const result1 = await query.get();
-      const result2 = await query.get();
+      const result1 = await query;
+      const result2 = await query;
       
       expect(count.value).toBe(1);
       expect(result1).toBe(result2);
@@ -66,8 +66,8 @@ describe('Client: internal caching', () => {
       const { client, count } = createCountingClient();
       const query = client.content('posts').item('test-post-001').with('author', 'categories');
       
-      const result1 = await query.get();
-      const result2 = await query.get();
+      const result1 = await query;
+      const result2 = await query;
       
       expect(result1).toBe(result2);
       expect(result1.related.author).toBe(result2.related.author);
@@ -75,11 +75,11 @@ describe('Client: internal caching', () => {
   });
 
   describe('concurrent request deduplication', () => {
-    it('deduplicates concurrent .get() calls', async () => {
+    it('deduplicates concurrent  calls', async () => {
       const { client, count } = createCountingClient();
       const query = client.content('posts').item('test-post-001');
       
-      const [r1, r2, r3] = await Promise.all([query.get(), query.get(), query.get()]);
+      const [r1, r2, r3] = await Promise.all([query, query, query]);
       
       expect(count.value).toBe(1);
       expect(r1).toBe(r2);
@@ -114,7 +114,7 @@ describe('Client: internal caching', () => {
       });
 
       const query = client.content('posts').item('test-post-001');
-      await expect(query.get()).rejects.toThrow();
+      await expect(query).rejects.toThrow();
       // Second call retries (may also fail, but doesn't use cached error)
     });
   });

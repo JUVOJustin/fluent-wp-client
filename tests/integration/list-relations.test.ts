@@ -87,14 +87,14 @@ describe('Client: fluent list relation hydration', () => {
       expect('with' in first).toBe(false);
     });
 
-    it('builder can be used without await (calling .get())', async () => {
+    it('builder can be awaited directly', async () => {
       const builder = publicClient.content('posts').list({ perPage: 1 }).with('categories');
       
       // Builder should be thenable
       expect(typeof builder.then).toBe('function');
       
-      // Can call .get() explicitly
-      const posts = await builder.get();
+      // Can await directly
+      const posts = await builder;
       
       expect(Array.isArray(posts)).toBe(true);
       expect(posts[0]).toHaveProperty('related');

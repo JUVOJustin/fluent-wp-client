@@ -5,6 +5,11 @@ import type {
   PostRelationClient,
 } from '../builders/relations.js';
 import {
+  ListRelationQueryBuilder,
+  ListAllRelationQueryBuilder,
+  PaginatedListRelationQueryBuilder,
+} from '../builders/list-relations.js';
+import {
   BasePostLikeResource,
   type PostLikeResourceContext,
 } from '../core/resource-base.js';
@@ -166,6 +171,13 @@ export class GenericContentResource<
   }
 
   /**
+   * Returns the relation client for building relation queries.
+   */
+  getRelationClient(): PostRelationClient {
+    return this.relationClient;
+  }
+
+  /**
    * Creates one awaitable single-item query with optional relations and block helpers.
    */
   itemQuery<TRelations extends readonly AllPostRelations[]>(
@@ -229,15 +241,24 @@ export function createContentClient<TResource extends WordPressPostLike>(
   };
 
   return {
-    list: async (filter = {}, options) => resource.listWithValidation(filter, options) as Promise<TResource[]>,
-    listAll: async (filter = {}, options) => resource.listAllWithValidation(
-      filter as Omit<QueryParams & PaginationParams, 'page'>,
-      options,
-    ) as Promise<TResource[]>,
-    listPaginated: async (filter = {}, options) => resource.listPaginatedWithValidation(
+    list: (filter = {}, options) => new ListRelationQueryBuilder(
+      resource.getRelationClient(),
       filter as QueryParams & PaginationParams,
+      (f, opts) => resource.listWithValidation(f, opts) as Promise<TResource[]>,
       options,
-    ) as Promise<PaginatedResponse<TResource>>,
+    ),
+    listAll: (filter = {}, options) => new ListAllRelationQueryBuilder(
+      resource.getRelationClient(),
+      filter as Omit<QueryParams & PaginationParams, 'page'>,
+      (f, opts) => resource.listAllWithValidation(f, opts) as Promise<TResource[]>,
+      options,
+    ),
+    listPaginated: (filter = {}, options) => new PaginatedListRelationQueryBuilder(
+      resource.getRelationClient(),
+      filter as QueryParams & PaginationParams,
+      (f, opts) => resource.listPaginatedWithValidation(f, opts) as Promise<PaginatedResponse<TResource>>,
+      options,
+    ),
     getById: async (id, options) => resource.getWithValidation(id, options) as Promise<TResource>,
     getBySlug: async (slug, options) => resource.getBySlugWithValidation(slug, options) as Promise<TResource | undefined>,
     item: (idOrSlug, options) => createRelationQuery(idOrSlug, options, []),

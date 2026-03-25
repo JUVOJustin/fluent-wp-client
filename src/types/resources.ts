@@ -4,6 +4,11 @@ import type {
   ContentItemResult,
   PostRelationQueryBuilder,
 } from '../builders/relations.js';
+import type {
+  ListRelationQueryBuilder,
+  ListAllRelationQueryBuilder,
+  PaginatedListRelationQueryBuilder,
+} from '../builders/list-relations.js';
 import type { WordPressPostLike } from '../schemas.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
 
@@ -94,9 +99,9 @@ export interface ContentResourceClient<
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > {
-  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
-  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides) => Promise<TResource[]>;
-  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
+  list: (filter?: TFilter, options?: WordPressRequestOverrides) => ListRelationQueryBuilder<[], TResource>;
+  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides) => ListAllRelationQueryBuilder<[], TResource>;
+  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => PaginatedListRelationQueryBuilder<[], TResource>;
   getById: (id: number, options?: WordPressRequestOverrides) => Promise<TResource>;
   getBySlug: (slug: string, options?: WordPressRequestOverrides) => Promise<TResource | undefined>;
   item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => PostRelationQueryBuilder<[], TResource>;

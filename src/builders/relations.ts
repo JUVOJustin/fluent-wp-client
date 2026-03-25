@@ -134,6 +134,10 @@ export type ContentItemResult<
   ? TContent
   : TContent & { related: SelectedPostRelations<TRelations> };
 
+interface PostRelationLoadOptions {
+  embed?: boolean;
+}
+
 /**
  * Extracts the first author from an _embedded author array.
  */
@@ -420,8 +424,8 @@ export class PostRelationQueryBuilder<
   constructor(
     private readonly client: PostRelationClient,
     private readonly selector: { id?: number; slug?: string },
-    private readonly getById: (id: number) => PromiseLike<TContent>,
-    private readonly getBySlug: (slug: string) => PromiseLike<TContent | undefined>,
+    private readonly getById: (id: number, options?: PostRelationLoadOptions) => PromiseLike<TContent>,
+    private readonly getBySlug: (slug: string, options?: PostRelationLoadOptions) => PromiseLike<TContent | undefined>,
     relations: readonly AllPostRelations[] = [],
     private readonly finalizeContent?: (content: TContent) => PromiseLike<TContent>,
     options: {
@@ -445,13 +449,14 @@ export class PostRelationQueryBuilder<
    */
   private async loadSelectedPostOnce(): Promise<TContent> {
     let post: TContent | undefined;
+    const shouldEmbedContent = this.relationSet.size > 0;
 
     if (typeof this.selector.id === 'number') {
-      post = await this.getById(this.selector.id);
+      post = await this.getById(this.selector.id, { embed: shouldEmbedContent });
     }
 
     if (!post && typeof this.selector.slug === 'string') {
-      post = await this.getBySlug(this.selector.slug);
+      post = await this.getBySlug(this.selector.slug, { embed: shouldEmbedContent });
     }
 
     if (!post) {

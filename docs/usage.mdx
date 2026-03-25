@@ -99,6 +99,8 @@ You can `await` it directly, and you can also call:
 - `.getContent()` for `{ raw, rendered, protected }` via `context=edit`
 - `.getBlocks()` for parsed Gutenberg blocks
 
+Plain DTO reads keep `_embed` disabled by default. Relation queries such as `.item(...).with(...)` and `.getWithRelations(...)` automatically add `_embed` when hydration can use it.
+
 Post/page list methods (`content('posts').list()`, `content('pages').list()`) return plain serializable DTO arrays without block helpers. Use a single-item query for block access:
 
 ```ts
@@ -169,6 +171,24 @@ const books = await wp.content('books').list({
   include: [164, 165],
   titleSearch: 'Test Book',
 });
+```
+
+### Embedded data is opt-in for DTO reads
+
+Use `embed: true` when you need raw `_embedded` data on collection responses. When you use relation hydration, the client adds `_embed` automatically.
+
+```ts
+const embeddedPosts = await wp.content('posts').list({
+  perPage: 10,
+  embed: true,
+});
+
+const embeddedBooks = await wp.content('books').list({
+  perPage: 10,
+  embed: true,
+});
+
+const hydratedPost = await wp.content('posts').item('hello-world').with('author', 'terms');
 ```
 
 Use `content('posts')` / `content('pages')` when the endpoint shape is known, and drop to `request()` when a plugin expects exact raw param names that should not be camelCase-normalized.
@@ -243,7 +263,6 @@ The same auth-override rule applies to read and listing helpers.
 
 - `content('posts').item(idOrSlug).with(...relations)`
 - `content('posts').getWithRelations(idOrSlug, ...relations)`
-- `post(idOrSlug).with(...relations)`
 - `content(resource).getWithRelations(idOrSlug, ...relations)`
 
 Supported relation names:
@@ -255,6 +274,7 @@ Supported relation names:
 - `featuredMedia`
 
 `terms` always returns core `categories` and `tags` arrays when available, plus `terms.taxonomies` for generic taxonomy access. For custom post types, custom taxonomies such as `genre` are exposed under `terms.taxonomies.<taxonomy>`.
+Relation queries automatically request `_embed` for the base content fetch.
 
 ### Transport and request control
 

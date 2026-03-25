@@ -25,11 +25,14 @@ Assume a CPT with `rest_base: 'books'`.
 const books = wp.content('books');
 
 const list = await books.list({ perPage: 20, page: 1 });
+const embeddedList = await books.list({ perPage: 20, embed: true });
 const allBooks = await books.listAll();
 const pagedBooks = await books.listPaginated({ page: 2, perPage: 25 });
 const bySlug = await books.getBySlug('my-book');
 const hydrated = await books.item('my-book').with('author', 'terms');
 ```
+
+Plain DTO reads such as `list()`, `listAll()`, `getById()`, and `getBySlug()` keep `_embed` disabled by default. Pass `embed: true` on collection filters when you need raw `_embedded` data. Relation queries created via `item(...).with(...)` and `getWithRelations(...)` enable `_embed` automatically.
 
 ### Relation hydration for custom post types
 

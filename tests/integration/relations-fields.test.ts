@@ -100,13 +100,10 @@ describe('Client: relationship field requirements', () => {
   });
 
   describe('embedded data handling with relations', () => {
-    it('includes embedded relation data when _embed is used', async () => {
-      // Requests with _embed=true expose embedded data for relation hydration.
+    it('keeps plain item() payloads lean until relations are requested', async () => {
       const post = await postsClient(authClient).item('test-post-001');
 
-      // When using relation methods, _embed is automatically included
-      expect(post).toHaveProperty('_embedded');
-      // Critical fields should be present for relation use
+      expect(post).not.toHaveProperty('_embedded');
       expect(post).toHaveProperty('author');
       expect(post).toHaveProperty('categories');
       expect(post).toHaveProperty('tags');

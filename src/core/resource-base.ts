@@ -12,6 +12,7 @@ import type { WordPressRuntime } from './transport.js';
 import { createWordPressPaginator } from './pagination.js';
 import { filterToParams, compactPayload, normalizeDeleteResult } from './params.js';
 import { applyRequestOverrides } from './request-overrides.js';
+import { resolveEmbedQueryParams } from './embed.js';
 import { throwIfWordPressError } from './errors.js';
 import { validateWithStandardSchema } from './validation.js';
 import { resolveMutationArguments } from './mutation-helpers.js';
@@ -243,7 +244,7 @@ export interface PostLikeResourceContext<TContent extends WordPressPostBase = Wo
  * 
  * Extends BaseCrudResource with:
  * - Content query builders for single items (with block parsing support)
- * - Default embedded content filter
+ * - Opt-in `_embed` handling for collection filters
  */
 export abstract class BasePostLikeResource<
   TContent extends WordPressPostBase,
@@ -261,13 +262,10 @@ export abstract class BasePostLikeResource<
   }
 
   /**
-   * Default filter adds _embed for post-like resources.
+   * Normalizes public `embed` filters for post-like resources.
    */
   protected override normalizeFilter(filter: TFilter | Omit<TFilter, 'page'>): QueryParams {
-    return {
-      ...filter,
-      _embed: 'true',
-    };
+    return resolveEmbedQueryParams(filter as QueryParams);
   }
 
   /**
@@ -277,10 +275,16 @@ export abstract class BasePostLikeResource<
     id: number,
     options?: WordPressRequestOverrides,
     context?: 'edit',
+    embed = false,
   ): Promise<TContent> {
+    const params = filterToParams(
+      resolveEmbedQueryParams(context ? { context, embed } : { embed }),
+      { applyPerPageDefault: false },
+    );
+
     return this.runtime.fetchAPI<TContent>(
       `${this.endpoint}/${id}`,
-      context ? { _embed: 'true', context } : { _embed: 'true' },
+      params,
       options,
     );
   }
@@ -292,10 +296,16 @@ export abstract class BasePostLikeResource<
     slug: string,
     options?: WordPressRequestOverrides,
     context?: 'edit',
+    embed = false,
   ): Promise<TContent | undefined> {
+    const params = filterToParams(
+      resolveEmbedQueryParams(context ? { slug, context, embed } : { slug, embed }),
+      { applyPerPageDefault: false },
+    );
+
     const items = await this.runtime.fetchAPI<TContent[]>(
       this.endpoint,
-      context ? { slug, _embed: 'true', context } : { slug, _embed: 'true' },
+      params,
       options,
     );
 

@@ -141,8 +141,18 @@ describe('Client: Posts', () => {
       expect(asc[0].title.rendered).not.toBe(desc[0].title.rendered);
     });
 
-    it('content(\'posts\').list() embeds featured media data', async () => {
+    it('content(\'posts\').list() omits embedded data by default', async () => {
       const posts = await postsClient(publicClient).list();
+
+      for (const post of posts) {
+        expect(post).not.toHaveProperty('_embedded');
+      }
+    });
+
+    it('content(\'posts\').list() supports opt-in embedded data', async () => {
+      const posts = await postsClient(publicClient).list({ perPage: 5, embed: true });
+
+      expect(posts).toHaveLength(5);
 
       for (const post of posts) {
         expect(post).toHaveProperty('_embedded');

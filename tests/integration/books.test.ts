@@ -33,6 +33,22 @@ describe('Client: Books', () => {
       expect(books[0]?.type).toBe('book');
     });
 
+    it('content() list() omits embedded data by default', async () => {
+      const books = await publicClient.content('books').list({ perPage: 5 });
+
+      expect(books).toHaveLength(5);
+
+      for (const book of books) {
+        expect(book).not.toHaveProperty('_embedded');
+      }
+    });
+
+    it('content() list() accepts opt-in embedded data filters', async () => {
+      const books = await publicClient.content('books').list({ perPage: 5, embed: true });
+
+      expect(books).toHaveLength(5);
+    });
+
     it('content() getBySlug fetches a known seeded book', async () => {
       const book = await publicClient.content('books').getBySlug('test-book-001');
 

@@ -376,6 +376,71 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.genreList).toBe(true);
   });
 
+  it('only adds _embed when requested by filters or relation hydration', async () => {
+    const seen = {
+      postsListDefault: false,
+      postsListEmbedded: false,
+      booksListDefault: false,
+      booksListEmbedded: false,
+      itemDefault: false,
+      itemWithRelations: false,
+    };
+
+    const client = createObservedAuthClient((method, url) => {
+      if (method !== 'GET') {
+        return;
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('per_page') === '1') {
+        if (url.searchParams.get('search') === 'Test Post 001') {
+          if (url.searchParams.get('_embed') === 'true') {
+            seen.postsListEmbedded = true;
+          } else {
+            seen.postsListDefault = true;
+          }
+        }
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/books') && url.searchParams.get('per_page') === '1') {
+        if (url.searchParams.get('search') === 'Test Book 001') {
+          if (url.searchParams.get('_embed') === 'true') {
+            seen.booksListEmbedded = true;
+          } else {
+            seen.booksListDefault = true;
+          }
+        }
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('slug') === 'test-post-001') {
+        seen.itemDefault = !url.searchParams.has('_embed');
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('slug') === 'test-post-002') {
+        seen.itemWithRelations = url.searchParams.get('_embed') === 'true';
+      }
+    });
+
+    const defaultPosts = await client.content('posts').list({ perPage: 1, search: 'Test Post 001' });
+    const embeddedPosts = await client.content('posts').list({ perPage: 1, search: 'Test Post 001', embed: true });
+    const defaultBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001' });
+    const embeddedBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001', embed: true });
+    const plainItem = await client.content('posts').item('test-post-001');
+    const relatedItem = await client.content('posts').item('test-post-002').with('author');
+
+    expect(defaultPosts).toHaveLength(1);
+    expect(embeddedPosts).toHaveLength(1);
+    expect(defaultBooks).toHaveLength(1);
+    expect(embeddedBooks).toHaveLength(1);
+    expect(plainItem.slug).toBe('test-post-001');
+    expect(relatedItem.slug).toBe('test-post-002');
+    expect(seen.postsListDefault).toBe(true);
+    expect(seen.postsListEmbedded).toBe(true);
+    expect(seen.booksListDefault).toBe(true);
+    expect(seen.booksListEmbedded).toBe(true);
+    expect(seen.itemDefault).toBe(true);
+    expect(seen.itemWithRelations).toBe(true);
+  });
+
   it('rejects auth header overrides on read helpers', async () => {
     const client = createObservedAuthClient(() => undefined);
 

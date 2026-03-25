@@ -7,7 +7,7 @@ sidebar:
 
 ## Overview
 
-When using relationship hydration methods like `content(resource).getWithRelations()` or the fluent `content(resource).item(...).with(...)` API, the client automatically ensures that critical fields required for relationship resolution are preserved in the response, even when you use field filtering options.
+When using relationship hydration methods like `content(resource).getWithRelations()` or the fluent `content(resource).item(...).with(...)` API, the client automatically enables `_embed` and preserves the fields required for relationship resolution. Plain DTO reads stay lean until you explicitly opt into embedded data.
 
 ## Why Fields Are Automatically Preserved
 
@@ -43,6 +43,8 @@ const book = await client.content('books').getWithRelations('my-book', 'terms');
 
 // The request includes: ?_embed=true
 ```
+
+By contrast, plain DTO reads such as `content('posts').list()` and `content('posts').item('my-post')` skip `_embed` unless you explicitly request it on collection filters with `embed: true`.
 
 ### Field Preservation
 
@@ -129,6 +131,6 @@ Tests verify:
 ## Best Practices
 
 1. **Let the client handle fields**: Don't manually exclude critical fields when using relations
-2. **Use `_embed` for collections**: When fetching collections with relations, ensure `_embed` is set to get embedded data
+2. **Use `embed: true` for raw collection embeds**: Opt into `_embedded` on collection DTO reads when you need the raw payload outside relation hydration
 3. **Check for null**: Always handle cases where relations may be null (e.g., no featured media)
 4. **Auth for full data**: Use authenticated clients to get complete author information

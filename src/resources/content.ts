@@ -177,8 +177,8 @@ export class GenericContentResource<
     return new PostRelationQueryBuilder<TRelations, TContent>(
       this.relationClient,
       typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
-      (id) => this.fetchContentById(id, options),
-      (slug) => this.fetchContentBySlug(slug, options),
+      (id, queryOptions) => this.fetchContentById(id, options, undefined, queryOptions?.embed),
+      (slug, queryOptions) => this.fetchContentBySlug(slug, options, undefined, queryOptions?.embed),
       relations,
       finalizeContent,
       {

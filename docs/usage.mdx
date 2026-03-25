@@ -80,38 +80,6 @@ console.log(definitions.length, siteTitle.title, processed.processed);
   </TabItem>
 </Tabs>
 
-## Migrating from legacy first-class helpers
-
-`3.0` removes the old direct `WordPressClient` methods for media, comments, users, and settings. Use the new resource clients instead.
-
-- `wp.getMedia()` -> `wp.media().list()`
-- `wp.getAllMedia()` -> `wp.media().listAll()`
-- `wp.getMediaPaginated()` -> `wp.media().listPaginated()`
-- `wp.getMediaItem(id)` -> `wp.media().item(id)`
-- `wp.getMediaBySlug(slug)` -> `wp.media().item(slug)`
-- `wp.getImageUrl(media, size)` -> `wp.media().getImageUrl(media, size)`
-- `wp.createMedia()` -> `wp.media().create()`
-- `wp.uploadMedia()` -> `wp.media().upload()`
-- `wp.updateMedia()` -> `wp.media().update()`
-- `wp.deleteMedia()` -> `wp.media().delete()`
-- `wp.getComments()` -> `wp.comments().list()`
-- `wp.getAllComments()` -> `wp.comments().listAll()`
-- `wp.getCommentsPaginated()` -> `wp.comments().listPaginated()`
-- `wp.getComment(id)` -> `wp.comments().item(id)`
-- `wp.createComment()` -> `wp.comments().create()`
-- `wp.updateComment()` -> `wp.comments().update()`
-- `wp.deleteComment()` -> `wp.comments().delete()`
-- `wp.getUsers()` -> `wp.users().list()`
-- `wp.getAllUsers()` -> `wp.users().listAll()`
-- `wp.getUsersPaginated()` -> `wp.users().listPaginated()`
-- `wp.getUser(id)` -> `wp.users().item(id)`
-- `wp.createUser()` -> `wp.users().create()`
-- `wp.updateUser()` -> `wp.users().update()`
-- `wp.deleteUser()` -> `wp.users().delete()`
-- `wp.getCurrentUser()` -> `wp.users().me()`
-- `wp.getSettings()` -> `wp.settings().get()`
-- `wp.updateSettings()` -> `wp.settings().update()`
-
 ## Method reference
 
 ### Read helpers

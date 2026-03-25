@@ -120,24 +120,16 @@ export class ItemRelationResolver {
   }
 
   /**
-   * Resolves one author by preferring direct lookup and then list fallback.
+   * Resolves one author by ID.
    */
   private async fetchAuthorById(authorId: number): Promise<WordPressAuthor | null> {
     const usersClient = this.client.users();
-    let direct: WordPressAuthor | null = null;
-
+    
     try {
-      direct = await usersClient.item(authorId) ?? null;
+      return await usersClient.item(authorId) ?? null;
     } catch {
-      direct = null;
+      return null;
     }
-
-    if (direct) {
-      return direct;
-    }
-
-    const users = await usersClient.list({ include: [authorId], perPage: 1 }).catch(() => []);
-    return users[0] ?? null;
   }
 
   /**

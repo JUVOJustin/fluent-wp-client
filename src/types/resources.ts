@@ -11,6 +11,7 @@ import type {
 } from '../builders/list-relations.js';
 import type { WordPressPostLike } from '../schemas.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
+import type { WordPressResourceDescription } from './discovery.js';
 
 /**
  * Per-request transport overrides supported by high-level helper methods.
@@ -115,6 +116,11 @@ export interface ContentResourceClient<
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
+  /**
+   * Returns a JSON Schema descriptor for this content resource.
+   * @param options Optional request overrides
+   */
+  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
 }
 
 /**
@@ -142,4 +148,9 @@ export interface TermsResourceClient<
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
+  /**
+   * Returns a JSON Schema descriptor for this term resource.
+   * @param options Optional request overrides
+   */
+  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
 }

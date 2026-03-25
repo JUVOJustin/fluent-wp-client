@@ -12,6 +12,7 @@ import type {
   WordPressRequestOverrides,
 } from '../types/resources.js';
 import type { TermWriteInput, WordPressWritePayload } from '../types/payloads.js';
+import type { WordPressResourceDescription } from '../types/discovery.js';
 import { createSchemaValidators } from './schema-validation.js';
 
 /**
@@ -136,6 +137,7 @@ export class GenericTermResource<
 export function createTermsClient<TTerm>(
   resource: GenericTermResource<TTerm>,
   responseSchema?: WordPressStandardSchema<TTerm>,
+  describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): TermsResourceClient<TTerm, QueryParams & PaginationParams, TermWriteInput, TermWriteInput> {
   const resolveMutationSchema = <TResponse>(
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
@@ -196,5 +198,6 @@ export function createTermsClient<TTerm>(
       );
     },
     delete: (id, options) => resource.delete(id, options),
+    describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
   };
 }

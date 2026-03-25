@@ -5,6 +5,11 @@ export {
   WordPressClient,
 } from './client.js';
 
+export {
+  createDiscoveryMethods,
+  type DiscoveryMethods,
+} from './discovery.js';
+
 export { MediaResource } from './resources/media.js';
 export { UsersResource } from './resources/users.js';
 export { CommentsResource } from './resources/comments.js';
@@ -259,3 +264,14 @@ export {
   createWordPressPaginator,
   type WordPressPaginatorOptions,
 } from './core/pagination.js';
+
+export type {
+  WordPressAbilityDescription,
+  WordPressDiscoveryCatalog,
+  WordPressDiscoveryOptions,
+  WordPressDiscoveryWarning,
+  WordPressJsonSchema,
+  WordPressResourceDescription,
+  WordPressResourceSchemaSet,
+  WordPressAbilitySchemaSet,
+} from './types/discovery.js';

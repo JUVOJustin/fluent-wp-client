@@ -213,6 +213,7 @@ Reference integration suites:
 - `tests/integration/acf.test.ts` — ACF REST field coverage across seeded and mutated content.
 - `tests/integration/relations.test.ts` — fluent post relation hydration coverage.
 - `tests/integration/serialization.test.ts` — DTO serialization safety (`structuredClone`, `JSON.stringify`, no helper leakage).
+- `tests/integration/discovery.test.ts` — schema discovery, catalog exploration, and dogfooding coverage (converting discovered schemas to Zod for validation).
 
 ### What to test when adding new features
 
@@ -236,6 +237,23 @@ The `.wp-env.json` file configures:
 - The WP REST API caps `per_page` at 100. Use `getAll*()` methods for full pagination instead of setting very high `perPage` values.
 - WordPress creates a default `Privacy Policy` page in draft status. The seed script detects this and publishes it to ensure 10 pages are available.
 - The `afterStart` lifecycle script runs on the host, not inside the container. It uses `npx wp-env run cli -- wp ...` to execute WP-CLI commands inside the container.
+
+## Schema Discovery
+
+Before writing mutations against an unfamiliar resource or ability, call `.describe()` to fetch the live JSON Schema for that endpoint, then convert it with `z.fromJSONSchema()` and pass it to `create()`, `update()`, or `.inputSchema()`.
+
+```ts
+const desc = await wp.content('books').describe();
+const schema = z.fromJSONSchema(desc.schemas.create!);
+const book = await wp.content('books').create(input, schema);
+```
+
+- `wp.content(resource).describe()` — `item`, `collection`, `create`, `update` schemas
+- `wp.terms(resource).describe()` — same for taxonomies
+- `wp.ability(name).describe()` — `input` and `output` schemas
+- `wp.explore()` — full catalog of all resources and abilities at once
+
+Requires an authenticated client for write schemas.
 
 ## Code Style
 

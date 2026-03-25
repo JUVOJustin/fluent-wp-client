@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { WordPressRequestOptions, WordPressRequestResult } from './types/client.js';
 import type { WordPressRequestOverrides } from './types/resources.js';
+import type { WordPressAbilityDescription } from './types/discovery.js';
 import { throwIfWordPressError } from './core/errors.js';
 import { applyRequestOverrides } from './core/request-overrides.js';
 import {
@@ -262,6 +263,37 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
     }, requestOptions));
 
     return parseAbilityResponse(response, data, this.outputValidator);
+  }
+
+  /**
+   * Returns a JSON Schema descriptor for this ability.
+   * Includes input/output schemas and annotations.
+   */
+  async describe(requestOptions?: WordPressRequestOverrides): Promise<WordPressAbilityDescription> {
+    const ability = await this.runtime.fetchAPI<WordPressAbility>(
+      createAbilityEndpoint(this.abilityName),
+      undefined,
+      requestOptions,
+    );
+
+    const schemas: WordPressAbilityDescription['schemas'] = {};
+
+    if (ability.input_schema) {
+      schemas.input = ability.input_schema as WordPressAbilityDescription['schemas']['input'];
+    }
+
+    if (ability.output_schema) {
+      schemas.output = ability.output_schema as WordPressAbilityDescription['schemas']['output'];
+    }
+
+    return {
+      kind: 'ability',
+      name: this.abilityName,
+      route: createAbilityEndpoint(this.abilityName),
+      schemas,
+      annotations: ability.meta?.annotations || {},
+      raw: ability,
+    };
   }
 }
 

@@ -347,6 +347,17 @@ result.related.parent;        // WordPressPostLike | null
 
 Available relations: `author`, `categories`, `tags`, `terms`, `featuredMedia`, `parent`.
 
+## Schema Discovery
+
+Before writing mutations against an unfamiliar resource or ability, call `.describe()` to fetch its live JSON Schema, then convert with `z.fromJSONSchema()` and pass to `create()`, `update()`, or `.inputSchema()`.
+
+- `wp.content(resource).describe()` — `create`, `update`, `item` schemas
+- `wp.terms(resource).describe()` — same for taxonomies
+- `wp.ability(name).describe()` — `input` and `output` schemas
+- `wp.explore()` — full catalog of all resources and abilities at once
+
+See `docs/schema-discovery.mdx` for examples.
+
 ## WordPress Abilities API
 
 Inspect and execute server-registered abilities at `/wp-json/wp-abilities/v1`.
@@ -573,4 +584,5 @@ Consult these when deeper guidance is needed for a specific topic:
 | [references/gutenberg-content.mdx](references/gutenberg-content.mdx) | Rendered vs raw content, block parsing workflows, custom parser setup, CPT block parsing |
 | [references/custom-endpoints.mdx](references/custom-endpoints.mdx) | CPT/taxonomy patterns, namespace routing, registerRoute, low-level requests, per-request auth |
 | [references/abilities.mdx](references/abilities.mdx) | Ability metadata, direct execution helpers, fluent builder with schemas, exported ability schemas |
+| [references/schema-discovery.mdx](references/schema-discovery.mdx) | `.describe()`, `explore()`, `z.fromJSONSchema()` integration and examples |
 | [references/migration-from-node-wpapi.mdx](references/migration-from-node-wpapi.mdx) | Side-by-side mapping from node-wpapi, auth migration, behavioral differences |

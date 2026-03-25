@@ -53,4 +53,15 @@ export type {
   TermsResourceClient,
 } from './types/resources.js';
 
+export type {
+  WordPressAbilityDescription,
+  WordPressDiscoveryCatalog,
+  WordPressDiscoveryOptions,
+  WordPressDiscoveryWarning,
+  WordPressJsonSchema,
+  WordPressResourceDescription,
+  WordPressResourceSchemaSet,
+  WordPressAbilitySchemaSet,
+} from './types/discovery.js';
+
 export { filterToParams, compactPayload } from './core/params.js';

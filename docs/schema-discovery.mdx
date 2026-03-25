@@ -1,0 +1,106 @@
+---
+title: Schema Discovery
+short_title: Schema Discovery
+description: Fetch live JSON Schemas from WordPress at runtime and use them directly for input and output validation.
+sidebar:
+  order: 8
+---
+
+Schema discovery lets you fetch the JSON Schema WordPress exposes for any resource or ability, then use it directly for validation — without hard-coding schemas upfront. This is useful for generic integrations, AI agents, and tools that work across multiple sites.
+
+## Describe a resource
+
+Call `.describe()` on any resource client to get its JSON Schemas:
+
+```ts
+const desc = await wp.content('books').describe();
+
+desc.schemas.item       // single item response shape
+desc.schemas.collection // collection response shape
+desc.schemas.create     // accepted fields for create
+desc.schemas.update     // accepted fields for update (no required fields)
+```
+
+Works the same for terms and abilities:
+
+```ts
+await wp.terms('categories').describe();
+await wp.ability('my-plugin/send-notification').describe();
+```
+
+## Validate with discovered schemas
+
+Convert a discovered schema to Zod with `z.fromJSONSchema()` and pass it to `create()`, `update()`, or `.inputSchema()`:
+
+```ts title="Content"
+import { z } from 'zod';
+
+const desc = await wp.content('books').describe();
+const createSchema = z.fromJSONSchema(desc.schemas.create!);
+
+// Valid input succeeds
+const book = await wp.content('books').create(
+  { title: 'My Book', status: 'publish' },
+  createSchema,
+);
+
+// Invalid input throws WordPressSchemaValidationError before the request
+await wp.content('books').create({ content: 'no title' }, createSchema);
+```
+
+```ts title="Ability"
+const desc = await wp.ability('my-plugin/send-notification').describe();
+const inputSchema = z.fromJSONSchema(desc.schemas.input!);
+
+const result = await wp
+  .ability('my-plugin/send-notification')
+  .inputSchema(inputSchema)
+  .run({ userId: 42 });
+```
+
+## Explore: full catalog
+
+`wp.explore()` returns schemas for all content types, taxonomies, first-class resources, and abilities in one call. The result is a plain serializable object.
+
+```ts
+const catalog = await wp.explore();
+
+// catalog.content   — post types (posts, pages, books, …)
+// catalog.terms     — taxonomies (categories, tags, …)
+// catalog.resources — media, users, comments, settings
+// catalog.abilities — registered WordPress abilities
+
+const schema = z.fromJSONSchema(catalog.content.books.schemas!.create!);
+```
+
+Limit the scope with `include`, or bust the in-memory cache with `refresh`:
+
+```ts
+await wp.explore({ include: ['content', 'terms'] });
+await wp.explore({ refresh: true });
+```
+
+Available kinds: `'content'`, `'terms'`, `'resources'`, `'abilities'`.
+
+## Authentication
+
+Use an authenticated client to get full schema coverage, including write schemas:
+
+```ts
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: process.env.WP_APP_PASSWORD },
+});
+```
+
+## Exported types
+
+```ts
+import type {
+  WordPressDiscoveryCatalog,
+  WordPressDiscoveryOptions,
+  WordPressJsonSchema,
+  WordPressResourceDescription,
+  WordPressAbilityDescription,
+} from 'fluent-wp-client';
+```

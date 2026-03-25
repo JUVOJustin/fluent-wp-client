@@ -172,25 +172,83 @@ const books = await wp.content('books').list({
 });
 ```
 
-### Embedded data is opt-in for DTO reads
+### Embedded data and relation hydration
 
-Use `embed: true` when you need raw `_embedded` data on collection responses. Relation queries such as `.item(...).with(...)` add `_embed` automatically.
+There are two ways to access related entities in WordPress REST API responses. Understanding the difference helps you choose the right approach for your use case.
+
+#### Option 1: Raw `_embedded` data (`embed: true`)
+
+When you pass `embed: true`, WordPress returns raw `_embedded` data from its REST API. This gives you direct access to WordPress's internal embed structure, but requires manual parsing and lacks type safety.
 
 ```ts
-const embeddedPosts = await wp.content('posts').list({
-  perPage: 10,
-  embed: true,
-});
+// Returns raw WordPress _embedded structure
+const posts = await wp.content('posts').list({ perPage: 10, embed: true });
 
-const embeddedBooks = await wp.content('books').list({
-  perPage: 10,
-  embed: true,
-});
-
-const hydratedPost = await wp.content('posts').item('hello-world').with('author', 'terms');
+// Access raw embedded data manually
+posts[0]._embedded.author[0]           // WordPress user object
+posts[0]._embedded['wp:term']          // Mixed array of categories and tags
+posts[0]._embedded['wp:featuredmedia'] // Media item array
 ```
 
-Use `content('posts')` / `content('pages')` when the endpoint shape is known, and drop to `request()` when a plugin expects exact raw param names that should not be camelCase-normalized.
+**Use `embed: true` when:**
+- You need access to plugin-specific embedded data (ACF, WooCommerce, etc.)
+- You're building low-level integrations that consume raw WordPress structures
+- You need data that doesn't fit standard relations
+
+#### Option 2: Client-side relation hydration (`.with()`)
+
+The `.with()` method provides intelligent relation hydration with full type safety, automatic fallback handling, and a clean API.
+
+```ts
+// Returns typed, hydrated relations
+const post = await wp.content('posts').item('hello-world').with('author', 'categories', 'tags');
+
+// Access typed relations through the `related` property
+post.related.author        // WordPressAuthor | null
+post.related.categories    // WordPressCategory[]
+post.related.tags          // WordPressTag[]
+post.related.featuredMedia // WordPressMedia | null
+```
+
+**Why `.with()` is generally better:**
+
+| Feature | `embed: true` | `.with()` |
+|---------|--------------|-----------|
+| **Type safety** | Manual casting required | Fully typed (TypeScript) |
+| **Structure** | WordPress internal format (`wp:term`, `wp:featuredmedia`) | Clean names (`categories`, `featuredMedia`) |
+| **Fallback** | No fallback—if `_embedded` missing, data is unavailable | Automatic API calls using ID fields |
+| **Custom relations** | Manual parsing of plugin embeds | Register once, use everywhere |
+| **ACF support** | Parse `_embedded['acf:post']` manually | Use `registerAcfRelationship()` helpers |
+| **Taxonomy handling** | Manually filter `_embedded['wp:term']` | Automatic category/tag separation |
+
+**Use `.with()` when:**
+- You want type-safe access to related entities
+- You need automatic fallback for missing embedded data
+- You're using custom relations or ACF fields
+- You want a cleaner, more maintainable API
+
+#### Combining both approaches
+
+You can use both together when you need raw embedded data AND typed relations:
+
+```ts
+// Both _embedded AND related property
+const post = await wp.content('posts').item('hello-world', { embed: true }).with('author');
+
+// post._embedded contains raw WordPress data
+// post.related.author contains typed, hydrated author
+```
+
+**Payload behavior:**
+
+| Call | `_embedded` in response | `related` property |
+|------|------------------------|-------------------|
+| `.item('slug')` | No | No |
+| `.item('slug', { embed: true })` | Yes | No |
+| `.item('slug').with('author')` | No | Yes |
+| `.item('slug', { embed: true }).with('author')` | Yes | Yes |
+
+The same pattern applies to list methods (`.list()`, `.listAll()`, `.listPaginated()`).
 
 ### Post-like typing
 

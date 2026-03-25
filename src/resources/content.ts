@@ -155,10 +155,12 @@ export class GenericContentResource<
    */
   itemQuery<TRelations extends readonly AllPostRelations[]>(
     idOrSlug: number | string,
-    options: WordPressRequestOverrides | undefined,
+    options: (WordPressRequestOverrides & { embed?: boolean }) | undefined,
     relations: TRelations,
     finalizeContent?: (content: TContent) => PromiseLike<TContent>,
   ): PostRelationQueryBuilder<TRelations, TContent> {
+    const userRequestedEmbed = options?.embed === true;
+    
     return new PostRelationQueryBuilder<TRelations, TContent>(
       this.relationClient,
       typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
@@ -171,6 +173,7 @@ export class GenericContentResource<
         getEditBySlug: (slug) => this.fetchContentBySlug(slug, options, 'edit'),
         missingRawMessage: this.missingRawMessage,
         defaultBlockParser: this.defaultBlockParser,
+        userRequestedEmbed,
       },
     );
   }
@@ -185,7 +188,7 @@ export function createContentClient<TResource extends WordPressPostLike>(
 ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
   const createRelationQuery = <TRelations extends readonly AllPostRelations[]>(
     idOrSlug: number | string,
-    options: WordPressRequestOverrides | undefined,
+    options: (WordPressRequestOverrides & { embed?: boolean }) | undefined,
     relations: TRelations,
   ): PostRelationQueryBuilder<TRelations, TResource> => resource.itemQuery(
     idOrSlug,

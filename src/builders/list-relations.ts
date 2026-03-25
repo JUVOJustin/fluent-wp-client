@@ -78,12 +78,17 @@ export class ListRelationQueryBuilder<
 
   /**
    * Loads the list with embedded data enabled if relations are requested.
+   * Always requests _embed when relations are needed for hydration, but
+   * strips it from the final response unless user explicitly requested embed: true.
    */
   private async loadListOnce(): Promise<TContent[]> {
-    const shouldEmbedContent = this.relationSet.size > 0;
+    const needsEmbedForHydration = this.relationSet.size > 0;
+    const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
     
-    // Add _embed to filter if relations are requested
-    const filterWithEmbed = shouldEmbedContent
+    // Always request _embed if we need it for relation hydration
+    const shouldRequestEmbed = needsEmbedForHydration || userRequestedEmbed;
+    
+    const filterWithEmbed = shouldRequestEmbed
       ? { ...this.filter, _embed: 'true' as const }
       : this.filter;
 
@@ -125,12 +130,20 @@ export class ListRelationQueryBuilder<
     // Create a shared resolver for all items
     const resolver = new ItemRelationResolver(this.client, this.relationSet);
 
+    // Check if user explicitly requested embed: true
+    const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
+
     // Resolve relations for all items in parallel
     const results = await Promise.all(
       items.map(async (item) => {
         const related = await this.resolveItemRelations(item, resolver);
+        
+        // Strip _embedded from response unless user explicitly requested it
+        const { _embedded, ...itemWithoutEmbedded } = item as Record<string, unknown>;
+        const cleanedItem = userRequestedEmbed ? item : (itemWithoutEmbedded as TContent);
+        
         return {
-          ...item,
+          ...cleanedItem,
           related: related as SelectedPostRelations<TRelations>,
         } as ContentItemResult<TContent, TRelations>;
       }),
@@ -185,11 +198,16 @@ export class PaginatedListRelationQueryBuilder<
 
   /**
    * Loads the paginated list with embedded data enabled if relations are requested.
+   * Always requests _embed when relations are needed for hydration.
    */
   private async loadPaginatedOnce(): Promise<PaginatedResponse<TContent>> {
-    const shouldEmbedContent = this.relationSet.size > 0;
+    const needsEmbedForHydration = this.relationSet.size > 0;
+    const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
     
-    const filterWithEmbed = shouldEmbedContent
+    // Always request _embed if we need it for relation hydration
+    const shouldRequestEmbed = needsEmbedForHydration || userRequestedEmbed;
+    
+    const filterWithEmbed = shouldRequestEmbed
       ? { ...this.filter, _embed: 'true' as const }
       : this.filter;
 
@@ -220,11 +238,19 @@ export class PaginatedListRelationQueryBuilder<
 
     const resolver = new ItemRelationResolver(this.client, this.relationSet);
 
+    // Check if user explicitly requested embed: true
+    const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
+
     const hydratedData = await Promise.all(
       result.data.map(async (item) => {
         const related = await resolver.resolveRelated(item);
+        
+        // Strip _embedded from response unless user explicitly requested it
+        const { _embedded, ...itemWithoutEmbedded } = item as Record<string, unknown>;
+        const cleanedItem = userRequestedEmbed ? item : (itemWithoutEmbedded as TContent);
+        
         return {
-          ...item,
+          ...cleanedItem,
           related: related as SelectedPostRelations<TRelations>,
         } as ContentItemResult<TContent, TRelations>;
       }),
@@ -282,13 +308,16 @@ export class ListAllRelationQueryBuilder<
 
   /**
    * Loads all items with embedded data enabled if relations are requested.
+   * Always requests _embed when relations are needed for hydration.
    */
   private async loadListAllOnce(): Promise<TContent[]> {
-    const shouldEmbedContent = this.relationSet.size > 0;
+    const needsEmbedForHydration = this.relationSet.size > 0;
+    const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
     
-    // Note: listAll auto-paginates, so we need to handle _embed differently
-    // We'll pass _embed through the filter
-    const filterWithEmbed = shouldEmbedContent
+    // Always request _embed if we need it for relation hydration
+    const shouldRequestEmbed = needsEmbedForHydration || userRequestedEmbed;
+    
+    const filterWithEmbed = shouldRequestEmbed
       ? { ...this.filter, _embed: 'true' as const }
       : this.filter;
 
@@ -319,11 +348,19 @@ export class ListAllRelationQueryBuilder<
 
     const resolver = new ItemRelationResolver(this.client, this.relationSet);
 
+    // Check if user explicitly requested embed: true
+    const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
+
     const results = await Promise.all(
       items.map(async (item) => {
         const related = await resolver.resolveRelated(item);
+        
+        // Strip _embedded from response unless user explicitly requested it
+        const { _embedded, ...itemWithoutEmbedded } = item as Record<string, unknown>;
+        const cleanedItem = userRequestedEmbed ? item : (itemWithoutEmbedded as TContent);
+        
         return {
-          ...item,
+          ...cleanedItem,
           related: related as SelectedPostRelations<TRelations>,
         } as ContentItemResult<TContent, TRelations>;
       }),

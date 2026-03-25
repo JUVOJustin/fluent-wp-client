@@ -534,8 +534,7 @@ describe('Client: Custom Relation Resolvers', () => {
         publicClient
           .content('books', rejectSeedBookSchema)
           .item('test-book-001')
-          .with('author')
-          ,
+          .with('author'),
       ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
     });
 

@@ -30,7 +30,7 @@ describe('Client: internal caching', () => {
   });
 
   describe('query builder memoization', () => {
-    it('caches  results and returns same object', async () => {
+    it('caches results and returns same object', async () => {
       const { client, count } = createCountingClient();
       const query = client.content('posts').item('test-post-001');
       
@@ -75,7 +75,7 @@ describe('Client: internal caching', () => {
   });
 
   describe('concurrent request deduplication', () => {
-    it('deduplicates concurrent  calls', async () => {
+    it('deduplicates concurrent calls', async () => {
       const { client, count } = createCountingClient();
       const query = client.content('posts').item('test-post-001');
       

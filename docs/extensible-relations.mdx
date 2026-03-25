@@ -571,21 +571,6 @@ const post = await client.content('posts').item('my-post').with('relatedProducts
 const relatedProducts = post.related.relatedProducts as WooProduct[];
 ```
 
-### Testing Custom Relations
-
-See the test suite for examples:
-
-```bash
-npm test -- tests/integration/custom-relations.test.ts
-```
-
-Key test patterns:
-- Register relations in `beforeAll`, clean up in `afterAll`
-- Test embedded data extraction
-- Test fallback resolution
-- Test error handling
-- Verify required fields
-
 ## Best Practices
 
 1. **Always provide fallback resolvers** - Don't rely solely on embedded data, as it may not always be available

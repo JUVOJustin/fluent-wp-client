@@ -428,8 +428,10 @@ export class PostRelationQueryBuilder<
   private readonly getEditBySlug?: (slug: string) => PromiseLike<TContent | undefined>;
   private readonly missingRawMessage: string;
   private readonly defaultBlockParser?: WordPressBlockParser;
+  private readonly userRequestedEmbed: boolean;
   private viewPromise: Promise<TContent> | undefined;
   private editPromise: Promise<TContent | undefined> | undefined;
+  private resultPromise: Promise<ContentItemResult<TContent, TRelations>> | undefined;
 
   constructor(
     private readonly client: PostRelationClient,
@@ -443,6 +445,7 @@ export class PostRelationQueryBuilder<
       getEditBySlug?: (slug: string) => PromiseLike<TContent | undefined>;
       missingRawMessage?: string;
       defaultBlockParser?: WordPressBlockParser;
+      userRequestedEmbed?: boolean;
     } = {},
   ) {
     super();
@@ -452,6 +455,7 @@ export class PostRelationQueryBuilder<
     this.missingRawMessage = options.missingRawMessage
       ?? 'Raw post content is unavailable. The current credentials may not have edit capabilities for this content item.';
     this.defaultBlockParser = options.defaultBlockParser;
+    this.userRequestedEmbed = options.userRequestedEmbed ?? false;
   }
 
   /**
@@ -470,7 +474,7 @@ export class PostRelationQueryBuilder<
     }
 
     if (!post) {
-      throw new Error('Post not found for the provided fluent relation selector.');
+      return undefined as unknown as TContent;
     }
 
     return post;
@@ -759,6 +763,7 @@ export class PostRelationQueryBuilder<
         getEditBySlug: this.getEditBySlug,
         missingRawMessage: this.missingRawMessage,
         defaultBlockParser: this.defaultBlockParser,
+        userRequestedEmbed: this.userRequestedEmbed,
       },
     ) as PostRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
   }
@@ -794,6 +799,12 @@ export class PostRelationQueryBuilder<
    */
   protected async resolveResult(): Promise<ContentItemResult<TContent, TRelations>> {
     const post = await this.loadSelectedPost();
+    
+    // Return undefined early if post not found
+    if (!post) {
+      return undefined as unknown as ContentItemResult<TContent, TRelations>;
+    }
+    
     const related = await this.resolveRelated(post);
     const content = this.finalizeContent
       ? await this.finalizeContent(post)
@@ -803,8 +814,19 @@ export class PostRelationQueryBuilder<
       return content as ContentItemResult<TContent, TRelations>;
     }
 
+    // Strip _embedded from response unless user explicitly requested it
+    if (this.userRequestedEmbed) {
+      return {
+        ...content,
+        related: related as SelectedPostRelations<TRelations>,
+      } as ContentItemResult<TContent, TRelations>;
+    }
+
+    const contentRecord = content as Record<string, unknown>;
+    const { _embedded, ...contentWithoutEmbedded } = contentRecord;
+
     return {
-      ...content,
+      ...(contentWithoutEmbedded as TContent),
       related: related as SelectedPostRelations<TRelations>,
     } as ContentItemResult<TContent, TRelations>;
   }
@@ -837,9 +859,13 @@ export class PostRelationQueryBuilder<
 
   /**
    * Resolves the standard resource payload for Promise-like usage.
+   * Memoizes the result to avoid recomputing on repeated awaits.
    */
   protected execute(): Promise<ContentItemResult<TContent, TRelations>> {
-    return this.resolveResult();
+    if (!this.resultPromise) {
+      this.resultPromise = this.resolveResult();
+    }
+    return this.resultPromise;
   }
 }
 

@@ -36,25 +36,26 @@ describe('Client: relationship field requirements', () => {
   }
 
   describe('automatic field preservation for relations', () => {
-    it('includes _embedded data when using content(\'posts\').item().with()', async () => {
-      // Relationship hydration depends on embedded data being present.
+    it('hydrates relations without exposing _embedded by default', async () => {
+      // Relationship hydration works via _embedded internally, but it's stripped from output
       const post = await postsClient(authClient).item('test-post-001').with('author', 'terms');
 
       expect(post.slug).toBe('test-post-001');
-      // _embedded should be present because relations need it
-      expect(post).toHaveProperty('_embedded');
+      // _embedded should NOT be present by default (lean output)
+      expect(post).not.toHaveProperty('_embedded');
+      // But related data IS populated
       expectAuthorRelation(post.author, post.related.author);
       expect(post.related.terms.categories.length).toBeGreaterThan(0);
     });
 
-    it('includes _embedded data when using awaitable item().with()', async () => {
+    it('includes _embedded data when embed: true is explicitly requested', async () => {
       const post = await authClient
         .content('posts')
-        .item('test-post-002')
+        .item('test-post-002', { embed: true })
         .with('author', 'categories', 'tags');
 
       expect(post.slug).toBe('test-post-002');
-      // _embedded should be present for relation hydration
+      // _embedded should be present when explicitly requested
       expect(post).toHaveProperty('_embedded');
       expectAuthorRelation(post.author, post.related.author);
       expect(Array.isArray(post.related.categories)).toBe(true);

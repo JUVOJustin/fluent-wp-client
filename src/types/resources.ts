@@ -102,7 +102,7 @@ export interface ContentResourceClient<
   list: (filter?: TFilter, options?: WordPressRequestOverrides) => ListRelationQueryBuilder<[], TResource>;
   listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides) => ListAllRelationQueryBuilder<[], TResource>;
   listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => PaginatedListRelationQueryBuilder<[], TResource>;
-  item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => PostRelationQueryBuilder<[], TResource>;
+  item: (idOrSlug: number | string, options?: WordPressRequestOverrides & { embed?: boolean }) => PostRelationQueryBuilder<[], TResource>;
   create: <TResponse = TResource>(
     input: TCreate,
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,

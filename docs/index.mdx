@@ -74,13 +74,14 @@ Use the client to list items, create new ones, update, or delete. The actual dat
 
 - **Unified typed content builders** — `content('posts')`, `content('pages')`, `content('books')`, and `terms('genre')` share one API shape, with stricter typing for built-in resources
 - **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
-- **Lean embedded payloads** — post-like DTO reads skip `_embed` by default, while relation hydration enables it automatically when you call `.with(...)`
+- **Smart relation hydration** — `.with('author', 'categories')` gives you typed, clean data with automatic fallbacks—not raw WordPress `_embedded` soup
+- **Lean payloads by default** — skip the `_embed` overhead; relation hydration handles it internally and returns only what you need
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
 - **Gutenberg block parsing** — single-item queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`
-- **Extensible relation API** — fluent relations for posts and custom entities, plus generic ID-backed and shared link/embed relation factories
+- **Extensible relation API** — register custom relations for ACF, plugins, and shared link/embed buckets
 
 ## Guides
 

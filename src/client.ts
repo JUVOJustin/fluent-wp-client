@@ -15,11 +15,21 @@ import type {
   JwtLoginCredentials,
 } from './auth.js';
 import type { WordPressRequestOverrides } from './types/resources.js';
+import type {
+  WordPressDiscoveryCatalog,
+  WordPressDiscoveryOptions,
+  WordPressResourceDescription,
+  WordPressAbilityDescription,
+} from './types/discovery.js';
 import { MediaResource } from './resources/media.js';
 import { UsersResource } from './resources/users.js';
 import { SettingsResource } from './resources/settings.js';
 import { CommentsResource } from './resources/comments.js';
 import { GenericResourceRegistry } from './resources/registry.js';
+import {
+  createDiscoveryMethods,
+  type DiscoveryMethods,
+} from './discovery.js';
 import {
   type WordPressAuthor,
   type WordPressCategory,
@@ -94,6 +104,7 @@ export class WordPressClient {
   private readonly commentsResource: CommentsResource;
   private readonly genericResourcesRegistry: GenericResourceRegistry;
   private readonly abilityMethods: ReturnType<typeof createAbilityMethods>;
+  private readonly discoveryMethods: DiscoveryMethods;
 
   /**
    * Creates a new WordPress API client.
@@ -126,6 +137,7 @@ export class WordPressClient {
       fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
       request: this.runtime.request.bind(this.runtime),
     });
+    this.discoveryMethods = createDiscoveryMethods(this.runtime);
   }
 
   // ============= TRANSPORT FACADE =============
@@ -417,6 +429,32 @@ export class WordPressClient {
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
     return this.abilityMethods.executeDeleteAbility(name, input, responseSchema, options);
+  }
+
+  // ============= DISCOVERY API =============
+
+  /**
+   * Explores and catalogs all discoverable resources and abilities.
+   * 
+   * Discovery exposes JSON Schema shapes for upstream introspection,
+   * AI/tool generation, and schema-aware integrations.
+   * 
+   * @example
+   * ```typescript
+   * // Discover everything
+   * const catalog = await wp.explore();
+   * 
+   * // Force refresh
+   * const fresh = await wp.explore({ refresh: true });
+   * 
+   * // Limit to specific kinds
+   * const contentOnly = await wp.explore({ include: ['content'] });
+   * ```
+   */
+  async explore(
+    options?: WordPressDiscoveryOptions & WordPressRequestOverrides,
+  ): Promise<WordPressDiscoveryCatalog> {
+    return this.discoveryMethods.explore(options);
   }
 
   // ============= AUTHENTICATION HELPERS =============

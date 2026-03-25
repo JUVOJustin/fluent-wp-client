@@ -10,6 +10,7 @@ import type {
   TermsResourceClient,
 } from '../types/resources.js';
 import type { TermWriteInput, WordPressWritePayload } from '../types/payloads.js';
+import { createDiscoveryMethods } from '../discovery.js';
 import {
   GenericContentResource,
   createContentClient,
@@ -36,8 +37,11 @@ export interface GenericResourceContext {
 export class GenericResourceRegistry {
   private readonly contentCache = new Map<string, GenericContentResource>();
   private readonly termCache = new Map<string, GenericTermResource>();
+  private readonly discoveryMethods: ReturnType<typeof createDiscoveryMethods>;
 
-  constructor(private readonly context: GenericResourceContext) {}
+  constructor(private readonly context: GenericResourceContext) {
+    this.discoveryMethods = createDiscoveryMethods(context.runtime);
+  }
 
   /**
    * Gets or creates one post-like content resource client.
@@ -74,7 +78,9 @@ export class GenericResourceRegistry {
       }
     }
 
-    return createContentClient(baseResource, responseSchema);
+    return createContentClient(baseResource, responseSchema, (options) =>
+      this.discoveryMethods.describeContent(resource, options),
+    );
   }
 
   /**
@@ -107,6 +113,8 @@ export class GenericResourceRegistry {
       }
     }
 
-    return createTermsClient(baseResource, responseSchema);
+    return createTermsClient(baseResource, responseSchema, (options) =>
+      this.discoveryMethods.describeTerm(resource, options),
+    );
   }
 }

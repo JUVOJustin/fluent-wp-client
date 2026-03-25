@@ -19,6 +19,7 @@ import type {
   WordPressRequestOverrides,
 } from '../types/resources.js';
 import type { WordPressWritePayload } from '../types/payloads.js';
+import type { WordPressResourceDescription } from '../types/discovery.js';
 import { resolveMutationArguments } from '../core/mutation-helpers.js';
 import { createSchemaValidators } from './schema-validation.js';
 
@@ -197,6 +198,7 @@ export class GenericContentResource<
 export function createContentClient<TResource extends WordPressPostLike>(
   resource: GenericContentResource<TResource>,
   responseSchema?: WordPressStandardSchema<TResource>,
+  describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
   const createRelationQuery = <TRelations extends readonly AllPostRelations[]>(
     idOrSlug: number | string,
@@ -283,5 +285,6 @@ export function createContentClient<TResource extends WordPressPostLike>(
       );
     },
     delete: (id, options) => resource.delete(id, options),
+    describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
   };
 }

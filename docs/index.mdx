@@ -78,6 +78,7 @@ Use the client to list items, create new ones, update, or delete. The actual dat
 - **Gutenberg block parsing** — single-item queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
+- **Schema discovery** — fetch live JSON Schemas for any resource or ability at runtime, convert to Zod with `z.fromJSONSchema()`, and use directly for input/output validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`
 - **Extensible relation API** — fluent relations for posts and custom entities, plus generic ID-backed and shared link/embed relation factories
 
@@ -108,6 +109,11 @@ Use the client to list items, create new ones, update, or delete. The actual dat
     title="Abilities"
     href="./abilities"
     description="Discover and execute WordPress abilities with typed schemas."
+  />
+  <LinkCard
+    title="Schema discovery"
+    href="./schema-discovery"
+    description="Fetch live JSON Schemas for any resource or ability and use them for runtime validation."
   />
   <LinkCard
     title="Validation"

@@ -1,0 +1,387 @@
+import { ExecutableQuery } from '../core/query-base.js';
+import type {
+  PaginatedResponse,
+  PaginationParams,
+  QueryParams,
+  WordPressRequestOverrides,
+} from '../types/resources.js';
+import type { WordPressPostLike } from '../schemas.js';
+import type { PostRelationClient } from './relation-contracts.js';
+import type { AllPostRelations } from './item-relation-resolver.js';
+import { ItemRelationResolver } from './item-relation-resolver.js';
+import type { ContentItemResult, SelectedPostRelations } from './relations.js';
+
+/**
+ * Fluent builder that hydrates multiple post-like content records with selected related entities.
+ * 
+ * Supports both built-in relations (author, categories, tags, terms, featuredMedia)
+ * and custom relations registered via `customRelationRegistry`.
+ * 
+ * @example
+ * ```typescript
+ * // Built-in relations for list
+ * const posts = await client
+ *   .content('posts')
+ *   .list({ perPage: 10 })
+ *   .with('author', 'categories');
+ * 
+ * // Custom relations (e.g., ACF) for list
+ * const posts = await client
+ *   .content('posts')
+ *   .list({ perPage: 10 })
+ *   .with('linkedArticles', 'primaryArticle');
+ * ```
+ */
+export class ListRelationQueryBuilder<
+  TRelations extends readonly AllPostRelations[] = [],
+  TContent extends WordPressPostLike = WordPressPostLike,
+> extends ExecutableQuery<Array<ContentItemResult<TContent, TRelations>>> {
+  private readonly relationSet: Set<AllPostRelations>;
+  private listPromise: Promise<TContent[]> | undefined;
+
+  constructor(
+    private readonly client: PostRelationClient,
+    private readonly filter: QueryParams & PaginationParams,
+    private readonly fetchList: (
+      filter: QueryParams & PaginationParams,
+      options?: WordPressRequestOverrides,
+    ) => Promise<TContent[]>,
+    private readonly requestOptions: WordPressRequestOverrides | undefined,
+    relations: readonly AllPostRelations[] = [],
+  ) {
+    super();
+    this.relationSet = new Set(relations);
+  }
+
+  /**
+   * Adds relation names to the hydration plan.
+   * 
+   * Supports built-in relations: 'author', 'categories', 'tags', 'terms', 'featuredMedia'
+   * Also supports custom relations registered via `customRelationRegistry`.
+   */
+  with<TNext extends readonly AllPostRelations[]>(
+    ...relations: TNext
+  ): ListRelationQueryBuilder<[...TRelations, ...TNext], TContent> {
+    const nextRelations = new Set(this.relationSet);
+
+    for (const relation of relations) {
+      nextRelations.add(relation);
+    }
+
+    return new ListRelationQueryBuilder(
+      this.client,
+      this.filter,
+      this.fetchList,
+      this.requestOptions,
+      Array.from(nextRelations),
+    ) as ListRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
+  }
+
+  /**
+   * Loads the list with embedded data enabled if relations are requested.
+   */
+  private async loadListOnce(): Promise<TContent[]> {
+    const shouldEmbedContent = this.relationSet.size > 0;
+    
+    // Add _embed to filter if relations are requested
+    const filterWithEmbed = shouldEmbedContent
+      ? { ...this.filter, _embed: 'true' as const }
+      : this.filter;
+
+    return this.fetchList(filterWithEmbed, this.requestOptions);
+  }
+
+  /**
+   * Loads and memoizes the list.
+   */
+  private async loadList(): Promise<TContent[]> {
+    if (!this.listPromise) {
+      this.listPromise = this.loadListOnce();
+    }
+
+    return this.listPromise;
+  }
+
+  /**
+   * Resolves relations for a single item using the shared resolver.
+   */
+  private async resolveItemRelations(
+    item: TContent,
+    resolver: ItemRelationResolver,
+  ): Promise<Record<string, unknown>> {
+    return resolver.resolveRelated(item);
+  }
+
+  /**
+   * Resolves and memoizes the final fluent query result.
+   */
+  private async resolveResult(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
+    const items = await this.loadList();
+
+    if (this.relationSet.size === 0) {
+      return items as Array<ContentItemResult<TContent, TRelations>>;
+    }
+
+    // Create a shared resolver for all items
+    const resolver = new ItemRelationResolver(this.client, this.relationSet);
+
+    // Resolve relations for all items in parallel
+    const results = await Promise.all(
+      items.map(async (item) => {
+        const related = await this.resolveItemRelations(item, resolver);
+        return {
+          ...item,
+          related: related as SelectedPostRelations<TRelations>,
+        } as ContentItemResult<TContent, TRelations>;
+      }),
+    );
+
+    return results;
+  }
+
+  /**
+   * Gets the list of required fields for the current relations.
+   * Useful for ensuring fields aren't excluded when using _fields filter.
+   */
+  getRequiredFields(): string[] {
+    const resolver = new ItemRelationResolver(this.client, this.relationSet);
+    return resolver.getRequiredFields();
+  }
+
+  /**
+   * Resolves the standard resource payload for Promise-like usage.
+   */
+  protected execute(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
+    return this.resolveResult();
+  }
+
+  /**
+   * Returns the hydrated list. Alias for direct await usage.
+   */
+  async get(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
+    return this.resolveResult();
+  }
+}
+
+/**
+ * Fluent builder for paginated list results with relation hydration.
+ */
+export class PaginatedListRelationQueryBuilder<
+  TRelations extends readonly AllPostRelations[] = [],
+  TContent extends WordPressPostLike = WordPressPostLike,
+> extends ExecutableQuery<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
+  private readonly relationSet: Set<AllPostRelations>;
+  private listPromise: Promise<PaginatedResponse<TContent>> | undefined;
+
+  constructor(
+    private readonly client: PostRelationClient,
+    private readonly filter: QueryParams & PaginationParams,
+    private readonly fetchPaginated: (
+      filter: QueryParams & PaginationParams,
+      options?: WordPressRequestOverrides,
+    ) => Promise<PaginatedResponse<TContent>>,
+    private readonly requestOptions: WordPressRequestOverrides | undefined,
+    relations: readonly AllPostRelations[] = [],
+  ) {
+    super();
+    this.relationSet = new Set(relations);
+  }
+
+  /**
+   * Adds relation names to the hydration plan.
+   */
+  with<TNext extends readonly AllPostRelations[]>(
+    ...relations: TNext
+  ): PaginatedListRelationQueryBuilder<[...TRelations, ...TNext], TContent> {
+    const nextRelations = new Set(this.relationSet);
+
+    for (const relation of relations) {
+      nextRelations.add(relation);
+    }
+
+    return new PaginatedListRelationQueryBuilder(
+      this.client,
+      this.filter,
+      this.fetchPaginated,
+      this.requestOptions,
+      Array.from(nextRelations),
+    ) as PaginatedListRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
+  }
+
+  /**
+   * Loads the paginated list with embedded data enabled if relations are requested.
+   */
+  private async loadPaginatedOnce(): Promise<PaginatedResponse<TContent>> {
+    const shouldEmbedContent = this.relationSet.size > 0;
+    
+    const filterWithEmbed = shouldEmbedContent
+      ? { ...this.filter, _embed: 'true' as const }
+      : this.filter;
+
+    return this.fetchPaginated(filterWithEmbed, this.requestOptions);
+  }
+
+  /**
+   * Loads and memoizes the paginated list.
+   */
+  private async loadPaginated(): Promise<PaginatedResponse<TContent>> {
+    if (!this.listPromise) {
+      this.listPromise = this.loadPaginatedOnce();
+    }
+
+    return this.listPromise;
+  }
+
+  /**
+   * Resolves and memoizes the final fluent query result.
+   */
+  private async resolveResult(): Promise<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
+    const result = await this.loadPaginated();
+
+    if (this.relationSet.size === 0) {
+      return result as PaginatedResponse<ContentItemResult<TContent, TRelations>>;
+    }
+
+    const resolver = new ItemRelationResolver(this.client, this.relationSet);
+
+    const hydratedData = await Promise.all(
+      result.data.map(async (item) => {
+        const related = await resolver.resolveRelated(item);
+        return {
+          ...item,
+          related: related as SelectedPostRelations<TRelations>,
+        } as ContentItemResult<TContent, TRelations>;
+      }),
+    );
+
+    return {
+      ...result,
+      data: hydratedData,
+    };
+  }
+
+  /**
+   * Resolves the standard resource payload for Promise-like usage.
+   */
+  protected execute(): Promise<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
+    return this.resolveResult();
+  }
+
+  /**
+   * Returns the hydrated paginated result. Alias for direct await usage.
+   */
+  async get(): Promise<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
+    return this.resolveResult();
+  }
+}
+
+/**
+ * Fluent builder for listing all items (auto-pagination) with relation hydration.
+ */
+export class ListAllRelationQueryBuilder<
+  TRelations extends readonly AllPostRelations[] = [],
+  TContent extends WordPressPostLike = WordPressPostLike,
+> extends ExecutableQuery<Array<ContentItemResult<TContent, TRelations>>> {
+  private readonly relationSet: Set<AllPostRelations>;
+  private listPromise: Promise<TContent[]> | undefined;
+
+  constructor(
+    private readonly client: PostRelationClient,
+    private readonly filter: Omit<QueryParams & PaginationParams, 'page'>,
+    private readonly fetchListAll: (
+      filter: Omit<QueryParams & PaginationParams, 'page'>,
+      options?: WordPressRequestOverrides,
+    ) => Promise<TContent[]>,
+    private readonly requestOptions: WordPressRequestOverrides | undefined,
+    relations: readonly AllPostRelations[] = [],
+  ) {
+    super();
+    this.relationSet = new Set(relations);
+  }
+
+  /**
+   * Adds relation names to the hydration plan.
+   */
+  with<TNext extends readonly AllPostRelations[]>(
+    ...relations: TNext
+  ): ListAllRelationQueryBuilder<[...TRelations, ...TNext], TContent> {
+    const nextRelations = new Set(this.relationSet);
+
+    for (const relation of relations) {
+      nextRelations.add(relation);
+    }
+
+    return new ListAllRelationQueryBuilder(
+      this.client,
+      this.filter,
+      this.fetchListAll,
+      this.requestOptions,
+      Array.from(nextRelations),
+    ) as ListAllRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
+  }
+
+  /**
+   * Loads all items with embedded data enabled if relations are requested.
+   */
+  private async loadListAllOnce(): Promise<TContent[]> {
+    const shouldEmbedContent = this.relationSet.size > 0;
+    
+    // Note: listAll auto-paginates, so we need to handle _embed differently
+    // We'll pass _embed through the filter
+    const filterWithEmbed = shouldEmbedContent
+      ? { ...this.filter, _embed: 'true' as const }
+      : this.filter;
+
+    return this.fetchListAll(filterWithEmbed, this.requestOptions);
+  }
+
+  /**
+   * Loads and memoizes the full list.
+   */
+  private async loadListAll(): Promise<TContent[]> {
+    if (!this.listPromise) {
+      this.listPromise = this.loadListAllOnce();
+    }
+
+    return this.listPromise;
+  }
+
+  /**
+   * Resolves and memoizes the final fluent query result.
+   */
+  private async resolveResult(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
+    const items = await this.loadListAll();
+
+    if (this.relationSet.size === 0) {
+      return items as Array<ContentItemResult<TContent, TRelations>>;
+    }
+
+    const resolver = new ItemRelationResolver(this.client, this.relationSet);
+
+    const results = await Promise.all(
+      items.map(async (item) => {
+        const related = await resolver.resolveRelated(item);
+        return {
+          ...item,
+          related: related as SelectedPostRelations<TRelations>,
+        } as ContentItemResult<TContent, TRelations>;
+      }),
+    );
+
+    return results;
+  }
+
+  /**
+   * Resolves the standard resource payload for Promise-like usage.
+   */
+  protected execute(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
+    return this.resolveResult();
+  }
+
+  /**
+   * Returns the hydrated list. Alias for direct await usage.
+   */
+  async get(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
+    return this.resolveResult();
+  }
+}

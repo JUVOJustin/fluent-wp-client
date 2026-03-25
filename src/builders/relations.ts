@@ -28,6 +28,7 @@ import {
   type PostRelationClient,
   type RelatedTermReference,
 } from './relation-contracts.js';
+import { ItemRelationResolver } from './item-relation-resolver.js';
 
 /**
  * Supported relation names for fluent post hydration (built-in).

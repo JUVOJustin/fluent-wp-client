@@ -252,17 +252,22 @@ class PostTermRelationsResolver {
     for (const entry of linkedResources) {
       const ids = this.getContentRelationIds(entry.taxonomy);
 
-      if (ids.length === 0) {
+      if (!ids || ids.length === 0) {
         continue;
       }
 
-      const terms = await this.client.terms<WordPressCategory>(entry.resource).list({ include: ids });
+      try {
+        const terms = await this.client.terms<WordPressCategory>(entry.resource).list({ include: ids });
 
-      taxonomies = this.withTaxonomy(
-        taxonomies,
-        entry.taxonomy,
-        terms.map(toRelatedTermReference),
-      );
+        taxonomies = this.withTaxonomy(
+          taxonomies,
+          entry.taxonomy,
+          terms.map(toRelatedTermReference),
+        );
+      } catch {
+        // Ignore failures for this taxonomy to avoid aborting overall relation resolution
+        continue;
+      }
     }
 
     return taxonomies;
@@ -293,10 +298,26 @@ class PostTermRelationsResolver {
       options.includeTags ? this.fetchTags(this.getContentRelationIds('tags')) : [],
     ]);
 
+    // In the non-embedded fallback path, populate core taxonomies and, when requested,
+    // attempt to resolve any additional linked taxonomies.
+    let baseTaxonomies: Record<string, RelatedTermReference[]> = {};
+    if (categories.length > 0) {
+      baseTaxonomies = this.withTaxonomy(baseTaxonomies, 'category', categories.map(toRelatedTermReference));
+    }
+    if (tags.length > 0) {
+      baseTaxonomies = this.withTaxonomy(baseTaxonomies, 'post_tag', tags.map(toRelatedTermReference));
+    }
+
+    let taxonomies = baseTaxonomies;
+    if (options.includeTerms) {
+      const linkedTaxonomies = await this.resolveLinkedTerms(baseTaxonomies);
+      taxonomies = { ...baseTaxonomies, ...linkedTaxonomies };
+    }
+
     return {
       categories,
       tags,
-      taxonomies: {},
+      taxonomies,
     };
   }
 }

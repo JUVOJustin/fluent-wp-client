@@ -88,8 +88,10 @@ export class ListRelationQueryBuilder<
     // Always request _embed if we need it for relation hydration
     const shouldRequestEmbed = needsEmbedForHydration || userRequestedEmbed;
     
+    // When forcing _embed for relation hydration, override any explicit embed: false
+    // by also setting embed: true so resolveEmbedQueryParams doesn't strip _embed
     const filterWithEmbed = shouldRequestEmbed
-      ? { ...this.filter, _embed: 'true' as const }
+      ? { ...this.filter, embed: true, _embed: 'true' as const }
       : this.filter;
 
     return this.fetchList(filterWithEmbed, this.requestOptions);
@@ -207,8 +209,10 @@ export class PaginatedListRelationQueryBuilder<
     // Always request _embed if we need it for relation hydration
     const shouldRequestEmbed = needsEmbedForHydration || userRequestedEmbed;
     
+    // When forcing _embed for relation hydration, override any explicit embed: false
+    // by also setting embed: true so resolveEmbedQueryParams doesn't strip _embed
     const filterWithEmbed = shouldRequestEmbed
-      ? { ...this.filter, _embed: 'true' as const }
+      ? { ...this.filter, embed: true, _embed: 'true' as const }
       : this.filter;
 
     return this.fetchPaginated(filterWithEmbed, this.requestOptions);
@@ -317,8 +321,10 @@ export class ListAllRelationQueryBuilder<
     // Always request _embed if we need it for relation hydration
     const shouldRequestEmbed = needsEmbedForHydration || userRequestedEmbed;
     
+    // When forcing _embed for relation hydration, override any explicit embed: false
+    // by also setting embed: true so resolveEmbedQueryParams doesn't strip _embed
     const filterWithEmbed = shouldRequestEmbed
-      ? { ...this.filter, _embed: 'true' as const }
+      ? { ...this.filter, embed: true, _embed: 'true' as const }
       : this.filter;
 
     return this.fetchListAll(filterWithEmbed, this.requestOptions);

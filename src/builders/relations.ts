@@ -422,16 +422,16 @@ class PostTermRelationsResolver {
 export class PostRelationQueryBuilder<
   TRelations extends readonly AllPostRelations[] = [],
   TContent extends WordPressPostLike = WordPressPost,
-> extends ExecutableQuery<ContentItemResult<TContent, TRelations>> {
+> extends ExecutableQuery<ContentItemResult<TContent, TRelations> | undefined> {
   private readonly relationSet: Set<AllPostRelations>;
   private readonly getEditById?: (id: number) => PromiseLike<TContent>;
   private readonly getEditBySlug?: (slug: string) => PromiseLike<TContent | undefined>;
   private readonly missingRawMessage: string;
   private readonly defaultBlockParser?: WordPressBlockParser;
   private readonly userRequestedEmbed: boolean;
-  private viewPromise: Promise<TContent> | undefined;
+  private viewPromise: Promise<TContent | undefined> | undefined;
   private editPromise: Promise<TContent | undefined> | undefined;
-  private resultPromise: Promise<ContentItemResult<TContent, TRelations>> | undefined;
+  private resultPromise: Promise<ContentItemResult<TContent, TRelations> | undefined> | undefined;
 
   constructor(
     private readonly client: PostRelationClient,
@@ -461,9 +461,9 @@ export class PostRelationQueryBuilder<
   /**
    * Loads the selected post by ID or slug.
    */
-  private async loadSelectedPostOnce(): Promise<TContent> {
+  private async loadSelectedPostOnce(): Promise<TContent | undefined> {
     let post: TContent | undefined;
-    const shouldEmbedContent = this.relationSet.size > 0;
+    const shouldEmbedContent = this.relationSet.size > 0 || this.userRequestedEmbed;
 
     if (typeof this.selector.id === 'number') {
       post = await this.getById(this.selector.id, { embed: shouldEmbedContent });
@@ -473,17 +473,13 @@ export class PostRelationQueryBuilder<
       post = await this.getBySlug(this.selector.slug, { embed: shouldEmbedContent });
     }
 
-    if (!post) {
-      return undefined as unknown as TContent;
-    }
-
     return post;
   }
 
   /**
    * Loads and memoizes the selected view-context item.
    */
-  private async loadSelectedPost(): Promise<TContent> {
+  private async loadSelectedPost(): Promise<TContent | undefined> {
     if (!this.viewPromise) {
       this.viewPromise = this.loadSelectedPostOnce();
     }
@@ -778,7 +774,7 @@ export class PostRelationQueryBuilder<
       return undefined;
     }
 
-    return resolveWordPressRawContent(post, this.missingRawMessage);
+    return resolveWordPressRawContent(post as WordPressPostLike, this.missingRawMessage);
   }
 
   /**
@@ -797,12 +793,12 @@ export class PostRelationQueryBuilder<
   /**
    * Resolves and memoizes the final fluent query result.
    */
-  protected async resolveResult(): Promise<ContentItemResult<TContent, TRelations>> {
+  protected async resolveResult(): Promise<ContentItemResult<TContent, TRelations> | undefined> {
     const post = await this.loadSelectedPost();
     
     // Return undefined early if post not found
     if (!post) {
-      return undefined as unknown as ContentItemResult<TContent, TRelations>;
+      return undefined;
     }
     
     const related = await this.resolveRelated(post);
@@ -832,6 +828,17 @@ export class PostRelationQueryBuilder<
   }
 
   /**
+   * Resolves the standard resource payload for Promise-like usage.
+   * Memoizes the result to avoid recomputing on repeated awaits.
+   */
+  protected execute(): Promise<ContentItemResult<TContent, TRelations> | undefined> {
+    if (!this.resultPromise) {
+      this.resultPromise = this.resolveResult();
+    }
+    return this.resultPromise;
+  }
+
+  /**
    * Gets the list of required fields for the current relations.
    * Useful for ensuring fields aren't excluded when using _fields filter.
    */
@@ -855,17 +862,6 @@ export class PostRelationQueryBuilder<
     }
 
     return Array.from(fields);
-  }
-
-  /**
-   * Resolves the standard resource payload for Promise-like usage.
-   * Memoizes the result to avoid recomputing on repeated awaits.
-   */
-  protected execute(): Promise<ContentItemResult<TContent, TRelations>> {
-    if (!this.resultPromise) {
-      this.resultPromise = this.resolveResult();
-    }
-    return this.resultPromise;
   }
 }
 

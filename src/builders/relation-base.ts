@@ -25,6 +25,7 @@ export abstract class RelationQueryBuilderBase<
   TResult = unknown,
 > extends ExecutableQuery<TResult> {
   protected readonly relationSet: Set<AllPostRelations>;
+  private resultPromise: Promise<TResult> | undefined;
 
   constructor(
     protected readonly client: PostRelationClient,
@@ -51,10 +52,13 @@ export abstract class RelationQueryBuilderBase<
 
   /**
    * Executes the query - implements ExecutableQuery requirement.
-   * Delegates to resolveResult().
+   * Memoizes the result to avoid recomputing on repeated awaits.
    */
   protected execute(): Promise<TResult> {
-    return this.resolveResult();
+    if (!this.resultPromise) {
+      this.resultPromise = this.resolveResult();
+    }
+    return this.resultPromise;
   }
 }
 

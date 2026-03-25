@@ -336,18 +336,13 @@ Hydrate related entities in a single fluent call.
 // Fluent chain
 const result = await wp
   .content('posts').item('hello-world')
-  .with('author', 'categories', 'tags', 'featuredMedia', 'parent')
-  .get();
+  .with('author', 'categories', 'tags', 'featuredMedia', 'parent');
 
 result.related.author;        // WordPressAuthor | null
 result.related.categories;    // WordPressCategory[]
 result.related.tags;          // WordPressTag[]
 result.related.featuredMedia; // WordPressMedia | null
 result.related.parent;        // WordPressPostLike | null
-
-// Shorthand
-const post = await wp.content('posts').getWithRelations(42, 'author', 'terms');
-post.related.terms; // { categories: [...], tags: [...] }
 ```
 
 Available relations: `author`, `categories`, `tags`, `terms`, `featuredMedia`, `parent`.

@@ -61,16 +61,16 @@ describe('Client: Pages', () => {
       }
     });
 
-    it('content(\'pages\').getBySlug() fetches a known seed page', async () => {
-      const page = await pagesClient(publicClient).getBySlug('about');
+    it('content(\'pages\').item() fetches a known seed page', async () => {
+      const page = await pagesClient(publicClient).item('about');
 
       expect(page).toBeDefined();
       expect(page!.slug).toBe('about');
       expect(page!.title.rendered).toBe('About');
     });
 
-    it('content(\'pages\').getBySlug() returns undefined for non-existent slug', async () => {
-      const page = await pagesClient(publicClient).getBySlug('non-existent-page-slug-999');
+    it('content(\'pages\').item() returns undefined for non-existent slug', async () => {
+      const page = await pagesClient(publicClient).item('non-existent-page-slug-999');
 
       expect(page).toBeUndefined();
     });

@@ -28,7 +28,7 @@ const list = await books.list({ perPage: 20, page: 1 });
 const embeddedList = await books.list({ perPage: 20, embed: true });
 const allBooks = await books.listAll();
 const pagedBooks = await books.listPaginated({ page: 2, perPage: 25 });
-const bySlug = await books.getBySlug('my-book');
+const bySlug = await books.item('my-book');
 const hydrated = await books.item('my-book').with('author', 'terms');
 ```
 
@@ -101,7 +101,7 @@ const bookSchema = z.object({
 });
 
 const books = wp.content('books', bookSchema);
-const first = await books.getBySlug('my-book');
+const first = await books.item('my-book');
 const created = await books.create({ title: 'Typed book', status: 'draft' });
 ```
 
@@ -125,7 +125,7 @@ type ContentBook = WordPressPostBase & { type: 'book' };
 
 // postLikeWordPressSchema tolerates absent title, content, and excerpt.
 const artifacts = wp.content('artifacts', postLikeWordPressSchema);
-const artifact = await artifacts.getBySlug('test-artifact-001');
+const artifact = await artifacts.item('test-artifact-001');
 
 console.log(artifact?.acf?.acf_subtitle);
 ```
@@ -165,7 +165,7 @@ const genres = wp.terms('genre');
 const list = await genres.list({ perPage: 100 });
 const allGenres = await genres.listAll();
 const pagedGenres = await genres.listPaginated({ page: 1, perPage: 25 });
-const bySlug = await genres.getBySlug('sci-fi');
+const bySlug = await genres.item('sci-fi');
 ```
 
 ### Custom taxonomy CRUD

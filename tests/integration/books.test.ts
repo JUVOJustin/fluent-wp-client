@@ -49,8 +49,8 @@ describe('Client: Books', () => {
       expect(books).toHaveLength(5);
     });
 
-    it('content() getBySlug fetches a known seeded book', async () => {
-      const book = await publicClient.content('books').getBySlug('test-book-001');
+    it('content() item fetches a known seeded book', async () => {
+      const book = await publicClient.content('books').item('test-book-001');
 
       expect(book).toBeDefined();
       expect(book?.slug).toBe('test-book-001');
@@ -85,8 +85,8 @@ describe('Client: Books', () => {
     });
 
     it('content() list() supports include arrays on custom post type endpoints', async () => {
-      const first = await publicClient.content('books').getBySlug('test-book-001');
-      const second = await publicClient.content('books').getBySlug('test-book-002');
+      const first = await publicClient.content('books').item('test-book-001');
+      const second = await publicClient.content('books').item('test-book-002');
 
       expect(first).toBeDefined();
       expect(second).toBeDefined();
@@ -135,9 +135,9 @@ describe('Client: Books', () => {
       expect(result.page).toBe(1);
     });
 
-    it('content() getBySlug validates one seeded book with the strict content schema', async () => {
+    it('content() item validates one seeded book with the strict content schema', async () => {
       const books = publicClient.content('books', contentWordPressSchema);
-      const book = await books.getBySlug('test-book-001');
+      const book = await books.item('test-book-001');
 
       expect(book).toBeDefined();
       expect(book?.slug).toBe('test-book-001');

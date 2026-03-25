@@ -20,7 +20,7 @@ import {
 /**
  * Supported relation names for fluent post hydration (built-in).
  */
-export type PostRelation = 'author' | 'categories' | 'tags' | 'terms' | 'featuredMedia';
+export type PostRelation = 'author' | 'categories' | 'tags' | 'terms' | 'featuredMedia' | 'parent';
 
 /**
  * All available relations including built-in and custom registered ones.
@@ -33,22 +33,24 @@ export type AllPostRelations = PostRelation | string;
  * Tracks the built-in relation names so custom relation loops can skip them.
  */
 const BUILT_IN_RELATION_NAMES = new Set<PostRelation>([
-  'author',
-  'categories',
-  'tags',
-  'terms',
-  'featuredMedia',
+	'author',
+	'categories',
+	'tags',
+	'terms',
+	'featuredMedia',
+	'parent',
 ]);
 
 /**
  * Lists the response fields each built-in relation needs for fallback hydration.
  */
 const BUILT_IN_RELATION_FIELDS: Record<PostRelation, readonly string[]> = {
-  author: ['author'],
-  categories: ['categories'],
-  tags: ['tags'],
-  terms: ['categories', 'tags', '_links'],
-  featuredMedia: ['featured_media'],
+	author: ['author'],
+	categories: ['categories'],
+	tags: ['tags'],
+	terms: ['categories', 'tags', '_links'],
+	featuredMedia: ['featured_media'],
+	parent: ['parent'],
 };
 
 /**
@@ -66,6 +68,13 @@ const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
   const result = embeddedMediaSchema.safeParse(item);
   return result.success ? (result.data as unknown as WordPressMedia) : null;
 });
+
+/**
+ * Extracts parent from an _embedded up array.
+ */
+const extractEmbeddedParent = createSingleExtractor(
+  (item: unknown) => item as WordPressPostLike,
+);
 
 /**
  * Bundles the resolved built-in term relation groups for one post.
@@ -387,6 +396,33 @@ export class ItemRelationResolver {
   }
 
   /**
+   * Resolves the built-in parent relation for one post.
+   * WordPress exposes parent through _links['up'] and _embedded['up'].
+   */
+  private async resolveParentRelation(post: WordPressPostLike): Promise<WordPressPostLike | null> {
+    // First, check if parent data is embedded (WordPress uses 'up' for parent)
+    const embeddedParent = extractEmbeddedParent(extractEmbeddedData(post, 'up'));
+    if (embeddedParent) {
+      return embeddedParent;
+    }
+
+    // Fall back to fetching by parent ID
+    const parentId = (post as { parent?: number }).parent;
+    if (typeof parentId === 'number' && parentId > 0) {
+      // Try to determine the resource type from the post
+      const postType = (post as { type?: string }).type ?? 'page';
+      try {
+        const parent = await this.client.content(postType).item(parentId);
+        return parent ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Resolves the requested taxonomy relation groups for one post.
    */
   private async resolveRequestedTerms(post: WordPressPostLike): Promise<ResolvedTermRelations> {
@@ -491,6 +527,14 @@ export class ItemRelationResolver {
       tasks.push(
         this.resolveFeaturedMediaRelation(post).then((featuredMedia) => {
           related.featuredMedia = featuredMedia;
+        }),
+      );
+    }
+
+    if (this.relationSet.has('parent')) {
+      tasks.push(
+        this.resolveParentRelation(post).then((parent) => {
+          related.parent = parent;
         }),
       );
     }

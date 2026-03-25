@@ -21,7 +21,7 @@ describe('Client: Terms', () => {
     authClient = createAuthClient();
 
     const genres = authClient.terms('genre');
-    const existing = await genres.getBySlug(seedGenreSlug);
+    const existing = await genres.item(seedGenreSlug);
 
     if (existing) {
       await genres.delete(existing.id, { force: true });
@@ -53,16 +53,16 @@ describe('Client: Terms', () => {
       expect(genres.some((genre) => genre.id === seedGenreId)).toBe(true);
     });
 
-    it('terms() getById fetches a custom taxonomy term by ID', async () => {
-      const genre = await publicClient.terms('genre').getById(seedGenreId);
+    it('terms() item fetches a custom taxonomy term by ID', async () => {
+      const genre = await publicClient.terms('genre').item(seedGenreId);
 
       expect(genre.id).toBe(seedGenreId);
       expect(genre.slug).toBe(seedGenreSlug);
       expect(genre.taxonomy).toBe('genre');
     });
 
-    it('terms() getBySlug fetches a custom taxonomy term by slug', async () => {
-      const genre = await publicClient.terms('genre').getBySlug(seedGenreSlug);
+    it('terms() item fetches a custom taxonomy term by slug', async () => {
+      const genre = await publicClient.terms('genre').item(seedGenreSlug);
 
       expect(genre).toBeDefined();
       expect(genre?.id).toBe(seedGenreId);
@@ -87,7 +87,7 @@ describe('Client: Terms', () => {
 
     it('terms() exposes fluent reads for custom taxonomies', async () => {
       const genres = publicClient.terms('genre');
-      const bySlug = await genres.getBySlug(seedGenreSlug);
+      const bySlug = await genres.item(seedGenreSlug);
       const all = await genres.listAll();
 
       expect(bySlug?.id).toBe(seedGenreId);
@@ -130,7 +130,7 @@ describe('Client: Terms', () => {
       };
 
       const genres = publicClient.terms('genre', genreSchema);
-      const genre = await genres.getById(seedGenreId);
+      const genre = await genres.item(seedGenreId);
 
       expect(genre.id).toBe(seedGenreId);
       expect(genre.slug).toBe(seedGenreSlug);
@@ -191,7 +191,7 @@ describe('Client: Terms', () => {
       expect(updated.name).toBe('Client CRUD Genre Updated');
       expect(updated.slug).toBe('client-crud-genre-updated');
 
-      const bySlug = await genres.getBySlug('client-crud-genre-updated');
+      const bySlug = await genres.item('client-crud-genre-updated');
       expect(bySlug?.id).toBe(created.id);
 
       const deleted = await genres.delete(created.id, { force: true });

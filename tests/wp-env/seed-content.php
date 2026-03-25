@@ -44,21 +44,25 @@ foreach ( $auto_drafts as $draft ) {
 /* Categories                                                         */
 /* ------------------------------------------------------------------ */
 
-$category_names = [ 'Technology', 'Science', 'Travel', 'Food', 'Health' ];
+// First create parent categories
+$parent_category_names = [ 'Technology', 'Science', 'Travel', 'Food', 'Health' ];
 $category_ids   = [];
+$parent_category_ids = [];
 
-foreach ( $category_names as $name ) {
+foreach ($parent_category_names as $name) {
 	$slug = sanitize_title( $name );
 	$existing = get_term_by( 'slug', $slug, 'category' );
 
 	if ( $existing ) {
 		$category_ids[ $slug ] = $existing->term_id;
+		$parent_category_ids[ $slug ] = $existing->term_id;
 		continue;
 	}
 
 	$result = wp_insert_term( $name, 'category', [
 		'slug'        => $slug,
 		'description' => "Integration test category: $name",
+		'parent'      => 0,
 	]);
 
 	if ( is_wp_error( $result ) ) {
@@ -66,9 +70,52 @@ foreach ( $category_names as $name ) {
 	}
 
 	$category_ids[ $slug ] = $result['term_id'];
+	$parent_category_ids[ $slug ] = $result['term_id'];
 }
 
-WP_CLI::success( 'Categories created: ' . implode( ', ', array_keys( $category_ids ) ) );
+WP_CLI::success( 'Parent categories created: ' . implode( ', ', array_keys( $parent_category_ids ) ) );
+
+// Then create child categories for hierarchical testing
+$child_categories = [
+	[ 'name' => 'Programming', 'parent' => 'Technology', 'slug' => 'programming' ],
+	[ 'name' => 'Hardware',    'parent' => 'Technology', 'slug' => 'hardware' ],
+	[ 'name' => 'Physics',     'parent' => 'Science',    'slug' => 'physics' ],
+];
+
+foreach ($child_categories as $child) {
+	$parent_id = $parent_category_ids[$child['parent']] ?? 0;
+	
+	if ($parent_id === 0) {
+		WP_CLI::warning( "Parent category '{$child['parent']}' not found for '{$child['name']}' — skipping." );
+		continue;
+	}
+	
+	$existing = get_term_by( 'slug', $child['slug'], 'category' );
+
+	if ( $existing ) {
+		// Ensure correct parent
+		if ( $existing->parent !== $parent_id ) {
+			wp_update_term( $existing->term_id, 'category', [ 'parent' => $parent_id ] );
+		}
+		$category_ids[ $child['slug'] ] = $existing->term_id;
+		continue;
+	}
+
+	$result = wp_insert_term( $child['name'], 'category', [
+		'slug'        => $child['slug'],
+		'description' => "Child category of {$child['parent']}: {$child['name']}",
+		'parent'      => $parent_id,
+	]);
+
+	if ( is_wp_error( $result ) ) {
+		WP_CLI::warning( "Failed to create child category '{$child['name']}': " . $result->get_error_message() );
+		continue;
+	}
+
+	$category_ids[ $child['slug'] ] = $result['term_id'];
+}
+
+WP_CLI::success( 'All categories created/verified: ' . count( $category_ids ) );
 
 /* ------------------------------------------------------------------ */
 /* Tags                                                               */
@@ -178,8 +225,9 @@ $page_definitions = [
 ];
 
 $page_count = 0;
+$page_id_map = []; // Track page IDs for hierarchical relationships
 
-foreach ( $page_definitions as $index => $def ) {
+foreach ($page_definitions as $index => $def) {
 	$existing = get_page_by_path( $def['slug'], OBJECT, 'page' );
 
 	if ( $existing ) {
@@ -190,8 +238,10 @@ foreach ( $page_definitions as $index => $def ) {
 				'post_status' => 'publish',
 				'post_content' => "<!-- wp:paragraph -->\n<p>{$def['content']}</p>\n<!-- /wp:paragraph -->",
 				'menu_order'  => $index + 1,
+				'post_parent' => 0,
 			]);
 		}
+		$page_id_map[$def['slug']] = $existing->ID;
 		$page_count++;
 		continue;
 	}
@@ -204,6 +254,7 @@ foreach ( $page_definitions as $index => $def ) {
 		'post_type'    => 'page',
 		'menu_order'   => $index + 1,
 		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-01 +{$index} hours" ) ),
+		'post_parent'  => 0,
 	], true );
 
 	if ( is_wp_error( $page_id ) ) {
@@ -211,10 +262,81 @@ foreach ( $page_definitions as $index => $def ) {
 		continue;
 	}
 
+	$page_id_map[$def['slug']] = $page_id;
 	$page_count++;
 }
 
 WP_CLI::success( "Pages created/verified: $page_count" );
+
+/* ------------------------------------------------------------------ */
+/* Child Pages (hierarchical)                                         */
+/* ------------------------------------------------------------------ */
+
+$child_page_definitions = [
+	[
+		'title'   => 'Web Development',
+		'slug'    => 'services-web-development',
+		'content' => 'Professional web development services including frontend, backend, and full-stack solutions.',
+		'parent'  => 'services',
+	],
+	[
+		'title'   => 'Consulting',
+		'slug'    => 'services-consulting',
+		'content' => 'Expert technology consulting to help you make informed decisions for your business.',
+		'parent'  => 'services',
+	],
+	[
+		'title'   => 'Support',
+		'slug'    => 'services-support',
+		'content' => 'Ongoing support and maintenance services to keep your systems running smoothly.',
+		'parent'  => 'services',
+	],
+];
+
+$child_page_count = 0;
+
+foreach ($child_page_definitions as $index => $def) {
+	$parent_id = $page_id_map[$def['parent']] ?? 0;
+	
+	if ($parent_id === 0) {
+		WP_CLI::warning( "Parent page '{$def['parent']}' not found for '{$def['title']}' — skipping." );
+		continue;
+	}
+
+	$existing = get_page_by_path( $def['slug'], OBJECT, 'page' );
+
+	if ( $existing ) {
+		// Ensure child page has correct parent
+		if ( $existing->post_parent !== $parent_id ) {
+			wp_update_post([
+				'ID'          => $existing->ID,
+				'post_parent' => $parent_id,
+			]);
+		}
+		$child_page_count++;
+		continue;
+	}
+
+	$page_id = wp_insert_post([
+		'post_title'   => $def['title'],
+		'post_name'    => $def['slug'],
+		'post_content' => "<!-- wp:paragraph -->\n<p>{$def['content']}</p>\n<!-- /wp:paragraph -->",
+		'post_status'  => 'publish',
+		'post_type'    => 'page',
+		'post_parent'  => $parent_id,
+		'menu_order'   => $index + 1,
+		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-15 +{$index} hours" ) ),
+	], true );
+
+	if ( is_wp_error( $page_id ) ) {
+		WP_CLI::warning( "Failed to create child page '{$def['title']}': " . $page_id->get_error_message() );
+		continue;
+	}
+
+	$child_page_count++;
+}
+
+WP_CLI::success( "Child pages created/verified: $child_page_count" );
 
 /* ------------------------------------------------------------------ */
 /* Books (custom post type)                                           */
@@ -469,10 +591,11 @@ if ( ! function_exists( 'update_field' ) ) {
 /* ------------------------------------------------------------------ */
 
 WP_CLI::success( 'Seed data generation complete.' );
-WP_CLI::log( "  Categories: " . count( $category_ids ) );
-WP_CLI::log( "  Tags:       " . count( $tag_ids ) );
-WP_CLI::log( "  Posts:      $post_count" );
-WP_CLI::log( "  Pages:      $page_count" );
-WP_CLI::log( "  Books:      $book_count" );
-WP_CLI::log( "  Artifacts:  $artifact_count" );
+WP_CLI::log( "  Categories:     " . count( $category_ids ) . " (including child categories)" );
+WP_CLI::log( "  Tags:           " . count( $tag_ids ) );
+WP_CLI::log( "  Posts:          $post_count" );
+WP_CLI::log( "  Pages:          $page_count" );
+WP_CLI::log( "  Child Pages:    $child_page_count" );
+WP_CLI::log( "  Books:          $book_count" );
+WP_CLI::log( "  Artifacts:      $artifact_count" );
 WP_CLI::log( "  Native meta seeded entries: $native_meta_seeded" );

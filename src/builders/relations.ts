@@ -33,7 +33,7 @@ import { ItemRelationResolver } from './item-relation-resolver.js';
 /**
  * Supported relation names for fluent post hydration (built-in).
  */
-export type PostRelation = 'author' | 'categories' | 'tags' | 'terms' | 'featuredMedia';
+export type PostRelation = 'author' | 'categories' | 'tags' | 'terms' | 'featuredMedia' | 'parent';
 
 /**
  * All available relations including built-in and custom registered ones.
@@ -54,6 +54,7 @@ interface PostRelationMap {
     taxonomies: Record<string, RelatedTermReference[]>;
   };
   featuredMedia: WordPressMedia | null;
+  parent: WordPressPostLike | null;
 }
 
 /**
@@ -83,6 +84,7 @@ const BUILT_IN_RELATION_NAMES = new Set<PostRelation>([
   'tags',
   'terms',
   'featuredMedia',
+  'parent',
 ]);
 
 /**
@@ -94,6 +96,7 @@ const BUILT_IN_RELATION_FIELDS: Record<PostRelation, readonly string[]> = {
   tags: ['tags'],
   terms: ['categories', 'tags', '_links'],
   featuredMedia: ['featured_media'],
+  parent: ['parent'],
 };
 
 /**
@@ -154,6 +157,13 @@ const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
   const result = embeddedMediaSchema.safeParse(item);
   return result.success ? (result.data as unknown as WordPressMedia) : null;
 });
+
+/**
+ * Extracts parent from an _embedded up array.
+ */
+const extractEmbeddedParent = createSingleExtractor(
+  (item: unknown) => item as WordPressPostLike,
+);
 
 /**
  * Coordinates built-in taxonomy relation hydration for one post response.
@@ -556,6 +566,33 @@ export class PostRelationQueryBuilder<
   }
 
   /**
+   * Resolves the built-in parent relation for one post.
+   * WordPress exposes parent through _links['up'] and _embedded['up'].
+   */
+  private async resolveParentRelation(post: TContent): Promise<WordPressPostLike | null> {
+    // First, check if parent data is embedded (WordPress uses 'up' for parent)
+    const embeddedParent = extractEmbeddedParent(extractEmbeddedData(post, 'up'));
+    if (embeddedParent) {
+      return embeddedParent;
+    }
+
+    // Fall back to fetching by parent ID
+    const parentId = (post as unknown as { parent?: number }).parent;
+    if (typeof parentId === 'number' && parentId > 0) {
+      // Try to determine the resource type from the post
+      const postType = (post as unknown as { type?: string }).type ?? 'page';
+      try {
+        const parent = await this.client.content(postType).item(parentId);
+        return parent ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Resolves the requested taxonomy relation groups for one post.
    */
   private async resolveRequestedTerms(post: TContent): Promise<ResolvedTermRelations> {
@@ -664,6 +701,14 @@ export class PostRelationQueryBuilder<
       );
     }
 
+    if (this.relationSet.has('parent')) {
+      tasks.push(
+        this.resolveParentRelation(post).then((parent) => {
+          related.parent = parent;
+        }),
+      );
+    }
+
     if (requestedTerms || this.relationSet.has('categories') || this.relationSet.has('tags')) {
       tasks.push(
         this.resolveRequestedTerms(post).then((terms) => {
@@ -690,7 +735,7 @@ export class PostRelationQueryBuilder<
   /**
    * Adds relation names to the hydration plan.
    * 
-   * Supports built-in relations: 'author', 'categories', 'tags', 'terms', 'featuredMedia'
+   * Supports built-in relations: 'author', 'categories', 'tags', 'terms', 'featuredMedia', 'parent'
    * Also supports custom relations registered via `customRelationRegistry`.
    */
   with<TNext extends readonly AllPostRelations[]>(

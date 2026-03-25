@@ -21,7 +21,7 @@ describe('Client: Categories', () => {
     authClient = createAuthClient();
 
     const seedSlugs = ['technology', 'science', 'travel', 'food', 'health', 'uncategorized'];
-    const seedCategories = await Promise.all(seedSlugs.map((slug) => categoriesClient(publicClient).getBySlug(slug)));
+    const seedCategories = await Promise.all(seedSlugs.map((slug) => categoriesClient(publicClient).item(slug)));
 
     seededCategoryIds = seedCategories
       .map((category) => category?.id)
@@ -55,8 +55,8 @@ describe('Client: Categories', () => {
       }
     });
 
-    it('terms(\'categories\').getBySlug() fetches a known seed category', async () => {
-      const category = await categoriesClient(publicClient).getBySlug('technology');
+    it("terms('categories').item() fetches a known seed category", async () => {
+      const category = await categoriesClient(publicClient).item('technology');
 
       expect(category).toBeDefined();
       expect(category!.slug).toBe('technology');
@@ -64,8 +64,8 @@ describe('Client: Categories', () => {
       expect(category!.count).toBe(30);
     });
 
-    it('terms(\'categories\').getBySlug() returns undefined for non-existent slug', async () => {
-      const category = await categoriesClient(publicClient).getBySlug('nonexistent-cat-999');
+    it("terms('categories').item() returns undefined for non-existent slug", async () => {
+      const category = await categoriesClient(publicClient).item('nonexistent-cat-999');
 
       expect(category).toBeUndefined();
     });

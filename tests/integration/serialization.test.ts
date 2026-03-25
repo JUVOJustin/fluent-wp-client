@@ -106,7 +106,7 @@ describe('Client: DTO serialization', () => {
 
   describe('single-item query resolution', () => {
     it('content(\'posts\').item() resolves to a structuredClone-safe DTO', async () => {
-      const lookup = await postsClient(publicClient).getBySlug('test-post-001');
+      const lookup = await postsClient(publicClient).item('test-post-001');
 
       expect(lookup).toBeDefined();
 
@@ -117,8 +117,8 @@ describe('Client: DTO serialization', () => {
       expect(cloned.slug).toBe(post.slug);
     });
 
-    it('content(\'posts\').getBySlug() resolves to a plain DTO without helpers', async () => {
-      const post = await postsClient(publicClient).getBySlug('test-post-001');
+    it('content(\'posts\').item() resolves to a plain DTO without helpers', async () => {
+      const post = await postsClient(publicClient).item('test-post-001');
 
       expect(post).toBeDefined();
       expect('getBlocks' in (post as object)).toBe(false);

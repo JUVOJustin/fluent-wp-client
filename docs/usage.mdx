@@ -344,7 +344,7 @@ await tags.delete(tag.id, { force: true });
 ### Comments
 
 ```ts
-const post = await wp.content('posts').getBySlug('hello-world');
+const post = await wp.content('posts').item('hello-world');
 
 if (!post) {
   throw new Error('Post not found.');

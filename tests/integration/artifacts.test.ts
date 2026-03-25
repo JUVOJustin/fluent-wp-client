@@ -40,8 +40,8 @@ describe('Client: Artifacts', () => {
       expect(first).toHaveProperty('acf.acf_subtitle');
     });
 
-    it('content() getBySlug fetches one known sparse artifact', async () => {
-      const artifact = await publicClient.content('artifacts').getBySlug('test-artifact-001');
+    it('content() item fetches one known sparse artifact', async () => {
+      const artifact = await publicClient.content('artifacts').item('test-artifact-001');
 
       expect(artifact).toBeDefined();
       expect(artifact?.slug).toBe('test-artifact-001');
@@ -54,7 +54,7 @@ describe('Client: Artifacts', () => {
     it('content() validates sparse artifacts with the flexible post-like schema', async () => {
       const artifacts = publicClient.content('artifacts', postLikeWordPressSchema);
       const all = await artifacts.listAll();
-      const artifact = await artifacts.getBySlug('test-artifact-001');
+      const artifact = await artifacts.item('test-artifact-001');
 
       expect(all).toHaveLength(3);
       expect(all[0]).not.toHaveProperty('title');
@@ -67,7 +67,7 @@ describe('Client: Artifacts', () => {
       const artifacts = publicClient.content('artifacts', contentWordPressSchema);
 
       try {
-        await artifacts.getBySlug('test-artifact-001');
+        await artifacts.item('test-artifact-001');
         // Should not reach here
         expect.fail('Expected validation error but got successful response');
       } catch (error) {
@@ -78,7 +78,7 @@ describe('Client: Artifacts', () => {
 
   describe('mutations', () => {
     it('content() throws a validation error on update when a strict content schema is used', async () => {
-      const artifact = await publicClient.content('artifacts').getBySlug('test-artifact-001');
+      const artifact = await publicClient.content('artifacts').item('test-artifact-001');
       expect(artifact).toBeDefined();
 
       const strictArtifacts = authClient.content('artifacts', contentWordPressSchema);

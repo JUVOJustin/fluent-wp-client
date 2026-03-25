@@ -98,7 +98,7 @@ describe('Client: Custom Relation Resolvers', () => {
    * Resolves one seeded post ID from a known slug.
    */
   async function getPostIdBySlug(slug: string): Promise<number> {
-    const post = await authClient.content('posts').getBySlug(slug);
+    const post = await authClient.content('posts').item(slug);
 
     if (!post) {
       throw new Error(`Expected post '${slug}' to exist.`);
@@ -160,7 +160,7 @@ describe('Client: Custom Relation Resolvers', () => {
 
     it('falls back to fetching posts when embedded data is unavailable', async () => {
       // First, get the post without embed to test fallback
-      const basePost = await authClient.content('posts').getBySlug('test-post-001');
+      const basePost = await authClient.content('posts').item('test-post-001');
       expect(basePost).toBeDefined();
       
       // Verify ACF data exists

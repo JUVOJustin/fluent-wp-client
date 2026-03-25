@@ -20,7 +20,7 @@ describe('Client: Tags', () => {
     authClient = createAuthClient();
 
     const seedSlugs = ['featured', 'trending', 'tutorial', 'review', 'guide', 'news', 'opinion', 'update'];
-    const seedTags = await Promise.all(seedSlugs.map((slug) => tagsClient(publicClient).getBySlug(slug)));
+    const seedTags = await Promise.all(seedSlugs.map((slug) => tagsClient(publicClient).item(slug)));
 
     seededTagIds = seedTags
       .map((tag) => tag?.id)
@@ -54,8 +54,8 @@ describe('Client: Tags', () => {
       }
     });
 
-    it('terms(\'tags\').getBySlug() fetches a known seed tag', async () => {
-      const tag = await tagsClient(publicClient).getBySlug('featured');
+    it('terms(\'tags\').item() fetches a known seed tag', async () => {
+      const tag = await tagsClient(publicClient).item('featured');
 
       expect(tag).toBeDefined();
       expect(tag!.slug).toBe('featured');
@@ -63,8 +63,8 @@ describe('Client: Tags', () => {
       expect(tag!.count).toBe(60);
     });
 
-    it('terms(\'tags\').getBySlug() returns undefined for non-existent slug', async () => {
-      const tag = await tagsClient(publicClient).getBySlug('nonexistent-tag-999');
+    it('terms(\'tags\').item() returns undefined for non-existent slug', async () => {
+      const tag = await tagsClient(publicClient).item('nonexistent-tag-999');
 
       expect(tag).toBeUndefined();
     });

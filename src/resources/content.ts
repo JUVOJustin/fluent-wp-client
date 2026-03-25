@@ -144,33 +144,6 @@ export class GenericContentResource<
   }
 
   /**
-   * Gets one item by ID with optional validation.
-   */
-  async getWithValidation(
-    id: number,
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent> {
-    const item = await this.getById(id, options);
-    return this.validators.validate(item as unknown);
-  }
-
-  /**
-   * Gets one item by slug with optional validation.
-   */
-  async getBySlugWithValidation(
-    slug: string,
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent | undefined> {
-    const item = await this.getBySlug(slug, options);
-
-    if (item === undefined) {
-      return undefined;
-    }
-
-    return this.validators.validate(item as unknown);
-  }
-
-  /**
    * Returns the relation client for building relation queries.
    */
   getRelationClient(): PostRelationClient {
@@ -259,8 +232,6 @@ export function createContentClient<TResource extends WordPressPostLike>(
       (f, opts) => resource.listPaginatedWithValidation(f, opts) as Promise<PaginatedResponse<TResource>>,
       options,
     ),
-    getById: async (id, options) => resource.getWithValidation(id, options) as Promise<TResource>,
-    getBySlug: async (slug, options) => resource.getBySlugWithValidation(slug, options) as Promise<TResource | undefined>,
     item: (idOrSlug, options) => createRelationQuery(idOrSlug, options, []),
     create: <TResponse = TResource>(
       input: WordPressWritePayload,

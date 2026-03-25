@@ -112,24 +112,15 @@ export class GenericTermResource<
   }
 
   /**
-   * Gets one term by ID with optional validation.
+   * Gets one term by ID or slug with optional validation.
    */
-  async getWithValidation(
-    id: number,
-    options?: WordPressRequestOverrides,
-  ): Promise<TTerm> {
-    const item = await this.getById(id, options);
-    return this.validators.validate(item as unknown);
-  }
-
-  /**
-   * Gets one term by slug with optional validation.
-   */
-  async getBySlugWithValidation(
-    slug: string,
+  async item(
+    idOrSlug: number | string,
     options?: WordPressRequestOverrides,
   ): Promise<TTerm | undefined> {
-    const item = await this.getBySlug(slug, options);
+    const item = typeof idOrSlug === 'number'
+      ? await this.getById(idOrSlug, options)
+      : await this.getBySlug(idOrSlug, options);
 
     if (item === undefined) {
       return undefined;
@@ -169,8 +160,7 @@ export function createTermsClient<TTerm>(
     list: (filter = {}, options) => resource.listWithValidation(filter as QueryParams & PaginationParams, options) as Promise<TTerm[]>,
     listAll: (filter = {}, options) => resource.listAllWithValidation(filter as Omit<QueryParams & PaginationParams, 'page'>, options) as Promise<TTerm[]>,
     listPaginated: (filter = {}, options) => resource.listPaginatedWithValidation(filter as QueryParams & PaginationParams, options) as Promise<PaginatedResponse<TTerm>>,
-    getById: (id, options) => resource.getWithValidation(id, options) as Promise<TTerm>,
-    getBySlug: (slug, options) => resource.getBySlugWithValidation(slug, options) as Promise<TTerm | undefined>,
+    item: (idOrSlug, options) => resource.item(idOrSlug, options) as Promise<TTerm | undefined>,
     create: <TResponse = TTerm>(
       input: TermWriteInput,
       responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,

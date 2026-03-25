@@ -102,8 +102,6 @@ export interface ContentResourceClient<
   list: (filter?: TFilter, options?: WordPressRequestOverrides) => ListRelationQueryBuilder<[], TResource>;
   listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides) => ListAllRelationQueryBuilder<[], TResource>;
   listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => PaginatedListRelationQueryBuilder<[], TResource>;
-  getById: (id: number, options?: WordPressRequestOverrides) => Promise<TResource>;
-  getBySlug: (slug: string, options?: WordPressRequestOverrides) => Promise<TResource | undefined>;
   item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => PostRelationQueryBuilder<[], TResource>;
   create: <TResponse = TResource>(
     input: TCreate,
@@ -131,8 +129,7 @@ export interface TermsResourceClient<
   list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
   listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides) => Promise<TResource[]>;
   listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
-  getById: (id: number, options?: WordPressRequestOverrides) => Promise<TResource>;
-  getBySlug: (slug: string, options?: WordPressRequestOverrides) => Promise<TResource | undefined>;
+  item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => Promise<TResource | undefined>;
   create: <TResponse = TResource>(
     input: TCreate,
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,

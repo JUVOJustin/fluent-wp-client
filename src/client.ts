@@ -135,6 +135,7 @@ export class WordPressClient {
       request: this.request.bind(this),
       users: () => this.users(),
       media: () => this.media(),
+      comments: () => this.comments(),
       terms: this.terms.bind(this),
     };
 
@@ -189,7 +190,7 @@ export class WordPressClient {
   media<TResource extends WordPressMedia = WordPressMedia>(
     responseSchema?: WordPressStandardSchema<TResource>,
   ): MediaResourceClient<TResource, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload> {
-    return createMediaClient(this.mediaResource, responseSchema, (options) =>
+    return createMediaClient(this.mediaResource, this as unknown as PostRelationClient, responseSchema, (options) =>
       this.discoveryMethods.describeResource('media', options),
     );
   }
@@ -201,7 +202,7 @@ export class WordPressClient {
   comments<TResource extends WordPressComment = WordPressComment>(
     responseSchema?: WordPressStandardSchema<TResource>,
   ): CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
-    return createCommentsClient(this.commentsResource, responseSchema, (options) =>
+    return createCommentsClient(this.commentsResource, this as unknown as PostRelationClient, responseSchema, (options) =>
       this.discoveryMethods.describeResource('comments', options),
     );
   }
@@ -213,7 +214,7 @@ export class WordPressClient {
   users<TResource extends WordPressAuthor = WordPressAuthor>(
     responseSchema?: WordPressStandardSchema<TResource>,
   ): UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
-    return createUsersClient(this.usersResource, responseSchema, (options) =>
+    return createUsersClient(this.usersResource, this as unknown as PostRelationClient, responseSchema, (options) =>
       this.discoveryMethods.describeResource('users', options),
     );
   }

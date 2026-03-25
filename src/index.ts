@@ -172,6 +172,8 @@ export {
 } from './core/params.js';
 
 export type {
+  AllCommentRelations,
+  AllMediaRelations,
   CommentsResourceClient,
   ContentResourceClient,
   DeleteOptions,
@@ -186,12 +188,15 @@ export type {
   SettingsResourceClient,
   TermsResourceClient,
   TermWriteInput,
+  UserRelation,
   UserDeleteOptions,
   UsersResourceClient,
   UserWriteInput,
   WordPressDeleteResult,
   WordPressWritePayload,
 } from './types.js';
+
+export { ResourceItemQueryBuilder } from './types.js';
 
 export {
   PostRelationQueryBuilder,

@@ -213,7 +213,7 @@ await wp.comments().delete(comment.id, { force: true });
 
 ```ts
 const items = await wp.media().list({ mediaType: 'image' });
-const item  = await wp.media().get(55);
+const item  = await wp.media().item(55);
 const url   = wp.media().getImageUrl(item, 'medium');
 
 // Binary upload
@@ -233,7 +233,7 @@ await wp.media().delete(media.id, { force: true });
 
 ```ts
 const users = await wp.users().list({ roles: ['author'] });
-const user  = await wp.users().get(1);
+const user  = await wp.users().item(1);
 const me    = await wp.users().me();
 
 const created = await wp.users().create({

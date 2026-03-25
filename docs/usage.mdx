@@ -87,19 +87,24 @@ console.log(definitions.length, siteTitle.title, processed.processed);
 - `wp.getMedia()` -> `wp.media().list()`
 - `wp.getAllMedia()` -> `wp.media().listAll()`
 - `wp.getMediaPaginated()` -> `wp.media().listPaginated()`
-- `wp.getMediaItem(id)` -> `wp.media().get(id)`
-- `wp.getMediaBySlug(slug)` -> `wp.media().get(slug)`
+- `wp.getMediaItem(id)` -> `wp.media().item(id)`
+- `wp.getMediaBySlug(slug)` -> `wp.media().item(slug)`
 - `wp.getImageUrl(media, size)` -> `wp.media().getImageUrl(media, size)`
 - `wp.createMedia()` -> `wp.media().create()`
 - `wp.uploadMedia()` -> `wp.media().upload()`
 - `wp.updateMedia()` -> `wp.media().update()`
 - `wp.deleteMedia()` -> `wp.media().delete()`
 - `wp.getComments()` -> `wp.comments().list()`
-- `wp.getComment(id)` -> `wp.comments().get(id)`
+- `wp.getAllComments()` -> `wp.comments().listAll()`
+- `wp.getCommentsPaginated()` -> `wp.comments().listPaginated()`
+- `wp.getComment(id)` -> `wp.comments().item(id)`
 - `wp.createComment()` -> `wp.comments().create()`
 - `wp.updateComment()` -> `wp.comments().update()`
 - `wp.deleteComment()` -> `wp.comments().delete()`
 - `wp.getUsers()` -> `wp.users().list()`
+- `wp.getAllUsers()` -> `wp.users().listAll()`
+- `wp.getUsersPaginated()` -> `wp.users().listPaginated()`
+- `wp.getUser(id)` -> `wp.users().item(id)`
 - `wp.createUser()` -> `wp.users().create()`
 - `wp.updateUser()` -> `wp.users().update()`
 - `wp.deleteUser()` -> `wp.users().delete()`
@@ -153,7 +158,8 @@ Media uses a different schema (`description`/`caption`, no `content.raw`), so me
 
 `media()`, `comments()`, `users()`, and `settings()` mirror the same fluent style as `content()` and `terms()`.
 
-- Collection resources: `.list()`, `.listAll()`, `.listPaginated()`, `.get()`, `.create()`, `.update()`, `.delete()`, `.describe()`
+- Collection resources: `.list()`, `.listAll()`, `.listPaginated()`, `.item()`, `.create()`, `.update()`, `.delete()`, `.describe()`
+- Item queries: `media().item(...)`, `comments().item(...)`, and `users().item(...)` are awaitable builders; media/comments support `.with(...)` for relation hydration and users support custom `.with(...)` relations
 - Media extras: `.upload()`, `.getImageUrl()`
 - Users extras: `.me()`
 - Settings singleton: `.get()`, `.update()`, `.describe()`

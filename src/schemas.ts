@@ -148,6 +148,7 @@ export const mediaSchema = baseWordPressSchema.extend({
   media_type: z.string(),
   mime_type: z.string(),
   media_details: mediaDetailsSchema,
+  post: z.number().nullable().optional(),
   source_url: z.string(),
 });
 

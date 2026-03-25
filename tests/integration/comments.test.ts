@@ -48,12 +48,25 @@ describe('Client: Comments', () => {
       expect(comments.some((comment) => comment.id === seedCommentId)).toBe(true);
     });
 
-    it('comments().get fetches the seeded comment by ID', async () => {
-      const comment = await publicClient.comments().get(seedCommentId);
+    it('comments().item fetches the seeded comment by ID', async () => {
+      const comment = await publicClient.comments().item(seedCommentId);
+
+      if (!comment) {
+        throw new Error('Expected seeded comment to exist.');
+      }
 
       expect(comment.id).toBe(seedCommentId);
       expect(comment.post).toBe(seedPostId);
       expect(comment.content.rendered).toContain('Client Comments: seeded comment');
+    });
+
+    it('comments().item().with hydrates author and post relations', async () => {
+      const comment = await authClient.comments().item(seedCommentId).with('author', 'post');
+
+      expect(comment?.related.author).toBeTruthy();
+      expect(comment?.related.author?.slug).toBe('admin');
+      expect(comment?.related.post).toBeTruthy();
+      expect(comment?.related.post?.slug).toBe('test-post-001');
     });
 
     it('comments().listAll returns the seeded comment', async () => {

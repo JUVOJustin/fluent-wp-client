@@ -11,11 +11,13 @@ import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 describe('Client: Media', () => {
   let publicClient: WordPressClient;
   let authClient: WordPressClient;
+  let initialMediaCount = 0;
   const createdMediaIds: number[] = [];
 
-  beforeAll(() => {
+  beforeAll(async () => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
+    initialMediaCount = (await publicClient.media().listAll()).length;
   });
 
   afterAll(async () => {
@@ -24,21 +26,21 @@ describe('Client: Media', () => {
     }
   });
 
-  it('media().list returns an empty array when no media exists', async () => {
+  it('media().list returns media items as a plain array', async () => {
     const media = await publicClient.media().list();
 
     expect(Array.isArray(media)).toBe(true);
-    expect(media).toHaveLength(0);
+    expect(media.length).toBeGreaterThanOrEqual(Math.min(initialMediaCount, media.length));
   });
 
-  it('media().listAll returns an empty array when no media exists', async () => {
+  it('media().listAll returns all currently available media items', async () => {
     const media = await publicClient.media().listAll();
 
     expect(Array.isArray(media)).toBe(true);
-    expect(media).toHaveLength(0);
+    expect(media.length).toBe(initialMediaCount);
   });
 
-  it('media().listPaginated returns pagination metadata with zero results', async () => {
+  it('media().listPaginated returns pagination metadata', async () => {
     const result = await publicClient.media().listPaginated({ perPage: 1, page: 1 });
 
     expect(result).toHaveProperty('data');
@@ -47,14 +49,15 @@ describe('Client: Media', () => {
     expect(result.page).toBe(1);
     expect(result.perPage).toBe(1);
     expect(Array.isArray(result.data)).toBe(true);
+    expect(result.total).toBeGreaterThanOrEqual(initialMediaCount);
   });
 
-  it('media().get throws for a non-existent numeric ID', async () => {
-    await expect(publicClient.media().get(999999)).rejects.toThrow();
+  it('media().item throws for a non-existent numeric ID', async () => {
+    await expect(publicClient.media().item(999999)).rejects.toThrow();
   });
 
-  it('media().get returns undefined for a non-existent slug', async () => {
-    const item = await publicClient.media().get('nonexistent-media-999');
+  it('media().item returns undefined for a non-existent slug', async () => {
+    const item = await publicClient.media().item('nonexistent-media-999');
 
     expect(item).toBeUndefined();
   });
@@ -105,11 +108,35 @@ describe('Client: Media', () => {
     expect(authClient.media().getImageUrl(media)).toBe(media.source_url);
     expect(authClient.media().getImageUrl(media, 'nonexistent-size')).toBe(media.source_url);
 
-    const byId = await authClient.media().get(media.id);
+    const byId = await authClient.media().item(media.id);
+
+    if (!byId) {
+      throw new Error('Expected uploaded media item to exist.');
+    }
+
     expect(byId.id).toBe(media.id);
 
-    const bySlug = await authClient.media().get(media.slug);
+    const bySlug = await authClient.media().item(media.slug);
     expect(bySlug?.id).toBe(media.id);
+
+    const post = await authClient.content('posts').item('test-post-001');
+
+    if (!post) {
+      throw new Error('Expected seeded post test-post-001 to exist.');
+    }
+
+    const attached = await authClient.media().update(media.id, {
+      post: post.id,
+    });
+
+    const hydrated = await authClient.media().item(attached.id).with('author', 'post');
+    expect(hydrated?.related.author?.slug).toBe('admin');
+
+    if (typeof attached.post === 'number' && attached.post > 0) {
+      expect(hydrated?.related.post?.id).toBe(attached.post);
+    } else {
+      expect(hydrated?.related.post ?? null).toBeNull();
+    }
 
     const updated = await authClient.media().update(media.id, {
       caption: 'Updated media client caption',

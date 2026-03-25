@@ -15,8 +15,10 @@ import { applyRequestOverrides } from '../core/request-overrides.js';
 import { throwIfWordPressError } from '../core/errors.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
-import { resolveMutationArguments } from '../core/mutation-helpers.js';
-import { createSchemaValidators } from './schema-validation.js';
+import { ResourceItemQueryBuilder } from '../builders/resource-item-relations.js';
+import type { PostRelationClient } from '../builders/relation-contracts.js';
+import { resolveMutationSchema } from '../core/mutation-helpers.js';
+import { createSchemaValidators, shouldSkipValidation } from './schema-validation.js';
 
 /**
  * WordPress users resource with CRUD support and `/me` access.
@@ -82,6 +84,7 @@ export class UsersResource extends BaseCrudResource<
  */
 export function createUsersClient<TResource extends WordPressAuthor = WordPressAuthor>(
   resource: UsersResource,
+  relationClient: PostRelationClient,
   responseSchema?: WordPressStandardSchema<TResource>,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
@@ -92,38 +95,9 @@ export function createUsersClient<TResource extends WordPressAuthor = WordPressA
   );
 
   /**
-   * Skips built-in validation for field-filtered list responses.
-   */
-  function shouldSkipValidation(filter: ExtensibleFilter<UsersFilter> | undefined): boolean {
-    return !hasExplicitResponseSchema && filter?.fields !== undefined;
-  }
-
-  /**
-   * Resolves the effective mutation schema for this client call.
-   */
-  function resolveMutationSchema<TResponse>(
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): {
-    requestOptions?: WordPressRequestOverrides;
-    responseSchema?: WordPressStandardSchema<TResponse>;
-  } {
-    const resolved = resolveMutationArguments<TResponse>(
-      responseSchemaOrRequestOptions,
-      requestOptions,
-    );
-
-    return {
-      requestOptions: resolved.requestOptions,
-      responseSchema: resolved.responseSchema
-        ?? (responseSchema as WordPressStandardSchema<TResponse> | undefined),
-    };
-  }
-
-  /**
    * Gets one user by numeric ID or slug.
    */
-  const getUser = (async (
+  const loadUser = async (
     idOrSlug: number | string,
     options?: WordPressRequestOverrides,
   ) => {
@@ -136,13 +110,23 @@ export function createUsersClient<TResource extends WordPressAuthor = WordPressA
     }
 
     return validators.validate(item as unknown);
-  }) as UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>['get'];
+  };
+
+  const item = ((
+    idOrSlug: number | string,
+    options?: WordPressRequestOverrides,
+  ) => new ResourceItemQueryBuilder(
+    relationClient,
+    () => loadUser(idOrSlug, options),
+    new Set<string>(),
+    async () => ({}),
+  )) as UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>['item'];
 
   return {
     list: async (filter = {}, options) => {
       const items = await resource.list(filter, options);
 
-      if (shouldSkipValidation(filter)) {
+      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
         return items as TResource[];
       }
 
@@ -151,7 +135,7 @@ export function createUsersClient<TResource extends WordPressAuthor = WordPressA
     listAll: async (filter = {}, options) => {
       const items = await resource.listAll(filter, options);
 
-      if (shouldSkipValidation(filter as ExtensibleFilter<UsersFilter> | undefined)) {
+      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
         return items as TResource[];
       }
 
@@ -160,7 +144,7 @@ export function createUsersClient<TResource extends WordPressAuthor = WordPressA
     listPaginated: async (filter = {}, options) => {
       const result = await resource.listPaginated(filter, options);
 
-      if (shouldSkipValidation(filter)) {
+      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
         return result as PaginatedResponse<TResource>;
       }
 
@@ -169,7 +153,7 @@ export function createUsersClient<TResource extends WordPressAuthor = WordPressA
         data: await validators.validateCollection(result.data as unknown[]),
       };
     },
-    get: getUser,
+    item,
     me: async (options) => validators.validate(await resource.me(options) as unknown),
     create: <TResponse = TResource>(
       input: UserWriteInput,
@@ -179,6 +163,7 @@ export function createUsersClient<TResource extends WordPressAuthor = WordPressA
       const resolved = resolveMutationSchema(
         responseSchemaOrRequestOptions,
         requestOptions,
+        responseSchema as WordPressStandardSchema<TResponse> | undefined,
       );
 
       return resource.create<TResponse>(
@@ -196,6 +181,7 @@ export function createUsersClient<TResource extends WordPressAuthor = WordPressA
       const resolved = resolveMutationSchema(
         responseSchemaOrRequestOptions,
         requestOptions,
+        responseSchema as WordPressStandardSchema<TResponse> | undefined,
       );
 
       return resource.update<TResponse>(

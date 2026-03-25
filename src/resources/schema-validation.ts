@@ -1,4 +1,5 @@
 import type { WordPressStandardSchema } from '../core/validation.js';
+import type { QueryParams } from '../types/resources.js';
 
 /**
  * Creates reusable read validators for schema-backed resources.
@@ -32,4 +33,15 @@ export function createSchemaValidators<T>(
     validate,
     validateCollection,
   };
+}
+
+/**
+ * Determines whether to skip built-in schema validation for field-filtered responses.
+ * Used by resource clients to avoid validation errors when fields are explicitly filtered.
+ */
+export function shouldSkipValidation(
+  hasExplicitResponseSchema: boolean,
+  filter: QueryParams | undefined,
+): boolean {
+  return !hasExplicitResponseSchema && filter?.fields !== undefined;
 }

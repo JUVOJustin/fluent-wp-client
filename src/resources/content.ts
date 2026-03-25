@@ -25,7 +25,7 @@ import type {
 } from '../types/resources.js';
 import type { WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
-import { resolveMutationArguments } from '../core/mutation-helpers.js';
+import { resolveMutationSchema } from '../core/mutation-helpers.js';
 import { createSchemaValidators } from './schema-validation.js';
 
 const missingRawPostMessage =
@@ -199,24 +199,14 @@ export function createContentClient<TResource extends WordPressPostLike>(
     (content) => resource.validateResolvedContent(content),
   );
 
-  const resolveMutationSchema = <TResponse>(
+  const resolveLocalMutationSchema = <TResponse>(
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
-  ): {
-    requestOptions?: WordPressRequestOverrides;
-    responseSchema?: WordPressStandardSchema<TResponse>;
-  } => {
-    const resolved = resolveMutationArguments<TResponse>(
-      responseSchemaOrRequestOptions,
-      requestOptions,
-    );
-
-    return {
-      requestOptions: resolved.requestOptions,
-      responseSchema: resolved.responseSchema
-        ?? (responseSchema as WordPressStandardSchema<TResponse> | undefined),
-    };
-  };
+  ) => resolveMutationSchema(
+    responseSchemaOrRequestOptions,
+    requestOptions,
+    responseSchema as WordPressStandardSchema<TResponse> | undefined,
+  );
 
   return {
     list: (filter = {}, options) => new ListRelationQueryBuilder(
@@ -243,7 +233,7 @@ export function createContentClient<TResource extends WordPressPostLike>(
       responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
       requestOptions?: WordPressRequestOverrides,
     ) => {
-      const resolved = resolveMutationSchema(
+      const resolved = resolveLocalMutationSchema(
         responseSchemaOrRequestOptions,
         requestOptions,
       );
@@ -260,7 +250,7 @@ export function createContentClient<TResource extends WordPressPostLike>(
       responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
       requestOptions?: WordPressRequestOverrides,
     ) => {
-      const resolved = resolveMutationSchema(
+      const resolved = resolveLocalMutationSchema(
         responseSchemaOrRequestOptions,
         requestOptions,
       );

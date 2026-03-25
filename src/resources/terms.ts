@@ -1,5 +1,5 @@
 import { BaseCrudResource } from '../core/resource-base.js';
-import { resolveMutationArguments } from '../core/mutation-helpers.js';
+import { resolveMutationSchema } from '../core/mutation-helpers.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
 import type { WordPressCategory, WordPressTag } from '../schemas.js';
@@ -139,24 +139,14 @@ export function createTermsClient<TTerm>(
   responseSchema?: WordPressStandardSchema<TTerm>,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): TermsResourceClient<TTerm, QueryParams & PaginationParams, TermWriteInput, TermWriteInput> {
-  const resolveMutationSchema = <TResponse>(
+  const resolveLocalMutationSchema = <TResponse>(
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
-  ): {
-    requestOptions?: WordPressRequestOverrides;
-    responseSchema?: WordPressStandardSchema<TResponse>;
-  } => {
-    const resolved = resolveMutationArguments<TResponse>(
-      responseSchemaOrRequestOptions,
-      requestOptions,
-    );
-
-    return {
-      requestOptions: resolved.requestOptions,
-      responseSchema: resolved.responseSchema
-        ?? (responseSchema as WordPressStandardSchema<TResponse> | undefined),
-    };
-  };
+  ) => resolveMutationSchema(
+    responseSchemaOrRequestOptions,
+    requestOptions,
+    responseSchema as WordPressStandardSchema<TResponse> | undefined,
+  );
 
   return {
     list: (filter = {}, options) => resource.listWithValidation(filter as QueryParams & PaginationParams, options) as Promise<TTerm[]>,
@@ -168,7 +158,7 @@ export function createTermsClient<TTerm>(
       responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
       requestOptions?: WordPressRequestOverrides,
     ) => {
-      const resolved = resolveMutationSchema(
+      const resolved = resolveLocalMutationSchema(
         responseSchemaOrRequestOptions,
         requestOptions,
       );
@@ -185,7 +175,7 @@ export function createTermsClient<TTerm>(
       responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
       requestOptions?: WordPressRequestOverrides,
     ) => {
-      const resolved = resolveMutationSchema(
+      const resolved = resolveLocalMutationSchema(
         responseSchemaOrRequestOptions,
         requestOptions,
       );

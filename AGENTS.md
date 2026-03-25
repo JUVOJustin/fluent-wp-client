@@ -27,7 +27,7 @@
 - Post-like collection methods (`content('posts').list()`, `content('pages').list()`, `content(resource).list()`) return plain DTO arrays.
 - Post-like DTO reads keep `_embed` disabled by default; opt into collection embedding with `embed: true`. Relation queries created through `content(resource).item(...).with(...)` automatically request `_embed`.
 - Single post-like item access goes through `content(resource).item(idOrSlug)`, which returns an awaitable `PostRelationQueryBuilder` with `.getBlocks()` / `.getContent()` and relation hydration.
-- First-class collection helpers (`media().list()`, `comments().list()`, `users().list()`) return plain DTO arrays, while `settings()` remains a singleton with `.get()` / `.update()` / `.describe()`.
+- First-class collection helpers (`media().list()`, `comments().list()`, `users().list()`) return plain DTO arrays. Single-item access goes through `.item(...)`, which is awaitable and may support `.with(...)` relation hydration, while `settings()` remains a singleton with `.get()` / `.update()` / `.describe()`.
 - When adding new resource helpers, follow the same contract: collections return plain arrays, and single-item post-like access returns explicit query wrappers only when block/content helpers or relation hydration are needed.
 
 ## File Structure

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient, createJwtAuthHeader } from 'fluent-wp-client';
+import { WordPressClient, createJwtAuthHeader, customRelationRegistry } from 'fluent-wp-client';
 import { createPublicClient, createAuthClient, createJwtAuthClient } from '../helpers/wp-client';
 
 /**
@@ -62,12 +62,38 @@ describe('Client: Users', () => {
     }
   });
 
-  it('users().get fetches a single user by ID', async () => {
+  it('users().item fetches a single user by ID', async () => {
     const users = await publicClient.users().list();
-    const user = await publicClient.users().get(users[0].id);
+    const user = await publicClient.users().item(users[0].id);
+
+    if (!user) {
+      throw new Error('Expected seeded admin user to exist.');
+    }
 
     expect(user.id).toBe(users[0].id);
     expect(user.slug).toBe('admin');
+  });
+
+  it('users().item supports custom .with() relations', async () => {
+    const relationName = 'profileSlug';
+
+    customRelationRegistry.register<string, { id: number; slug: string }>({
+      name: relationName,
+      embeddedKey: relationName,
+      requiredFields: ['slug'],
+      extractEmbedded: () => null,
+      fallbackResolver: {
+        resolve: async (_client, user) => user.slug,
+      },
+    });
+
+    try {
+      const user = await publicClient.users().item(1).with(relationName);
+
+      expect(user?.related.profileSlug).toBe('admin');
+    } finally {
+      customRelationRegistry.unregister(relationName);
+    }
   });
 
   it('users().listAll auto-paginates', async () => {

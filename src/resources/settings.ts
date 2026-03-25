@@ -6,7 +6,7 @@ import type {
 import type { WordPressResourceDescription } from '../types/discovery.js';
 import { settingsSchema } from '../standard-schemas.js';
 import { compactPayload } from '../core/params.js';
-import { resolveMutationArguments } from '../core/mutation-helpers.js';
+import { resolveMutationSchema } from '../core/mutation-helpers.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { throwIfWordPressError } from '../core/errors.js';
 import { validateWithStandardSchema } from '../core/validation.js';
@@ -65,9 +65,10 @@ export class SettingsResource {
   ): Promise<TSettings> {
     this.assertAuthenticated();
 
-    const resolved = resolveMutationArguments<TSettings>(
+    const resolved = resolveMutationSchema<TSettings>(
       responseSchemaOrRequestOptions,
       requestOptions,
+      undefined,
     );
 
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
@@ -94,28 +95,6 @@ export function createSettingsClient<TResource extends WordPressSettings = WordP
   responseSchema?: WordPressStandardSchema<TResource>,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): SettingsResourceClient<TResource> {
-  /**
-   * Resolves the effective mutation schema for this client call.
-   */
-  function resolveMutationSchema<TResponse>(
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): {
-    requestOptions?: WordPressRequestOverrides;
-    responseSchema?: WordPressStandardSchema<TResponse>;
-  } {
-    const resolved = resolveMutationArguments<TResponse>(
-      responseSchemaOrRequestOptions,
-      requestOptions,
-    );
-
-    return {
-      requestOptions: resolved.requestOptions,
-      responseSchema: resolved.responseSchema
-        ?? (responseSchema as WordPressStandardSchema<TResponse> | undefined),
-    };
-  }
-
   return {
     get: async (options) => {
       const settings = await resource.get(options);
@@ -133,6 +112,7 @@ export function createSettingsClient<TResource extends WordPressSettings = WordP
       const resolved = resolveMutationSchema(
         responseSchemaOrRequestOptions,
         requestOptions,
+        responseSchema as WordPressStandardSchema<TResponse> | undefined,
       );
 
       return resource.update<TResponse>(

@@ -1,5 +1,10 @@
-import type { WordPressComment } from '../schemas.js';
 import type {
+  WordPressAuthor,
+  WordPressComment,
+  WordPressPostLike,
+} from '../schemas.js';
+import type {
+  AllCommentRelations,
   CommentsResourceClient,
   PaginatedResponse,
   WordPressRequestOverrides,
@@ -12,8 +17,26 @@ import { commentSchema } from '../standard-schemas.js';
 import { BaseCrudResource } from '../core/resource-base.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
-import { resolveMutationArguments } from '../core/mutation-helpers.js';
-import { createSchemaValidators } from './schema-validation.js';
+import { ResourceItemQueryBuilder } from '../builders/resource-item-relations.js';
+import {
+  createSingleExtractor,
+  extractEmbeddedData,
+  type PostRelationClient,
+} from '../builders/relation-contracts.js';
+import { resolveMutationSchema } from '../core/mutation-helpers.js';
+import { createSchemaValidators, shouldSkipValidation } from './schema-validation.js';
+
+const extractEmbeddedAuthor = createSingleExtractor(
+  (item: unknown) => item as WordPressAuthor,
+);
+
+const extractEmbeddedPost = createSingleExtractor(
+  (item: unknown) => item as WordPressPostLike,
+);
+
+const extractEmbeddedComment = createSingleExtractor(
+  (item: unknown) => item as WordPressComment,
+);
 
 /**
  * WordPress comments resource with full CRUD support.
@@ -41,6 +64,7 @@ export class CommentsResource extends BaseCrudResource<
  */
 export function createCommentsClient<TResource extends WordPressComment = WordPressComment>(
   resource: CommentsResource,
+  relationClient: PostRelationClient,
   responseSchema?: WordPressStandardSchema<TResource>,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
@@ -50,40 +74,130 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
     'Comment response validation failed',
   );
 
-  /**
-   * Skips built-in validation for field-filtered list responses.
-   */
-  function shouldSkipValidation(filter: ExtensibleFilter<CommentsFilter> | undefined): boolean {
-    return !hasExplicitResponseSchema && filter?.fields !== undefined;
-  }
+  const builtInRelations = new Set<AllCommentRelations>(['author', 'post', 'parent']);
 
-  /**
-   * Resolves the effective mutation schema for this client call.
-   */
-  function resolveMutationSchema<TResponse>(
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): {
-    requestOptions?: WordPressRequestOverrides;
-    responseSchema?: WordPressStandardSchema<TResponse>;
-  } {
-    const resolved = resolveMutationArguments<TResponse>(
-      responseSchemaOrRequestOptions,
-      requestOptions,
-    );
+  const loadComment = async (id: number, options?: WordPressRequestOverrides) =>
+    validators.validate(await resource.getById(id, options) as unknown);
 
-    return {
-      requestOptions: resolved.requestOptions,
-      responseSchema: resolved.responseSchema
-        ?? (responseSchema as WordPressStandardSchema<TResponse> | undefined),
-    };
-  }
+  const resolveAuthorRelation = async (comment: TResource): Promise<WordPressAuthor | null> => {
+    const embeddedAuthor = extractEmbeddedAuthor(extractEmbeddedData(comment, 'author'));
+
+    if (embeddedAuthor) {
+      return embeddedAuthor;
+    }
+
+    const authorId = comment.author;
+
+    if (typeof authorId !== 'number' || authorId <= 0) {
+      return null;
+    }
+
+    const usersClient = relationClient.users();
+    let direct: WordPressAuthor | null = null;
+
+    try {
+      direct = await usersClient.item(authorId) ?? null;
+    } catch {
+      direct = null;
+    }
+
+    if (direct) {
+      return direct;
+    }
+
+    const users = await usersClient.list({ include: [authorId], perPage: 1 }).catch(() => []);
+    return users[0] ?? null;
+  };
+
+  const resolvePostRelation = async (comment: TResource): Promise<WordPressPostLike | null> => {
+    const embeddedPost = extractEmbeddedPost(extractEmbeddedData(comment, 'up'));
+
+    if (embeddedPost) {
+      return embeddedPost;
+    }
+
+    const upLinks = (comment as { _links?: Record<string, unknown> })._links?.up as Array<Record<string, unknown>> | undefined;
+    const linkedPost = upLinks?.[0];
+
+    if (linkedPost && relationClient.request && typeof linkedPost.href === 'string') {
+      try {
+        const { data, response } = await relationClient.request<WordPressPostLike>({
+          endpoint: linkedPost.href,
+          method: 'GET',
+        });
+
+        if (response.ok) {
+          return data;
+        }
+      } catch {
+        // Ignore link fetch failures and fall back to typed lookup when possible.
+      }
+    }
+
+    const postType = typeof linkedPost?.post_type === 'string' ? linkedPost.post_type : undefined;
+
+    if (typeof comment.post === 'number' && comment.post > 0 && postType) {
+      try {
+        const post = await relationClient.content(postType).item(comment.post);
+        return post ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  };
+
+  const resolveParentRelation = async (comment: TResource): Promise<WordPressComment | null> => {
+    const embeddedParent = extractEmbeddedComment(extractEmbeddedData(comment, 'in-reply-to'));
+
+    if (embeddedParent) {
+      return embeddedParent;
+    }
+
+    if (typeof comment.parent !== 'number' || comment.parent <= 0) {
+      return null;
+    }
+
+    try {
+      const parent = await relationClient.comments().item(comment.parent);
+      return parent ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  const item = ((
+    id: number,
+    options?: WordPressRequestOverrides,
+  ) => new ResourceItemQueryBuilder(
+    relationClient,
+    () => loadComment(id, options),
+    builtInRelations,
+    async (comment, relationSet) => {
+      const related: Record<string, unknown> = {};
+
+      if (relationSet.has('author')) {
+        related.author = await resolveAuthorRelation(comment);
+      }
+
+      if (relationSet.has('post')) {
+        related.post = await resolvePostRelation(comment);
+      }
+
+      if (relationSet.has('parent')) {
+        related.parent = await resolveParentRelation(comment);
+      }
+
+      return related;
+    },
+  )) as CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload>['item'];
 
   return {
     list: async (filter = {}, options) => {
       const items = await resource.list(filter, options);
 
-      if (shouldSkipValidation(filter)) {
+      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
         return items as TResource[];
       }
 
@@ -92,7 +206,7 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
     listAll: async (filter = {}, options) => {
       const items = await resource.listAll(filter, options);
 
-      if (shouldSkipValidation(filter as ExtensibleFilter<CommentsFilter> | undefined)) {
+      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
         return items as TResource[];
       }
 
@@ -101,7 +215,7 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
     listPaginated: async (filter = {}, options) => {
       const result = await resource.listPaginated(filter, options);
 
-      if (shouldSkipValidation(filter)) {
+      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
         return result as PaginatedResponse<TResource>;
       }
 
@@ -110,7 +224,7 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
         data: await validators.validateCollection(result.data as unknown[]),
       };
     },
-    get: async (id, options) => validators.validate(await resource.getById(id, options) as unknown),
+    item,
     create: <TResponse = TResource>(
       input: WordPressWritePayload,
       responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
@@ -119,6 +233,7 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
       const resolved = resolveMutationSchema(
         responseSchemaOrRequestOptions,
         requestOptions,
+        responseSchema as WordPressStandardSchema<TResponse> | undefined,
       );
 
       return resource.create<TResponse>(
@@ -136,6 +251,7 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
       const resolved = resolveMutationSchema(
         responseSchemaOrRequestOptions,
         requestOptions,
+        responseSchema as WordPressStandardSchema<TResponse> | undefined,
       );
 
       return resource.update<TResponse>(

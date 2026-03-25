@@ -37,7 +37,7 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 ## Features
 
 - **Unified typed content builders** — `content('posts')`, `content('pages')`, `content('books')`, and `terms('genre')` share one API shape, with stricter typing for built-in resources
-- **First-class fluent resource clients** — `media()`, `comments()`, `users()`, and `settings()` expose consistent `list/get/create/update/delete/describe` APIs, with `upload()` for media and `me()` for users
+- **First-class fluent resource clients** — `media()`, `comments()`, `users()`, and `settings()` expose consistent `list/item/create/update/delete/describe` APIs, with `upload()` for media, `.with(...)` on item reads, and `me()` for users
 - **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
 - **Extensible collection filters** — built-in list helpers and generic resource builders accept typed core filters plus extra endpoint-specific query params
 - **Lean embedded payloads** — post-like DTO reads skip `_embed` by default, while relation hydration turns it on automatically when `.with(...)` is used

@@ -28,11 +28,12 @@ import {
   type PostRelationClient,
   type RelatedTermReference,
 } from './relation-contracts.js';
+import { ItemRelationResolver } from './item-relation-resolver.js';
 
 /**
  * Supported relation names for fluent post hydration (built-in).
  */
-export type PostRelation = 'author' | 'categories' | 'tags' | 'terms' | 'featuredMedia';
+export type PostRelation = 'author' | 'categories' | 'tags' | 'terms' | 'featuredMedia' | 'parent';
 
 /**
  * All available relations including built-in and custom registered ones.
@@ -53,6 +54,7 @@ interface PostRelationMap {
     taxonomies: Record<string, RelatedTermReference[]>;
   };
   featuredMedia: WordPressMedia | null;
+  parent: WordPressPostLike | null;
 }
 
 /**
@@ -82,6 +84,7 @@ const BUILT_IN_RELATION_NAMES = new Set<PostRelation>([
   'tags',
   'terms',
   'featuredMedia',
+  'parent',
 ]);
 
 /**
@@ -93,6 +96,7 @@ const BUILT_IN_RELATION_FIELDS: Record<PostRelation, readonly string[]> = {
   tags: ['tags'],
   terms: ['categories', 'tags', '_links'],
   featuredMedia: ['featured_media'],
+  parent: ['parent'],
 };
 
 /**
@@ -134,6 +138,10 @@ export type ContentItemResult<
   ? TContent
   : TContent & { related: SelectedPostRelations<TRelations> };
 
+interface PostRelationLoadOptions {
+  embed?: boolean;
+}
+
 /**
  * Extracts the first author from an _embedded author array.
  */
@@ -149,6 +157,13 @@ const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
   const result = embeddedMediaSchema.safeParse(item);
   return result.success ? (result.data as unknown as WordPressMedia) : null;
 });
+
+/**
+ * Extracts parent from an _embedded up array.
+ */
+const extractEmbeddedParent = createSingleExtractor(
+  (item: unknown) => item as WordPressPostLike,
+);
 
 /**
  * Coordinates built-in taxonomy relation hydration for one post response.
@@ -407,21 +422,22 @@ class PostTermRelationsResolver {
 export class PostRelationQueryBuilder<
   TRelations extends readonly AllPostRelations[] = [],
   TContent extends WordPressPostLike = WordPressPost,
-> extends ExecutableQuery<ContentItemResult<TContent, TRelations>> {
+> extends ExecutableQuery<ContentItemResult<TContent, TRelations> | undefined> {
   private readonly relationSet: Set<AllPostRelations>;
   private readonly getEditById?: (id: number) => PromiseLike<TContent>;
   private readonly getEditBySlug?: (slug: string) => PromiseLike<TContent | undefined>;
   private readonly missingRawMessage: string;
   private readonly defaultBlockParser?: WordPressBlockParser;
-  private viewPromise: Promise<TContent> | undefined;
+  private readonly userRequestedEmbed: boolean;
+  private viewPromise: Promise<TContent | undefined> | undefined;
   private editPromise: Promise<TContent | undefined> | undefined;
-  private resultPromise: Promise<ContentItemResult<TContent, TRelations>> | undefined;
+  private resultPromise: Promise<ContentItemResult<TContent, TRelations> | undefined> | undefined;
 
   constructor(
     private readonly client: PostRelationClient,
     private readonly selector: { id?: number; slug?: string },
-    private readonly getById: (id: number) => PromiseLike<TContent>,
-    private readonly getBySlug: (slug: string) => PromiseLike<TContent | undefined>,
+    private readonly getById: (id: number, options?: PostRelationLoadOptions) => PromiseLike<TContent>,
+    private readonly getBySlug: (slug: string, options?: PostRelationLoadOptions) => PromiseLike<TContent | undefined>,
     relations: readonly AllPostRelations[] = [],
     private readonly finalizeContent?: (content: TContent) => PromiseLike<TContent>,
     options: {
@@ -429,6 +445,7 @@ export class PostRelationQueryBuilder<
       getEditBySlug?: (slug: string) => PromiseLike<TContent | undefined>;
       missingRawMessage?: string;
       defaultBlockParser?: WordPressBlockParser;
+      userRequestedEmbed?: boolean;
     } = {},
   ) {
     super();
@@ -438,24 +455,22 @@ export class PostRelationQueryBuilder<
     this.missingRawMessage = options.missingRawMessage
       ?? 'Raw post content is unavailable. The current credentials may not have edit capabilities for this content item.';
     this.defaultBlockParser = options.defaultBlockParser;
+    this.userRequestedEmbed = options.userRequestedEmbed ?? false;
   }
 
   /**
    * Loads the selected post by ID or slug.
    */
-  private async loadSelectedPostOnce(): Promise<TContent> {
+  private async loadSelectedPostOnce(): Promise<TContent | undefined> {
     let post: TContent | undefined;
+    const shouldEmbedContent = this.relationSet.size > 0 || this.userRequestedEmbed;
 
     if (typeof this.selector.id === 'number') {
-      post = await this.getById(this.selector.id);
+      post = await this.getById(this.selector.id, { embed: shouldEmbedContent });
     }
 
     if (!post && typeof this.selector.slug === 'string') {
-      post = await this.getBySlug(this.selector.slug);
-    }
-
-    if (!post) {
-      throw new Error('Post not found for the provided fluent relation selector.');
+      post = await this.getBySlug(this.selector.slug, { embed: shouldEmbedContent });
     }
 
     return post;
@@ -464,7 +479,7 @@ export class PostRelationQueryBuilder<
   /**
    * Loads and memoizes the selected view-context item.
    */
-  private async loadSelectedPost(): Promise<TContent> {
+  private async loadSelectedPost(): Promise<TContent | undefined> {
     if (!this.viewPromise) {
       this.viewPromise = this.loadSelectedPostOnce();
     }
@@ -545,6 +560,33 @@ export class PostRelationQueryBuilder<
 
     if (typeof featuredMediaId === 'number' && featuredMediaId > 0) {
       return this.client.getMediaItem(featuredMediaId).catch(() => null);
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolves the built-in parent relation for one post.
+   * WordPress exposes parent through _links['up'] and _embedded['up'].
+   */
+  private async resolveParentRelation(post: TContent): Promise<WordPressPostLike | null> {
+    // First, check if parent data is embedded (WordPress uses 'up' for parent)
+    const embeddedParent = extractEmbeddedParent(extractEmbeddedData(post, 'up'));
+    if (embeddedParent) {
+      return embeddedParent;
+    }
+
+    // Fall back to fetching by parent ID
+    const parentId = (post as unknown as { parent?: number }).parent;
+    if (typeof parentId === 'number' && parentId > 0) {
+      // Try to determine the resource type from the post
+      const postType = (post as unknown as { type?: string }).type ?? 'page';
+      try {
+        const parent = await this.client.content(postType).item(parentId);
+        return parent ?? null;
+      } catch {
+        return null;
+      }
     }
 
     return null;
@@ -659,6 +701,14 @@ export class PostRelationQueryBuilder<
       );
     }
 
+    if (this.relationSet.has('parent')) {
+      tasks.push(
+        this.resolveParentRelation(post).then((parent) => {
+          related.parent = parent;
+        }),
+      );
+    }
+
     if (requestedTerms || this.relationSet.has('categories') || this.relationSet.has('tags')) {
       tasks.push(
         this.resolveRequestedTerms(post).then((terms) => {
@@ -685,7 +735,7 @@ export class PostRelationQueryBuilder<
   /**
    * Adds relation names to the hydration plan.
    * 
-   * Supports built-in relations: 'author', 'categories', 'tags', 'terms', 'featuredMedia'
+   * Supports built-in relations: 'author', 'categories', 'tags', 'terms', 'featuredMedia', 'parent'
    * Also supports custom relations registered via `customRelationRegistry`.
    */
   with<TNext extends readonly AllPostRelations[]>(
@@ -709,6 +759,7 @@ export class PostRelationQueryBuilder<
         getEditBySlug: this.getEditBySlug,
         missingRawMessage: this.missingRawMessage,
         defaultBlockParser: this.defaultBlockParser,
+        userRequestedEmbed: this.userRequestedEmbed,
       },
     ) as PostRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
   }
@@ -723,7 +774,7 @@ export class PostRelationQueryBuilder<
       return undefined;
     }
 
-    return resolveWordPressRawContent(post, this.missingRawMessage);
+    return resolveWordPressRawContent(post as WordPressPostLike, this.missingRawMessage);
   }
 
   /**
@@ -740,28 +791,16 @@ export class PostRelationQueryBuilder<
   }
 
   /**
-   * Fetches the selected post and resolves requested relations.
-   * 
-   * For each requested relation:
-   * 1. Attempts to extract from `_embedded` data
-   * 2. Falls back to API calls if configured
-  * 3. Returns null/empty if unavailable
-  * 
-  * Custom relations are resolved using their registered configurations.
-  */
-  async get(): Promise<ContentItemResult<TContent, TRelations>> {
-    if (!this.resultPromise) {
-      this.resultPromise = this.resolveResult();
-    }
-
-    return this.resultPromise;
-  }
-
-  /**
    * Resolves and memoizes the final fluent query result.
    */
-  private async resolveResult(): Promise<ContentItemResult<TContent, TRelations>> {
+  protected async resolveResult(): Promise<ContentItemResult<TContent, TRelations> | undefined> {
     const post = await this.loadSelectedPost();
+    
+    // Return undefined early if post not found
+    if (!post) {
+      return undefined;
+    }
+    
     const related = await this.resolveRelated(post);
     const content = this.finalizeContent
       ? await this.finalizeContent(post)
@@ -771,10 +810,32 @@ export class PostRelationQueryBuilder<
       return content as ContentItemResult<TContent, TRelations>;
     }
 
+    // Strip _embedded from response unless user explicitly requested it
+    if (this.userRequestedEmbed) {
+      return {
+        ...content,
+        related: related as SelectedPostRelations<TRelations>,
+      } as ContentItemResult<TContent, TRelations>;
+    }
+
+    const contentRecord = content as Record<string, unknown>;
+    const { _embedded, ...contentWithoutEmbedded } = contentRecord;
+
     return {
-      ...content,
+      ...(contentWithoutEmbedded as TContent),
       related: related as SelectedPostRelations<TRelations>,
     } as ContentItemResult<TContent, TRelations>;
+  }
+
+  /**
+   * Resolves the standard resource payload for Promise-like usage.
+   * Memoizes the result to avoid recomputing on repeated awaits.
+   */
+  protected execute(): Promise<ContentItemResult<TContent, TRelations> | undefined> {
+    if (!this.resultPromise) {
+      this.resultPromise = this.resolveResult();
+    }
+    return this.resultPromise;
   }
 
   /**
@@ -801,13 +862,6 @@ export class PostRelationQueryBuilder<
     }
 
     return Array.from(fields);
-  }
-
-  /**
-   * Resolves the standard resource payload for Promise-like usage.
-   */
-  protected execute(): Promise<ContentItemResult<TContent, TRelations>> {
-    return this.get();
   }
 }
 

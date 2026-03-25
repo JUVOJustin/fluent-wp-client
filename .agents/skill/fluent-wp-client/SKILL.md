@@ -155,7 +155,7 @@ const posts     = await wp.content('posts').list({ categories: [3], perPage: 20 
 const allPosts  = await wp.content('posts').listAll({ status: 'publish' });
 const paginated = await wp.content('posts').listPaginated({ page: 2, perPage: 10 });
 const post      = await wp.content('posts').item(42);
-const bySlug    = await wp.content('posts').getBySlug('hello-world');
+const bySlug    = await wp.content('posts').item('hello-world');
 
 // Create, update, delete
 const created = await wp.content('posts').create({ title: 'Title', status: 'draft' });
@@ -169,7 +169,7 @@ await wp.content('posts').delete(created.id, { force: true });
 const pages    = await wp.content('pages').list({ perPage: 50 });
 const allPages = await wp.content('pages').listAll();
 const page     = await wp.content('pages').item(10);
-const bySlug   = await wp.content('pages').getBySlug('about');
+const bySlug   = await wp.content('pages').item('about');
 
 const created = await wp.content('pages').create({ title: 'About us', status: 'draft' });
 await wp.content('pages').update(created.id, { status: 'publish' });
@@ -183,7 +183,7 @@ const categories = wp.terms('categories');
 const tags = wp.terms('tags');
 
 const cats = await categories.listAll();
-const cat  = await categories.getBySlug('technology');
+const cat  = await categories.item('technology');
 
 const created = await categories.create({ name: 'News' });
 await categories.update(created.id, { description: 'Latest news' });
@@ -266,8 +266,8 @@ const books = wp.content('books');
 const list      = await books.list({ perPage: 20 });
 const allBooks  = await books.listAll();
 const paged     = await books.listPaginated({ page: 2, perPage: 10 });
-const book      = await books.getById(7);
-const bySlug    = await books.getBySlug('my-book');
+const book      = await books.item(7);
+const bySlug    = await books.item('my-book');
 const created   = await books.create({ title: 'New Book', status: 'draft' });
 await books.update(created.id, { status: 'publish' });
 await books.delete(created.id, { force: true });
@@ -279,7 +279,7 @@ const genres = wp.terms('genre');
 
 const list    = await genres.list({ perPage: 100 });
 const all     = await genres.listAll();
-const genre   = await genres.getBySlug('sci-fi');
+const genre   = await genres.item('sci-fi');
 const created = await genres.create({ name: 'Science Fiction' });
 await genres.update(created.id, { name: 'Sci-Fi' });
 await genres.delete(created.id, { force: true });
@@ -336,20 +336,16 @@ Hydrate related entities in a single fluent call.
 // Fluent chain
 const result = await wp
   .content('posts').item('hello-world')
-  .with('author', 'categories', 'tags', 'featuredMedia')
-  .get();
+  .with('author', 'categories', 'tags', 'featuredMedia', 'parent');
 
 result.related.author;        // WordPressAuthor | null
 result.related.categories;    // WordPressCategory[]
 result.related.tags;          // WordPressTag[]
 result.related.featuredMedia; // WordPressMedia | null
-
-// Shorthand
-const post = await wp.content('posts').getWithRelations(42, 'author', 'terms');
-post.related.terms; // { categories: [...], tags: [...] }
+result.related.parent;        // WordPressPostLike | null
 ```
 
-Available relations: `author`, `categories`, `tags`, `terms`, `featuredMedia`.
+Available relations: `author`, `categories`, `tags`, `terms`, `featuredMedia`, `parent`.
 
 ## WordPress Abilities API
 

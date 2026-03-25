@@ -7,7 +7,7 @@ sidebar:
 
 ## Overview
 
-The fluent-wp-client relation hydration system is extensible. In addition to built-in WordPress relations (`author`, `categories`, `tags`, `terms`, `featuredMedia`), you can register custom relations for:
+The fluent-wp-client relation hydration system is extensible. In addition to built-in WordPress relations (`author`, `categories`, `tags`, `terms`, `featuredMedia`, `parent`), you can register custom relations for:
 
 - **ACF field-type helpers** for `relationship`, `post_object`, and `taxonomy`
 - **Plugin custom embeds** (WooCommerce, custom plugins, etc.)
@@ -207,7 +207,6 @@ The fluent relation query builder works for core posts, pages, and custom post t
 - `client.content('posts').item(idOrSlug).with(...)`
 - `client.content('pages').item(idOrSlug).with(...)`
 - `client.content('books').item(idOrSlug).with(...)`
-- `client.content('books').getWithRelations(idOrSlug, ...relations)`
 
 Core post taxonomies, custom taxonomy helpers, ACF relations, and custom registered relations all work through the same builder.
 
@@ -572,21 +571,6 @@ const post = await client.content('posts').item('my-post').with('relatedProducts
 const relatedProducts = post.related.relatedProducts as WooProduct[];
 ```
 
-### Testing Custom Relations
-
-See the test suite for examples:
-
-```bash
-npm test -- tests/integration/custom-relations.test.ts
-```
-
-Key test patterns:
-- Register relations in `beforeAll`, clean up in `afterAll`
-- Test embedded data extraction
-- Test fallback resolution
-- Test error handling
-- Verify required fields
-
 ## Best Practices
 
 1. **Always provide fallback resolvers** - Don't rely solely on embedded data, as it may not always be available
@@ -613,10 +597,10 @@ If you currently extract ACF relations manually:
 
 **Before:**
 ```typescript
-const post = await client.content('posts').getById(123);
+const post = await client.content('posts').item(123);
 const relatedIds = post.acf?.acf_related_posts;
 const relatedPosts = await Promise.all(
-  relatedIds?.map(id => client.content('posts').getById(id)) ?? []
+  relatedIds?.map(id => client.content('posts').item(id)) ?? []
 );
 ```
 

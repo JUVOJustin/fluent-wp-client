@@ -5,6 +5,11 @@ import type {
   PostRelationClient,
 } from '../builders/relations.js';
 import {
+  ListRelationQueryBuilder,
+  ListAllRelationQueryBuilder,
+  PaginatedListRelationQueryBuilder,
+} from '../builders/list-relations.js';
+import {
   BasePostLikeResource,
   type PostLikeResourceContext,
 } from '../core/resource-base.js';
@@ -139,30 +144,10 @@ export class GenericContentResource<
   }
 
   /**
-   * Gets one item by ID with optional validation.
+   * Returns the relation client for building relation queries.
    */
-  async getWithValidation(
-    id: number,
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent> {
-    const item = await this.getById(id, options);
-    return this.validators.validate(item as unknown);
-  }
-
-  /**
-   * Gets one item by slug with optional validation.
-   */
-  async getBySlugWithValidation(
-    slug: string,
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent | undefined> {
-    const item = await this.getBySlug(slug, options);
-
-    if (item === undefined) {
-      return undefined;
-    }
-
-    return this.validators.validate(item as unknown);
+  getRelationClient(): PostRelationClient {
+    return this.relationClient;
   }
 
   /**
@@ -170,15 +155,17 @@ export class GenericContentResource<
    */
   itemQuery<TRelations extends readonly AllPostRelations[]>(
     idOrSlug: number | string,
-    options: WordPressRequestOverrides | undefined,
+    options: (WordPressRequestOverrides & { embed?: boolean }) | undefined,
     relations: TRelations,
     finalizeContent?: (content: TContent) => PromiseLike<TContent>,
   ): PostRelationQueryBuilder<TRelations, TContent> {
+    const userRequestedEmbed = options?.embed === true;
+    
     return new PostRelationQueryBuilder<TRelations, TContent>(
       this.relationClient,
       typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
-      (id) => this.fetchContentById(id, options),
-      (slug) => this.fetchContentBySlug(slug, options),
+      (id, queryOptions) => this.fetchContentById(id, options, undefined, queryOptions?.embed),
+      (slug, queryOptions) => this.fetchContentBySlug(slug, options, undefined, queryOptions?.embed),
       relations,
       finalizeContent,
       {
@@ -186,6 +173,7 @@ export class GenericContentResource<
         getEditBySlug: (slug) => this.fetchContentBySlug(slug, options, 'edit'),
         missingRawMessage: this.missingRawMessage,
         defaultBlockParser: this.defaultBlockParser,
+        userRequestedEmbed,
       },
     );
   }
@@ -200,7 +188,7 @@ export function createContentClient<TResource extends WordPressPostLike>(
 ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
   const createRelationQuery = <TRelations extends readonly AllPostRelations[]>(
     idOrSlug: number | string,
-    options: WordPressRequestOverrides | undefined,
+    options: (WordPressRequestOverrides & { embed?: boolean }) | undefined,
     relations: TRelations,
   ): PostRelationQueryBuilder<TRelations, TResource> => resource.itemQuery(
     idOrSlug,
@@ -229,25 +217,25 @@ export function createContentClient<TResource extends WordPressPostLike>(
   };
 
   return {
-    list: async (filter = {}, options) => resource.listWithValidation(filter, options) as Promise<TResource[]>,
-    listAll: async (filter = {}, options) => resource.listAllWithValidation(
-      filter as Omit<QueryParams & PaginationParams, 'page'>,
-      options,
-    ) as Promise<TResource[]>,
-    listPaginated: async (filter = {}, options) => resource.listPaginatedWithValidation(
+    list: (filter = {}, options) => new ListRelationQueryBuilder(
+      resource.getRelationClient(),
       filter as QueryParams & PaginationParams,
+      (f, opts) => resource.listWithValidation(f, opts) as Promise<TResource[]>,
       options,
-    ) as Promise<PaginatedResponse<TResource>>,
-    getById: async (id, options) => resource.getWithValidation(id, options) as Promise<TResource>,
-    getBySlug: async (slug, options) => resource.getBySlugWithValidation(slug, options) as Promise<TResource | undefined>,
+    ),
+    listAll: (filter = {}, options) => new ListAllRelationQueryBuilder(
+      resource.getRelationClient(),
+      filter as Omit<QueryParams & PaginationParams, 'page'>,
+      (f, opts) => resource.listAllWithValidation(f, opts) as Promise<TResource[]>,
+      options,
+    ),
+    listPaginated: (filter = {}, options) => new PaginatedListRelationQueryBuilder(
+      resource.getRelationClient(),
+      filter as QueryParams & PaginationParams,
+      (f, opts) => resource.listPaginatedWithValidation(f, opts) as Promise<PaginatedResponse<TResource>>,
+      options,
+    ),
     item: (idOrSlug, options) => createRelationQuery(idOrSlug, options, []),
-    getWithRelations: async <TRelations extends readonly AllPostRelations[]>(
-      idOrSlug: number | string,
-      ...relations: TRelations
-    ): Promise<ContentItemResult<TResource, TRelations>> => {
-      const query = createRelationQuery(idOrSlug, undefined, relations);
-      return query.get() as Promise<ContentItemResult<TResource, TRelations>>;
-    },
     create: <TResponse = TResource>(
       input: WordPressWritePayload,
       responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,

@@ -99,7 +99,7 @@ const createdBook = await books.create({
 });
 ```
 
-The same schema-backed resource client also validates `list()`, `getBySlug()`, `item(...).with(...)`, and `getWithRelations(...)` for that custom post type.
+The same schema-backed resource client also validates `list()`, `item()`, and `item(...).with(...)` for that custom post type.
 
 ## Example: sparse CPT validation with built-in schemas
 
@@ -111,11 +111,11 @@ const wp = new WordPressClient({
 });
 
 const artifacts = wp.content('artifacts', postLikeWordPressSchema);
-const artifact = await artifacts.getBySlug('test-artifact-001');
+const artifact = await artifacts.item('test-artifact-001');
 
 // Strict content-bearing schemas fail fast when the endpoint omits content fields.
 const strictArtifacts = wp.content('artifacts', contentWordPressSchema);
-await strictArtifacts.getBySlug('test-artifact-001'); // throws
+await strictArtifacts.item('test-artifact-001'); // throws
 ```
 
 ## Example: Astro `defineAction()` input

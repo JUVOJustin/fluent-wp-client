@@ -26,9 +26,17 @@ export interface BaseContentFilter extends PaginationParams {
 }
 
 /**
+ * Shared content filter fields for endpoints that support WordPress `_embed`.
+ */
+export interface EmbeddableContentFilter extends BaseContentFilter {
+  /** Opts into WordPress `_embed` for content reads. Disabled by default. */
+  embed?: boolean;
+}
+
+/**
  * Filter options for posts.
  */
-export interface PostsFilter extends BaseContentFilter {
+export interface PostsFilter extends EmbeddableContentFilter {
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   categories?: IncludeExcludeParam;
   categoriesExclude?: IncludeExcludeParam;
@@ -42,7 +50,7 @@ export interface PostsFilter extends BaseContentFilter {
 /**
  * Filter options for pages.
  */
-export interface PagesFilter extends BaseContentFilter {
+export interface PagesFilter extends EmbeddableContentFilter {
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   parent?: number;
   parentExclude?: IncludeExcludeParam;

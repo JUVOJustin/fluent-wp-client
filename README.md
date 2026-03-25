@@ -36,6 +36,7 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 - **Unified typed content builders** — `content('posts')`, `content('pages')`, `content('books')`, and `terms('genre')` share one API shape, with stricter typing for built-in resources
 - **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
 - **Extensible collection filters** — built-in list helpers and generic resource builders accept typed core filters plus extra endpoint-specific query params
+- **Lean embedded payloads** — post-like DTO reads skip `_embed` by default, while relation hydration turns it on automatically when `.with(...)` is used
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
 - **Gutenberg block parsing** — single-item queries expose `.getBlocks()` and `.getContent()`
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
@@ -61,6 +62,18 @@ const books = await wp.content('books').list({
 ```
 
 Array params are serialized as repeated `param[]` entries instead of comma-joined strings.
+
+## Embedded data
+
+Post-like DTO reads stay lean by default. Pass `embed: true` on collection filters when you need raw `_embedded` data, and use relation queries when you want the client to hydrate related entities automatically.
+
+```ts
+const embeddedPosts = await wp.content('posts').list({ perPage: 10, embed: true });
+
+const hydratedPost = await wp.content('posts')
+  .item('hello-world')
+  .with('author', 'terms');
+```
 
 ## Auth examples
 

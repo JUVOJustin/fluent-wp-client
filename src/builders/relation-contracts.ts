@@ -135,8 +135,7 @@ export const customRelationRegistry = new CustomRelationRegistry();
  */
 export interface PostRelationClient {
   content: <TContent extends WordPressPostLike = WordPressContent>(resource: string) => {
-    getById: (id: number, options?: WordPressRequestOverrides) => Promise<TContent>;
-    getBySlug: (slug: string, options?: WordPressRequestOverrides) => Promise<TContent | undefined>;
+    item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => PromiseLike<TContent | undefined>;
   };
   request?: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
   getUser: (id: number) => Promise<WordPressAuthor>;
@@ -144,7 +143,7 @@ export interface PostRelationClient {
   getMediaItem: (id: number) => Promise<WordPressMedia>;
   terms: <TTerm = WordPressCategory>(resource: string) => {
     list: (filter?: QueryParams, options?: WordPressRequestOverrides) => Promise<TTerm[]>;
-    getById: (id: number, options?: WordPressRequestOverrides) => Promise<TTerm>;
+    item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => Promise<TTerm | undefined>;
   };
 }
 
@@ -374,7 +373,7 @@ export function toRelatedTermReference(term: WordPressCategory): RelatedTermRefe
  */
 interface ClientReferenceResolverConfig<TItem, TReference extends { id: number }> {
   batchFetch?: (ids: number[]) => Promise<TItem[]>;
-  singleFetch: (id: number) => PromiseLike<TItem>;
+  singleFetch: (id: number) => PromiseLike<TItem | null | undefined>;
   toReference: (item: TItem) => TReference;
 }
 
@@ -389,7 +388,7 @@ abstract class BaseReferenceResolver<TItem, TReference extends { id: number }> {
   /**
    * Fetches one item by numeric ID.
    */
-  protected abstract fetchOne(id: number): PromiseLike<TItem>;
+  protected abstract fetchOne(id: number): PromiseLike<TItem | null | undefined>;
 
   /**
    * Fetches many items in one request when supported.
@@ -440,7 +439,7 @@ abstract class BaseReferenceResolver<TItem, TReference extends { id: number }> {
     const references: TReference[] = [];
 
     for (const result of settled) {
-      if (result.status === 'fulfilled') {
+      if (result.status === 'fulfilled' && result.value != null) {
         references.push(this.toReference(result.value));
       }
     }
@@ -458,6 +457,9 @@ abstract class BaseReferenceResolver<TItem, TReference extends { id: number }> {
 
     try {
       const item = await this.fetchOne(id);
+      if (item == null) {
+        return null;
+      }
       return this.toReference(item);
     } catch {
       return null;
@@ -474,7 +476,7 @@ class ClientReferenceResolver<TItem, TReference extends { id: number }>
     super(config.toReference);
   }
 
-  protected override fetchOne(id: number): PromiseLike<TItem> {
+  protected override fetchOne(id: number): PromiseLike<TItem | null | undefined> {
     return this.config.singleFetch(id);
   }
 
@@ -496,7 +498,7 @@ function createPostReferenceResolver(
   const posts = client.content<WordPressPost>('posts');
 
   return new ClientReferenceResolver<WordPressPost, RelatedPostReference>({
-    singleFetch: (id) => posts.getById(id),
+    singleFetch: (id) => posts.item(id).then(post => post ?? null),
     toReference: toRelatedPostReference,
   });
 }
@@ -511,7 +513,7 @@ function createContentReferenceResolver(
   const resourceClient = client.content<WordPressContent>(resource);
 
   return new ClientReferenceResolver<WordPressContent, RelatedContentReference>({
-    singleFetch: (id) => resourceClient.getById(id),
+    singleFetch: (id) => resourceClient.item(id).then(post => post ?? null),
     toReference: toRelatedContentReference,
   });
 }
@@ -527,7 +529,7 @@ function createTermReferenceResolver(
 
   return new ClientReferenceResolver<WordPressCategory, RelatedTermReference>({
     batchFetch: (requestedIds) => resourceClient.list({ include: requestedIds }),
-    singleFetch: (id) => resourceClient.getById(id),
+    singleFetch: (id) => resourceClient.item(id),
     toReference: toRelatedTermReference,
   });
 }

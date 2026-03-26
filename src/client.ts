@@ -118,6 +118,7 @@ export class WordPressClient {
       cookies: config.cookies,
       credentials: config.credentials,
       fetch: config.fetch,
+      onRequest: config.onRequest,
     });
 
     // Create runtime interface

@@ -11,6 +11,7 @@ import {
   type WordPressAuthInput,
 } from '../auth.js';
 import type { WordPressRequestOptions, WordPressRequestResult, WordPressMediaUploadInput } from '../types/client.js';
+import type { WordPressRequestCallback } from '../types/client.js';
 import type { WordPressRequestOverrides, FetchResult } from '../types/resources.js';
 import { throwIfWordPressError } from './errors.js';
 import { applyRequestOverrides } from './request-overrides.js';
@@ -25,6 +26,10 @@ export interface WordPressTransportConfig {
   cookies?: string;
   credentials?: RequestCredentials;
   fetch?: typeof fetch;
+  /**
+   * Callback invoked before each HTTP request for rate limiting or custom logic.
+   */
+  onRequest?: WordPressRequestCallback;
 }
 
 /**
@@ -47,6 +52,7 @@ export class WordPressTransport {
   private readonly defaultHeaders: Record<string, string>;
   private readonly requestCredentials: RequestCredentials | undefined;
   private readonly fetcher: typeof fetch | undefined;
+  private readonly onRequest: WordPressRequestCallback | undefined;
 
   constructor(config: WordPressTransportConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
@@ -58,6 +64,7 @@ export class WordPressTransport {
     this.requestCredentials = config.credentials;
     this.fetcher = config.fetch;
     this.apiBase = `${this.baseUrl}/wp-json/wp/v2`;
+    this.onRequest = config.onRequest;
   }
 
   /**
@@ -300,6 +307,11 @@ export class WordPressTransport {
       throw new TypeError(
         'No fetch implementation found. Provide a custom `fetch` via WordPressClientConfig or ensure `globalThis.fetch` is available.',
       );
+    }
+
+    // Invoke rate limiter / custom callback before making the request
+    if (this.onRequest) {
+      await this.onRequest(url.toString(), requestInit);
     }
 
     const response = typeof this.fetcher === 'function'

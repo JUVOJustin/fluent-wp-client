@@ -4,6 +4,7 @@ import type {
   QueryParams,
   WordPressRequestOverrides,
 } from '../types/resources.js';
+import type { ListAllOptions } from '../core/pagination.js';
 import type { WordPressPostLike } from '../schemas.js';
 import type { PostRelationClient } from './relation-contracts.js';
 import type { AllPostRelations } from './item-relation-resolver.js';
@@ -251,9 +252,11 @@ export class ListAllRelationQueryBuilder<
     private readonly fetchListAll: (
       filter: Omit<QueryParams & PaginationParams, 'page'>,
       options?: WordPressRequestOverrides,
+      listOptions?: ListAllOptions,
     ) => Promise<TContent[]>,
     private readonly requestOptions: WordPressRequestOverrides | undefined,
     relations: readonly AllPostRelations[] = [],
+    private readonly listOptions?: ListAllOptions,
   ) {
     super(client, relations);
   }
@@ -276,6 +279,7 @@ export class ListAllRelationQueryBuilder<
       this.fetchListAll,
       this.requestOptions,
       Array.from(nextRelations),
+      this.listOptions,
     );
   }
 
@@ -288,7 +292,7 @@ export class ListAllRelationQueryBuilder<
         this.filter as Record<string, unknown>,
         this.relationSet.size > 0,
       ) as Omit<QueryParams & PaginationParams, 'page'>;
-      this.listPromise = this.fetchListAll(filterWithEmbed, this.requestOptions);
+      this.listPromise = this.fetchListAll(filterWithEmbed, this.requestOptions, this.listOptions);
     }
 
     return this.listPromise;

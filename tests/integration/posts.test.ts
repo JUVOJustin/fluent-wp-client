@@ -267,6 +267,9 @@ describe('Client: Posts', () => {
         order: 'desc',
       });
 
+      // Verify we got all 150 posts
+      expect(postsDesc).toHaveLength(150);
+
       // Verify descending order - each ID should be less than the previous
       for (let i = 1; i < postsDesc.length; i++) {
         expect(postsDesc[i]!.id).toBeLessThan(postsDesc[i - 1]!.id);

@@ -48,6 +48,35 @@ function createDiscoveryCache(): DiscoveryCache {
 }
 
 /**
+ * Default concurrency cap for parallel discovery requests.
+ * Limits simultaneous OPTIONS/schema requests to avoid overwhelming large installs.
+ */
+const DISCOVERY_CONCURRENCY = 5;
+
+/**
+ * Runs an array of async factories in parallel with a configurable concurrency cap.
+ * Results preserve the original order regardless of completion order.
+ */
+async function runWithConcurrency<T>(
+  factories: Array<() => Promise<T>>,
+  concurrency: number = DISCOVERY_CONCURRENCY,
+): Promise<T[]> {
+  const results: T[] = new Array(factories.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < factories.length) {
+      const index = nextIndex++;
+      results[index] = await factories[index]!();
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, factories.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * Omits undefined properties so discovery DTOs survive JSON round-tripping.
  */
 function compactOptionalProperties<T extends object>(value: T): T {
@@ -442,10 +471,10 @@ async function discoverAllContent(
   try {
     const types = await runtime.fetchAPI<WordPressTypesResponse>('/wp-json/wp/v2/types', undefined, options);
 
-    // Prepare discovery promises for all content types in parallel
-    const discoveryPromises = Object.entries(types)
+    // Prepare discovery factories for all content types; run with concurrency cap
+    const discoveryFactories = Object.entries(types)
       .filter(([, info]) => info.rest_base)
-      .map(async ([, info]) => {
+      .map(([, info]) => async () => {
         try {
           const description = await discoverContentResourceFromTypeInfo(
             runtime,
@@ -467,8 +496,7 @@ async function discoverAllContent(
         }
       });
 
-    // Execute all discoveries in parallel
-    const results = await Promise.all(discoveryPromises);
+    const results = await runWithConcurrency(discoveryFactories);
 
     // Process results
     for (const result of results) {
@@ -507,10 +535,10 @@ async function discoverAllTerms(
   try {
     const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>('/wp-json/wp/v2/taxonomies', undefined, options);
 
-    // Prepare discovery promises for all taxonomies in parallel
-    const discoveryPromises = Object.entries(taxonomies)
+    // Prepare discovery factories for all taxonomies; run with concurrency cap
+    const discoveryFactories = Object.entries(taxonomies)
       .filter(([, info]) => info.rest_base)
-      .map(async ([, info]) => {
+      .map(([, info]) => async () => {
         try {
           const description = await discoverTermResourceFromTypeInfo(
             runtime,
@@ -532,8 +560,7 @@ async function discoverAllTerms(
         }
       });
 
-    // Execute all discoveries in parallel
-    const results = await Promise.all(discoveryPromises);
+    const results = await runWithConcurrency(discoveryFactories);
 
     // Process results
     for (const result of results) {
@@ -576,8 +603,8 @@ async function discoverFirstClassResources(
     { resource: 'settings', restBase: 'settings' },
   ];
 
-  // Execute all discoveries in parallel
-  const discoveryPromises = firstClassEndpoints.map(async ({ resource, restBase }) => {
+  // Execute discoveries with concurrency cap (first-class resources are few, but consistent with other sites)
+  const discoveryFactories = firstClassEndpoints.map(({ resource, restBase }) => async () => {
     try {
       const description = await discoverFirstClassResource(
         runtime,
@@ -595,7 +622,7 @@ async function discoverFirstClassResources(
     }
   });
 
-  const results = await Promise.all(discoveryPromises);
+  const results = await runWithConcurrency(discoveryFactories);
 
   // Process results
   for (const result of results) {
@@ -634,8 +661,8 @@ async function discoverAllAbilities(
       options,
     );
 
-    // Execute all ability discoveries in parallel
-    const discoveryPromises = abilityList.map(async (ability) => {
+    // Execute ability discoveries with concurrency cap
+    const discoveryFactories = abilityList.map((ability) => async () => {
       try {
         const description = await discoverAbility(
           runtime,
@@ -652,7 +679,7 @@ async function discoverAllAbilities(
       }
     });
 
-    const results = await Promise.all(discoveryPromises);
+    const results = await runWithConcurrency(discoveryFactories);
 
     // Process results
     for (const result of results) {

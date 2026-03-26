@@ -303,15 +303,15 @@ export class WordPressTransport {
       credentials,
     };
 
-    // Invoke rate limiter / custom callback before making the request
-    if (this.onRequest) {
-      await this.onRequest(url.toString(), requestInit);
-    }
-
     if (typeof this.fetcher !== 'function' && typeof globalThis.fetch !== 'function') {
       throw new TypeError(
         'No fetch implementation found. Provide a custom `fetch` via WordPressClientConfig or ensure `globalThis.fetch` is available.',
       );
+    }
+
+    // Invoke rate limiter / custom callback before making the request
+    if (this.onRequest) {
+      await this.onRequest(url.toString(), requestInit);
     }
 
     const response = typeof this.fetcher === 'function'

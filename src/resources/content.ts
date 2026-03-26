@@ -215,11 +215,13 @@ export function createContentClient<TResource extends WordPressPostLike>(
       (f, opts) => resource.listWithValidation(f, opts) as Promise<TResource[]>,
       options,
     ),
-    listAll: (filter = {}, options) => new ListAllRelationQueryBuilder(
+    listAll: (filter = {}, options, listOptions) => new ListAllRelationQueryBuilder(
       resource.getRelationClient(),
       filter as Omit<QueryParams & PaginationParams, 'page'>,
-      (f, opts) => resource.listAllWithValidation(f, opts) as Promise<TResource[]>,
+      (f, opts, lo) => resource.listAllWithValidation(f, opts, lo) as Promise<TResource[]>,
       options,
+      [],
+      listOptions,
     ),
     listPaginated: (filter = {}, options) => new PaginatedListRelationQueryBuilder(
       resource.getRelationClient(),

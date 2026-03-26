@@ -62,10 +62,12 @@ const wp = new WordPressClient({
     await new Promise(resolve => setTimeout(resolve, 100));
   },
 });
+```
 
+```ts
 // Token bucket rate limiter
 const rateLimiter = new TokenBucketLimiter({ tokensPerSecond: 10, maxTokens: 20 });
-const wp = new WordPressClient({
+const wpWithRateLimit = new WordPressClient({
   baseUrl: 'https://example.com',
   onRequest: async (url, init) => {
     await rateLimiter.acquireToken();

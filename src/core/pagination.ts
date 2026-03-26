@@ -44,7 +44,8 @@ export class WordPressPaginator<TFilter extends PaginationParams, TItem> {
     options?: ListAllOptions,
   ): Promise<TItem[]> => {
     const perPage = (filter as PaginationParams).perPage ?? this.defaultPerPage;
-    const concurrency = options?.concurrency ?? 5;
+    const rawConcurrency = options?.concurrency ?? 5;
+    const concurrency = Math.max(1, Math.floor(Number.isFinite(rawConcurrency) ? rawConcurrency : 5));
 
     // Fetch first page to get total count
     const firstPage = await this.options.fetchPage({ ...filter, page: 1, perPage } as TFilter, context);

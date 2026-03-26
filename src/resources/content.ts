@@ -158,7 +158,7 @@ export class GenericContentResource<
    */
   itemQuery<TRelations extends readonly AllPostRelations[]>(
     idOrSlug: number | string,
-    options: (WordPressRequestOverrides & { embed?: boolean }) | undefined,
+    options: (WordPressRequestOverrides & { embed?: boolean; fields?: string[] }) | undefined,
     relations: TRelations,
     finalizeContent?: (content: TContent) => PromiseLike<TContent>,
   ): PostRelationQueryBuilder<TRelations, TContent> {
@@ -172,8 +172,8 @@ export class GenericContentResource<
       relations,
       finalizeContent,
       {
-        getEditById: (id) => this.fetchContentById(id, options, 'edit'),
-        getEditBySlug: (slug) => this.fetchContentBySlug(slug, options, 'edit'),
+        getEditById: (id, editFields) => this.fetchContentById(id, options, 'edit', false, editFields),
+        getEditBySlug: (slug, editFields) => this.fetchContentBySlug(slug, options, 'edit', false, editFields),
         missingRawMessage: this.missingRawMessage,
         defaultBlockParser: this.defaultBlockParser,
         userRequestedEmbed,
@@ -192,7 +192,7 @@ export function createContentClient<TResource extends WordPressPostLike>(
 ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
   const createRelationQuery = <TRelations extends readonly AllPostRelations[]>(
     idOrSlug: number | string,
-    options: (WordPressRequestOverrides & { embed?: boolean }) | undefined,
+    options: (WordPressRequestOverrides & { embed?: boolean; fields?: string[] }) | undefined,
     relations: TRelations,
   ): PostRelationQueryBuilder<TRelations, TResource> => resource.itemQuery(
     idOrSlug,

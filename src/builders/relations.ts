@@ -127,8 +127,8 @@ export class PostRelationQueryBuilder<
   TContent extends WordPressPostLike = WordPressPost,
 > extends ExecutableQuery<ContentItemResult<TContent, TRelations> | undefined> {
   private readonly relationSet: Set<AllPostRelations>;
-  private readonly getEditById?: (id: number) => PromiseLike<TContent>;
-  private readonly getEditBySlug?: (slug: string) => PromiseLike<TContent | undefined>;
+  private readonly getEditById?: (id: number, fields?: string[]) => PromiseLike<TContent>;
+  private readonly getEditBySlug?: (slug: string, fields?: string[]) => PromiseLike<TContent | undefined>;
   private readonly missingRawMessage: string;
   private readonly defaultBlockParser?: WordPressBlockParser;
   private readonly userRequestedEmbed: boolean;
@@ -144,8 +144,8 @@ export class PostRelationQueryBuilder<
     relations: readonly AllPostRelations[] = [],
     private readonly finalizeContent?: (content: TContent) => PromiseLike<TContent>,
     options: {
-      getEditById?: (id: number) => PromiseLike<TContent>;
-      getEditBySlug?: (slug: string) => PromiseLike<TContent | undefined>;
+      getEditById?: (id: number, fields?: string[]) => PromiseLike<TContent>;
+      getEditBySlug?: (slug: string, fields?: string[]) => PromiseLike<TContent | undefined>;
       missingRawMessage?: string;
       defaultBlockParser?: WordPressBlockParser;
       userRequestedEmbed?: boolean;
@@ -192,14 +192,15 @@ export class PostRelationQueryBuilder<
 
   /**
    * Loads the selected item in edit context when raw content helpers need it.
+   * Always requests the 'content' field to ensure getContent() and getBlocks() work.
    */
   private async loadEditablePostOnce(): Promise<TContent | undefined> {
     if (typeof this.selector.id === 'number' && this.getEditById) {
-      return this.getEditById(this.selector.id);
+      return this.getEditById(this.selector.id, ['content']);
     }
 
     if (typeof this.selector.slug === 'string' && this.getEditBySlug) {
-      return this.getEditBySlug(this.selector.slug);
+      return this.getEditBySlug(this.selector.slug, ['content']);
     }
 
     return undefined;

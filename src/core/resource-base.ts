@@ -280,9 +280,10 @@ export abstract class BasePostLikeResource<
     options?: WordPressRequestOverrides,
     context?: 'edit',
     embed = false,
+    fields?: string[],
   ): Promise<TContent> {
     const params = filterToParams(
-      resolveEmbedQueryParams(context ? { context, embed } : { embed }),
+      resolveEmbedQueryParams(context ? { context, embed, fields } : { embed, fields }),
       { applyPerPageDefault: false },
     );
 
@@ -301,9 +302,10 @@ export abstract class BasePostLikeResource<
     options?: WordPressRequestOverrides,
     context?: 'edit',
     embed = false,
+    fields?: string[],
   ): Promise<TContent | undefined> {
     const params = filterToParams(
-      resolveEmbedQueryParams(context ? { slug, context, embed } : { slug, embed }),
+      resolveEmbedQueryParams(context ? { slug, context, embed, fields } : { slug, embed, fields }),
       { applyPerPageDefault: false },
     );
 

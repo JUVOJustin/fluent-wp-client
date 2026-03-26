@@ -21,10 +21,14 @@ desc.schemas.create     // accepted fields for create
 desc.schemas.update     // accepted fields for update (no required fields)
 ```
 
-Works the same for terms and abilities:
+Works the same for terms, first-class resources, and abilities:
 
 ```ts
 await wp.terms('categories').describe();
+await wp.media().describe();
+await wp.users().describe();
+await wp.comments().describe();
+await wp.settings().describe();
 await wp.ability('my-plugin/send-notification').describe();
 ```
 
@@ -91,6 +95,9 @@ const wp = new WordPressClient({
   baseUrl: 'https://example.com',
   auth: { username: 'admin', password: process.env.WP_APP_PASSWORD },
 });
+
+const usersSchema = await wp.users().describe();
+const settingsSchema = await wp.settings().describe();
 ```
 
 ## Exported types

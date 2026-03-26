@@ -83,7 +83,7 @@ describe('Client: Auth CRUD', () => {
 
   describe('cookie + nonce auth (same-domain frontend)', () => {
     it('identifies the authenticated user', async () => {
-      const me = await cookieClient.getCurrentUser();
+      const me = await cookieClient.users().me();
 
       expect(me.slug).toBe('admin');
     });
@@ -149,7 +149,7 @@ describe('Client: Auth CRUD', () => {
     });
 
     it('identifies the authenticated user', async () => {
-      const me = await browserClient.getCurrentUser();
+      const me = await browserClient.users().me();
 
       expect(me.slug).toBe('admin');
     });

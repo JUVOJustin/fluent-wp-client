@@ -1,4 +1,4 @@
-import type { DeleteOptions, WordPressWritePayload } from './payloads.js';
+import type { DeleteOptions, UserDeleteOptions, WordPressWritePayload } from './payloads.js';
 import type {
   AllPostRelations,
   ContentItemResult,
@@ -9,9 +9,17 @@ import type {
   ListAllRelationQueryBuilder,
   PaginatedListRelationQueryBuilder,
 } from '../builders/list-relations.js';
-import type { WordPressPostLike } from '../schemas.js';
+import type { ResourceItemQueryBuilder } from '../builders/resource-item-relations.js';
+import type {
+  WordPressAuthor,
+  WordPressComment,
+  WordPressMedia,
+  WordPressPostLike,
+  WordPressSettings,
+} from '../schemas.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
 import type { WordPressResourceDescription } from './discovery.js';
+import type { WordPressMediaUploadInput } from './client.js';
 
 /**
  * Per-request transport overrides supported by high-level helper methods.
@@ -91,6 +99,27 @@ export interface WordPressDeleteResult {
   previous?: unknown;
 }
 
+export type MediaRelation = 'author' | 'post';
+export type AllMediaRelations = MediaRelation | string;
+
+export type CommentRelation = 'author' | 'post' | 'parent';
+export type AllCommentRelations = CommentRelation | string;
+
+export type UserRelation = string;
+
+type MediaRelationMap = Record<string, unknown> & {
+  author: WordPressAuthor | null;
+  post: WordPressPostLike | null;
+};
+
+type CommentRelationMap = Record<string, unknown> & {
+  author: WordPressAuthor | null;
+  post: WordPressPostLike | null;
+  parent: WordPressComment | null;
+};
+
+type UserRelationMap = Record<string, unknown>;
+
 /**
  * Shared post-like resource API surface for built-in and custom content.
  */
@@ -152,5 +181,117 @@ export interface TermsResourceClient<
    * Returns a JSON Schema descriptor for this term resource.
    * @param options Optional request overrides
    */
+  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+}
+
+/**
+ * Fluent media resource API surface with schema discovery and binary uploads.
+ */
+export interface MediaResourceClient<
+  TResource extends WordPressMedia = WordPressMedia,
+  TFilter extends QueryParams & PaginationParams = QueryParams & PaginationParams,
+  TCreate extends WordPressWritePayload = WordPressWritePayload,
+  TUpdate extends WordPressWritePayload = TCreate,
+> {
+  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
+  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides) => Promise<TResource[]>;
+  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
+  item: {
+    (id: number, options?: WordPressRequestOverrides): ResourceItemQueryBuilder<TResource, MediaRelationMap, AllMediaRelations>;
+    (slug: string, options?: WordPressRequestOverrides): ResourceItemQueryBuilder<TResource, MediaRelationMap, AllMediaRelations>;
+  };
+  create: <TResponse = TResource>(
+    input: TCreate,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ) => Promise<TResponse>;
+  upload: <TResponse = TResource>(
+    input: WordPressMediaUploadInput,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ) => Promise<TResponse>;
+  update: <TResponse = TResource>(
+    id: number,
+    input: TUpdate,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ) => Promise<TResponse>;
+  delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
+  getImageUrl: (media: TResource, size?: string) => string;
+  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+}
+
+/**
+ * Fluent comments resource API surface with schema discovery.
+ */
+export interface CommentsResourceClient<
+  TResource extends WordPressComment = WordPressComment,
+  TFilter extends QueryParams & PaginationParams = QueryParams & PaginationParams,
+  TCreate extends WordPressWritePayload = WordPressWritePayload,
+  TUpdate extends WordPressWritePayload = TCreate,
+> {
+  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
+  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides) => Promise<TResource[]>;
+  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
+  item: (id: number, options?: WordPressRequestOverrides) => ResourceItemQueryBuilder<TResource, CommentRelationMap, AllCommentRelations>;
+  create: <TResponse = TResource>(
+    input: TCreate,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ) => Promise<TResponse>;
+  update: <TResponse = TResource>(
+    id: number,
+    input: TUpdate,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ) => Promise<TResponse>;
+  delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
+  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+}
+
+/**
+ * Fluent users resource API surface with schema discovery and `/me` support.
+ */
+export interface UsersResourceClient<
+  TResource extends WordPressAuthor = WordPressAuthor,
+  TFilter extends QueryParams & PaginationParams = QueryParams & PaginationParams,
+  TCreate extends WordPressWritePayload = WordPressWritePayload,
+  TUpdate extends WordPressWritePayload = TCreate,
+> {
+  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
+  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides) => Promise<TResource[]>;
+  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
+  item: {
+    (id: number, options?: WordPressRequestOverrides): ResourceItemQueryBuilder<TResource, UserRelationMap, UserRelation>;
+    (slug: string, options?: WordPressRequestOverrides): ResourceItemQueryBuilder<TResource, UserRelationMap, UserRelation>;
+  };
+  me: (options?: WordPressRequestOverrides) => Promise<TResource>;
+  create: <TResponse = TResource>(
+    input: TCreate,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ) => Promise<TResponse>;
+  update: <TResponse = TResource>(
+    id: number,
+    input: TUpdate,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ) => Promise<TResponse>;
+  delete: (id: number, options?: UserDeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
+  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+}
+
+/**
+ * Fluent settings singleton API surface with schema discovery.
+ */
+export interface SettingsResourceClient<
+  TResource extends WordPressSettings = WordPressSettings,
+> {
+  get: (options?: WordPressRequestOverrides) => Promise<TResource>;
+  update: <TResponse = TResource>(
+    input: Partial<WordPressSettings> & Record<string, unknown>,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ) => Promise<TResponse>;
   describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
 }

@@ -441,7 +441,8 @@ const featuredAuthor: CustomRelationConfig<{ id: number; name: string } | null> 
       const authorId = (post as any).meta?.featured_author_id;
       if (!authorId) return null;
       try {
-        const author = await client.getUser(authorId);
+        const author = await client.users().item(authorId);
+        if (!author) return null;
         return { id: author.id, name: author.name };
       } catch {
         return null;

@@ -4,7 +4,6 @@ import {
 } from './abilities.js';
 import type {
   WordPressClientConfig,
-  WordPressMediaUploadInput,
   WordPressRequestOptions,
   WordPressRequestResult,
 } from './types/client.js';
@@ -18,13 +17,11 @@ import type { WordPressRequestOverrides } from './types/resources.js';
 import type {
   WordPressDiscoveryCatalog,
   WordPressDiscoveryOptions,
-  WordPressResourceDescription,
-  WordPressAbilityDescription,
 } from './types/discovery.js';
-import { MediaResource } from './resources/media.js';
-import { UsersResource } from './resources/users.js';
-import { SettingsResource } from './resources/settings.js';
-import { CommentsResource } from './resources/comments.js';
+import { MediaResource, createMediaClient } from './resources/media.js';
+import { UsersResource, createUsersClient } from './resources/users.js';
+import { SettingsResource, createSettingsClient } from './resources/settings.js';
+import { CommentsResource, createCommentsClient } from './resources/comments.js';
 import { GenericResourceRegistry } from './resources/registry.js';
 import {
   createDiscoveryMethods,
@@ -57,15 +54,18 @@ import type {
 } from './types/filters.js';
 import type {
   ContentResourceClient,
+  CommentsResourceClient,
   ExtensibleFilter,
-  PaginatedResponse,
+  MediaResourceClient,
   QueryParams,
   TermsResourceClient,
   PaginationParams,
-  WordPressDeleteResult,
+  SettingsResourceClient,
+  UsersResourceClient,
 } from './types/resources.js';
 import type { WordPressStandardSchema } from './core/validation.js';
-import type { DeleteOptions, WordPressWritePayload, TermWriteInput, UserWriteInput, UserDeleteOptions } from './types/payloads.js';
+import type { PostRelationClient } from './builders/relations.js';
+import type { TermWriteInput, UserWriteInput, WordPressWritePayload } from './types/payloads.js';
 
 /**
  * Runtime-agnostic WordPress API client with typed resources and CRUD helpers.
@@ -129,10 +129,20 @@ export class WordPressClient {
     this.settingsResource = SettingsResource.create(this.runtime);
     this.commentsResource = CommentsResource.create(this.runtime);
     this.discoveryMethods = createDiscoveryMethods(this.runtime);
+
+    const relationClient: PostRelationClient = {
+      content: this.content.bind(this),
+      request: this.request.bind(this),
+      users: () => this.users(),
+      media: () => this.media(),
+      comments: () => this.comments(),
+      terms: this.terms.bind(this),
+    };
+
     this.genericResourcesRegistry = new GenericResourceRegistry({
       defaultBlockParser: config.blockParser,
       runtime: this.runtime,
-      relationClient: this,
+      relationClient,
       discoveryMethods: this.discoveryMethods,
     });
     this.abilityMethods = createAbilityMethods({
@@ -171,124 +181,54 @@ export class WordPressClient {
     return this.runtime.request(options);
   }
 
-  // ============= MEDIA API =============
+  // ============= FIRST-CLASS RESOURCE API =============
 
-  getMedia(filter?: ExtensibleFilter<MediaFilter>, options?: WordPressRequestOverrides): Promise<WordPressMedia[]> {
-    return this.mediaResource.getMedia(filter, options);
+  media(): MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload>;
+  media<TResource extends WordPressMedia>(
+    responseSchema: WordPressStandardSchema<TResource>,
+  ): MediaResourceClient<TResource, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload>;
+  media<TResource extends WordPressMedia = WordPressMedia>(
+    responseSchema?: WordPressStandardSchema<TResource>,
+  ): MediaResourceClient<TResource, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload> {
+    return createMediaClient(this.mediaResource, this as unknown as PostRelationClient, responseSchema, (options) =>
+      this.discoveryMethods.describeResource('media', options),
+    );
   }
 
-  getAllMedia(filter?: Omit<ExtensibleFilter<MediaFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressMedia[]> {
-    return this.mediaResource.getAllMedia(filter, options);
+  comments(): CommentsResourceClient<WordPressComment, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload>;
+  comments<TResource extends WordPressComment>(
+    responseSchema: WordPressStandardSchema<TResource>,
+  ): CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload>;
+  comments<TResource extends WordPressComment = WordPressComment>(
+    responseSchema?: WordPressStandardSchema<TResource>,
+  ): CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
+    return createCommentsClient(this.commentsResource, this as unknown as PostRelationClient, responseSchema, (options) =>
+      this.discoveryMethods.describeResource('comments', options),
+    );
   }
 
-  getMediaPaginated(filter?: ExtensibleFilter<MediaFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressMedia>> {
-    return this.mediaResource.getMediaPaginated(filter, options);
+  users(): UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>;
+  users<TResource extends WordPressAuthor>(
+    responseSchema: WordPressStandardSchema<TResource>,
+  ): UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>;
+  users<TResource extends WordPressAuthor = WordPressAuthor>(
+    responseSchema?: WordPressStandardSchema<TResource>,
+  ): UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
+    return createUsersClient(this.usersResource, this as unknown as PostRelationClient, responseSchema, (options) =>
+      this.discoveryMethods.describeResource('users', options),
+    );
   }
 
-  getMediaItem(id: number, options?: WordPressRequestOverrides): Promise<WordPressMedia> {
-    return this.mediaResource.getMediaItem(id, options);
-  }
-
-  getMediaBySlug(slug: string, options?: WordPressRequestOverrides): Promise<WordPressMedia | undefined> {
-    return this.mediaResource.getMediaBySlug(slug, options);
-  }
-
-  getImageUrl(media: WordPressMedia, size?: string): string {
-    return this.mediaResource.getImageUrl(media, size);
-  }
-
-  createMedia(input: WordPressWritePayload, options?: WordPressRequestOverrides): Promise<WordPressMedia> {
-    return this.mediaResource.create(input, options);
-  }
-
-  uploadMedia(input: WordPressMediaUploadInput, options?: WordPressRequestOverrides): Promise<WordPressMedia> {
-    return this.mediaResource.upload(input, options);
-  }
-
-  updateMedia(id: number, input: WordPressWritePayload, options?: WordPressRequestOverrides): Promise<WordPressMedia> {
-    return this.mediaResource.update(id, input, options);
-  }
-
-  deleteMedia(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
-    return this.mediaResource.delete(id, options);
-  }
-
-  // ============= USERS API =============
-
-  getUsers(filter?: ExtensibleFilter<UsersFilter>, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> {
-    return this.usersResource.getUsers(filter, options);
-  }
-
-  getAllUsers(filter?: Omit<ExtensibleFilter<UsersFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> {
-    return this.usersResource.getAllUsers(filter, options);
-  }
-
-  getUsersPaginated(filter?: ExtensibleFilter<UsersFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressAuthor>> {
-    return this.usersResource.getUsersPaginated(filter, options);
-  }
-
-  getUser(id: number, options?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-    return this.usersResource.getUser(id, options);
-  }
-
-  getCurrentUser(options?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-    return this.usersResource.getCurrentUser(options);
-  }
-
-  createUser(input: UserWriteInput, options?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-    return this.usersResource.create(input, options);
-  }
-
-  updateUser(id: number, input: UserWriteInput, options?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-    return this.usersResource.update(id, input, options);
-  }
-
-  deleteUser(id: number, options?: WordPressRequestOverrides & UserDeleteOptions): Promise<WordPressDeleteResult> {
-    return this.usersResource.delete(id, options);
-  }
-
-  // ============= SETTINGS API =============
-
-  getSettings(options?: WordPressRequestOverrides): Promise<WordPressSettings> {
-    return this.settingsResource.getSettings(options);
-  }
-
-  updateSettings<TSettings = WordPressSettings>(
-    input: Partial<WordPressSettings> & Record<string, unknown>,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TSettings> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TSettings> {
-    return this.settingsResource.updateSettings(input, responseSchemaOrRequestOptions, requestOptions);
-  }
-
-  // ============= COMMENTS API =============
-
-  getComments(filter?: ExtensibleFilter<CommentsFilter>, options?: WordPressRequestOverrides): Promise<WordPressComment[]> {
-    return this.commentsResource.getComments(filter, options);
-  }
-
-  getAllComments(filter?: Omit<ExtensibleFilter<CommentsFilter>, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressComment[]> {
-    return this.commentsResource.getAllComments(filter, options);
-  }
-
-  getCommentsPaginated(filter?: ExtensibleFilter<CommentsFilter>, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressComment>> {
-    return this.commentsResource.getCommentsPaginated(filter, options);
-  }
-
-  getComment(id: number, options?: WordPressRequestOverrides): Promise<WordPressComment> {
-    return this.commentsResource.getComment(id, options);
-  }
-
-  createComment(input: WordPressWritePayload, options?: WordPressRequestOverrides): Promise<WordPressComment> {
-    return this.commentsResource.create(input, options);
-  }
-
-  updateComment(id: number, input: WordPressWritePayload, options?: WordPressRequestOverrides): Promise<WordPressComment> {
-    return this.commentsResource.update(id, input, options);
-  }
-
-  deleteComment(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult> {
-    return this.commentsResource.delete(id, options);
+  settings(): SettingsResourceClient<WordPressSettings>;
+  settings<TResource extends WordPressSettings>(
+    responseSchema: WordPressStandardSchema<TResource>,
+  ): SettingsResourceClient<TResource>;
+  settings<TResource extends WordPressSettings = WordPressSettings>(
+    responseSchema?: WordPressStandardSchema<TResource>,
+  ): SettingsResourceClient<TResource> {
+    return createSettingsClient(this.settingsResource, responseSchema, (options) =>
+      this.discoveryMethods.describeResource('settings', options),
+    );
   }
 
   // ============= GENERIC CONTENT API =============

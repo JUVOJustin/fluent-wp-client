@@ -1,10 +1,9 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { WordPressClient } from 'fluent-wp-client';
 import { createPublicClient, createAuthClient } from '../helpers/wp-client';
 
 /**
- * Settings endpoint requires authentication. Tests verify both
- * authenticated access and rejection of unauthenticated requests.
+ * Integration coverage for the fluent settings singleton client.
  */
 describe('Client: Settings', () => {
   let publicClient: WordPressClient;
@@ -15,8 +14,8 @@ describe('Client: Settings', () => {
     authClient = createAuthClient();
   });
 
-  it('getSettings returns site settings when authenticated', async () => {
-    const settings = await authClient.getSettings();
+  it('settings().get returns site settings when authenticated', async () => {
+    const settings = await authClient.settings().get();
 
     expect(settings).toHaveProperty('title');
     expect(settings).toHaveProperty('description');
@@ -27,7 +26,28 @@ describe('Client: Settings', () => {
     expect(typeof settings.posts_per_page).toBe('number');
   });
 
-  it('getSettings throws without auth', async () => {
-    await expect(publicClient.getSettings()).rejects.toThrow('Authentication required');
+  it('settings().describe returns schema metadata', async () => {
+    const description = await authClient.settings().describe();
+
+    expect(description.kind).toBe('resource');
+    expect(description.resource).toBe('settings');
+    expect(description.route).toBe('/wp-json/wp/v2/settings');
+    expect(description.schemas.item).toBeDefined();
+  });
+
+  it('settings().update updates and restores the site title', async () => {
+    const original = await authClient.settings().get();
+    const temporaryTitle = `Fluent WP Client Settings ${Date.now()}`;
+
+    try {
+      const updated = await authClient.settings().update({ title: temporaryTitle });
+      expect(updated.title).toBe(temporaryTitle);
+    } finally {
+      await authClient.settings().update({ title: original.title });
+    }
+  });
+
+  it('settings().get throws without auth', async () => {
+    await expect(publicClient.settings().get()).rejects.toThrow('Authentication required');
   });
 });

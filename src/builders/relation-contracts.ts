@@ -1,6 +1,7 @@
 import type {
   WordPressAuthor,
   WordPressCategory,
+  WordPressComment,
   WordPressContent,
   WordPressMedia,
   WordPressPost,
@@ -8,6 +9,16 @@ import type {
 } from '../schemas.js';
 import type { WordPressRequestOptions, WordPressRequestResult } from '../types/client.js';
 import type { QueryParams, WordPressRequestOverrides } from '../types/resources.js';
+
+/**
+ * Generic relation-capable WordPress DTO shape.
+ */
+export type WordPressRelationSource = {
+  id: number;
+  _embedded?: Record<string, unknown>;
+  _links?: Record<string, unknown>;
+  [key: string]: unknown;
+};
 
 /**
  * Base interface for extracting embedded data from any WordPress response.
@@ -20,33 +31,42 @@ export interface EmbeddedDataExtractor<T> {
 /**
  * Interface for resolving relations when embedded data is unavailable.
  */
-export interface RelationFallbackResolver<T> {
+export interface RelationFallbackResolver<
+  T,
+  TSource extends WordPressRelationSource = WordPressPostLike,
+> {
   resolve(
     client: PostRelationClient,
-    post: WordPressPostLike,
+    source: TSource,
   ): Promise<T>;
 }
 
 /**
  * Configuration for a custom relation type.
  */
-export interface CustomRelationConfig<T> {
+export interface CustomRelationConfig<
+  T,
+  TSource extends WordPressRelationSource = WordPressPostLike,
+> {
   name: string;
   embedParam?: string;
   embeddedKey: string;
   extractEmbedded: (embeddedData: unknown) => T | null;
-  fallbackResolver?: RelationFallbackResolver<T>;
+  fallbackResolver?: RelationFallbackResolver<T, TSource>;
   requiredFields?: string[];
 }
 
 /**
  * Options for collection relations backed by numeric reference IDs.
  */
-export interface IdCollectionRelationOptions<T> {
+export interface IdCollectionRelationOptions<
+  T,
+  TSource extends WordPressRelationSource = WordPressContent,
+> {
   name: string;
   embeddedKey: string;
   extractEmbeddedItem: (item: unknown) => T | null;
-  getIds: (post: WordPressContent) => unknown;
+  getIds: (source: TSource) => unknown;
   resolveMany: (client: PostRelationClient, ids: number[]) => Promise<T[]>;
   requiredFields?: string[];
 }
@@ -54,11 +74,14 @@ export interface IdCollectionRelationOptions<T> {
 /**
  * Options for single-item relations backed by one numeric reference ID.
  */
-export interface IdSingleRelationOptions<T> {
+export interface IdSingleRelationOptions<
+  T,
+  TSource extends WordPressRelationSource = WordPressContent,
+> {
   name: string;
   embeddedKey: string;
   extractEmbeddedItem: (item: unknown) => T | null;
-  getId: (post: WordPressContent) => unknown;
+  getId: (source: TSource) => unknown;
   resolveOne: (client: PostRelationClient, id: number) => Promise<T | null>;
   requiredFields?: string[];
 }
@@ -79,18 +102,24 @@ export interface LinkedEmbeddedRelationOptionsBase<T extends { id: number }> {
 /**
  * Options for collection relations that share one link/embed bucket.
  */
-export interface LinkedEmbeddedCollectionRelationOptions<T extends { id: number }>
+export interface LinkedEmbeddedCollectionRelationOptions<
+  T extends { id: number },
+  TSource extends WordPressRelationSource = WordPressContent,
+>
   extends LinkedEmbeddedRelationOptionsBase<T> {
-  getIds: (post: WordPressContent) => unknown;
+  getIds: (source: TSource) => unknown;
   resolveMany?: (client: PostRelationClient, ids: number[]) => Promise<T[]>;
 }
 
 /**
  * Options for single relations that share one link/embed bucket.
  */
-export interface LinkedEmbeddedSingleRelationOptions<T extends { id: number }>
+export interface LinkedEmbeddedSingleRelationOptions<
+  T extends { id: number },
+  TSource extends WordPressRelationSource = WordPressContent,
+>
   extends LinkedEmbeddedRelationOptionsBase<T> {
-  getId: (post: WordPressContent) => unknown;
+  getId: (source: TSource) => unknown;
   resolveOne?: (client: PostRelationClient, id: number) => Promise<T | null>;
 }
 
@@ -98,14 +127,18 @@ export interface LinkedEmbeddedSingleRelationOptions<T extends { id: number }>
  * Registry for custom relation configurations.
  */
 export class CustomRelationRegistry {
-  private readonly relations = new Map<string, CustomRelationConfig<unknown>>();
+  private readonly relations = new Map<string, CustomRelationConfig<unknown, WordPressRelationSource>>();
 
-  register<T>(config: CustomRelationConfig<T>): void {
-    this.relations.set(config.name, config as CustomRelationConfig<unknown>);
+  register<T, TSource extends WordPressRelationSource = WordPressPostLike>(
+    config: CustomRelationConfig<T, TSource>,
+  ): void {
+    this.relations.set(config.name, config as CustomRelationConfig<unknown, WordPressRelationSource>);
   }
 
-  get(name: string): CustomRelationConfig<unknown> | undefined {
-    return this.relations.get(name);
+  get<T = unknown, TSource extends WordPressRelationSource = WordPressPostLike>(
+    name: string,
+  ): CustomRelationConfig<T, TSource> | undefined {
+    return this.relations.get(name) as CustomRelationConfig<T, TSource> | undefined;
   }
 
   has(name: string): boolean {
@@ -138,9 +171,16 @@ export interface PostRelationClient {
     item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => PromiseLike<TContent | undefined>;
   };
   request?: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
-  getUser: (id: number) => Promise<WordPressAuthor>;
-  getUsers?: (filter?: { include?: number[]; perPage?: number }) => Promise<WordPressAuthor[]>;
-  getMediaItem: (id: number) => Promise<WordPressMedia>;
+  users: () => {
+    item: (id: number) => PromiseLike<WordPressAuthor | undefined>;
+    list: (filter?: { include?: number[]; perPage?: number }) => Promise<WordPressAuthor[]>;
+  };
+  media: () => {
+    item: (id: number) => PromiseLike<WordPressMedia | undefined>;
+  };
+  comments: () => {
+    item: (id: number, options?: WordPressRequestOverrides) => PromiseLike<WordPressComment | undefined>;
+  };
   terms: <TTerm = WordPressCategory>(resource: string) => {
     list: (filter?: QueryParams, options?: WordPressRequestOverrides) => Promise<TTerm[]>;
     item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => Promise<TTerm | undefined>;
@@ -178,7 +218,7 @@ export interface RelatedTermReference {
  * Helper to extract embedded data from a post by key.
  */
 export function extractEmbeddedData<T>(
-  post: WordPressPostLike,
+  post: WordPressRelationSource,
   key: string,
 ): T | undefined {
   const embedded = (post as { _embedded?: Record<string, unknown> })._embedded;
@@ -279,7 +319,7 @@ export function defaultParseLinkId(link: Record<string, unknown>): number | null
  * Reads embedded relation items for one shared bucket.
  */
 export function getEmbeddedRelationItems<T extends { id: number }>(
-  content: WordPressContent,
+  content: WordPressRelationSource,
   embeddedKey: string,
   extractItem: (item: unknown) => T | null,
 ): T[] {
@@ -310,7 +350,7 @@ export function getEmbeddedRelationItems<T extends { id: number }>(
  * Reads linked relation IDs for one shared bucket.
  */
 export function getLinkedRelationIds(
-  content: WordPressContent,
+  content: WordPressRelationSource,
   linksKey: string,
   parseLinkId: (link: Record<string, unknown>) => number | null = defaultParseLinkId,
 ): number[] {

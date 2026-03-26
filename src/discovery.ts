@@ -29,8 +29,9 @@ import type { WordPressRequestOverrides } from './types/resources.js';
  */
 interface DiscoveryCache {
   catalog?: WordPressDiscoveryCatalog;
-  resources: Map<string, WordPressResourceDescription>;
+  content: Map<string, WordPressResourceDescription>;
   terms: Map<string, WordPressResourceDescription>;
+  resources: Map<string, WordPressResourceDescription>;
   abilities: Map<string, WordPressAbilityDescription>;
 }
 
@@ -39,8 +40,9 @@ interface DiscoveryCache {
  */
 function createDiscoveryCache(): DiscoveryCache {
   return {
-    resources: new Map(),
+    content: new Map(),
     terms: new Map(),
+    resources: new Map(),
     abilities: new Map(),
   };
 }
@@ -620,14 +622,19 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   function cacheDescriptions(catalog: {
     content?: Record<string, WordPressResourceDescription>;
     terms?: Record<string, WordPressResourceDescription>;
+    resources?: Record<string, WordPressResourceDescription>;
     abilities?: Record<string, WordPressAbilityDescription>;
   }): void {
     for (const [resource, description] of Object.entries(catalog.content || {})) {
-      cache.resources.set(resource, description);
+      cache.content.set(resource, description);
     }
 
     for (const [resource, description] of Object.entries(catalog.terms || {})) {
       cache.terms.set(resource, description);
+    }
+
+    for (const [resource, description] of Object.entries(catalog.resources || {})) {
+      cache.resources.set(resource, description);
     }
 
     for (const [name, description] of Object.entries(catalog.abilities || {})) {
@@ -644,12 +651,12 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   ): Promise<WordPressResourceDescription> {
     const cacheKey = resource;
 
-    if (cache.resources.has(cacheKey)) {
-      return cache.resources.get(cacheKey)!;
+    if (cache.content.has(cacheKey)) {
+      return cache.content.get(cacheKey)!;
     }
 
     const description = await discoverContentResource(runtime, resource, options);
-    cache.resources.set(cacheKey, description);
+    cache.content.set(cacheKey, description);
 
     return description;
   }
@@ -669,6 +676,25 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
 
     const description = await discoverTermResource(runtime, resource, options);
     cache.terms.set(cacheKey, description);
+
+    return description;
+  }
+
+  /**
+   * Describes a first-class resource schema.
+   */
+  async function describeResource(
+    resource: 'media' | 'users' | 'comments' | 'settings',
+    options?: WordPressRequestOverrides,
+  ): Promise<WordPressResourceDescription> {
+    const cacheKey = resource;
+
+    if (cache.resources.has(cacheKey)) {
+      return cache.resources.get(cacheKey)!;
+    }
+
+    const description = await discoverFirstClassResource(runtime, resource, resource, options);
+    cache.resources.set(cacheKey, description);
 
     return description;
   }
@@ -741,6 +767,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       const { resources, warnings } = await discoverFirstClassResources(runtime, requestOptions);
       catalog.resources = resources;
       catalog.warnings!.push(...warnings);
+      cacheDescriptions({ resources });
     }
 
     // Discover abilities
@@ -783,6 +810,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
    */
   function clearCache(): void {
     cache.catalog = undefined;
+    cache.content.clear();
     cache.resources.clear();
     cache.terms.clear();
     cache.abilities.clear();
@@ -791,6 +819,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   return {
     describeContent,
     describeTerm,
+    describeResource,
     describeAbility,
     explore,
     clearCache,

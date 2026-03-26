@@ -80,6 +80,49 @@ describe('Discovery APIs', () => {
     });
   });
 
+  describe('first-class resource .describe()', () => {
+    it('returns schema description for media', async () => {
+      const description = await authClient.media().describe();
+
+      expect(description).toBeDefined();
+      expect(description.kind).toBe('resource');
+      expect(description.resource).toBe('media');
+      expect(description.route).toBe('/wp-json/wp/v2/media');
+      expect(description.schemas.item).toBeDefined();
+      expect(description.schemas.collection).toBeDefined();
+    });
+
+    it('returns schema description for comments', async () => {
+      const description = await authClient.comments().describe();
+
+      expect(description).toBeDefined();
+      expect(description.kind).toBe('resource');
+      expect(description.resource).toBe('comments');
+      expect(description.route).toBe('/wp-json/wp/v2/comments');
+      expect(description.schemas.item).toBeDefined();
+    });
+
+    it('returns schema description for users', async () => {
+      const description = await authClient.users().describe();
+
+      expect(description).toBeDefined();
+      expect(description.kind).toBe('resource');
+      expect(description.resource).toBe('users');
+      expect(description.route).toBe('/wp-json/wp/v2/users');
+      expect(description.schemas.item).toBeDefined();
+    });
+
+    it('returns schema description for settings', async () => {
+      const description = await authClient.settings().describe();
+
+      expect(description).toBeDefined();
+      expect(description.kind).toBe('resource');
+      expect(description.resource).toBe('settings');
+      expect(description.route).toBe('/wp-json/wp/v2/settings');
+      expect(description.schemas.item).toBeDefined();
+    });
+  });
+
   describe('wp.ability().describe()', () => {
     it('returns schema description for an ability', async () => {
       const description = await authClient.ability('test/process-complex').describe();

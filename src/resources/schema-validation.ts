@@ -1,4 +1,12 @@
 import type { WordPressStandardSchema } from '../core/validation.js';
+import type {
+  PaginatedResponse,
+  QueryParams,
+  WordPressDeleteResult,
+  WordPressRequestOverrides,
+} from '../types/resources.js';
+import type { DeleteOptions, WordPressWritePayload } from '../types/payloads.js';
+import { resolveMutationSchema } from '../core/mutation-helpers.js';
 
 /**
  * Creates reusable read validators for schema-backed resources.
@@ -31,5 +39,151 @@ export function createSchemaValidators<T>(
   return {
     validate,
     validateCollection,
+  };
+}
+
+/**
+ * Determines whether to skip built-in schema validation for field-filtered responses.
+ * Used by resource clients to avoid validation errors when fields are explicitly filtered.
+ */
+export function shouldSkipValidation(
+  hasExplicitResponseSchema: boolean,
+  filter: QueryParams | undefined,
+): boolean {
+  return !hasExplicitResponseSchema && filter?.fields !== undefined;
+}
+
+/**
+ * Minimal interface for a resource that supports list/listAll/listPaginated.
+ * Avoids coupling to a specific base class.
+ */
+interface ListableResource<TResource, TFilter> {
+  list(filter: TFilter, options?: WordPressRequestOverrides): Promise<TResource[]>;
+  listAll(filter: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides): Promise<TResource[]>;
+  listPaginated(filter: TFilter, options?: WordPressRequestOverrides): Promise<PaginatedResponse<TResource>>;
+}
+
+/**
+ * Creates validated list/listAll/listPaginated wrappers for a resource.
+ * Shared across content, terms, media, comments, and users client factories.
+ */
+export function createValidatedListMethods<TResource, TFilter extends QueryParams>(
+  resource: ListableResource<TResource, TFilter>,
+  validators: ReturnType<typeof createSchemaValidators<TResource>>,
+  hasExplicitResponseSchema: boolean,
+) {
+  return {
+    list: async (
+      filter: TFilter = {} as TFilter,
+      options?: WordPressRequestOverrides,
+    ): Promise<TResource[]> => {
+      const items = await resource.list(filter, options);
+
+      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
+        return items as TResource[];
+      }
+
+      return validators.validateCollection(items as unknown[]);
+    },
+    listAll: async (
+      filter: Omit<TFilter, 'page'> = {} as Omit<TFilter, 'page'>,
+      options?: WordPressRequestOverrides,
+    ): Promise<TResource[]> => {
+      const items = await resource.listAll(filter, options);
+
+      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
+        return items as TResource[];
+      }
+
+      return validators.validateCollection(items as unknown[]);
+    },
+    listPaginated: async (
+      filter: TFilter = {} as TFilter,
+      options?: WordPressRequestOverrides,
+    ): Promise<PaginatedResponse<TResource>> => {
+      const result = await resource.listPaginated(filter, options);
+
+      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
+        return result as PaginatedResponse<TResource>;
+      }
+
+      return {
+        ...result,
+        data: await validators.validateCollection(result.data as unknown[]),
+      };
+    },
+  };
+}
+
+/**
+ * Minimal interface for a resource that supports create/update/delete.
+ * Avoids coupling to a specific base class.
+ */
+interface MutableResource<TCreate extends WordPressWritePayload, TUpdate extends WordPressWritePayload> {
+  create<TResponse>(
+    input: TCreate,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TResponse>;
+  update<TResponse>(
+    id: number,
+    input: TUpdate,
+    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TResponse>;
+  delete(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult>;
+}
+
+/**
+ * Creates CRUD client wrappers that layer mutation schema resolution on top of a resource.
+ * Shared across content, terms, media, comments, and users client factories.
+ */
+export function createCrudClientMethods<
+  TResource,
+  TCreate extends WordPressWritePayload,
+  TUpdate extends WordPressWritePayload,
+>(
+  resource: MutableResource<TCreate, TUpdate>,
+  clientResponseSchema?: WordPressStandardSchema<TResource>,
+) {
+  return {
+    create: <TResponse = TResource>(
+      input: TCreate,
+      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+      requestOptions?: WordPressRequestOverrides,
+    ) => {
+      const resolved = resolveMutationSchema(
+        responseSchemaOrRequestOptions,
+        requestOptions,
+        clientResponseSchema as WordPressStandardSchema<TResponse> | undefined,
+      );
+
+      return resource.create<TResponse>(
+        input,
+        resolved.responseSchema,
+        resolved.requestOptions,
+      );
+    },
+    update: <TResponse = TResource>(
+      id: number,
+      input: TUpdate,
+      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+      requestOptions?: WordPressRequestOverrides,
+    ) => {
+      const resolved = resolveMutationSchema(
+        responseSchemaOrRequestOptions,
+        requestOptions,
+        clientResponseSchema as WordPressStandardSchema<TResponse> | undefined,
+      );
+
+      return resource.update<TResponse>(
+        id,
+        input,
+        resolved.responseSchema,
+        resolved.requestOptions,
+      );
+    },
+    delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) =>
+      resource.delete(id, options),
   };
 }

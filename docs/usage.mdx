@@ -39,13 +39,13 @@ const genres = await wp.terms('genre').list({ perPage: 100 });
 
   </TabItem>
 
-  <TabItem label="Typed helpers">
+  <TabItem label="First-class resources">
 
-```ts title="2) Typed helpers for media, users, comments, and settings"
-const media = await wp.getMedia({ perPage: 20 });
-const me = await wp.getCurrentUser();
-const comments = await wp.getComments({ post: 42 });
-const settings = await wp.getSettings();
+```ts title="2) Fluent first-class resource clients"
+const media = await wp.media().list({ perPage: 20 });
+const me = await wp.users().me();
+const comments = await wp.comments().list({ post: 42 });
+const settings = await wp.settings().get();
 ```
 
   </TabItem>
@@ -85,11 +85,11 @@ console.log(definitions.length, siteTitle.title, processed.processed);
 ### Read helpers
 
 - `content('posts')` / `content('pages')` / `content(resource)`
-- `getMedia`, `getAllMedia`, `getMediaPaginated`, `getMediaItem`, `getMediaBySlug`, `getImageUrl`
+- `media()`
 - `terms('categories')` / `terms('tags')` / `terms(resource)`
-- `getUsers`, `getAllUsers`, `getUsersPaginated`, `getUser`, `getCurrentUser`
-- `getComments`, `getAllComments`, `getCommentsPaginated`, `getComment`
-- `getSettings`
+- `users()`
+- `comments()`
+- `settings()`
 - `searchContent(query, filter?)`
 
 `content(resource).item(idOrSlug)` returns one promise-like query.
@@ -121,6 +121,16 @@ const posts = await wp.content('posts').list(
 ```
 
 Media uses a different schema (`description`/`caption`, no `content.raw`), so media helpers do not expose `getBlocks()`.
+
+### First-class resource clients
+
+`media()`, `comments()`, `users()`, and `settings()` mirror the same fluent style as `content()` and `terms()`.
+
+- Collection resources: `.list()`, `.listAll()`, `.listPaginated()`, `.item()`, `.create()`, `.update()`, `.delete()`, `.describe()`
+- Item queries: `media().item(...)`, `comments().item(...)`, and `users().item(...)` are awaitable builders; media/comments support `.with(...)` for relation hydration and users support custom `.with(...)` relations
+- Media extras: `.upload()`, `.getImageUrl()`
+- Users extras: `.me()`
+- Settings singleton: `.get()`, `.update()`, `.describe()`
 
 ### Generic resource builders
 
@@ -268,10 +278,10 @@ type ContentBook = WordPressPostBase & { type: 'book' };
 
 - Content: `content('posts').create/update/delete`, `content('pages').create/update/delete`, `content(resource).create/update/delete`
 - Terms: `terms(resource).create/update/delete`
-- Users: `createUser`, `updateUser`, `deleteUser`
-- Comments: `createComment`, `updateComment`, `deleteComment`
-- Media: `createMedia`, `uploadMedia`, `updateMedia`, `deleteMedia`
-- Settings: `updateSettings`
+- Users: `users().create/update/delete`
+- Comments: `comments().create/update/delete`
+- Media: `media().create/upload/update/delete`
+- Settings: `settings().update`
 
 Helpers accept request-scoped custom headers so you can pass one-off metadata without mutating shared client defaults.
 
@@ -403,25 +413,28 @@ await tags.delete(tag.id, { force: true });
 
 ```ts
 const post = await wp.content('posts').item('hello-world');
+const comments = wp.comments();
 
 if (!post) {
   throw new Error('Post not found.');
 }
 
-const comment = await wp.createComment({
+const comment = await comments.create({
   post: post.id,
   content: 'Nice post!',
   status: 'approve',
 });
 
-await wp.updateComment(comment.id, { content: 'Nice post, updated.' });
-await wp.deleteComment(comment.id, { force: true });
+await comments.update(comment.id, { content: 'Nice post, updated.' });
+await comments.delete(comment.id, { force: true });
 ```
 
 ### Media upload
 
 ```ts
-const media = await wp.uploadMedia({
+const mediaClient = wp.media();
+
+const media = await mediaClient.upload({
   file: imageBlob,
   filename: 'cover.jpg',
   mimeType: 'image/jpeg',
@@ -433,8 +446,18 @@ const media = await wp.uploadMedia({
   },
 });
 
-await wp.updateMedia(media.id, { caption: 'Updated caption' });
-await wp.deleteMedia(media.id, { force: true });
+await mediaClient.update(media.id, { caption: 'Updated caption' });
+await mediaClient.delete(media.id, { force: true });
+```
+
+### Users and settings
+
+```ts
+const users = await wp.users().list({ roles: ['author'] });
+const me = await wp.users().me();
+
+const settings = await wp.settings().get();
+await wp.settings().update({ title: `${settings.title} - Updated` });
 ```
 
 ### Generic CPT CRUD

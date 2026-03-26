@@ -172,22 +172,31 @@ export {
 } from './core/params.js';
 
 export type {
+  AllCommentRelations,
+  AllMediaRelations,
+  CommentsResourceClient,
   ContentResourceClient,
   DeleteOptions,
   ExtensibleFilter,
   FetchResult,
+  MediaResourceClient,
   PaginatedResponse,
   PaginationParams,
   QueryParamPrimitive,
   QueryParams,
   SerializedQueryParams,
+  SettingsResourceClient,
   TermsResourceClient,
   TermWriteInput,
+  UserRelation,
   UserDeleteOptions,
+  UsersResourceClient,
   UserWriteInput,
   WordPressDeleteResult,
   WordPressWritePayload,
 } from './types.js';
+
+export { ResourceItemQueryBuilder } from './types.js';
 
 export {
   PostRelationQueryBuilder,

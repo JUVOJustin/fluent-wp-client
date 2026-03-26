@@ -52,3 +52,23 @@ export function resolveMutationArguments<TResponse>(
     },
   };
 }
+
+/**
+ * Resolves the effective mutation schema for client calls.
+ * Combines the call-specific schema override with the client's default schema.
+ */
+export function resolveMutationSchema<TResponse>(
+  responseSchemaOrRequestOptions: WordPressStandardSchema<TResponse> | WordPressRequestOverrides | undefined,
+  requestOptions: WordPressRequestOverrides | undefined,
+  clientResponseSchema: WordPressStandardSchema<TResponse> | undefined,
+): ResolvedMutationArguments<TResponse> {
+  const resolved = resolveMutationArguments<TResponse>(
+    responseSchemaOrRequestOptions,
+    requestOptions,
+  );
+
+  return {
+    requestOptions: resolved.requestOptions,
+    responseSchema: resolved.responseSchema ?? clientResponseSchema,
+  };
+}

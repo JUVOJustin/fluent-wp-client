@@ -73,7 +73,7 @@ describe('Client: Auth', () => {
 
   it('supports cookie nonce auth for authenticated REST endpoints', async () => {
     const cookieClient = createCookieAuthClient();
-    const me = await cookieClient.getCurrentUser();
+    const me = await cookieClient.users().me();
 
     expect(me.slug).toBe('admin');
   });
@@ -106,7 +106,7 @@ describe('Client: Auth', () => {
       },
     });
 
-    const me = await browserClient.getCurrentUser();
+    const me = await browserClient.users().me();
     expect(me.slug).toBe('admin');
   });
 
@@ -154,7 +154,7 @@ describe('Client: Auth', () => {
     expect(result.data).toBeDefined();
   });
 
-  it('updateSettings accepts custom responseSchema override and returns narrowed type', async () => {
+  it('settings().update accepts a custom responseSchema override and returns a narrowed type', async () => {
     const authClient = createAuthClient();
 
     const minimalSettingsSchema = {
@@ -169,7 +169,7 @@ describe('Client: Auth', () => {
       },
     };
 
-    const result = await authClient.updateSettings(
+    const result = await authClient.settings().update(
       { title: 'Test Site Title Override' },
       minimalSettingsSchema as any,
     );

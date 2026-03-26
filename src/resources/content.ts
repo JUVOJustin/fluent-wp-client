@@ -25,8 +25,10 @@ import type {
 } from '../types/resources.js';
 import type { WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
-import { resolveMutationArguments } from '../core/mutation-helpers.js';
-import { createSchemaValidators } from './schema-validation.js';
+import {
+  createSchemaValidators,
+  createCrudClientMethods,
+} from './schema-validation.js';
 
 const missingRawPostMessage =
   'Raw post content is unavailable. The current credentials may not have edit capabilities for this post.';
@@ -199,24 +201,10 @@ export function createContentClient<TResource extends WordPressPostLike>(
     (content) => resource.validateResolvedContent(content),
   );
 
-  const resolveMutationSchema = <TResponse>(
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): {
-    requestOptions?: WordPressRequestOverrides;
-    responseSchema?: WordPressStandardSchema<TResponse>;
-  } => {
-    const resolved = resolveMutationArguments<TResponse>(
-      responseSchemaOrRequestOptions,
-      requestOptions,
-    );
-
-    return {
-      requestOptions: resolved.requestOptions,
-      responseSchema: resolved.responseSchema
-        ?? (responseSchema as WordPressStandardSchema<TResponse> | undefined),
-    };
-  };
+  const crudMethods = createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>(
+    resource as unknown as Parameters<typeof createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>>[0],
+    responseSchema,
+  );
 
   return {
     list: (filter = {}, options) => new ListRelationQueryBuilder(
@@ -238,41 +226,7 @@ export function createContentClient<TResource extends WordPressPostLike>(
       options,
     ),
     item: (idOrSlug, options) => createRelationQuery(idOrSlug, options, []),
-    create: <TResponse = TResource>(
-      input: WordPressWritePayload,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-      requestOptions?: WordPressRequestOverrides,
-    ) => {
-      const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
-        requestOptions,
-      );
-
-      return resource.create<TResponse>(
-        input,
-        resolved.responseSchema as WordPressStandardSchema<TResponse> | undefined,
-        resolved.requestOptions,
-      );
-    },
-    update: <TResponse = TResource>(
-      id: number,
-      input: WordPressWritePayload,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-      requestOptions?: WordPressRequestOverrides,
-    ) => {
-      const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
-        requestOptions,
-      );
-
-      return resource.update<TResponse>(
-        id,
-        input,
-        resolved.responseSchema as WordPressStandardSchema<TResponse> | undefined,
-        resolved.requestOptions,
-      );
-    },
-    delete: (id, options) => resource.delete(id, options),
+    ...crudMethods,
     describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
   };
 }

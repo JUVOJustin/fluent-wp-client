@@ -233,7 +233,7 @@ export async function handleRequest(request: Request) {
     auth,
   });
 
-  return wp.getCurrentUser();
+  return wp.users().me();
 }
 ```
 

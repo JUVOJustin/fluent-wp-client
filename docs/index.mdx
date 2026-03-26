@@ -34,11 +34,15 @@ npm install fluent-wp-client
   ```
 
 3. Interact with the API
-   ```ts 
+    ```ts
   const posts = wp.content('posts');
+  const comments = wp.comments();
 
   // Read a list of posts
   const recentPosts = await posts.list({ perPage: 10 });
+
+  // First-class resources use the same fluent style
+  const latestComments = await comments.list({ post: 42 });
 
   // Create a draft post (requires auth)
   const draft = await posts.create({ title: 'Hello', status: 'draft' });
@@ -65,6 +69,7 @@ When you call `wp.content('posts')` or `wp.terms('categories')`, you get a **res
 - `wp.content('posts')` returns a client for posts
 - `wp.content('books')` returns a client for your custom book post type
 - `wp.terms('categories')` returns a client for categories
+- `wp.media()` returns a client for media uploads and library reads
 
 Use the client to list items, create new ones, update, or delete. The actual data you get back—a post, book, or category—is a **DTO (Data Transport Object)** which is fully serializable.
 
@@ -73,6 +78,7 @@ Use the client to list items, create new ones, update, or delete. The actual dat
 ## Features
 
 - **Unified typed content builders** — `content('posts')`, `content('pages')`, `content('books')`, and `terms('genre')` share one API shape, with stricter typing for built-in resources
+- **First-class fluent resource clients** — `media()`, `comments()`, `users()`, and `settings()` use consistent resource clients, including `upload()` for media and `me()` for users
 - **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
 - **Smart relation hydration** — `.with('author', 'categories')` gives you typed, clean data with automatic fallbacks—not raw WordPress `_embedded` soup
 - **Lean payloads by default** — skip the `_embed` overhead; relation hydration handles it internally and returns only what you need

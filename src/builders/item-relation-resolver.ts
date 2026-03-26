@@ -8,14 +8,16 @@ import {
 } from '../schemas.js';
 import {
   customRelationRegistry,
-  defaultParseReferenceId,
   extractEmbeddedData,
   createSingleExtractor,
-  toRelatedTermReference,
   type CustomRelationConfig,
   type PostRelationClient,
-  type RelatedTermReference,
+  type WordPressRelationSource,
 } from './relation-contracts.js';
+import {
+  PostTermRelationsResolver,
+  type ResolvedTermRelations,
+} from './post-term-relations.js';
 
 /**
  * Supported relation names for fluent post hydration (built-in).
@@ -32,7 +34,7 @@ export type AllPostRelations = PostRelation | string;
 /**
  * Tracks the built-in relation names so custom relation loops can skip them.
  */
-const BUILT_IN_RELATION_NAMES = new Set<PostRelation>([
+export const BUILT_IN_RELATION_NAMES = new Set<PostRelation>([
 	'author',
 	'categories',
 	'tags',
@@ -44,7 +46,7 @@ const BUILT_IN_RELATION_NAMES = new Set<PostRelation>([
 /**
  * Lists the response fields each built-in relation needs for fallback hydration.
  */
-const BUILT_IN_RELATION_FIELDS: Record<PostRelation, readonly string[]> = {
+export const BUILT_IN_RELATION_FIELDS: Record<PostRelation, readonly string[]> = {
 	author: ['author'],
 	categories: ['categories'],
 	tags: ['tags'],
@@ -56,7 +58,7 @@ const BUILT_IN_RELATION_FIELDS: Record<PostRelation, readonly string[]> = {
 /**
  * Extracts the first author from an _embedded author array.
  */
-const extractEmbeddedAuthor = createSingleExtractor(
+export const extractEmbeddedAuthor = createSingleExtractor(
   (item: unknown) => item as WordPressAuthor,
 );
 
@@ -64,7 +66,7 @@ const extractEmbeddedAuthor = createSingleExtractor(
  * Extracts featured media from an _embedded wp:featuredmedia array.
  * Validates each item against embeddedMediaSchema before returning.
  */
-const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
+export const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
   const result = embeddedMediaSchema.safeParse(item);
   return result.success ? (result.data as unknown as WordPressMedia) : null;
 });
@@ -72,254 +74,130 @@ const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
 /**
  * Extracts parent from an _embedded up array.
  */
-const extractEmbeddedParent = createSingleExtractor(
+export const extractEmbeddedParent = createSingleExtractor(
   (item: unknown) => item as WordPressPostLike,
 );
 
 /**
- * Bundles the resolved built-in term relation groups for one post.
+ * Extracts the first post from an _embedded post or up array.
+ * Shared by comments and media relation resolvers.
  */
-interface ResolvedTermRelations {
-  categories: WordPressCategory[];
-  tags: WordPressTag[];
-  taxonomies: Record<string, RelatedTermReference[]>;
+export const extractEmbeddedPost = createSingleExtractor(
+  (item: unknown) => item as WordPressPostLike,
+);
+
+/**
+ * Resolves an author by ID using the relation client's users resource.
+ * Returns null when the author ID is invalid or the request fails.
+ * Shared by post, comment, and media relation resolvers.
+ */
+export async function resolveAuthorById(
+  client: PostRelationClient,
+  authorId: unknown,
+): Promise<WordPressAuthor | null> {
+  if (typeof authorId !== 'number' || authorId <= 0) {
+    return null;
+  }
+
+  try {
+    return await client.users().item(authorId) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Coordinates built-in taxonomy relation hydration for one post response.
+ * Resolves one custom relation using its registered configuration.
+ * Shared by all relation resolvers (single-item, list, and non-post resources).
  */
-class PostTermRelationsResolver {
-  constructor(
-    private readonly client: PostRelationClient,
-    private readonly post: WordPressPostLike,
-  ) {}
+export async function resolveCustomRelation<T>(
+  config: CustomRelationConfig<T, WordPressRelationSource>,
+  client: PostRelationClient,
+  source: WordPressRelationSource,
+): Promise<T | null> {
+  const embeddedData = extractEmbeddedData<unknown>(source, config.embeddedKey);
 
-  /**
-   * Reads numeric relation IDs from one post field.
-   */
-  private getContentRelationIds(field: string): number[] {
-    const value = (this.post as Record<string, unknown>)[field];
+  if (embeddedData !== undefined) {
+    const extracted = config.extractEmbedded(embeddedData);
 
-    if (!Array.isArray(value)) {
-      return [];
+    if (extracted !== null) {
+      return extracted;
     }
-
-    return value
-      .map(defaultParseReferenceId)
-      .filter((id): id is number => id !== null);
   }
 
-  /**
-   * Reads embedded taxonomy groups from the current post response.
-   */
-  private getEmbeddedTerms(): ResolvedTermRelations {
-    const termGroups = extractEmbeddedData<unknown[][]>(this.post, 'wp:term');
-
-    if (!Array.isArray(termGroups)) {
-      return {
-        categories: [],
-        tags: [],
-        taxonomies: {},
-      };
-    }
-
-    const categories: WordPressCategory[] = [];
-    const tags: WordPressTag[] = [];
-    const taxonomies: Record<string, RelatedTermReference[]> = {};
-
-    for (const group of termGroups) {
-      if (!Array.isArray(group)) {
-        continue;
-      }
-
-      for (const term of group as Array<Record<string, unknown>>) {
-        if (typeof term.taxonomy !== 'string' || typeof term.id !== 'number') {
-          continue;
-        }
-
-        if (!taxonomies[term.taxonomy]) {
-          taxonomies[term.taxonomy] = [];
-        }
-
-        taxonomies[term.taxonomy].push(toRelatedTermReference(term as WordPressCategory));
-
-        if (term.taxonomy === 'category') {
-          categories.push(term as WordPressCategory);
-        }
-
-        if (term.taxonomy === 'post_tag') {
-          tags.push(term as WordPressTag);
-        }
-      }
-    }
-
-    return {
-      categories,
-      tags,
-      taxonomies,
-    };
+  if (!config.fallbackResolver) {
+    return null;
   }
 
-  /**
-   * Reads linked taxonomy resources from the current post response.
-   */
-  private getLinkedTermResources(): Array<{ taxonomy: string; resource: string }> {
-    const links = (this.post as { _links?: Record<string, unknown> })._links?.['wp:term'];
+  try {
+    return await config.fallbackResolver.resolve(client, source);
+  } catch {
+    return null;
+  }
+}
 
-    if (!Array.isArray(links)) {
-      return [];
+/**
+ * Resolves all requested custom relations for one source item.
+ * Skips built-in relation names and only resolves registered custom configs.
+ */
+export async function resolveRequestedCustomRelations(
+  relationSet: Set<string>,
+  builtInNames: Set<string>,
+  client: PostRelationClient,
+  source: WordPressRelationSource,
+): Promise<Record<string, unknown>> {
+  const requestedRelations: Array<{ name: string; config: CustomRelationConfig<unknown, WordPressRelationSource> }> = [];
+
+  for (const relationName of relationSet) {
+    if (builtInNames.has(relationName)) {
+      continue;
     }
 
-    const resources = new Map<string, { taxonomy: string; resource: string }>();
+    const config = customRelationRegistry.get(relationName);
 
-    for (const link of links as Array<Record<string, unknown>>) {
-      if (typeof link.taxonomy !== 'string' || typeof link.href !== 'string') {
-        continue;
-      }
-
-      let resource: string | undefined;
-
-      try {
-        resource = new URL(link.href).pathname.split('/').filter(Boolean).pop();
-      } catch {
-        resource = undefined;
-      }
-
-      if (!resource) {
-        continue;
-      }
-
-      resources.set(link.taxonomy, {
-        taxonomy: link.taxonomy,
-        resource,
-      });
+    if (config) {
+      requestedRelations.push({ name: relationName, config });
     }
-
-    return Array.from(resources.values());
   }
 
-  /**
-   * Fetches categories through the client fallback API.
-   */
-  private async fetchCategories(ids: number[]): Promise<WordPressCategory[]> {
-    return this.client.terms<WordPressCategory>('categories').list({ include: ids }).catch(() => []);
+  if (requestedRelations.length === 0) {
+    return {};
   }
 
-  /**
-   * Fetches tags through the client fallback API.
-   */
-  private async fetchTags(ids: number[]): Promise<WordPressTag[]> {
-    return this.client.terms<WordPressTag>('tags').list({ include: ids }).catch(() => []);
-  }
+  const resolvedEntries = await Promise.all(
+    requestedRelations.map(async ({ name, config }) => [
+      name,
+      await resolveCustomRelation(config, client, source),
+    ] as const),
+  );
 
-  /**
-   * Replaces one taxonomy bucket with the latest resolved references.
-   */
-  private withTaxonomy(
-    taxonomies: Record<string, RelatedTermReference[]>,
-    taxonomy: string,
-    terms: RelatedTermReference[],
-  ): Record<string, RelatedTermReference[]> {
-    if (terms.length === 0) {
-      return taxonomies;
-    }
+  return Object.fromEntries(resolvedEntries);
+}
 
-    return {
-      ...taxonomies,
-      [taxonomy]: terms,
-    };
-  }
+/**
+ * Gets the list of required fields for a given set of relations.
+ * Checks both built-in relation fields and custom relation requiredFields.
+ */
+export function getRelationRequiredFields(relationSet: Set<string>): string[] {
+  const fields = new Set<string>();
 
-  /**
-   * Resolves missing taxonomy groups from linked term resources.
-   */
-  private async resolveLinkedTerms(
-    existingTaxonomies: Record<string, RelatedTermReference[]>,
-  ): Promise<Record<string, RelatedTermReference[]>> {
-    if (!this.client.terms) {
-      return {};
-    }
-
-    const linkedResources = this.getLinkedTermResources()
-      .filter((entry) => !existingTaxonomies[entry.taxonomy] || existingTaxonomies[entry.taxonomy].length === 0);
-
-    if (linkedResources.length === 0) {
-      return {};
-    }
-
-    let taxonomies: Record<string, RelatedTermReference[]> = {};
-
-    for (const entry of linkedResources) {
-      const ids = this.getContentRelationIds(entry.taxonomy);
-
-      if (!ids || ids.length === 0) {
-        continue;
-      }
-
-      try {
-        const terms = await this.client.terms<WordPressCategory>(entry.resource).list({ include: ids });
-
-        taxonomies = this.withTaxonomy(
-          taxonomies,
-          entry.taxonomy,
-          terms.map(toRelatedTermReference),
-        );
-      } catch {
-        // Ignore failures for this taxonomy to avoid aborting overall relation resolution
-        continue;
+  for (const relation of relationSet) {
+    if (Object.hasOwn(BUILT_IN_RELATION_FIELDS, relation)) {
+      for (const field of BUILT_IN_RELATION_FIELDS[relation as PostRelation]) {
+        fields.add(field);
       }
     }
 
-    return taxonomies;
+    const customConfig = customRelationRegistry.get(relation);
+
+    if (customConfig?.requiredFields) {
+      for (const field of customConfig.requiredFields) {
+        fields.add(field);
+      }
+    }
   }
 
-  /**
-   * Resolves the requested term relation groups for one post.
-   */
-  async resolve(options: {
-    includeCategories: boolean;
-    includeTags: boolean;
-    includeTerms: boolean;
-  }): Promise<ResolvedTermRelations> {
-    const embedded = this.getEmbeddedTerms();
-
-    if (embedded.categories.length > 0 || embedded.tags.length > 0) {
-      const linkedTaxonomies = await this.resolveLinkedTerms(embedded.taxonomies);
-
-      return {
-        categories: embedded.categories.length > 0 ? embedded.categories : [],
-        tags: embedded.tags.length > 0 ? embedded.tags : [],
-        taxonomies: { ...embedded.taxonomies, ...linkedTaxonomies },
-      };
-    }
-
-    const [categories, tags] = await Promise.all([
-      options.includeCategories ? this.fetchCategories(this.getContentRelationIds('categories')) : [],
-      options.includeTags ? this.fetchTags(this.getContentRelationIds('tags')) : [],
-    ]);
-
-    // In the non-embedded fallback path, populate core taxonomies and, when requested,
-    // attempt to resolve any additional linked taxonomies.
-    let baseTaxonomies: Record<string, RelatedTermReference[]> = {};
-    if (categories.length > 0) {
-      baseTaxonomies = this.withTaxonomy(baseTaxonomies, 'category', categories.map(toRelatedTermReference));
-    }
-    if (tags.length > 0) {
-      baseTaxonomies = this.withTaxonomy(baseTaxonomies, 'post_tag', tags.map(toRelatedTermReference));
-    }
-
-    let taxonomies = baseTaxonomies;
-    if (options.includeTerms) {
-      const linkedTaxonomies = await this.resolveLinkedTerms(baseTaxonomies);
-      taxonomies = { ...baseTaxonomies, ...linkedTaxonomies };
-    }
-
-    return {
-      categories,
-      tags,
-      taxonomies,
-    };
-  }
+  return Array.from(fields);
 }
 
 /**
@@ -343,43 +221,7 @@ export class ItemRelationResolver {
    * Gets the list of required fields for the current relations.
    */
   getRequiredFields(): string[] {
-    const fields = new Set<string>();
-
-    for (const relation of this.relationSet) {
-      if (Object.hasOwn(BUILT_IN_RELATION_FIELDS, relation)) {
-        for (const field of BUILT_IN_RELATION_FIELDS[relation as PostRelation]) {
-          fields.add(field);
-        }
-      }
-
-      const customConfig = customRelationRegistry.get(relation);
-
-      if (customConfig?.requiredFields) {
-        for (const field of customConfig.requiredFields) {
-          fields.add(field);
-        }
-      }
-    }
-
-    return Array.from(fields);
-  }
-
-  /**
-   * Resolves one author by preferring direct lookup and then list fallback.
-   */
-  private async fetchAuthorById(authorId: number): Promise<WordPressAuthor | null> {
-    const direct = await this.client.getUser(authorId).catch(() => null);
-
-    if (direct) {
-      return direct;
-    }
-
-    if (!this.client.getUsers) {
-      return null;
-    }
-
-    const users = await this.client.getUsers({ include: [authorId], perPage: 1 }).catch(() => []);
-    return users[0] ?? null;
+    return getRelationRequiredFields(this.relationSet);
   }
 
   /**
@@ -387,15 +229,12 @@ export class ItemRelationResolver {
    */
   private async resolveAuthorRelation(post: WordPressPostLike): Promise<WordPressAuthor | null> {
     const embeddedAuthor = extractEmbeddedAuthor(extractEmbeddedData(post, 'author'));
-    const authorId = post.author;
 
     if (embeddedAuthor) {
       return embeddedAuthor;
     }
 
-    return typeof authorId === 'number'
-      ? this.fetchAuthorById(authorId)
-      : null;
+    return resolveAuthorById(this.client, post.author);
   }
 
   /**
@@ -410,7 +249,11 @@ export class ItemRelationResolver {
     }
 
     if (typeof featuredMediaId === 'number' && featuredMediaId > 0) {
-      return this.client.getMediaItem(featuredMediaId).catch(() => null);
+      try {
+        return await this.client.media().item(featuredMediaId) ?? null;
+      } catch {
+        return null;
+      }
     }
 
     return null;
@@ -421,16 +264,13 @@ export class ItemRelationResolver {
    * WordPress exposes parent through _links['up'] and _embedded['up'].
    */
   private async resolveParentRelation(post: WordPressPostLike): Promise<WordPressPostLike | null> {
-    // First, check if parent data is embedded (WordPress uses 'up' for parent)
     const embeddedParent = extractEmbeddedParent(extractEmbeddedData(post, 'up'));
     if (embeddedParent) {
       return embeddedParent;
     }
 
-    // Fall back to fetching by parent ID
     const parentId = (post as { parent?: number }).parent;
     if (typeof parentId === 'number' && parentId > 0) {
-      // Try to determine the resource type from the post
       const postType = (post as { type?: string }).type ?? 'page';
       try {
         const parent = await this.client.content(postType).item(parentId);
@@ -455,75 +295,6 @@ export class ItemRelationResolver {
   }
 
   /**
-   * Resolves one custom relation using its registered configuration.
-   */
-  private async resolveCustomRelation<T>(
-    config: CustomRelationConfig<T>,
-    post: WordPressPostLike,
-  ): Promise<T | null> {
-    const embeddedData = extractEmbeddedData<unknown>(post, config.embeddedKey);
-
-    if (embeddedData !== undefined) {
-      const extracted = config.extractEmbedded(embeddedData);
-
-      if (extracted !== null) {
-        return extracted;
-      }
-    }
-
-    if (!config.fallbackResolver) {
-      return null;
-    }
-
-    try {
-      return await config.fallbackResolver.resolve(this.client, post);
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Collects all requested custom relation configs for the current query.
-   */
-  private getRequestedCustomRelations(): Array<{ name: string; config: CustomRelationConfig<unknown> }> {
-    const relations: Array<{ name: string; config: CustomRelationConfig<unknown> }> = [];
-
-    for (const relationName of this.relationSet) {
-      if (BUILT_IN_RELATION_NAMES.has(relationName as PostRelation)) {
-        continue;
-      }
-
-      const config = customRelationRegistry.get(relationName);
-
-      if (config) {
-        relations.push({ name: relationName, config });
-      }
-    }
-
-    return relations;
-  }
-
-  /**
-   * Resolves all requested custom relations for one post.
-   */
-  private async resolveCustomRelations(post: WordPressPostLike): Promise<Record<string, unknown>> {
-    const requestedRelations = this.getRequestedCustomRelations();
-
-    if (requestedRelations.length === 0) {
-      return {};
-    }
-
-    const resolvedEntries = await Promise.all(
-      requestedRelations.map(async ({ name, config }) => [
-        name,
-        await this.resolveCustomRelation(config, post),
-      ] as const),
-    );
-
-    return Object.fromEntries(resolvedEntries);
-  }
-
-  /**
    * Resolves every requested relation and returns the related payload map.
    */
   async resolveRelated(post: WordPressPostLike): Promise<Record<string, unknown>> {
@@ -531,7 +302,12 @@ export class ItemRelationResolver {
     const requestedTerms = this.relationSet.has('terms');
 
     const tasks: Array<Promise<void>> = [
-      this.resolveCustomRelations(post).then((customRelations) => {
+      resolveRequestedCustomRelations(
+        this.relationSet,
+        BUILT_IN_RELATION_NAMES,
+        this.client,
+        post,
+      ).then((customRelations) => {
         Object.assign(related, customRelations);
       }),
     ];

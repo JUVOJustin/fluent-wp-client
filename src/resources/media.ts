@@ -7,7 +7,6 @@ import type { WordPressMediaUploadInput } from '../types/client.js';
 import type {
   AllMediaRelations,
   MediaResourceClient,
-  PaginatedResponse,
   WordPressRequestOverrides,
 } from '../types/resources.js';
 import type { MediaFilter } from '../types/filters.js';
@@ -25,19 +24,19 @@ import {
 import { ResourceItemQueryBuilder } from '../builders/resource-item-relations.js';
 import { resolveMutationArguments, resolveMutationSchema } from '../core/mutation-helpers.js';
 import {
-  createSingleExtractor,
   extractEmbeddedData,
   type PostRelationClient,
 } from '../builders/relation-contracts.js';
-import { createSchemaValidators, shouldSkipValidation } from './schema-validation.js';
-
-const extractEmbeddedAuthor = createSingleExtractor(
-  (item: unknown) => item as WordPressAuthor,
-);
-
-const extractEmbeddedPost = createSingleExtractor(
-  (item: unknown) => item as WordPressPostLike,
-);
+import {
+  extractEmbeddedAuthor,
+  extractEmbeddedPost,
+  resolveAuthorById,
+} from '../builders/item-relation-resolver.js';
+import {
+  createSchemaValidators,
+  createValidatedListMethods,
+  createCrudClientMethods,
+} from './schema-validation.js';
 
 /**
  * WordPress media resource with CRUD operations and binary uploads.
@@ -166,19 +165,7 @@ export function createMediaClient<TResource extends WordPressMedia = WordPressMe
       return embeddedAuthor;
     }
 
-    const authorId = (media as WordPressMedia).author;
-
-    if (typeof authorId !== 'number' || authorId <= 0) {
-      return null;
-    }
-
-    const usersClient = relationClient.users();
-    
-    try {
-      return await usersClient.item(authorId) ?? null;
-    } catch {
-      return null;
-    }
+    return resolveAuthorById(relationClient, (media as WordPressMedia).author);
   };
 
   const resolvePostRelation = async (media: TResource): Promise<WordPressPostLike | null> => {
@@ -278,55 +265,21 @@ export function createMediaClient<TResource extends WordPressMedia = WordPressMe
     },
   )) as MediaResourceClient<TResource, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload>['item'];
 
+  const listMethods = createValidatedListMethods(
+    resource as unknown as Parameters<typeof createValidatedListMethods<TResource, ExtensibleFilter<MediaFilter>>>[0],
+    validators,
+    hasExplicitResponseSchema,
+  );
+  const { create, update } = createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>(
+    resource as unknown as Parameters<typeof createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>>[0],
+    responseSchema,
+  );
+
   return {
-    list: async (filter = {}, options) => {
-      const items = await resource.list(filter, options);
-
-      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
-        return items as TResource[];
-      }
-
-      return validators.validateCollection(items as unknown[]);
-    },
-    listAll: async (filter = {}, options) => {
-      const items = await resource.listAll(filter, options);
-
-      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
-        return items as TResource[];
-      }
-
-      return validators.validateCollection(items as unknown[]);
-    },
-    listPaginated: async (filter = {}, options) => {
-      const result = await resource.listPaginated(filter, options);
-
-      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
-        return result as PaginatedResponse<TResource>;
-      }
-
-      return {
-        ...result,
-        data: await validators.validateCollection(result.data as unknown[]),
-      };
-    },
+    ...listMethods,
+    create,
+    update,
     item,
-    create: <TResponse = TResource>(
-      input: WordPressWritePayload,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-      requestOptions?: WordPressRequestOverrides,
-    ) => {
-      const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
-        requestOptions,
-        responseSchema as WordPressStandardSchema<TResponse> | undefined,
-      );
-
-      return resource.create<TResponse>(
-        input,
-        resolved.responseSchema,
-        resolved.requestOptions,
-      );
-    },
     upload: <TResponse = TResource>(
       input: WordPressMediaUploadInput,
       responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
@@ -339,25 +292,6 @@ export function createMediaClient<TResource extends WordPressMedia = WordPressMe
       );
 
       return resource.upload<TResponse>(
-        input,
-        resolved.responseSchema,
-        resolved.requestOptions,
-      );
-    },
-    update: <TResponse = TResource>(
-      id: number,
-      input: WordPressWritePayload,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-      requestOptions?: WordPressRequestOverrides,
-    ) => {
-      const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
-        requestOptions,
-        responseSchema as WordPressStandardSchema<TResponse> | undefined,
-      );
-
-      return resource.update<TResponse>(
-        id,
         input,
         resolved.responseSchema,
         resolved.requestOptions,

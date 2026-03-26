@@ -1,5 +1,4 @@
 import { BaseCrudResource } from '../core/resource-base.js';
-import { resolveMutationSchema } from '../core/mutation-helpers.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
 import type { WordPressCategory, WordPressTag } from '../schemas.js';
@@ -13,7 +12,11 @@ import type {
 } from '../types/resources.js';
 import type { TermWriteInput, WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
-import { createSchemaValidators } from './schema-validation.js';
+import {
+  createSchemaValidators,
+  createValidatedListMethods,
+  createCrudClientMethods,
+} from './schema-validation.js';
 
 /**
  * Built-in defaults for known term resources.
@@ -139,13 +142,9 @@ export function createTermsClient<TTerm>(
   responseSchema?: WordPressStandardSchema<TTerm>,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): TermsResourceClient<TTerm, QueryParams & PaginationParams, TermWriteInput, TermWriteInput> {
-  const resolveLocalMutationSchema = <TResponse>(
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ) => resolveMutationSchema(
-    responseSchemaOrRequestOptions,
-    requestOptions,
-    responseSchema as WordPressStandardSchema<TResponse> | undefined,
+  const crudMethods = createCrudClientMethods<TTerm, TermWriteInput, TermWriteInput>(
+    resource as unknown as Parameters<typeof createCrudClientMethods<TTerm, TermWriteInput, TermWriteInput>>[0],
+    responseSchema,
   );
 
   return {
@@ -153,41 +152,7 @@ export function createTermsClient<TTerm>(
     listAll: (filter = {}, options) => resource.listAllWithValidation(filter as Omit<QueryParams & PaginationParams, 'page'>, options) as Promise<TTerm[]>,
     listPaginated: (filter = {}, options) => resource.listPaginatedWithValidation(filter as QueryParams & PaginationParams, options) as Promise<PaginatedResponse<TTerm>>,
     item: (idOrSlug, options) => resource.item(idOrSlug, options) as Promise<TTerm | undefined>,
-    create: <TResponse = TTerm>(
-      input: TermWriteInput,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-      requestOptions?: WordPressRequestOverrides,
-    ) => {
-      const resolved = resolveLocalMutationSchema(
-        responseSchemaOrRequestOptions,
-        requestOptions,
-      );
-
-      return resource.create<TResponse>(
-        input,
-        resolved.responseSchema as WordPressStandardSchema<TResponse> | undefined,
-        resolved.requestOptions,
-      );
-    },
-    update: <TResponse = TTerm>(
-      id: number,
-      input: TermWriteInput,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-      requestOptions?: WordPressRequestOverrides,
-    ) => {
-      const resolved = resolveLocalMutationSchema(
-        responseSchemaOrRequestOptions,
-        requestOptions,
-      );
-
-      return resource.update<TResponse>(
-        id,
-        input,
-        resolved.responseSchema as WordPressStandardSchema<TResponse> | undefined,
-        resolved.requestOptions,
-      );
-    },
-    delete: (id, options) => resource.delete(id, options),
+    ...crudMethods,
     describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
   };
 }

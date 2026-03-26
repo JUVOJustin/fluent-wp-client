@@ -12,6 +12,7 @@ import {
   createSingleExtractor,
   type CustomRelationConfig,
   type PostRelationClient,
+  type WordPressRelationSource,
 } from './relation-contracts.js';
 import {
   PostTermRelationsResolver,
@@ -33,7 +34,7 @@ export type AllPostRelations = PostRelation | string;
 /**
  * Tracks the built-in relation names so custom relation loops can skip them.
  */
-const BUILT_IN_RELATION_NAMES = new Set<PostRelation>([
+export const BUILT_IN_RELATION_NAMES = new Set<PostRelation>([
 	'author',
 	'categories',
 	'tags',
@@ -45,7 +46,7 @@ const BUILT_IN_RELATION_NAMES = new Set<PostRelation>([
 /**
  * Lists the response fields each built-in relation needs for fallback hydration.
  */
-const BUILT_IN_RELATION_FIELDS: Record<PostRelation, readonly string[]> = {
+export const BUILT_IN_RELATION_FIELDS: Record<PostRelation, readonly string[]> = {
 	author: ['author'],
 	categories: ['categories'],
 	tags: ['tags'],
@@ -57,7 +58,7 @@ const BUILT_IN_RELATION_FIELDS: Record<PostRelation, readonly string[]> = {
 /**
  * Extracts the first author from an _embedded author array.
  */
-const extractEmbeddedAuthor = createSingleExtractor(
+export const extractEmbeddedAuthor = createSingleExtractor(
   (item: unknown) => item as WordPressAuthor,
 );
 
@@ -65,7 +66,7 @@ const extractEmbeddedAuthor = createSingleExtractor(
  * Extracts featured media from an _embedded wp:featuredmedia array.
  * Validates each item against embeddedMediaSchema before returning.
  */
-const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
+export const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
   const result = embeddedMediaSchema.safeParse(item);
   return result.success ? (result.data as unknown as WordPressMedia) : null;
 });
@@ -73,9 +74,131 @@ const extractEmbeddedFeaturedMedia = createSingleExtractor((item: unknown) => {
 /**
  * Extracts parent from an _embedded up array.
  */
-const extractEmbeddedParent = createSingleExtractor(
+export const extractEmbeddedParent = createSingleExtractor(
   (item: unknown) => item as WordPressPostLike,
 );
+
+/**
+ * Extracts the first post from an _embedded post or up array.
+ * Shared by comments and media relation resolvers.
+ */
+export const extractEmbeddedPost = createSingleExtractor(
+  (item: unknown) => item as WordPressPostLike,
+);
+
+/**
+ * Resolves an author by ID using the relation client's users resource.
+ * Returns null when the author ID is invalid or the request fails.
+ * Shared by post, comment, and media relation resolvers.
+ */
+export async function resolveAuthorById(
+  client: PostRelationClient,
+  authorId: unknown,
+): Promise<WordPressAuthor | null> {
+  if (typeof authorId !== 'number' || authorId <= 0) {
+    return null;
+  }
+
+  try {
+    return await client.users().item(authorId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolves one custom relation using its registered configuration.
+ * Shared by all relation resolvers (single-item, list, and non-post resources).
+ */
+export async function resolveCustomRelation<T>(
+  config: CustomRelationConfig<T, WordPressRelationSource>,
+  client: PostRelationClient,
+  source: WordPressRelationSource,
+): Promise<T | null> {
+  const embeddedData = extractEmbeddedData<unknown>(source, config.embeddedKey);
+
+  if (embeddedData !== undefined) {
+    const extracted = config.extractEmbedded(embeddedData);
+
+    if (extracted !== null) {
+      return extracted;
+    }
+  }
+
+  if (!config.fallbackResolver) {
+    return null;
+  }
+
+  try {
+    return await config.fallbackResolver.resolve(client, source);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolves all requested custom relations for one source item.
+ * Skips built-in relation names and only resolves registered custom configs.
+ */
+export async function resolveRequestedCustomRelations(
+  relationSet: Set<string>,
+  builtInNames: Set<string>,
+  client: PostRelationClient,
+  source: WordPressRelationSource,
+): Promise<Record<string, unknown>> {
+  const requestedRelations: Array<{ name: string; config: CustomRelationConfig<unknown, WordPressRelationSource> }> = [];
+
+  for (const relationName of relationSet) {
+    if (builtInNames.has(relationName)) {
+      continue;
+    }
+
+    const config = customRelationRegistry.get(relationName);
+
+    if (config) {
+      requestedRelations.push({ name: relationName, config });
+    }
+  }
+
+  if (requestedRelations.length === 0) {
+    return {};
+  }
+
+  const resolvedEntries = await Promise.all(
+    requestedRelations.map(async ({ name, config }) => [
+      name,
+      await resolveCustomRelation(config, client, source),
+    ] as const),
+  );
+
+  return Object.fromEntries(resolvedEntries);
+}
+
+/**
+ * Gets the list of required fields for a given set of relations.
+ * Checks both built-in relation fields and custom relation requiredFields.
+ */
+export function getRelationRequiredFields(relationSet: Set<string>): string[] {
+  const fields = new Set<string>();
+
+  for (const relation of relationSet) {
+    if (Object.hasOwn(BUILT_IN_RELATION_FIELDS, relation)) {
+      for (const field of BUILT_IN_RELATION_FIELDS[relation as PostRelation]) {
+        fields.add(field);
+      }
+    }
+
+    const customConfig = customRelationRegistry.get(relation);
+
+    if (customConfig?.requiredFields) {
+      for (const field of customConfig.requiredFields) {
+        fields.add(field);
+      }
+    }
+  }
+
+  return Array.from(fields);
+}
 
 /**
  * Resolves relations for a single content item using embedded-first strategy.
@@ -98,38 +221,7 @@ export class ItemRelationResolver {
    * Gets the list of required fields for the current relations.
    */
   getRequiredFields(): string[] {
-    const fields = new Set<string>();
-
-    for (const relation of this.relationSet) {
-      if (Object.hasOwn(BUILT_IN_RELATION_FIELDS, relation)) {
-        for (const field of BUILT_IN_RELATION_FIELDS[relation as PostRelation]) {
-          fields.add(field);
-        }
-      }
-
-      const customConfig = customRelationRegistry.get(relation);
-
-      if (customConfig?.requiredFields) {
-        for (const field of customConfig.requiredFields) {
-          fields.add(field);
-        }
-      }
-    }
-
-    return Array.from(fields);
-  }
-
-  /**
-   * Resolves one author by ID.
-   */
-  private async fetchAuthorById(authorId: number): Promise<WordPressAuthor | null> {
-    const usersClient = this.client.users();
-    
-    try {
-      return await usersClient.item(authorId) ?? null;
-    } catch {
-      return null;
-    }
+    return getRelationRequiredFields(this.relationSet);
   }
 
   /**
@@ -137,15 +229,12 @@ export class ItemRelationResolver {
    */
   private async resolveAuthorRelation(post: WordPressPostLike): Promise<WordPressAuthor | null> {
     const embeddedAuthor = extractEmbeddedAuthor(extractEmbeddedData(post, 'author'));
-    const authorId = post.author;
 
     if (embeddedAuthor) {
       return embeddedAuthor;
     }
 
-    return typeof authorId === 'number'
-      ? this.fetchAuthorById(authorId)
-      : null;
+    return resolveAuthorById(this.client, post.author);
   }
 
   /**
@@ -175,16 +264,13 @@ export class ItemRelationResolver {
    * WordPress exposes parent through _links['up'] and _embedded['up'].
    */
   private async resolveParentRelation(post: WordPressPostLike): Promise<WordPressPostLike | null> {
-    // First, check if parent data is embedded (WordPress uses 'up' for parent)
     const embeddedParent = extractEmbeddedParent(extractEmbeddedData(post, 'up'));
     if (embeddedParent) {
       return embeddedParent;
     }
 
-    // Fall back to fetching by parent ID
     const parentId = (post as { parent?: number }).parent;
     if (typeof parentId === 'number' && parentId > 0) {
-      // Try to determine the resource type from the post
       const postType = (post as { type?: string }).type ?? 'page';
       try {
         const parent = await this.client.content(postType).item(parentId);
@@ -209,75 +295,6 @@ export class ItemRelationResolver {
   }
 
   /**
-   * Resolves one custom relation using its registered configuration.
-   */
-  private async resolveCustomRelation<T>(
-    config: CustomRelationConfig<T>,
-    post: WordPressPostLike,
-  ): Promise<T | null> {
-    const embeddedData = extractEmbeddedData<unknown>(post, config.embeddedKey);
-
-    if (embeddedData !== undefined) {
-      const extracted = config.extractEmbedded(embeddedData);
-
-      if (extracted !== null) {
-        return extracted;
-      }
-    }
-
-    if (!config.fallbackResolver) {
-      return null;
-    }
-
-    try {
-      return await config.fallbackResolver.resolve(this.client, post);
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Collects all requested custom relation configs for the current query.
-   */
-  private getRequestedCustomRelations(): Array<{ name: string; config: CustomRelationConfig<unknown> }> {
-    const relations: Array<{ name: string; config: CustomRelationConfig<unknown> }> = [];
-
-    for (const relationName of this.relationSet) {
-      if (BUILT_IN_RELATION_NAMES.has(relationName as PostRelation)) {
-        continue;
-      }
-
-      const config = customRelationRegistry.get(relationName);
-
-      if (config) {
-        relations.push({ name: relationName, config });
-      }
-    }
-
-    return relations;
-  }
-
-  /**
-   * Resolves all requested custom relations for one post.
-   */
-  private async resolveCustomRelations(post: WordPressPostLike): Promise<Record<string, unknown>> {
-    const requestedRelations = this.getRequestedCustomRelations();
-
-    if (requestedRelations.length === 0) {
-      return {};
-    }
-
-    const resolvedEntries = await Promise.all(
-      requestedRelations.map(async ({ name, config }) => [
-        name,
-        await this.resolveCustomRelation(config, post),
-      ] as const),
-    );
-
-    return Object.fromEntries(resolvedEntries);
-  }
-
-  /**
    * Resolves every requested relation and returns the related payload map.
    */
   async resolveRelated(post: WordPressPostLike): Promise<Record<string, unknown>> {
@@ -285,7 +302,12 @@ export class ItemRelationResolver {
     const requestedTerms = this.relationSet.has('terms');
 
     const tasks: Array<Promise<void>> = [
-      this.resolveCustomRelations(post).then((customRelations) => {
+      resolveRequestedCustomRelations(
+        this.relationSet,
+        BUILT_IN_RELATION_NAMES,
+        this.client,
+        post,
+      ).then((customRelations) => {
         Object.assign(related, customRelations);
       }),
     ];

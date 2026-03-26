@@ -1,11 +1,9 @@
 import { ExecutableQuery } from '../core/query-base.js';
 import {
-  customRelationRegistry,
-  extractEmbeddedData,
-  type CustomRelationConfig,
   type PostRelationClient,
   type WordPressRelationSource,
 } from './relation-contracts.js';
+import { resolveRequestedCustomRelations } from './item-relation-resolver.js';
 
 /**
  * Simplifies intersection output for cleaner consumer hover types.
@@ -100,66 +98,6 @@ export class ResourceItemQueryBuilder<
   }
 
   /**
-   * Resolves one custom relation using its registered configuration.
-   */
-  private async resolveCustomRelation<T>(
-    config: CustomRelationConfig<T, TItem>,
-    item: TItem,
-  ): Promise<T | null> {
-    const embeddedData = extractEmbeddedData<unknown>(item, config.embeddedKey);
-
-    if (embeddedData !== undefined) {
-      const extracted = config.extractEmbedded(embeddedData);
-
-      if (extracted !== null) {
-        return extracted;
-      }
-    }
-
-    if (!config.fallbackResolver) {
-      return null;
-    }
-
-    try {
-      return await config.fallbackResolver.resolve(this.client, item);
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Resolves every requested custom relation for one item.
-   */
-  private async resolveCustomRelations(item: TItem): Promise<Record<string, unknown>> {
-    const requestedRelations: Array<{ name: string; config: CustomRelationConfig<unknown, TItem> }> = [];
-
-    for (const relationName of this.relationSet) {
-      if (this.builtInRelations.has(relationName)) {
-        continue;
-      }
-
-      const config = customRelationRegistry.get<unknown, TItem>(relationName);
-
-      if (config) {
-        requestedRelations.push({ name: relationName, config });
-      }
-    }
-
-    if (requestedRelations.length === 0) {
-      return {};
-    }
-
-    const resolvedEntries = await Promise.all(
-      requestedRelations.map(async ({ name, config }) => [
-        name,
-        await this.resolveCustomRelation(config, item),
-      ] as const),
-    );
-
-    return Object.fromEntries(resolvedEntries);
-  }
-
-  /**
    * Loads the item and hydrates selected built-in and custom relations.
    */
   protected execute(): Promise<ResourceItemResult<TItem, TRelations, TRelationMap> | undefined> {
@@ -171,7 +109,12 @@ export class ResourceItemQueryBuilder<
 
         const [builtInRelations, customRelations] = await Promise.all([
           this.resolveBuiltInRelations(item, this.relationSet),
-          this.resolveCustomRelations(item),
+          resolveRequestedCustomRelations(
+            this.relationSet as Set<string>,
+            this.builtInRelations as Set<string>,
+            this.client,
+            item,
+          ),
         ]);
 
         return {

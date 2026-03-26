@@ -6,7 +6,6 @@ import type {
 import type {
   AllCommentRelations,
   CommentsResourceClient,
-  PaginatedResponse,
   WordPressRequestOverrides,
 } from '../types/resources.js';
 import type { CommentsFilter } from '../types/filters.js';
@@ -23,16 +22,16 @@ import {
   extractEmbeddedData,
   type PostRelationClient,
 } from '../builders/relation-contracts.js';
-import { resolveMutationSchema } from '../core/mutation-helpers.js';
-import { createSchemaValidators, shouldSkipValidation } from './schema-validation.js';
-
-const extractEmbeddedAuthor = createSingleExtractor(
-  (item: unknown) => item as WordPressAuthor,
-);
-
-const extractEmbeddedPost = createSingleExtractor(
-  (item: unknown) => item as WordPressPostLike,
-);
+import {
+  extractEmbeddedAuthor,
+  extractEmbeddedPost,
+  resolveAuthorById,
+} from '../builders/item-relation-resolver.js';
+import {
+  createSchemaValidators,
+  createValidatedListMethods,
+  createCrudClientMethods,
+} from './schema-validation.js';
 
 const extractEmbeddedComment = createSingleExtractor(
   (item: unknown) => item as WordPressComment,
@@ -86,19 +85,7 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
       return embeddedAuthor;
     }
 
-    const authorId = comment.author;
-
-    if (typeof authorId !== 'number' || authorId <= 0) {
-      return null;
-    }
-
-    const usersClient = relationClient.users();
-    
-    try {
-      return await usersClient.item(authorId) ?? null;
-    } catch {
-      return null;
-    }
+    return resolveAuthorById(relationClient, comment.author);
   };
 
   const resolvePostRelation = async (comment: TResource): Promise<WordPressPostLike | null> => {
@@ -185,75 +172,20 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
     },
   )) as CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload>['item'];
 
+  const listMethods = createValidatedListMethods(
+    resource as unknown as Parameters<typeof createValidatedListMethods<TResource, ExtensibleFilter<CommentsFilter>>>[0],
+    validators,
+    hasExplicitResponseSchema,
+  );
+  const crudMethods = createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>(
+    resource as unknown as Parameters<typeof createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>>[0],
+    responseSchema,
+  );
+
   return {
-    list: async (filter = {}, options) => {
-      const items = await resource.list(filter, options);
-
-      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
-        return items as TResource[];
-      }
-
-      return validators.validateCollection(items as unknown[]);
-    },
-    listAll: async (filter = {}, options) => {
-      const items = await resource.listAll(filter, options);
-
-      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
-        return items as TResource[];
-      }
-
-      return validators.validateCollection(items as unknown[]);
-    },
-    listPaginated: async (filter = {}, options) => {
-      const result = await resource.listPaginated(filter, options);
-
-      if (shouldSkipValidation(hasExplicitResponseSchema, filter)) {
-        return result as PaginatedResponse<TResource>;
-      }
-
-      return {
-        ...result,
-        data: await validators.validateCollection(result.data as unknown[]),
-      };
-    },
+    ...listMethods,
+    ...crudMethods,
     item,
-    create: <TResponse = TResource>(
-      input: WordPressWritePayload,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-      requestOptions?: WordPressRequestOverrides,
-    ) => {
-      const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
-        requestOptions,
-        responseSchema as WordPressStandardSchema<TResponse> | undefined,
-      );
-
-      return resource.create<TResponse>(
-        input,
-        resolved.responseSchema,
-        resolved.requestOptions,
-      );
-    },
-    update: <TResponse = TResource>(
-      id: number,
-      input: WordPressWritePayload,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-      requestOptions?: WordPressRequestOverrides,
-    ) => {
-      const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
-        requestOptions,
-        responseSchema as WordPressStandardSchema<TResponse> | undefined,
-      );
-
-      return resource.update<TResponse>(
-        id,
-        input,
-        resolved.responseSchema,
-        resolved.requestOptions,
-      );
-    },
-    delete: (id, options) => resource.delete(id, options),
     describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
   };
 }

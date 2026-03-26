@@ -1,4 +1,3 @@
-import { ExecutableQuery } from '../core/query-base.js';
 import type {
   PaginatedResponse,
   PaginationParams,
@@ -11,6 +10,55 @@ import type { AllPostRelations } from './item-relation-resolver.js';
 import { ItemRelationResolver } from './item-relation-resolver.js';
 import type { ContentItemResult, SelectedPostRelations } from './relations.js';
 import { RelationQueryBuilderBase, type BuildRelations } from './relation-base.js';
+
+/**
+ * Injects _embed into a filter when relations need embedded data for hydration.
+ * Shared across all list relation builders.
+ */
+function applyEmbedForRelations<TFilter extends Record<string, unknown>>(
+  filter: TFilter,
+  hasRelations: boolean,
+): TFilter {
+  const userRequestedEmbed = (filter as { embed?: boolean }).embed === true;
+  const shouldRequestEmbed = hasRelations || userRequestedEmbed;
+
+  if (!shouldRequestEmbed) {
+    return filter;
+  }
+
+  return { ...filter, embed: true, _embed: 'true' as const };
+}
+
+/**
+ * Hydrates an array of items with resolved relations, stripping _embedded unless user-requested.
+ * Shared across all list relation builders.
+ */
+async function hydrateItemsWithRelations<
+  TContent extends WordPressPostLike,
+  TRelations extends readonly AllPostRelations[],
+>(
+  items: TContent[],
+  client: PostRelationClient,
+  relationSet: Set<AllPostRelations>,
+  userRequestedEmbed: boolean,
+): Promise<Array<ContentItemResult<TContent, TRelations>>> {
+  const resolver = new ItemRelationResolver(client, relationSet);
+
+  return Promise.all(
+    items.map(async (item) => {
+      const related = await resolver.resolveRelated(item);
+
+      // Strip _embedded from response unless user explicitly requested it
+      const { _embedded, ...itemWithoutEmbedded } = item as Record<string, unknown>;
+      const cleanedItem = userRequestedEmbed ? item : (itemWithoutEmbedded as TContent);
+
+      return {
+        ...cleanedItem,
+        related: related as SelectedPostRelations<TRelations>,
+      } as ContentItemResult<TContent, TRelations>;
+    }),
+  );
+}
 
 /**
  * Fluent builder that hydrates multiple post-like content records with selected related entities.
@@ -77,50 +125,19 @@ export class ListRelationQueryBuilder<
   }
 
   /**
-   * Loads the list with embedded data enabled if relations are requested.
-   * Always requests _embed when relations are needed for hydration, but
-   * strips it from the final response unless user explicitly requested embed: true.
-   */
-  private async loadListOnce(): Promise<TContent[]> {
-    const needsEmbedForHydration = this.relationSet.size > 0;
-    const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
-    
-    // Always request _embed if we need it for relation hydration
-    const shouldRequestEmbed = needsEmbedForHydration || userRequestedEmbed;
-    
-    // When forcing _embed for relation hydration, override any explicit embed: false
-    // by also setting embed: true so resolveEmbedQueryParams doesn't strip _embed
-    const filterWithEmbed = shouldRequestEmbed
-      ? { ...this.filter, embed: true, _embed: 'true' as const }
-      : this.filter;
-
-    return this.fetchList(filterWithEmbed, this.requestOptions);
-  }
-
-  /**
-   * Loads and memoizes the list.
+   * Loads and memoizes the list with embed injection when relations are requested.
    */
   private async loadList(): Promise<TContent[]> {
     if (!this.listPromise) {
-      this.listPromise = this.loadListOnce();
+      const filterWithEmbed = applyEmbedForRelations(this.filter, this.relationSet.size > 0);
+      this.listPromise = this.fetchList(filterWithEmbed, this.requestOptions);
     }
 
     return this.listPromise;
   }
 
   /**
-   * Resolves relations for a single item using the shared resolver.
-   */
-  private async resolveItemRelations(
-    item: TContent,
-    resolver: ItemRelationResolver,
-  ): Promise<Record<string, unknown>> {
-    return resolver.resolveRelated(item);
-  }
-
-  /**
    * Resolves and memoizes the final fluent query result.
-   * Implementation of abstract method from RelationQueryBuilderBase.
    */
   protected async resolveResult(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
     const items = await this.loadList();
@@ -129,29 +146,14 @@ export class ListRelationQueryBuilder<
       return items as Array<ContentItemResult<TContent, TRelations>>;
     }
 
-    // Create a shared resolver for all items
-    const resolver = new ItemRelationResolver(this.client, this.relationSet);
-
-    // Check if user explicitly requested embed: true
     const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
 
-    // Resolve relations for all items in parallel
-    const results = await Promise.all(
-      items.map(async (item) => {
-        const related = await this.resolveItemRelations(item, resolver);
-        
-        // Strip _embedded from response unless user explicitly requested it
-        const { _embedded, ...itemWithoutEmbedded } = item as Record<string, unknown>;
-        const cleanedItem = userRequestedEmbed ? item : (itemWithoutEmbedded as TContent);
-        
-        return {
-          ...cleanedItem,
-          related: related as SelectedPostRelations<TRelations>,
-        } as ContentItemResult<TContent, TRelations>;
-      }),
+    return hydrateItemsWithRelations<TContent, TRelations>(
+      items,
+      this.client,
+      this.relationSet,
+      userRequestedEmbed,
     );
-
-    return results;
   }
 }
 
@@ -199,31 +201,12 @@ export class PaginatedListRelationQueryBuilder<
   }
 
   /**
-   * Loads the paginated list with embedded data enabled if relations are requested.
-   * Always requests _embed when relations are needed for hydration.
-   */
-  private async loadPaginatedOnce(): Promise<PaginatedResponse<TContent>> {
-    const needsEmbedForHydration = this.relationSet.size > 0;
-    const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
-    
-    // Always request _embed if we need it for relation hydration
-    const shouldRequestEmbed = needsEmbedForHydration || userRequestedEmbed;
-    
-    // When forcing _embed for relation hydration, override any explicit embed: false
-    // by also setting embed: true so resolveEmbedQueryParams doesn't strip _embed
-    const filterWithEmbed = shouldRequestEmbed
-      ? { ...this.filter, embed: true, _embed: 'true' as const }
-      : this.filter;
-
-    return this.fetchPaginated(filterWithEmbed, this.requestOptions);
-  }
-
-  /**
-   * Loads and memoizes the paginated list.
+   * Loads and memoizes the paginated list with embed injection when relations are requested.
    */
   private async loadPaginated(): Promise<PaginatedResponse<TContent>> {
     if (!this.listPromise) {
-      this.listPromise = this.loadPaginatedOnce();
+      const filterWithEmbed = applyEmbedForRelations(this.filter, this.relationSet.size > 0);
+      this.listPromise = this.fetchPaginated(filterWithEmbed, this.requestOptions);
     }
 
     return this.listPromise;
@@ -231,7 +214,6 @@ export class PaginatedListRelationQueryBuilder<
 
   /**
    * Resolves and memoizes the final fluent query result.
-   * Implementation of abstract method from RelationQueryBuilderBase.
    */
   protected async resolveResult(): Promise<PaginatedResponse<ContentItemResult<TContent, TRelations>>> {
     const result = await this.loadPaginated();
@@ -240,29 +222,16 @@ export class PaginatedListRelationQueryBuilder<
       return result as PaginatedResponse<ContentItemResult<TContent, TRelations>>;
     }
 
-    const resolver = new ItemRelationResolver(this.client, this.relationSet);
-
-    // Check if user explicitly requested embed: true
     const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
-
-    const hydratedData = await Promise.all(
-      result.data.map(async (item) => {
-        const related = await resolver.resolveRelated(item);
-        
-        // Strip _embedded from response unless user explicitly requested it
-        const { _embedded, ...itemWithoutEmbedded } = item as Record<string, unknown>;
-        const cleanedItem = userRequestedEmbed ? item : (itemWithoutEmbedded as TContent);
-        
-        return {
-          ...cleanedItem,
-          related: related as SelectedPostRelations<TRelations>,
-        } as ContentItemResult<TContent, TRelations>;
-      }),
-    );
 
     return {
       ...result,
-      data: hydratedData,
+      data: await hydrateItemsWithRelations<TContent, TRelations>(
+        result.data,
+        this.client,
+        this.relationSet,
+        userRequestedEmbed,
+      ),
     };
   }
 }
@@ -311,31 +280,15 @@ export class ListAllRelationQueryBuilder<
   }
 
   /**
-   * Loads all items with embedded data enabled if relations are requested.
-   * Always requests _embed when relations are needed for hydration.
-   */
-  private async loadListAllOnce(): Promise<TContent[]> {
-    const needsEmbedForHydration = this.relationSet.size > 0;
-    const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
-    
-    // Always request _embed if we need it for relation hydration
-    const shouldRequestEmbed = needsEmbedForHydration || userRequestedEmbed;
-    
-    // When forcing _embed for relation hydration, override any explicit embed: false
-    // by also setting embed: true so resolveEmbedQueryParams doesn't strip _embed
-    const filterWithEmbed = shouldRequestEmbed
-      ? { ...this.filter, embed: true, _embed: 'true' as const }
-      : this.filter;
-
-    return this.fetchListAll(filterWithEmbed, this.requestOptions);
-  }
-
-  /**
-   * Loads and memoizes the full list.
+   * Loads and memoizes all items with embed injection when relations are requested.
    */
   private async loadListAll(): Promise<TContent[]> {
     if (!this.listPromise) {
-      this.listPromise = this.loadListAllOnce();
+      const filterWithEmbed = applyEmbedForRelations(
+        this.filter as Record<string, unknown>,
+        this.relationSet.size > 0,
+      ) as Omit<QueryParams & PaginationParams, 'page'>;
+      this.listPromise = this.fetchListAll(filterWithEmbed, this.requestOptions);
     }
 
     return this.listPromise;
@@ -343,7 +296,6 @@ export class ListAllRelationQueryBuilder<
 
   /**
    * Resolves and memoizes the final fluent query result.
-   * Implementation of abstract method from RelationQueryBuilderBase.
    */
   protected async resolveResult(): Promise<Array<ContentItemResult<TContent, TRelations>>> {
     const items = await this.loadListAll();
@@ -352,26 +304,13 @@ export class ListAllRelationQueryBuilder<
       return items as Array<ContentItemResult<TContent, TRelations>>;
     }
 
-    const resolver = new ItemRelationResolver(this.client, this.relationSet);
-
-    // Check if user explicitly requested embed: true
     const userRequestedEmbed = (this.filter as { embed?: boolean }).embed === true;
 
-    const results = await Promise.all(
-      items.map(async (item) => {
-        const related = await resolver.resolveRelated(item);
-        
-        // Strip _embedded from response unless user explicitly requested it
-        const { _embedded, ...itemWithoutEmbedded } = item as Record<string, unknown>;
-        const cleanedItem = userRequestedEmbed ? item : (itemWithoutEmbedded as TContent);
-        
-        return {
-          ...cleanedItem,
-          related: related as SelectedPostRelations<TRelations>,
-        } as ContentItemResult<TContent, TRelations>;
-      }),
+    return hydrateItemsWithRelations<TContent, TRelations>(
+      items,
+      this.client,
+      this.relationSet,
+      userRequestedEmbed,
     );
-
-    return results;
   }
 }

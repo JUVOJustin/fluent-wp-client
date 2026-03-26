@@ -181,7 +181,7 @@ export class PostTermRelationsResolver {
     let taxonomies: Record<string, RelatedTermReference[]> = {};
 
     for (const entry of linkedResources) {
-      const ids = this.getContentRelationIds(entry.taxonomy);
+      const ids = this.getContentRelationIds(entry.resource);
 
       if (!ids || ids.length === 0) {
         continue;

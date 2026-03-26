@@ -442,6 +442,7 @@ const featuredAuthor: CustomRelationConfig<{ id: number; name: string } | null> 
       if (!authorId) return null;
       try {
         const author = await client.users().item(authorId);
+        if (!author) return null;
         return { id: author.id, name: author.name };
       } catch {
         return null;

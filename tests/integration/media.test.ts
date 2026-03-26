@@ -30,7 +30,7 @@ describe('Client: Media', () => {
     const media = await publicClient.media().list();
 
     expect(Array.isArray(media)).toBe(true);
-    expect(media.length).toBeGreaterThanOrEqual(Math.min(initialMediaCount, media.length));
+    expect(media.length).toBe(initialMediaCount);
   });
 
   it('media().listAll returns all currently available media items', async () => {

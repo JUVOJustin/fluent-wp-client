@@ -39,6 +39,8 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 - **Unified typed content builders** — `content('posts')`, `content('pages')`, `content('books')`, and `terms('genre')` share one API shape, with stricter typing for built-in resources
 - **First-class fluent resource clients** — `media()`, `comments()`, `users()`, and `settings()` expose consistent `list/item/create/update/delete/describe` APIs, with `upload()` for media, `.with(...)` on item reads, and `me()` for users
 - **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
+- **Parallel bulk fetching** — `listAll()` fetches all pages in parallel batches for dramatic speed improvements on large datasets
+- **Rate limiting support** — `onRequest` callback lets you implement custom rate limiting or request logging
 - **Extensible collection filters** — built-in list helpers and generic resource builders accept typed core filters plus extra endpoint-specific query params
 - **Lean embedded payloads** — post-like DTO reads skip `_embed` by default, while relation hydration turns it on automatically when `.with(...)` is used
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
@@ -47,6 +49,46 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`, with schema-backed generic builders validating reads and mutations
 - **Extensible relation API** — fluent relations for posts and custom entities, plus generic ID-backed and shared link/embed relation factories
+
+## Rate limiting and request control
+
+Use the `onRequest` callback to implement rate limiting, request logging, or other custom logic:
+
+```ts
+// Simple delay between requests
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  onRequest: async (url, init) => {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  },
+});
+
+// Token bucket rate limiter
+const rateLimiter = new TokenBucketLimiter({ tokensPerSecond: 10, maxTokens: 20 });
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  onRequest: async (url, init) => {
+    await rateLimiter.acquireToken();
+  },
+});
+```
+
+## Parallel bulk fetching
+
+`listAll()` automatically fetches pages in parallel for maximum performance. It fetches the first page to get the total count, then spawns parallel requests for remaining pages in configurable batches:
+
+```ts
+// Fetch all posts with default concurrency (5 pages at a time)
+const allPosts = await wp.content('posts').listAll();
+
+// Higher concurrency for faster fetching (use with caution)
+const allUsers = await wp.users().listAll({}, {}, { concurrency: 10 });
+
+// Lower concurrency to be gentler on the server
+const allComments = await wp.comments().listAll({}, {}, { concurrency: 2 });
+```
+
+The `explore()` API also makes parallel requests when discovering all resources, dramatically speeding up schema discovery.
 
 ## Flexible collection filters
 

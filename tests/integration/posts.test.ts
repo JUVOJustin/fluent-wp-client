@@ -246,6 +246,37 @@ describe('Client: Posts', () => {
       }
     });
 
+    it('content(\'posts\').listAll() preserves ordering with parallel pagination', async () => {
+      // Fetch all posts ordered by ID ascending
+      const postsAsc = await postsClient(publicClient).listAll({
+        orderby: 'id',
+        order: 'asc',
+      });
+
+      // Verify we got all 150 posts
+      expect(postsAsc).toHaveLength(150);
+
+      // Verify ascending order - each ID should be greater than the previous
+      for (let i = 1; i < postsAsc.length; i++) {
+        expect(postsAsc[i]!.id).toBeGreaterThan(postsAsc[i - 1]!.id);
+      }
+
+      // Fetch all posts ordered by ID descending
+      const postsDesc = await postsClient(publicClient).listAll({
+        orderby: 'id',
+        order: 'desc',
+      });
+
+      // Verify descending order - each ID should be less than the previous
+      for (let i = 1; i < postsDesc.length; i++) {
+        expect(postsDesc[i]!.id).toBeLessThan(postsDesc[i - 1]!.id);
+      }
+
+      // Verify that ascending and descending give us opposite orders
+      expect(postsAsc[0]!.id).toBeLessThan(postsDesc[0]!.id);
+      expect(postsAsc[postsAsc.length - 1]!.id).toBeGreaterThan(postsDesc[postsDesc.length - 1]!.id);
+    });
+
     it('content(\'posts\').list() with fields filter returns only requested fields', async () => {
       const posts = await postsClient(publicClient).list({ fields: ['id', 'slug', 'title'], perPage: 5 });
 

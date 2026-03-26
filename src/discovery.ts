@@ -427,7 +427,7 @@ async function discoverAbility(
 }
 
 /**
- * Discovers all content resources.
+ * Discovers all content resources in parallel.
  */
 async function discoverAllContent(
   runtime: WordPressRuntime,
@@ -442,27 +442,42 @@ async function discoverAllContent(
   try {
     const types = await runtime.fetchAPI<WordPressTypesResponse>('/wp-json/wp/v2/types', undefined, options);
 
-    for (const [, info] of Object.entries(types)) {
-      if (!info.rest_base) {
-        continue;
-      }
+    // Prepare discovery promises for all content types in parallel
+    const discoveryPromises = Object.entries(types)
+      .filter(([, info]) => info.rest_base)
+      .map(async ([, info]) => {
+        try {
+          const description = await discoverContentResourceFromTypeInfo(
+            runtime,
+            info.rest_base!,
+            {
+              slug: info.slug,
+              rest_base: info.rest_base,
+              rest_namespace: info.rest_namespace,
+            },
+            options,
+          );
+          return { type: 'success' as const, resource: info.rest_base!, description };
+        } catch (error) {
+          return {
+            type: 'error' as const,
+            resource: info.rest_base!,
+            message: error instanceof Error ? error.message : `Failed to discover content resource '${info.rest_base}'`,
+          };
+        }
+      });
 
-      try {
-        const description = await discoverContentResourceFromTypeInfo(
-          runtime,
-          info.rest_base,
-          {
-            slug: info.slug,
-            rest_base: info.rest_base,
-            rest_namespace: info.rest_namespace,
-          },
-          options,
-        );
-        resources[info.rest_base] = description;
-      } catch (error) {
+    // Execute all discoveries in parallel
+    const results = await Promise.all(discoveryPromises);
+
+    // Process results
+    for (const result of results) {
+      if (result.type === 'success') {
+        resources[result.resource] = result.description;
+      } else {
         warnings.push({
-          key: `content:${info.rest_base}`,
-          message: error instanceof Error ? error.message : `Failed to discover content resource '${info.rest_base}'`,
+          key: `content:${result.resource}`,
+          message: result.message,
         });
       }
     }
@@ -477,7 +492,7 @@ async function discoverAllContent(
 }
 
 /**
- * Discovers all term resources.
+ * Discovers all term resources in parallel.
  */
 async function discoverAllTerms(
   runtime: WordPressRuntime,
@@ -492,27 +507,42 @@ async function discoverAllTerms(
   try {
     const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>('/wp-json/wp/v2/taxonomies', undefined, options);
 
-    for (const [, info] of Object.entries(taxonomies)) {
-      if (!info.rest_base) {
-        continue;
-      }
+    // Prepare discovery promises for all taxonomies in parallel
+    const discoveryPromises = Object.entries(taxonomies)
+      .filter(([, info]) => info.rest_base)
+      .map(async ([, info]) => {
+        try {
+          const description = await discoverTermResourceFromTypeInfo(
+            runtime,
+            info.rest_base!,
+            {
+              slug: info.slug,
+              rest_base: info.rest_base,
+              rest_namespace: info.rest_namespace,
+            },
+            options,
+          );
+          return { type: 'success' as const, resource: info.rest_base!, description };
+        } catch (error) {
+          return {
+            type: 'error' as const,
+            resource: info.rest_base!,
+            message: error instanceof Error ? error.message : `Failed to discover term resource '${info.rest_base}'`,
+          };
+        }
+      });
 
-      try {
-        const description = await discoverTermResourceFromTypeInfo(
-          runtime,
-          info.rest_base,
-          {
-            slug: info.slug,
-            rest_base: info.rest_base,
-            rest_namespace: info.rest_namespace,
-          },
-          options,
-        );
-        resources[info.rest_base] = description;
-      } catch (error) {
+    // Execute all discoveries in parallel
+    const results = await Promise.all(discoveryPromises);
+
+    // Process results
+    for (const result of results) {
+      if (result.type === 'success') {
+        resources[result.resource] = result.description;
+      } else {
         warnings.push({
-          key: `terms:${info.rest_base}`,
-          message: error instanceof Error ? error.message : `Failed to discover term resource '${info.rest_base}'`,
+          key: `terms:${result.resource}`,
+          message: result.message,
         });
       }
     }
@@ -527,7 +557,7 @@ async function discoverAllTerms(
 }
 
 /**
- * Discovers first-class resources (media, users, comments, settings).
+ * Discovers first-class resources (media, users, comments, settings) in parallel.
  */
 async function discoverFirstClassResources(
   runtime: WordPressRuntime,
@@ -546,7 +576,8 @@ async function discoverFirstClassResources(
     { resource: 'settings', restBase: 'settings' },
   ];
 
-  for (const { resource, restBase } of firstClassEndpoints) {
+  // Execute all discoveries in parallel
+  const discoveryPromises = firstClassEndpoints.map(async ({ resource, restBase }) => {
     try {
       const description = await discoverFirstClassResource(
         runtime,
@@ -554,11 +585,26 @@ async function discoverFirstClassResources(
         restBase,
         options,
       );
-      resources[resource] = description;
+      return { type: 'success' as const, resource, description };
     } catch (error) {
-      warnings.push({
-        key: `resource:${resource}`,
+      return {
+        type: 'error' as const,
+        resource,
         message: error instanceof Error ? error.message : `Failed to discover resource '${resource}'`,
+      };
+    }
+  });
+
+  const results = await Promise.all(discoveryPromises);
+
+  // Process results
+  for (const result of results) {
+    if (result.type === 'success') {
+      resources[result.resource] = result.description;
+    } else {
+      warnings.push({
+        key: `resource:${result.resource}`,
+        message: result.message,
       });
     }
   }
@@ -567,7 +613,7 @@ async function discoverFirstClassResources(
 }
 
 /**
- * Discovers all abilities.
+ * Discovers all abilities in parallel.
  */
 async function discoverAllAbilities(
   runtime: WordPressRuntime,
@@ -588,18 +634,34 @@ async function discoverAllAbilities(
       options,
     );
 
-    for (const ability of abilityList) {
+    // Execute all ability discoveries in parallel
+    const discoveryPromises = abilityList.map(async (ability) => {
       try {
         const description = await discoverAbility(
           runtime,
           ability.name,
           options,
         );
-        abilities[ability.name] = description;
+        return { type: 'success' as const, name: ability.name, description };
       } catch (error) {
-        warnings.push({
-          key: `ability:${ability.name}`,
+        return {
+          type: 'error' as const,
+          name: ability.name,
           message: error instanceof Error ? error.message : `Failed to discover ability '${ability.name}'`,
+        };
+      }
+    });
+
+    const results = await Promise.all(discoveryPromises);
+
+    // Process results
+    for (const result of results) {
+      if (result.type === 'success') {
+        abilities[result.name] = result.description;
+      } else {
+        warnings.push({
+          key: `ability:${result.name}`,
+          message: result.message,
         });
       }
     }
@@ -746,37 +808,59 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       warnings: [],
     };
 
+    // Execute all discovery operations in parallel
+    const discoveryPromises: Promise<void>[] = [];
+
     // Discover content resources
     if (includeKinds.includes('content')) {
-      const { resources, warnings } = await discoverAllContent(runtime, requestOptions);
-      catalog.content = resources;
-      catalog.warnings!.push(...warnings);
-      cacheDescriptions({ content: resources });
+      discoveryPromises.push(
+        (async () => {
+          const { resources, warnings } = await discoverAllContent(runtime, requestOptions);
+          catalog.content = resources;
+          catalog.warnings!.push(...warnings);
+          cacheDescriptions({ content: resources });
+        })()
+      );
     }
 
     // Discover term resources
     if (includeKinds.includes('terms')) {
-      const { resources, warnings } = await discoverAllTerms(runtime, requestOptions);
-      catalog.terms = resources;
-      catalog.warnings!.push(...warnings);
-      cacheDescriptions({ terms: resources });
+      discoveryPromises.push(
+        (async () => {
+          const { resources, warnings } = await discoverAllTerms(runtime, requestOptions);
+          catalog.terms = resources;
+          catalog.warnings!.push(...warnings);
+          cacheDescriptions({ terms: resources });
+        })()
+      );
     }
 
     // Discover first-class resources
     if (includeKinds.includes('resources')) {
-      const { resources, warnings } = await discoverFirstClassResources(runtime, requestOptions);
-      catalog.resources = resources;
-      catalog.warnings!.push(...warnings);
-      cacheDescriptions({ resources });
+      discoveryPromises.push(
+        (async () => {
+          const { resources, warnings } = await discoverFirstClassResources(runtime, requestOptions);
+          catalog.resources = resources;
+          catalog.warnings!.push(...warnings);
+          cacheDescriptions({ resources });
+        })()
+      );
     }
 
     // Discover abilities
     if (includeKinds.includes('abilities')) {
-      const { abilities, warnings } = await discoverAllAbilities(runtime, requestOptions);
-      catalog.abilities = abilities;
-      catalog.warnings!.push(...warnings);
-      cacheDescriptions({ abilities });
+      discoveryPromises.push(
+        (async () => {
+          const { abilities, warnings } = await discoverAllAbilities(runtime, requestOptions);
+          catalog.abilities = abilities;
+          catalog.warnings!.push(...warnings);
+          cacheDescriptions({ abilities });
+        })()
+      );
     }
+
+    // Wait for all discoveries to complete in parallel
+    await Promise.all(discoveryPromises);
 
     if (shouldCacheFullCatalog) {
       cache.catalog = catalog;

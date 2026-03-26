@@ -1,6 +1,7 @@
 import { BaseCrudResource } from '../core/resource-base.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
+import type { ListAllOptions } from '../core/pagination.js';
 import type { WordPressCategory, WordPressTag } from '../schemas.js';
 import { categorySchema, tagSchema } from '../standard-schemas.js';
 import type {
@@ -86,8 +87,9 @@ export class GenericTermResource<
   async listAllWithValidation(
     filter: Omit<QueryParams & PaginationParams, 'page'> = {},
     options?: WordPressRequestOverrides,
+    listOptions?: ListAllOptions,
   ): Promise<TTerm[]> {
-    const items = await this.listAll(filter, options);
+    const items = await this.listAll(filter, options, listOptions);
 
     if (this.shouldSkipValidation(filter)) {
       return items as TTerm[];
@@ -149,7 +151,7 @@ export function createTermsClient<TTerm>(
 
   return {
     list: (filter = {}, options) => resource.listWithValidation(filter as QueryParams & PaginationParams, options) as Promise<TTerm[]>,
-    listAll: (filter = {}, options) => resource.listAllWithValidation(filter as Omit<QueryParams & PaginationParams, 'page'>, options) as Promise<TTerm[]>,
+    listAll: (filter = {}, options, listOptions) => resource.listAllWithValidation(filter as Omit<QueryParams & PaginationParams, 'page'>, options, listOptions) as Promise<TTerm[]>,
     listPaginated: (filter = {}, options) => resource.listPaginatedWithValidation(filter as QueryParams & PaginationParams, options) as Promise<PaginatedResponse<TTerm>>,
     item: (idOrSlug, options) => resource.item(idOrSlug, options) as Promise<TTerm | undefined>,
     ...crudMethods,

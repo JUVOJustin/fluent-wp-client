@@ -9,7 +9,7 @@ import type {
 import type { WordPressWritePayload, DeleteOptions } from '../types/payloads.js';
 import type { WordPressStandardSchema } from './validation.js';
 import type { WordPressRuntime } from './transport.js';
-import { createWordPressPaginator } from './pagination.js';
+import { createWordPressPaginator, type ListAllOptions } from './pagination.js';
 import {
   filterToParams,
   compactPayload,
@@ -89,13 +89,14 @@ export abstract class BaseCollectionResource<TResource, TFilter extends Paginati
   }
 
   /**
-   * Lists all resources using automatic pagination.
+   * Lists all resources using automatic pagination with parallel fetching.
    */
   async listAll(
     filter: Omit<TFilter, 'page'> = {} as Omit<TFilter, 'page'>,
     options?: WordPressRequestOverrides,
+    listOptions?: ListAllOptions,
   ): Promise<TResource[]> {
-    return this.createPaginator().listAll(filter, options);
+    return this.createPaginator().listAll(filter, options, listOptions);
   }
 
   /**

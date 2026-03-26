@@ -14,6 +14,7 @@ import {
   type PostLikeResourceContext,
 } from '../core/resource-base.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
+import type { ListAllOptions } from '../core/pagination.js';
 import { pageSchema, postSchema } from '../standard-schemas.js';
 import type { WordPressPostLike } from '../schemas.js';
 import type {
@@ -117,8 +118,9 @@ export class GenericContentResource<
   async listAllWithValidation(
     filter: Omit<QueryParams & PaginationParams, 'page'> = {},
     options?: WordPressRequestOverrides,
+    listOptions?: ListAllOptions,
   ): Promise<TContent[]> {
-    const items = await this.listAll(filter, options);
+    const items = await this.listAll(filter, options, listOptions);
 
     if (this.shouldSkipValidation(filter)) {
       return items as TContent[];

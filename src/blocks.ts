@@ -200,7 +200,7 @@ export function serializeWordPressBlockComment(
     return `<!-- wp:${normalizedName} ${serializedAttributes}/-->`;
   }
 
-  return `<!-- wp:${normalizedName} ${serializedAttributes}-->\n${content}\n<!-- /wp:${normalizedName} -->`;
+  return `<!-- wp:${normalizedName} ${serializedAttributes}-->${content}<!-- /wp:${normalizedName} -->`;
 }
 
 /**
@@ -766,9 +766,15 @@ export async function validateWordPressBlocks(
   try {
     const serialized = serializeWordPressBlocks(blocks);
     const reparsed = await parseWordPressBlocks(serialized, options.parser);
-    const reserialized = serializeWordPressBlocks(reparsed);
+    const namedOnly = reparsed.filter((b) => b.blockName !== null);
+    const reserialized = serializeWordPressBlocks(namedOnly);
 
-    if (reserialized !== serialized) {
+    // Normalize inter-block whitespace for comparison because the parser
+    // turns top-level `\n\n` separators into freeform nodes that are
+    // stripped before re-serialization.
+    const normalize = (s: string): string => s.replace(/\n{2,}/g, '\n\n').trim();
+
+    if (normalize(reserialized) !== normalize(serialized)) {
       issues.push({
         code: 'roundtrip_mismatch',
         message: 'Block serialization does not round-trip cleanly through the WordPress raw block parser.',

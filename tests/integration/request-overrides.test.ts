@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
+import { WordPressClient } from '../../dist/index.js';
+import { withBlocks } from '../../dist/blocks-entry.js';
 import { getBaseUrl } from '../helpers/wp-client';
 
 /**
@@ -339,14 +340,14 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const postQuery = client.content('posts').item(posts[0].id, {
+    const postQuery = withBlocks(client).content('posts').item(posts[0].id, {
       headers: {
         'x-test-source': 'read-post-by-id',
       },
     });
 
     await postQuery;
-    await postQuery.getBlocks();
+    await postQuery.blocks().get();
 
     const books = await client.content('books').list(
       { perPage: 1 },
@@ -431,8 +432,8 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(embeddedPosts).toHaveLength(1);
     expect(defaultBooks).toHaveLength(1);
     expect(embeddedBooks).toHaveLength(1);
-    expect(plainItem.slug).toBe('test-post-001');
-    expect(relatedItem.slug).toBe('test-post-002');
+    expect(plainItem?.slug).toBe('test-post-001');
+    expect(relatedItem?.slug).toBe('test-post-002');
     expect(seen.postsListDefault).toBe(true);
     expect(seen.postsListEmbedded).toBe(true);
     expect(seen.booksListDefault).toBe(true);

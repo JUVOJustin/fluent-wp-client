@@ -12,6 +12,7 @@ import type {
 import type { ResourceItemQueryBuilder } from '../builders/resource-item-relations.js';
 import type {
   WordPressAuthor,
+  WordPressBlockType,
   WordPressComment,
   WordPressMedia,
   WordPressPostLike,
@@ -21,6 +22,7 @@ import type { WordPressStandardSchema } from '../core/validation.js';
 import type { WordPressResourceDescription } from './discovery.js';
 import type { WordPressMediaUploadInput } from './client.js';
 import type { ListAllOptions } from '../core/pagination.js';
+import type { WordPressBlockJsonSchema } from '../blocks.js';
 
 /**
  * Per-request transport overrides supported by high-level helper methods.
@@ -294,5 +296,25 @@ export interface SettingsResourceClient<
     responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
+  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+}
+
+/**
+ * Fluent block types resource API surface.
+ */
+export interface BlocksResourceClient<
+  TResource extends WordPressBlockType = WordPressBlockType,
+  TFilter extends QueryParams = QueryParams,
+> {
+  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
+  item: (
+    name: string,
+    options?: WordPressRequestOverrides & { context?: 'view' | 'embed' | 'edit'; fields?: string[] },
+  ) => Promise<TResource | undefined>;
+  schema: (
+    name: string,
+    options?: WordPressRequestOverrides & { context?: 'view' | 'embed' | 'edit'; fields?: string[] },
+  ) => Promise<WordPressBlockJsonSchema | undefined>;
+  schemas: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<WordPressBlockJsonSchema[]>;
   describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
 }

@@ -20,7 +20,6 @@ import { applyRequestOverrides } from './request-overrides.js';
 import { throwIfWordPressError } from './errors.js';
 import { validateWithStandardSchema } from './validation.js';
 import { resolveMutationArguments } from './mutation-helpers.js';
-import type { WordPressBlockParser } from '../blocks.js';
 
 /**
  * Dependencies required for resource operations.
@@ -241,14 +240,13 @@ export abstract class BaseCrudResource<
 export interface PostLikeResourceContext<TContent extends WordPressPostBase = WordPressPostBase>
   extends CrudResourceContext<TContent> {
   missingRawMessage: string;
-  defaultBlockParser?: WordPressBlockParser;
 }
 
 /**
  * Base class for post-like resources (posts, pages, custom post types).
  * 
  * Extends BaseCrudResource with:
- * - Content query builders for single items (with block parsing support)
+ * - Content query builders for single items with edit-context raw content access
  * - Opt-in `_embed` handling for collection filters
  */
 export abstract class BasePostLikeResource<
@@ -258,12 +256,10 @@ export abstract class BasePostLikeResource<
   TUpdate extends WordPressWritePayload = TCreate,
 > extends BaseCrudResource<TContent, TFilter, TCreate, TUpdate> {
   protected readonly missingRawMessage: string;
-  protected readonly defaultBlockParser?: WordPressBlockParser;
 
   constructor(context: PostLikeResourceContext<TContent>) {
     super(context);
     this.missingRawMessage = context.missingRawMessage;
-    this.defaultBlockParser = context.defaultBlockParser;
   }
 
   /**

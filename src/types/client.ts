@@ -4,7 +4,6 @@ import type {
   WordPressAuthHeadersProvider,
   WordPressAuthInput,
 } from '../auth.js';
-import type { WordPressBlockParser } from '../blocks.js';
 
 /**
  * Callback invoked before each HTTP request to implement rate limiting or other custom logic.
@@ -42,7 +41,6 @@ export interface WordPressClientConfig {
   cookies?: string;
   credentials?: RequestCredentials;
   fetch?: typeof fetch;
-  blockParser?: WordPressBlockParser;
   /**
    * Callback invoked before each HTTP request. Use this for rate limiting, logging,
    * or other custom request processing. The callback receives the final URL and

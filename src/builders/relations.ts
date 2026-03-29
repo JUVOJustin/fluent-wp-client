@@ -6,15 +6,9 @@ import {
   type WordPressTag,
 } from '../schemas.js';
 import type { WordPressAuthor } from '../schemas.js';
-import {
-  parseWordPressBlocks,
-  type WordPressBlockParser,
-  type WordPressParsedBlock,
-} from '../blocks.js';
 import { ExecutableQuery } from '../core/query-base.js';
 import {
   resolveWordPressRawContent,
-  type WordPressGetBlocksOptions,
   type WordPressRawContentResult,
 } from '../content-query.js';
 import type {
@@ -130,7 +124,6 @@ export class PostRelationQueryBuilder<
   private readonly getEditById?: (id: number, fields?: string[]) => PromiseLike<TContent>;
   private readonly getEditBySlug?: (slug: string, fields?: string[]) => PromiseLike<TContent | undefined>;
   private readonly missingRawMessage: string;
-  private readonly defaultBlockParser?: WordPressBlockParser;
   private readonly userRequestedEmbed: boolean;
   private viewPromise: Promise<TContent | undefined> | undefined;
   private editPromise: Promise<TContent | undefined> | undefined;
@@ -147,7 +140,6 @@ export class PostRelationQueryBuilder<
       getEditById?: (id: number, fields?: string[]) => PromiseLike<TContent>;
       getEditBySlug?: (slug: string, fields?: string[]) => PromiseLike<TContent | undefined>;
       missingRawMessage?: string;
-      defaultBlockParser?: WordPressBlockParser;
       userRequestedEmbed?: boolean;
     } = {},
   ) {
@@ -157,7 +149,6 @@ export class PostRelationQueryBuilder<
     this.getEditBySlug = options.getEditBySlug;
     this.missingRawMessage = options.missingRawMessage
       ?? 'Raw post content is unavailable. The current credentials may not have edit capabilities for this content item.';
-    this.defaultBlockParser = options.defaultBlockParser;
     this.userRequestedEmbed = options.userRequestedEmbed ?? false;
   }
 
@@ -192,15 +183,15 @@ export class PostRelationQueryBuilder<
 
   /**
    * Loads the selected item in edit context when raw content helpers need it.
-   * Always requests the 'content' field to ensure getContent() and getBlocks() work.
+   * Always requests the 'id' and 'content' fields so edit-context helpers can share one lookup.
    */
   private async loadEditablePostOnce(): Promise<TContent | undefined> {
     if (typeof this.selector.id === 'number' && this.getEditById) {
-      return this.getEditById(this.selector.id, ['content']);
+      return this.getEditById(this.selector.id, ['id', 'content']);
     }
 
     if (typeof this.selector.slug === 'string' && this.getEditBySlug) {
-      return this.getEditBySlug(this.selector.slug, ['content']);
+      return this.getEditBySlug(this.selector.slug, ['id', 'content']);
     }
 
     return undefined;
@@ -243,7 +234,6 @@ export class PostRelationQueryBuilder<
         getEditById: this.getEditById,
         getEditBySlug: this.getEditBySlug,
         missingRawMessage: this.missingRawMessage,
-        defaultBlockParser: this.defaultBlockParser,
         userRequestedEmbed: this.userRequestedEmbed,
       },
     ) as PostRelationQueryBuilder<[...TRelations, ...TNext], TContent>;
@@ -260,19 +250,6 @@ export class PostRelationQueryBuilder<
     }
 
     return resolveWordPressRawContent(post as WordPressPostLike, this.missingRawMessage);
-  }
-
-  /**
-   * Parses raw content into Gutenberg blocks from one edit-context request.
-   */
-  async getBlocks(options: WordPressGetBlocksOptions = {}): Promise<WordPressParsedBlock[] | undefined> {
-    const content = await this.getContent();
-
-    if (!content) {
-      return undefined;
-    }
-
-    return parseWordPressBlocks(content.raw, options.parser ?? this.defaultBlockParser);
   }
 
   /**

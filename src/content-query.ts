@@ -1,4 +1,3 @@
-import type { WordPressBlockParser } from './blocks.js';
 import type { WordPressPostLike } from './schemas.js';
 
 /**
@@ -8,13 +7,6 @@ export interface WordPressRawContentResult {
   raw: string;
   rendered: string;
   protected: boolean;
-}
-
-/**
- * Optional overrides supported by one content-item `getBlocks()` call.
- */
-export interface WordPressGetBlocksOptions {
-  parser?: WordPressBlockParser;
 }
 
 /**

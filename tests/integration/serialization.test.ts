@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
-import { createAuthClient, createPublicClient } from '../helpers/wp-client';
+import { WordPressClient } from '../../dist/index.js';
+import type { WordPressBlocksClient } from '../../dist/blocks-entry.js';
+import { createAuthBlocksClient, createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
  * Verifies that all read helpers return plain serializable DTOs.
@@ -12,10 +13,12 @@ import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 describe('Client: DTO serialization', () => {
   let publicClient: WordPressClient;
   let authClient: WordPressClient;
+  let authBlocksClient: WordPressBlocksClient;
 
   beforeAll(() => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
+    authBlocksClient = createAuthBlocksClient();
   });
 
   function postsClient(client: WordPressClient) {
@@ -111,10 +114,13 @@ describe('Client: DTO serialization', () => {
       expect(lookup).toBeDefined();
 
       const post = await postsClient(publicClient).item(lookup!.id);
+
+      expect(post).toBeDefined();
+
       const cloned = structuredClone(post);
 
-      expect(cloned.id).toBe(post.id);
-      expect(cloned.slug).toBe(post.slug);
+      expect(cloned!.id).toBe(post!.id);
+      expect(cloned!.slug).toBe(post!.slug);
     });
 
     it('content(\'posts\').item() resolves to a plain DTO without helpers', async () => {
@@ -163,7 +169,7 @@ describe('Client: DTO serialization', () => {
         return;
       }
 
-      const blocks = await postsClient(authClient).item(firstWithContent.id).getBlocks();
+      const blocks = await authBlocksClient.content('posts').item(firstWithContent.id).blocks().get();
 
       expect(blocks).toBeDefined();
       expect(Array.isArray(blocks)).toBe(true);

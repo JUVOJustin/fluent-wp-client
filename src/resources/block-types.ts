@@ -27,16 +27,30 @@ function isNotFoundError(error: unknown): error is { status: number } {
 }
 
 /**
+ * Validates a WordPress block type name matches the expected namespace/block-name pattern.
+ */
+const BLOCK_NAME_PATTERN = /^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/;
+
+/**
  * Normalizes a block type name into its REST item endpoint.
+ * Validates the name against the WordPress block name pattern to prevent path traversal.
  */
 function createBlockTypeItemEndpoint(name: string): string {
-  const trimmed = name.replace(/^\/+|\/+$/g, '');
+  const trimmed = name.trim();
 
   if (!trimmed) {
     throw new Error('Block type name must not be empty.');
   }
 
-  return `/block-types/${trimmed}`;
+  if (!BLOCK_NAME_PATTERN.test(trimmed)) {
+    throw new Error(
+      `Invalid block type name "${trimmed}". Expected format: "namespace/block-name" (lowercase alphanumeric and hyphens).`,
+    );
+  }
+
+  const [namespace, blockName] = trimmed.split('/');
+
+  return `/block-types/${encodeURIComponent(namespace!)}/${encodeURIComponent(blockName!)}`;
 }
 
 /**

@@ -168,12 +168,12 @@ export async function parseWordPressBlocks(
  */
 export function serializeWordPressBlockAttributes(attributes: Record<string, unknown>): string {
   return JSON.stringify(attributes)
+    .replaceAll('\\"', '\\u0022')
     .replaceAll('\\', '\\u005c')
     .replaceAll('--', '\\u002d\\u002d')
     .replaceAll('<', '\\u003c')
     .replaceAll('>', '\\u003e')
-    .replaceAll('&', '\\u0026')
-    .replaceAll('\\"', '\\u0022');
+    .replaceAll('&', '\\u0026');
 }
 
 /**
@@ -218,9 +218,7 @@ function serializeRawBlock(
     .map((item) => item !== null
       ? item
       : serializeRawBlock(block.innerBlocks[childIndex++]!, options))
-    .join('\n')
-    .replace(/\n+/g, '\n')
-    .trim();
+    .join('');
 
   if (!isCommentDelimited || block.blockName === null) {
     return content;

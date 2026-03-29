@@ -96,6 +96,7 @@ Parsed blocks contain `blockName`, `attrs`, `innerBlocks`, `innerHTML`, `innerCo
 ## Write blocks
 
 ```ts
+const postQuery = wpBlocks.content('posts').item('hello-world');
 const blocks = await postQuery.blocks().get();
 const updated = [
   { ...blocks[0]!, innerHTML: '<p>New text.</p>', innerContent: ['<p>New text.</p>'] },

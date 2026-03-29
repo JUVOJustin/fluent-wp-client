@@ -114,10 +114,10 @@ describe('Client: Content field enforcement', () => {
       createdPostIds.push(created.id);
 
       // Request with fields filter that excludes 'content'
-       const blocks = await authBlocksClient
-         .content('posts')
-         .item(slug, { fields: ['id', 'slug', 'title'] })
-         .blocks().get();
+      const blocks = await authBlocksClient
+        .content('posts')
+        .item(slug, { fields: ['id', 'slug', 'title'] })
+        .blocks().get();
 
       expect(blocks).toBeDefined();
       expect(blocks).toHaveLength(1);
@@ -136,10 +136,10 @@ describe('Client: Content field enforcement', () => {
       createdPostIds.push(created.id);
 
       // Request with fields filter that includes 'content'
-       const blocks = await authBlocksClient
-         .content('posts')
-         .item(slug, { fields: ['id', 'content'] })
-         .blocks().get();
+      const blocks = await authBlocksClient
+        .content('posts')
+        .item(slug, { fields: ['id', 'content'] })
+        .blocks().get();
 
       expect(blocks).toBeDefined();
       expect(blocks?.[0].blockName).toBe('core/heading');

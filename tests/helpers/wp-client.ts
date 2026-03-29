@@ -1,4 +1,5 @@
-import { WordPressClient } from 'fluent-wp-client';
+import { WordPressClient } from '../../dist/index.js';
+import { withBlocks, type WordPressBlocksClient } from '../../dist/blocks-entry.js';
 
 /**
  * Resolves the WP base URL from the integration test environment.
@@ -15,6 +16,13 @@ export function createPublicClient(): WordPressClient {
 }
 
 /**
+ * Creates an unauthenticated block-aware client wrapper for public endpoint tests.
+ */
+export function createPublicBlocksClient(): WordPressBlocksClient {
+  return withBlocks(createPublicClient());
+}
+
+/**
  * Creates a basic-authenticated client for privileged endpoint tests.
  */
 export function createAuthClient(): WordPressClient {
@@ -28,6 +36,13 @@ export function createAuthClient(): WordPressClient {
     baseUrl: getBaseUrl(),
     auth: { username: 'admin', password },
   });
+}
+
+/**
+ * Creates a block-aware authenticated client for privileged block endpoint tests.
+ */
+export function createAuthBlocksClient(): WordPressBlocksClient {
+  return withBlocks(createAuthClient());
 }
 
 /**

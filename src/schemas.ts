@@ -30,6 +30,11 @@ const recordOrArraySchema = z.union([
 ]);
 
 /**
+ * Flexible object schema used for open-ended REST metadata payloads.
+ */
+const recordSchema = z.record(z.string(), z.any());
+
+/**
  * Shared image size schema used inside media details payloads.
  */
 const mediaSizeSchema = z.object({
@@ -236,6 +241,77 @@ export const abilityCategorySchema = z.object({
 }).passthrough();
 
 /**
+ * Schema for one block attribute definition returned by `/wp/v2/block-types`.
+ */
+const blockAttributeDefinitionSchema = z.object({
+  type: z.union([z.string(), z.array(z.string())]).optional(),
+  default: z.any().optional(),
+  enum: z.array(z.any()).optional(),
+  source: z.string().optional(),
+  selector: z.string().optional(),
+  attribute: z.string().optional(),
+  meta: z.string().optional(),
+  query: z.record(z.string(), z.any()).optional(),
+  role: z.string().optional(),
+  items: z.any().optional(),
+  properties: recordSchema.optional(),
+}).passthrough();
+
+/**
+ * Schema for block type records exposed by `/wp/v2/block-types`.
+ */
+export const blockTypeSchema = z.object({
+  api_version: z.number().optional(),
+  title: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  icon: z.string().nullable().optional(),
+  attributes: z.record(z.string(), blockAttributeDefinitionSchema).nullable().optional(),
+  provides_context: recordOrArraySchema.optional(),
+  uses_context: z.array(z.string()).optional(),
+  selectors: recordOrArraySchema.optional(),
+  supports: recordOrArraySchema.optional(),
+  category: z.string().nullable().optional(),
+  is_dynamic: z.boolean().optional(),
+  editor_script_handles: z.array(z.string()).optional(),
+  script_handles: z.array(z.string()).optional(),
+  view_script_handles: z.array(z.string()).optional(),
+  editor_style_handles: z.array(z.string()).optional(),
+  style_handles: z.array(z.string()).optional(),
+  styles: z.array(z.any()).optional(),
+  variations: z.array(z.any()).optional(),
+  textdomain: z.string().nullable().optional(),
+  parent: z.array(z.string()).nullable().optional(),
+  ancestor: z.array(z.string()).nullable().optional(),
+  keywords: z.array(z.string()).optional(),
+  example: z.any().nullable().optional(),
+  editor_script: z.string().nullable().optional(),
+  script: z.string().nullable().optional(),
+  view_script: z.string().nullable().optional(),
+  editor_style: z.string().nullable().optional(),
+  style: z.string().nullable().optional(),
+}).passthrough();
+
+export interface WordPressParsedBlock {
+  blockName: string | null;
+  attrs: Record<string, unknown> | null;
+  innerBlocks: WordPressParsedBlock[];
+  innerHTML: string;
+  innerContent: Array<string | null>;
+}
+
+/**
+ * Schema for the raw parsed block tree used by the client parse/set helpers.
+ */
+export const parsedBlockSchema: z.ZodType<WordPressParsedBlock> = z.lazy(() => z.object({
+  blockName: z.string().nullable(),
+  attrs: recordSchema.nullable(),
+  innerBlocks: z.array(parsedBlockSchema),
+  innerHTML: z.string(),
+  innerContent: z.array(z.union([z.string(), z.null()])),
+}));
+
+/**
  * Schema for WordPress users/authors.
  */
 export const authorSchema = z.object({
@@ -404,6 +480,7 @@ export type WordPressEmbeddedMedia = z.infer<typeof embeddedMediaSchema>;
 export type WordPressAbilityAnnotations = z.infer<typeof abilityAnnotationsSchema>;
 export type WordPressAbility = z.infer<typeof abilitySchema>;
 export type WordPressAbilityCategory = z.infer<typeof abilityCategorySchema>;
+export type WordPressBlockType = z.infer<typeof blockTypeSchema>;
 export type WordPressAuthor = z.infer<typeof authorSchema>;
 export type WordPressComment = z.infer<typeof commentSchema>;
 export type WordPressPostWriteFields = z.infer<typeof updatePostFieldsSchema>;

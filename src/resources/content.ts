@@ -156,7 +156,7 @@ export class GenericContentResource<
   }
 
   /**
-   * Creates one awaitable single-item query with optional relations and block helpers.
+   * Creates one awaitable single-item query with optional relation hydration.
    */
   itemQuery<TRelations extends readonly AllPostRelations[]>(
     idOrSlug: number | string,
@@ -177,7 +177,6 @@ export class GenericContentResource<
         getEditById: (id, editFields) => this.fetchContentById(id, options, 'edit', false, editFields),
         getEditBySlug: (slug, editFields) => this.fetchContentBySlug(slug, options, 'edit', false, editFields),
         missingRawMessage: this.missingRawMessage,
-        defaultBlockParser: this.defaultBlockParser,
         userRequestedEmbed,
       },
     );

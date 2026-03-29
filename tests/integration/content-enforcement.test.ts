@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
-import { createAuthClient, createPublicClient } from '../helpers/wp-client';
+import { WordPressClient } from '../../dist/index.js';
+import type { WordPressBlocksClient } from '../../dist/blocks-entry.js';
+import {
+  createAuthBlocksClient,
+  createAuthClient,
+  createPublicBlocksClient,
+  createPublicClient,
+} from '../helpers/wp-client';
 
 /**
  * Integration coverage for content field enforcement in getContent() and getBlocks().
@@ -12,11 +18,15 @@ import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 describe('Client: Content field enforcement', () => {
   let authClient: WordPressClient;
   let publicClient: WordPressClient;
+  let authBlocksClient: WordPressBlocksClient;
+  let publicBlocksClient: WordPressBlocksClient;
   const createdPostIds: number[] = [];
 
   beforeAll(() => {
     authClient = createAuthClient();
     publicClient = createPublicClient();
+    authBlocksClient = createAuthBlocksClient();
+    publicBlocksClient = createPublicBlocksClient();
   });
 
   afterAll(async () => {
@@ -91,7 +101,7 @@ describe('Client: Content field enforcement', () => {
     });
   });
 
-  describe('getBlocks() field enforcement', () => {
+  describe('blocks().get() field enforcement', () => {
     it('enforces content field when fields filter excludes it', async () => {
       const slug = `client-blocks-enforce-${Date.now()}`;
       const created = await authClient.content('posts').create({
@@ -104,10 +114,10 @@ describe('Client: Content field enforcement', () => {
       createdPostIds.push(created.id);
 
       // Request with fields filter that excludes 'content'
-      const blocks = await authClient
+      const blocks = await authBlocksClient
         .content('posts')
         .item(slug, { fields: ['id', 'slug', 'title'] })
-        .getBlocks();
+        .blocks().get();
 
       expect(blocks).toBeDefined();
       expect(blocks).toHaveLength(1);
@@ -126,10 +136,10 @@ describe('Client: Content field enforcement', () => {
       createdPostIds.push(created.id);
 
       // Request with fields filter that includes 'content'
-      const blocks = await authClient
+      const blocks = await authBlocksClient
         .content('posts')
         .item(slug, { fields: ['id', 'content'] })
-        .getBlocks();
+        .blocks().get();
 
       expect(blocks).toBeDefined();
       expect(blocks?.[0].blockName).toBe('core/heading');
@@ -192,11 +202,11 @@ describe('Client: Content field enforcement', () => {
       expect(content).toBeUndefined();
     });
 
-    it('returns undefined for getBlocks() when post not found', async () => {
-      const blocks = await authClient
+    it('returns undefined for blocks().get() when post not found', async () => {
+      const blocks = await authBlocksClient
         .content('posts')
         .item('non-existent-post-12345')
-        .getBlocks();
+        .blocks().get();
 
       expect(blocks).toBeUndefined();
     });
@@ -204,6 +214,14 @@ describe('Client: Content field enforcement', () => {
     it('throws appropriate error when public client calls getContent()', async () => {
       await expect(
         publicClient.content('posts').item('test-post-001').getContent(),
+      ).rejects.toMatchObject({
+        name: 'WordPressApiError',
+      });
+    });
+
+    it('throws appropriate error when public block client calls blocks().get()', async () => {
+      await expect(
+        publicBlocksClient.content('posts').item('test-post-001').blocks().get(),
       ).rejects.toMatchObject({
         name: 'WordPressApiError',
       });
@@ -240,7 +258,7 @@ describe('Client: Content field enforcement', () => {
       expect(content?.raw).toContain('<!-- wp:paragraph -->');
     });
 
-    it('enforces content field for page getBlocks()', async () => {
+    it('enforces content field for page blocks().get()', async () => {
       const slug = `client-page-blocks-enforce-${Date.now()}`;
       const created = await authClient.content('pages').create({
         title: 'Page blocks enforcement',
@@ -252,10 +270,10 @@ describe('Client: Content field enforcement', () => {
       createdPageIds.push(created.id);
 
       // Request with fields filter that excludes 'content'
-      const blocks = await authClient
-        .content('pages')
-        .item(slug, { fields: ['id', 'slug'] })
-        .getBlocks();
+       const blocks = await authBlocksClient
+         .content('pages')
+         .item(slug, { fields: ['id', 'slug'] })
+         .blocks().get();
 
       expect(blocks).toBeDefined();
       expect(blocks?.[0].blockName).toBe('core/heading');

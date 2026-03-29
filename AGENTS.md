@@ -1,6 +1,6 @@
 # fluent-wp-client
 
-`fluent-wp-client` is a runtime-agnostic typed WordPress REST client with CRUD, auth, ability, and relation APIs.
+`fluent-wp-client` is a runtime-agnostic typed WordPress REST client with CRUD, auth, ability, and relation APIs, plus an optional `fluent-wp-client/blocks` add-on for Gutenberg workflows.
 
 ## Architecture Priorities
 
@@ -8,7 +8,7 @@
 - Build higher-level helpers on top of proven client primitives. If a feature needs a new REST ability, implement that ability in the client first.
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
 - Prefer `content()` and `terms()` as the public post-like and term resource API. Do not reintroduce legacy direct convenience wrappers for posts/pages/categories/tags.
-- Prefer `media()`, `comments()`, `users()`, and `settings()` as the public first-class resource API. Do not reintroduce legacy direct convenience wrappers such as `getMedia()` or `getCurrentUser()`.
+- Prefer `media()`, `comments()`, `users()`, and `settings()` as the public first-class resource API in the root package. Block type discovery and block-aware content helpers belong in the dedicated `fluent-wp-client/blocks` subpath.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Root package schema exports must be typed as Standard Schema (`WordPressStandardSchema`) to keep the default API validator-agnostic.
 - Native Zod schema exports belong in the dedicated `fluent-wp-client/zod` entrypoint only.
@@ -23,12 +23,12 @@
 - All terminal read methods return plain serializable DTOs by default. Returned data must survive `structuredClone()`, `JSON.stringify()`, and cross-boundary transport (SSR, RSC, `postMessage`, cache).
 - No fetched DTO should contain functions, `then`, `PromiseLike`, or hidden closures. Never mutate API response objects with runtime helpers via `Object.assign` or similar.
 - Runtime query helpers (`PostRelationQueryBuilder`, `WordPressRequestBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
-- Standalone utility functions (like `parseWordPressBlocks`) handle stateless transforms on already-fetched DTOs.
+- Standalone block utility functions (like `parseWordPressBlocks`, `serializeWordPressBlocks`, `validateWordPressBlocks`, and generated block JSON Schema helpers) belong to the `fluent-wp-client/blocks` subpath and handle stateless transforms on already-fetched DTOs.
 - Post-like collection methods (`content('posts').list()`, `content('pages').list()`, `content(resource).list()`) return plain DTO arrays.
 - Post-like DTO reads keep `_embed` disabled by default; opt into collection embedding with `embed: true`. Relation queries created through `content(resource).item(...).with(...)` automatically request `_embed`.
-- Single post-like item access goes through `content(resource).item(idOrSlug)`, which returns an awaitable `PostRelationQueryBuilder` with `.getBlocks()` / `.getContent()` and relation hydration.
+- Single post-like item access goes through `content(resource).item(idOrSlug)`, which returns an awaitable `PostRelationQueryBuilder` with `.getContent()` and relation hydration. Block parse/write helpers are added only by the `fluent-wp-client/blocks` wrapper through `.content(resource).item(...).blocks()`.
 - First-class collection helpers (`media().list()`, `comments().list()`, `users().list()`) return plain DTO arrays. Single-item access goes through `.item(...)`, which is awaitable and may support `.with(...)` relation hydration, while `settings()` remains a singleton with `.get()` / `.update()` / `.describe()`.
-- When adding new resource helpers, follow the same contract: collections return plain arrays, and single-item post-like access returns explicit query wrappers only when block/content helpers or relation hydration are needed.
+- When adding new resource helpers, follow the same contract: collections return plain arrays, and single-item post-like access returns explicit query wrappers only when raw-content helpers or relation hydration are needed in the root package.
 
 ## File Structure
 
@@ -41,7 +41,10 @@ src/
   standard-schemas.ts          # Root Standard Schema exports mapped from Zod definitions
   zod.ts                       # Optional native Zod export entrypoint
   auth.ts                      # Auth types, helpers, resolvers
-  blocks.ts                    # Block parser types and parseWordPressBlocks
+  blocks.ts                    # Block parse/serialize/validate helpers
+  blocks-client.ts             # Block-aware client wrapper for the /blocks subpath
+  blocks-entry.ts              # Public fluent-wp-client/blocks entrypoint
+  blocks-zod.ts                # Public fluent-wp-client/blocks/zod entrypoint
   abilities.ts                 # Ability methods and builder
   content-query.ts             # Raw content helper types and resolver
   types.ts                     # Re-export barrel for types/ subdirectory
@@ -67,6 +70,7 @@ src/
     users.ts                   # UsersResource
     comments.ts                # CommentsResource
     settings.ts                # SettingsResource
+    block-types.ts             # Block types resource (used by /blocks)
     content.ts                 # Generic post-like resource + client factory
     terms.ts                   # Generic term resource + client factory
     registry.ts                # Shared generic resource registry
@@ -84,7 +88,7 @@ When adding new files:
 - Fluent builder/query classes go in `builders/`.
 - Pure type definitions (no runtime code) go in `types/`.
 - Runtime utilities shared across resources go in `core/`.
-- Root `src/` files are reserved for top-level concerns (client, schemas, auth, blocks).
+- Root `src/` files are reserved for top-level concerns (client, schemas, auth, blocks, entrypoints).
 
 ## Testing
 
@@ -207,6 +211,7 @@ Reference integration suites:
 - `tests/integration/categories.test.ts` — `terms('categories')` read and CRUD coverage.
 - `tests/integration/tags.test.ts` — `terms('tags')` read and CRUD coverage.
 - `tests/integration/comments.test.ts` — `comments()` read, CRUD, and discovery coverage.
+- `tests/integration/block-types.test.ts` — `fluent-wp-client/blocks` block type discovery coverage.
 - `tests/integration/media.test.ts` — `media()` reads, upload/update/delete, and discovery coverage.
 - `tests/integration/users.test.ts` — `users()` reads, `/me`, CRUD, and discovery coverage.
 - `tests/integration/settings.test.ts` — `settings()` reads, updates, and discovery coverage.
@@ -216,6 +221,7 @@ Reference integration suites:
 - `tests/integration/abilities.test.ts` — ability metadata plus GET, POST, and DELETE execution coverage.
 - `tests/integration/meta.test.ts` — registered REST meta coverage across posts, pages, and books.
 - `tests/integration/acf.test.ts` — ACF REST field coverage across seeded and mutated content.
+- `tests/integration/blocks.test.ts` — `blocks().get()`, `blocks().set()`, and raw content workflows through the block add-on.
 - `tests/integration/relations.test.ts` — fluent post relation hydration coverage.
 - `tests/integration/serialization.test.ts` — DTO serialization safety (`structuredClone`, `JSON.stringify`, no helper leakage).
 - `tests/integration/discovery.test.ts` — schema discovery, catalog exploration, and dogfooding coverage (converting discovered schemas to Zod for validation).

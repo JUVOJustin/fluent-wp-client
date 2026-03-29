@@ -1,130 +1,165 @@
 ---
 title: Gutenberg content
 short_title: Gutenberg
-description: Work with rendered post content and parse raw Gutenberg blocks with fluent-wp-client.
+description: Use the portable fluent-wp-client/blocks add-on to discover block types, parse raw Gutenberg content, validate block trees, and write blocks back.
 sidebar:
-  order: 4
+  order: 5
 ---
-
-## Overview
-
-This guide shows two Gutenberg-focused workflows:
-
-- read rendered content for display
-- parse serialized block markup into structured block trees
-
-`fluent-wp-client` exposes both through `content('posts').item(...)` and `content('pages').item(...)` queries.
-
-## Rendered content
-
-Use `item()` when you need the normal REST payload (`context=view`), including `content.rendered`.
-
-```ts title="Rendered post content"
-const postQuery = wp.content('posts').item('hello-world');
-const post = await postQuery;
-
-const html = post.content.rendered;
-```
-
-Use this for front-end rendering, previews, and feeds where you want WordPress to return already rendered HTML.
-
-## Raw + rendered content together
-
-Use `getContent()` when you need both:
-
-- `rendered` for immediate HTML output
-- `raw` for block-aware transforms
-
-```ts title="Get raw and rendered content"
-const postQuery = wp.content('posts').item('hello-world');
-const content = await postQuery.getContent();
-
-console.log(content.rendered);
-console.log(content.raw);
-console.log(content.protected);
-```
-
-`getContent()` uses `context=edit`, so the caller must have edit capabilities for the resource.
 
 import { LinkCard } from '@astrojs/starlight/components';
 
-<LinkCard
-  title="Authentication"
-  description="Learn how to authenticate with the WordPress REST API to access protected content."
-  href="./auth.mdx"
-/>
+## Overview
 
-## Block parsing with query helpers
+Import `fluent-wp-client/blocks` when you need Gutenberg-aware workflows. The core client stays lightweight.
 
-Use `getBlocks()` to parse Gutenberg blocks from `content.raw`.
+Four workflows:
+- rendered HTML via `content.rendered`
+- raw content via `.getContent()`
+- block type discovery via `wpBlocks.blocks()`
+- block read/write via `blocks().get()` and `blocks().set()`
 
-```ts title="Parse blocks from one post"
-const postQuery = wp.content('posts').item('hello-world');
-const blocks = await postQuery.getBlocks();
+## Setup
 
-for (const block of blocks) {
-  console.log(block.blockName, block.attrs);
-}
-```
-
-The returned block shape includes:
-
-- `blockName`
-- `attrs`
-- `innerBlocks`
-- `innerHTML`
-- `innerContent`
-
-## Block parsing from list items
-
-List methods return plain serializable DTO arrays without block helpers. Use a single-item query on a known ID for block access:
-
-```ts title="Parse blocks from a posts list"
-const posts = await wp.content('posts').list({ perPage: 5 });
-const first = posts[0];
-
-if (!first) {
-  throw new Error('No posts returned.');
-}
-
-const firstBlocks = await wp.content('posts').item(first.id).getBlocks();
-console.log(firstBlocks.length);
-```
-
-## Custom parser example
-
-You can provide a custom parser globally in the client config or per call.
-
-```ts title="Custom block parser"
-import type { WordPressBlockParser } from 'fluent-wp-client';
-
-const parser: WordPressBlockParser = (rawContent) => {
-  // Plug in your own parser implementation here.
-  return [];
-};
+```ts
+import { WordPressClient } from 'fluent-wp-client';
+import { withBlocks } from 'fluent-wp-client/blocks';
 
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
-  blockParser: parser,
+  auth: { username: 'admin', password: 'app-password' },
 });
 
-const blocks = await wp.content('posts').item('hello-world').getBlocks({
-  parser,
-});
+const wpBlocks = withBlocks(wp);
 ```
 
-You can also parse already-fetched raw content directly:
+## Block type discovery
 
-```ts title="Parse raw content directly"
-import { parseWordPressBlocks } from 'fluent-wp-client';
+```ts
+const availableBlocks = await wpBlocks.blocks().list();
+const blockSchemas = await wpBlocks.blocks().schemas();
+const paragraph = await wpBlocks.blocks().item('core/paragraph');
+const paragraphSchema = await wpBlocks.blocks().schema('core/paragraph');
+```
 
+:::tip[AI-assisted editing]
+The block catalog provides live block names, attribute definitions, constraints, and generated JSON Schemas — ideal for AI agents producing block trees.
+:::
+
+## Rendered content
+
+```ts
+const post = await wp.content('posts').item('hello-world');
+const html = post.content.rendered;
+```
+
+## Raw + rendered content
+
+```ts
 const content = await wp.content('posts').item('hello-world').getContent();
-
-const blocks = await parseWordPressBlocks(content.raw);
+content.rendered // HTML
+content.raw      // block markup
 ```
 
-## Capability and error behavior
+:::caution
+`.getContent()` requires `context=edit` — the caller must have edit capabilities.
+:::
 
-- `get()` works with public view access and returns `content.rendered`.
-- `getContent()` and `getBlocks()` require `context=edit` access.
-- If auth/capabilities are missing, WordPress returns an auth/capability REST error.
+<LinkCard title="Authentication" href="./auth.mdx" description="Authenticate to access edit context." />
+
+## Parse blocks
+
+```ts
+const blocks = await wpBlocks.content('posts').item('hello-world').blocks().get();
+// WordPressParsedBlock[] | undefined (undefined if item not found)
+```
+
+:::caution
+`blocks().get()` requires `context=edit` — use an authenticated client.
+:::
+
+### With validation
+
+```ts
+const blockSchemas = await wpBlocks.blocks().schemas();
+const blocks = await wpBlocks.content('posts').item('hello-world').blocks().get({
+  schemas: blockSchemas,
+  validate: true,
+});
+```
+
+:::note
+Unknown block names throw `WordPressBlockValidationError` when `validate: true`.
+:::
+
+Parsed blocks contain `blockName`, `attrs`, `innerBlocks`, `innerHTML`, `innerContent`. Whitespace-only freeform nodes are filtered out automatically.
+
+## Write blocks
+
+```ts
+const postQuery = wpBlocks.content('posts').item('hello-world');
+const blocks = await postQuery.blocks().get();
+const updated = [
+  { ...blocks[0]!, innerHTML: '<p>New text.</p>', innerContent: ['<p>New text.</p>'] },
+  ...blocks.slice(1),
+];
+await postQuery.blocks().set(updated);
+```
+
+### Validation options
+
+| Pattern | What it does |
+| --- | --- |
+| `set(blocks)` | Structural + round-trip checks only |
+| `set(blocks, blockSchemas)` | Full catalog validation (names + attributes) |
+| `set(blocks, await wpBlocks.blocks().schemas({ namespace: 'core' }))` | Namespace-scoped validation |
+| `set(blocks, [singleSchema])` | Single block type validation |
+| `set(blocks, { validate: false })` | Skip all validation |
+
+`set()` checks:
+- `innerContent` placeholders match `innerBlocks`
+- block names and attributes match provided schemas
+- parent/ancestor constraints
+- serialization round-trips cleanly
+
+:::note
+Without schemas, only structural and round-trip checks run. Block types are never fetched implicitly.
+:::
+
+## Blocks from list items
+
+List methods return plain DTOs. Use a single-item query for block access:
+
+```ts
+const posts = await wp.content('posts').list({ perPage: 5 });
+const blocks = await wpBlocks.content('posts').item(posts[0].id).blocks().get();
+```
+
+## Standalone helpers
+
+When you already have `content.raw`:
+
+```ts
+import {
+  createWordPressBlockJsonSchemas,
+  parseWordPressBlocks,
+  serializeWordPressBlocks,
+  validateWordPressBlocks,
+} from 'fluent-wp-client/blocks';
+
+const blocks = await parseWordPressBlocks(rawContent);
+const serialized = serializeWordPressBlocks(blocks);
+```
+
+## Zod schema for block trees
+
+```ts
+import { parsedBlockSchema } from 'fluent-wp-client/blocks/zod';
+const blockTree = z.array(parsedBlockSchema).parse(aiOutput);
+```
+
+## Capabilities
+
+- `.item()` — `context=view`, public access
+- `.getContent()`, `.blocks().get()`, `.blocks().set()` — `context=edit`, requires edit capabilities
+- `wpBlocks.blocks()` — requires authenticated user with block type management access
+- Missing auth/capabilities throw `WordPressApiError`

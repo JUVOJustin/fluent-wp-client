@@ -773,7 +773,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
    * Describes a first-class resource schema.
    */
   async function describeResource(
-    resource: 'media' | 'users' | 'comments' | 'settings',
+    resource: 'media' | 'users' | 'comments' | 'settings' | 'block-types',
     options?: WordPressRequestOverrides,
   ): Promise<WordPressResourceDescription> {
     const cacheKey = resource;

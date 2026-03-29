@@ -1,4 +1,3 @@
-import type { WordPressBlockParser } from '../blocks.js';
 import type { PostRelationClient } from '../builders/relations.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
@@ -28,7 +27,6 @@ import {
 export interface GenericResourceContext {
   runtime: WordPressRuntime;
   relationClient: PostRelationClient;
-  defaultBlockParser?: WordPressBlockParser;
   discoveryMethods?: DiscoveryMethods;
 }
 
@@ -62,15 +60,14 @@ export class GenericResourceRegistry {
     if (!baseResource) {
       const defaults = knownContentDefaults[resource as keyof typeof knownContentDefaults];
 
-      // @ts-ignore - Type complexity at generic boundaries
-      baseResource = new GenericContentResource<TResource>({
-        runtime: this.context.runtime,
-        relationClient: this.context.relationClient,
-        endpoint: `/${resource}`,
-        defaultBlockParser: this.context.defaultBlockParser,
-        defaultSchema: defaults?.defaultSchema as WordPressStandardSchema<TResource> | undefined,
-        missingRawMessage: defaults?.missingRawMessage
-          ?? `Raw ${resource} content is unavailable. The current credentials may not have edit capabilities.`,
+        // @ts-ignore - Type complexity at generic boundaries
+        baseResource = new GenericContentResource<TResource>({
+          runtime: this.context.runtime,
+          relationClient: this.context.relationClient,
+          endpoint: `/${resource}`,
+          defaultSchema: defaults?.defaultSchema as WordPressStandardSchema<TResource> | undefined,
+          missingRawMessage: defaults?.missingRawMessage
+            ?? `Raw ${resource} content is unavailable. The current credentials may not have edit capabilities.`,
         responseSchema: responseSchema as WordPressStandardSchema<WordPressPostLike> | undefined,
       } as any);
 

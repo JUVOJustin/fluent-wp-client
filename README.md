@@ -27,8 +27,8 @@ const recentPosts = await posts.list({ perPage: 10 });
 // First-class resources use the same fluent style
 const comments = await wp.comments().list({ post: 42 });
 
-// Read a single post and parse its Gutenberg blocks
-const blocks = await posts.item('hello-world').getBlocks();
+// Read a single post
+const post = await posts.item('hello-world');
 
 // Create a draft post (requires auth)
 const draft = await posts.create({ title: 'Hello', status: 'draft' });
@@ -44,11 +44,64 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 - **Extensible collection filters** — built-in list helpers and generic resource builders accept typed core filters plus extra endpoint-specific query params
 - **Lean embedded payloads** — post-like DTO reads skip `_embed` by default, while relation hydration turns it on automatically when `.with(...)` is used
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
-- **Gutenberg block parsing** — single-item queries expose `.getBlocks()` and `.getContent()`
+- **Portable Gutenberg block add-on** — `fluent-wp-client/blocks` adds block type discovery, generated block JSON Schemas, parse/serialize/validate helpers, and explicit `.blocks().get()` / `.blocks().set()` content workflows
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`, with schema-backed generic builders validating reads and mutations
 - **Extensible relation API** — fluent relations for posts and custom entities, plus generic ID-backed and shared link/embed relation factories
+
+## Gutenberg block workflows
+
+Use the dedicated block add-on when you need block parsing, validation, or block type discovery:
+
+```ts
+import { WordPressClient } from 'fluent-wp-client';
+import { withBlocks } from 'fluent-wp-client/blocks';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: 'app-password' },
+});
+
+const wpBlocks = withBlocks(wp);
+const blockSchemas = await wpBlocks.blocks().schemas();
+const postQuery = wpBlocks.content('posts').item('hello-world');
+const blocks = await postQuery.blocks().get({
+  schemas: blockSchemas,
+  validate: true,
+});
+
+blocks[0].innerHTML = '<p>Updated paragraph body.</p>';
+blocks[0].innerContent = ['<p>Updated paragraph body.</p>'];
+
+await postQuery.blocks().set(blocks, blockSchemas);
+```
+
+Standalone helpers are also available when you already have raw `content.raw`:
+
+```ts
+import {
+  createWordPressBlockJsonSchemas,
+  parseWordPressBlocks,
+  serializeWordPressBlocks,
+  validateWordPressBlocks,
+} from 'fluent-wp-client/blocks';
+
+const blockTypes = await wpBlocks.blocks().list();
+const blockSchemas = createWordPressBlockJsonSchemas(blockTypes);
+const blocks = await parseWordPressBlocks(content.raw);
+const result = await validateWordPressBlocks(blocks, {
+  schemas: blockSchemas,
+});
+
+if (result.valid) {
+  const nextContent = await serializeWordPressBlocks(blocks);
+}
+```
+
+`blocks().set()` does not implicitly fetch block types. Pass the schemas you want to allow when you need whitelist validation.
+
+If you want native Zod schemas for AI-produced block trees, import them from `fluent-wp-client/blocks/zod`.
 
 ## Rate limiting and request control
 
@@ -152,7 +205,7 @@ Full documentation lives in the [`docs/`](./docs/) folder:
 - [Overview](./docs/index.mdx) — feature overview and quick start
 - [Usage guide](./docs/usage.mdx) — all client methods, CRUD patterns, pagination, and error handling
 - [Authentication](./docs/auth.mdx) — auth strategies and resolver helpers
-- [Gutenberg content](./docs/gutenberg-content.mdx) — block parsing and content workflows
+- [Gutenberg content](./docs/gutenberg-content.mdx) — the `fluent-wp-client/blocks` add-on for block type discovery, parsing, validation, and writes
 - [Custom endpoints](./docs/custom-endpoints.mdx) — custom post types, taxonomies, and plugin namespaces
 - [Abilities](./docs/abilities.mdx) — WordPress Abilities API
 - [Validation](./docs/validation.mdx) — Standard Schema, Zod, and custom validators

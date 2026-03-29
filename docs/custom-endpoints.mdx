@@ -3,220 +3,140 @@ title: Custom endpoints
 short_title: Endpoints
 description: Work with custom post types, taxonomies, and plugin REST namespaces in fluent-wp-client.
 sidebar:
-  order: 5
+  order: 4
 ---
 
 ## Overview
 
-This guide explains how to work with custom post types, custom taxonomies, and plugin REST namespaces.
+| Content type | API |
+| --- | --- |
+| Custom post type in `wp/v2` | `content('resource')` |
+| Custom taxonomy in `wp/v2` | `terms('resource')` |
+| Plugin/custom namespace | `namespace(...).route(...)` |
+| Full transport control | `request(...)` |
 
-## Pick the right API style
-
-- Use `content('resource')` for custom post types in `wp/v2`.
-- Use `terms('resource')` for custom taxonomies in `wp/v2`.
-- Use `namespace(...).route(...)` for plugin/custom namespaces.
-- Use `request(...)` when you need full transport control.
-
-## Custom post types (CPT)
+## Custom post types
 
 Assume a CPT with `rest_base: 'books'`.
 
-```ts title="Custom post type example"
+```ts title="Reads"
 const books = wp.content('books');
 
-const list = await books.list({ perPage: 20, page: 1 });
-const embeddedList = await books.list({ perPage: 20, embed: true });
+const list = await books.list({ perPage: 20 });
 const allBooks = await books.listAll();
-const pagedBooks = await books.listPaginated({ page: 2, perPage: 25 });
-const bySlug = await books.item('my-book');
+const paged = await books.listPaginated({ page: 2, perPage: 25 });
+const book = await books.item('my-book');
 const hydrated = await books.item('my-book').with('author', 'terms');
 ```
 
-Custom post type clients follow the same embedded-data rules as core content builders: plain DTO reads stay lean, and relation queries opt into `_embed` automatically.
+:::note
+CPT clients follow the same rules as core content builders: plain DTO reads stay lean, and `.with()` opts into `_embed` automatically.
+:::
 
-### Relation hydration for custom post types
-
-Custom post type clients expose the same relation builder pattern as core posts:
-
-```ts title="Custom post type relation hydration"
-const books = wp.content('books');
-
-const book = await books.item('test-book-001').with('author');
-const withTerms = await books.item('test-book-001').with('terms');
-
-console.log(withTerms.related.terms.taxonomies);
-```
-
-When you pass a schema to `content('books', schema)`, the base book payload is validated before fluent relation data is attached under `related`.
-
-For custom taxonomies such as `genre`, hydrated term data is available under `related.terms.taxonomies.genre`.
-
-### Pagination for CPT and custom taxonomies
-
-All `content(...)` and `terms(...)` collections use the same core paginator internally.
-
-- `list(filter)` fetches one page.
-- `listAll(filter)` auto-paginates every page (uses `perPage: 100` by default).
-- `listPaginated(filter)` returns `{ data, total, totalPages, page, perPage }`.
-
-```ts title="Pagination patterns"
-const books = wp.content('books');
-
-const firstPage = await books.list({ page: 1, perPage: 20 });
-const everything = await books.listAll();
-const pagination = await books.listPaginated({ page: 3, perPage: 10 });
-
-console.log(pagination.total, pagination.totalPages);
-```
-
-If you omit `page`/`perPage`, WordPress endpoint defaults are preserved.
-
-### CPT CRUD
+### CRUD
 
 ```ts title="CPT CRUD"
-const books = wp.content('books');
-
-const created = await books.create({
-  title: 'Book title',
-  status: 'draft',
-});
-
-await books.update(created.id, {
-  status: 'publish',
-});
-
+const created = await books.create({ title: 'Book title', status: 'draft' });
+await books.update(created.id, { status: 'publish' });
 await books.delete(created.id, { force: true });
 ```
 
-### CPT with response validation
+### Response validation
 
-```ts title="CPT with validation"
+Pass a schema to validate all reads and mutations on that resource client:
+
+```ts title="Validated CPT client"
 import { z } from 'zod';
 
-const bookSchema = z.object({
+const books = wp.content('books', z.object({
   id: z.number(),
   slug: z.string(),
   status: z.string(),
   type: z.literal('book'),
-});
+}));
 
-const books = wp.content('books', bookSchema);
-const first = await books.item('my-book');
-const created = await books.create({ title: 'Typed book', status: 'draft' });
+const book = await books.item('my-book');       // validated
+const created = await books.create({ ... });    // validated
 ```
 
-Passing a schema to `content(resource, schema)` validates generic CPT reads and mutations for that resource client.
+### Sparse CPTs
 
-### Sparse and flexible CPTs
+Use `WordPressCustomPost<T>` or `postLikeWordPressSchema` when a CPT may omit `title`, `content`, or `excerpt`.
 
-Use `WordPressCustomPost<TExtra>` or `WordPressPostLike` for CPTs where WordPress supports may disable `title`, `content`, `excerpt`, or `author`.
-Use `WordPressPostBase` only when the post type is guaranteed to expose content-bearing fields.
-
-```ts title="Sparse CPT typing and validation"
-import type { WordPressCustomPost, WordPressPostBase } from 'fluent-wp-client';
+```ts
+import type { WordPressCustomPost } from 'fluent-wp-client';
 import { postLikeWordPressSchema } from 'fluent-wp-client';
 
-type Artifact = WordPressCustomPost<{
-  type: 'artifact';
-  acf?: { acf_subtitle?: string };
-}>;
-
-type ContentBook = WordPressPostBase & { type: 'book' };
-
-// postLikeWordPressSchema tolerates absent title, content, and excerpt.
+// postLikeWordPressSchema tolerates absent content fields
 const artifacts = wp.content('artifacts', postLikeWordPressSchema);
-const artifact = await artifacts.item('test-artifact-001');
-
-console.log(artifact?.acf?.acf_subtitle);
 ```
 
-To require content-bearing fields, pass `contentWordPressSchema` instead. Reads and mutations both fail fast when the endpoint omits `title`, `content`, or `excerpt`.
+:::tip
+Use `contentWordPressSchema` instead to fail fast when content fields are missing.
+:::
 
-### Parse Gutenberg blocks for custom post types
+### Relation hydration
 
-`getBlocks()` is currently available on post/page helpers. For custom post types, request edit context and parse `content.raw` with `parseWordPressBlocks()`.
-
-```ts title="CPT block parsing"
-import { parseWordPressBlocks, type WordPressPostBase } from 'fluent-wp-client';
-
-type Book = WordPressPostBase & { type: 'book' };
-
-const books = await wp.content<Book>('books').list({
-  slug: 'test-book-001',
-  context: 'edit',
-});
-
-const book = books[0];
-
-if (!book?.content.raw) {
-  throw new Error('Raw content unavailable. Ensure edit capabilities are present.');
-}
-
-const blocks = await parseWordPressBlocks(book.content.raw);
+```ts
+const withTerms = await books.item('test-book-001').with('terms');
+// Custom taxonomies at: withTerms.related.terms.taxonomies.genre
 ```
+
+### Gutenberg blocks
+
+Use `fluent-wp-client/blocks` when the CPT exposes `content.raw`:
+
+```ts
+import { withBlocks } from 'fluent-wp-client/blocks';
+
+const wpBlocks = withBlocks(wp);
+const blocks = await wpBlocks.content('books').item('test-book-001').blocks().get();
+```
+
+:::caution
+CPTs without editor support cannot provide a block tree.
+:::
 
 ## Custom taxonomies
 
-Assume a taxonomy with `rest_base: 'genre'`.
+Assume `rest_base: 'genre'`.
 
-```ts title="Custom taxonomy example"
+```ts title="Reads and CRUD"
 const genres = wp.terms('genre');
 
 const list = await genres.list({ perPage: 100 });
 const allGenres = await genres.listAll();
-const pagedGenres = await genres.listPaginated({ page: 1, perPage: 25 });
-const bySlug = await genres.item('sci-fi');
-```
-
-### Custom taxonomy CRUD
-
-```ts title="Custom taxonomy CRUD"
-const genres = wp.terms('genre');
 
 const created = await genres.create({ name: 'Science Fiction' });
 await genres.update(created.id, { name: 'Sci-Fi' });
 await genres.delete(created.id, { force: true });
 ```
 
-## Low-level custom endpoint requests
+## Low-level requests
 
-Use `request()` if you need direct access to headers/response metadata.
-
-```ts title="Low-level request transport"
+```ts title="Direct transport"
 const { data, response } = await wp.request({
   endpoint: '/wp-json/my-plugin/v1/sync',
   method: 'POST',
   body: { mode: 'delta' },
 });
-
-if (!response.ok) {
-  throw new Error(`Sync failed: ${response.status}`);
-}
 ```
 
-## Auth for custom endpoints
+## Auth
 
-Choose the same auth approach as core endpoints:
+Use the same auth approach as core endpoints. See the [auth guide](./auth.mdx).
 
-- Basic auth for server-to-server/admin tasks
-- JWT auth for user-scoped sessions
-- Cookie + nonce for browser-front-end authenticated calls
-- `authHeaders` for signature-based/custom auth schemes
+:::tip
+Prefer a separate `WordPressClient` when auth differs per route. Use per-request auth on `request()` only when it truly varies call-by-call.
+:::
 
-Prefer creating a new `WordPressClient` when auth should differ for a full request lifecycle or route handler.
+## Pagination
 
-Use per-request auth on `request()` only when auth truly varies call-by-call for custom endpoints:
-
-```ts title="Per-request auth with request()"
-const { data: result } = await wp.request({
-  endpoint: '/wp-json/my-plugin/v1/secure-sync',
-  method: 'GET',
-  auth: { token: 'jwt-token' },
-});
-```
+:::note[WordPress caps `per_page` at 100]
+Use `.listAll()` for complete datasets.
+:::
 
 ## Error handling
 
-- API failures throw `WordPressApiError` with status, code, and payload details.
-- Validate only the fields your feature actually needs.
-- Prefer schema validation for writes so custom endpoint regressions fail fast.
+- `WordPressApiError` — REST failures with status, code, and payload
+- Prefer schema validation for writes so regressions fail fast

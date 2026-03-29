@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
+import { WordPressClient } from '../../dist/index.js';
+import { withBlocks } from '../../dist/blocks-entry.js';
 import { createAuthClient, getBaseUrl } from '../helpers/wp-client';
 
 /**
@@ -52,12 +53,12 @@ describe('Client: internal caching', () => {
       expect(content1?.raw).toBe(content2?.raw);
     });
 
-    it('shares edit promise between getContent() and getBlocks()', async () => {
+    it('shares edit promise between getContent() and blocks().get()', async () => {
       const { client, count } = createCountingClient();
-      const query = client.content('posts').item('test-post-001');
+      const query = withBlocks(client).content('posts').item('test-post-001');
       
       await query.getContent();
-      await query.getBlocks();
+      await query.blocks().get();
       
       expect(count.value).toBeLessThanOrEqual(2); // edit context shared
     });
@@ -70,7 +71,7 @@ describe('Client: internal caching', () => {
       const result2 = await query;
       
       expect(result1).toBe(result2);
-      expect(result1.related.author).toBe(result2.related.author);
+      expect(result1?.related.author).toBe(result2?.related.author);
     });
   });
 

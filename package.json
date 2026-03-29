@@ -1,7 +1,7 @@
 {
   "name": "fluent-wp-client",
   "version": "2.2.0",
-  "description": "Runtime-agnostic TypeScript WordPress REST API client with typed CRUD, auth, abilities, and relation helpers",
+  "description": "Runtime-agnostic TypeScript WordPress REST API client with typed CRUD, auth, abilities, relation helpers, and an optional Gutenberg block add-on",
   "type": "module",
   "repository": {
     "type": "git",
@@ -17,6 +17,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./blocks": {
+      "types": "./dist/blocks-entry.d.ts",
+      "import": "./dist/blocks-entry.js"
+    },
+    "./blocks/zod": {
+      "types": "./dist/blocks-zod.d.ts",
+      "import": "./dist/blocks-zod.js"
     },
     "./zod": {
       "types": "./dist/zod.d.ts",
@@ -48,11 +56,19 @@
   ],
   "license": "GPL-2.0-or-later",
   "dependencies": {
-    "@wordpress/block-serialization-default-parser": "^5.41.0",
     "@standard-schema/spec": "^1.0.0",
     "zod": "^4.0.0"
   },
+  "peerDependencies": {
+    "@wordpress/block-serialization-default-parser": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@wordpress/block-serialization-default-parser": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@wordpress/block-serialization-default-parser": "^5.41.0",
     "@wordpress/env": "^11.0.0",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"

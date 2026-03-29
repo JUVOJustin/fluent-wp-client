@@ -398,11 +398,11 @@ export class WordPressTransport {
 }
 
 /**
- * Runtime hooks required for resource methods.
- * This is a minimal interface that resources/builders receive.
+ * Minimal interface that resource classes receive.
+ * Intentionally excludes transport-level concerns (URL construction, JWT helpers,
+ * header mutation) so resources only depend on what they actually use.
  */
 export interface WordPressRuntime {
-  transport: WordPressTransport;
   request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
   fetchAPI: <T>(endpoint: string, params?: Record<string, string | string[]>, options?: WordPressRequestOverrides) => Promise<T>;
   fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string | string[]>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
@@ -414,7 +414,6 @@ export interface WordPressRuntime {
  */
 export function createRuntime(transport: WordPressTransport): WordPressRuntime {
   return {
-    transport,
     request: transport.request.bind(transport),
     fetchAPI: transport.fetchAPI.bind(transport),
     fetchAPIPaginated: transport.fetchAPIPaginated.bind(transport),

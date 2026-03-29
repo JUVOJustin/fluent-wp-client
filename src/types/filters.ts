@@ -147,3 +147,13 @@ export interface SearchFilter extends PaginationParams {
   include?: IncludeExcludeParam;
   exclude?: IncludeExcludeParam;
 }
+
+/**
+ * Filter options for `/wp/v2/block-types`.
+ */
+export interface BlockTypesFilter {
+  context?: 'view' | 'embed' | 'edit';
+  namespace?: string;
+  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+  fields?: string[];
+}

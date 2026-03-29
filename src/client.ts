@@ -84,9 +84,9 @@ import type { TermWriteInput, UserWriteInput, WordPressWritePayload } from './ty
  * const posts = client.content('posts');
  * const recentPosts = await posts.list({ perPage: 10 });
  * 
- * // Single-item queries are awaitable and expose block helpers
+ * // Single-item queries are awaitable and expose raw content helpers
  * const post = await posts.item(123);
- * const blocks = await posts.item(123).getBlocks();
+ * const content = await posts.item(123).getContent();
  * 
  * // Custom post types use the same API surface
  * const books = client.content('books');
@@ -141,7 +141,6 @@ export class WordPressClient {
     };
 
     this.genericResourcesRegistry = new GenericResourceRegistry({
-      defaultBlockParser: config.blockParser,
       runtime: this.runtime,
       relationClient,
       discoveryMethods: this.discoveryMethods,
@@ -173,6 +172,13 @@ export class WordPressClient {
    */
   hasAuth(): boolean {
     return this.runtime.hasAuth();
+  }
+
+  /**
+   * Returns the internal runtime interface for use by add-on subpackages.
+   */
+  getRuntime(): WordPressRuntime {
+    return this.runtime;
   }
 
   /**

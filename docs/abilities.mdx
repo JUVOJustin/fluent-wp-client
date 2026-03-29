@@ -91,9 +91,10 @@ The root package exports these ability schemas as Standard Schema validators:
 - `runAbilityInputSchema`
 - `deleteAbilityInputSchema`
 
-Need native Zod APIs (`.parse()`, `.shape`, `.extend()`)? Import from `fluent-wp-client/zod`:
+:::tip[Need native Zod APIs?]
+Import from `fluent-wp-client/zod` when you need `.parse()`, `.shape`, or `.extend()`:
 
-```ts title="Ability schemas as native Zod"
+```ts
 import {
   abilitySchema,
   getAbilityInputSchema,
@@ -102,8 +103,9 @@ import {
 const parsed = abilitySchema.parse(unknownAbility);
 const input = getAbilityInputSchema.parse({ name: 'test/get-site-title' });
 ```
+:::
 
-They all use `.passthrough()` so plugin-added fields stay available.
+All ability schemas use `.passthrough()` so plugin-added fields stay available.
 
 ## Validation model
 

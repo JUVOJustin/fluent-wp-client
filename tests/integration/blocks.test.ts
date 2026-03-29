@@ -617,4 +617,174 @@ describe('Client: Gutenberg block parsing', () => {
       'Content for test book 001',
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // Edge cases: serializer, validator, and block name validation
+  // ---------------------------------------------------------------------------
+
+  it('round-trips a self-closing block (empty innerContent)', async () => {
+    const slug = `client-blocks-selfclose-${Date.now()}`;
+    const created = await authClient.content('posts').create({
+      title: 'Client Blocks: self-closing',
+      slug,
+      status: 'publish',
+      content: '<!-- wp:separator {"className":"is-style-wide"} /-->',
+    });
+
+    createdPostIds.push(created.id);
+
+    const query = postsClient(authBlocksClient).item(slug);
+    const blocks = await query.blocks().get();
+
+    expect(blocks).toBeDefined();
+    expect(blocks).toHaveLength(1);
+    expect(blocks![0].blockName).toBe('core/separator');
+    expect(blocks![0].innerContent).toHaveLength(0);
+    expect(blocks![0].innerBlocks).toHaveLength(0);
+
+    // Round-trip: write back and re-read
+    await query.blocks().set(blocks!);
+    const persisted = await postsClient(authBlocksClient).item(created.id).blocks().get();
+
+    expect(persisted).toHaveLength(1);
+    expect(persisted![0].blockName).toBe('core/separator');
+    expect(persisted![0].attrs).toMatchObject({ className: 'is-style-wide' });
+  });
+
+  it('preserves intentional whitespace in pre blocks through set/get round-trip', async () => {
+    const slug = `client-blocks-pre-ws-${Date.now()}`;
+    const preContent = '<pre class="wp-block-code"><code>  line one\n    indented\n  line three</code></pre>';
+    const created = await authClient.content('posts').create({
+      title: 'Client Blocks: pre whitespace',
+      slug,
+      status: 'publish',
+      content: `<!-- wp:code -->${preContent}<!-- /wp:code -->`,
+    });
+
+    createdPostIds.push(created.id);
+
+    const query = postsClient(authBlocksClient).item(slug);
+    const blocks = await query.blocks().get();
+
+    expect(blocks).toBeDefined();
+    expect(blocks).toHaveLength(1);
+    expect(blocks![0].blockName).toBe('core/code');
+
+    // Write back the same blocks and re-read
+    await query.blocks().set(blocks!);
+    const persisted = await postsClient(authBlocksClient).item(created.id).blocks().get();
+
+    expect(persisted).toHaveLength(1);
+    expect(persisted![0].blockName).toBe('core/code');
+    // The indentation and newlines within the pre block must survive
+    expect(persisted![0].innerHTML).toContain('  line one');
+    expect(persisted![0].innerHTML).toContain('    indented');
+    expect(persisted![0].innerHTML).toContain('  line three');
+  });
+
+  it('serializes attributes with HTML-comment-unsafe characters correctly', async () => {
+    const slug = `client-blocks-special-attrs-${Date.now()}`;
+    const created = await authClient.content('posts').create({
+      title: 'Client Blocks: special attribute chars',
+      slug,
+      status: 'publish',
+      content: '<!-- wp:paragraph --><p>Baseline.</p><!-- /wp:paragraph -->',
+    });
+
+    createdPostIds.push(created.id);
+
+    const query = postsClient(authBlocksClient).item(slug);
+
+    // Block with attributes containing quotes, angle brackets, --, &, and backslash
+    const blocksToWrite = [
+      {
+        blockName: 'core/paragraph',
+        attrs: {
+          className: 'test--class',
+          anchor: 'id<with>angle&brackets',
+        },
+        innerBlocks: [],
+        innerHTML: '<p>Special chars in attrs.</p>',
+        innerContent: ['<p>Special chars in attrs.</p>'],
+      },
+    ];
+
+    await query.blocks().set(blocksToWrite);
+    const persisted = await postsClient(authBlocksClient).item(created.id).blocks().get();
+
+    expect(persisted).toHaveLength(1);
+    expect(persisted![0].blockName).toBe('core/paragraph');
+    expect(persisted![0].attrs).toMatchObject({
+      className: 'test--class',
+      anchor: 'id<with>angle&brackets',
+    });
+  });
+
+  it('round-trips an empty block array through set/get', async () => {
+    const slug = `client-blocks-empty-${Date.now()}`;
+    const created = await authClient.content('posts').create({
+      title: 'Client Blocks: empty array',
+      slug,
+      status: 'publish',
+      content: '<!-- wp:paragraph --><p>Will be cleared.</p><!-- /wp:paragraph -->',
+    });
+
+    createdPostIds.push(created.id);
+
+    const query = postsClient(authBlocksClient).item(slug);
+
+    // Set empty blocks — clears all content
+    await query.blocks().set([], { validate: false });
+    const persisted = await postsClient(authBlocksClient).item(created.id).blocks().get();
+
+    expect(persisted).toHaveLength(0);
+  });
+
+  it('round-trips a block with null attrs', async () => {
+    const slug = `client-blocks-null-attrs-${Date.now()}`;
+    const created = await authClient.content('posts').create({
+      title: 'Client Blocks: null attrs',
+      slug,
+      status: 'publish',
+      content: '<!-- wp:paragraph --><p>Baseline.</p><!-- /wp:paragraph -->',
+    });
+
+    createdPostIds.push(created.id);
+
+    const query = postsClient(authBlocksClient).item(slug);
+
+    await query.blocks().set([
+      {
+        blockName: 'core/paragraph',
+        attrs: null,
+        innerBlocks: [],
+        innerHTML: '<p>Null attrs block.</p>',
+        innerContent: ['<p>Null attrs block.</p>'],
+      },
+    ]);
+
+    const persisted = await postsClient(authBlocksClient).item(created.id).blocks().get();
+
+    expect(persisted).toHaveLength(1);
+    expect(persisted![0].blockName).toBe('core/paragraph');
+    expect(persisted![0].innerHTML).toContain('Null attrs block.');
+  });
+
+  it('rejects block type names with path traversal patterns', async () => {
+    await expect(
+      authBlocksClient.blocks().item('../../etc/passwd'),
+    ).rejects.toThrow(/Invalid block type name/);
+
+    await expect(
+      authBlocksClient.blocks().item(''),
+    ).rejects.toThrow();
+
+    await expect(
+      authBlocksClient.blocks().item('CORE/Paragraph'),
+    ).rejects.toThrow(/Invalid block type name/);
+
+    // Valid name should not throw (may return undefined if not registered)
+    const result = await authBlocksClient.blocks().item('core/paragraph');
+    expect(result).toBeDefined();
+  });
 });

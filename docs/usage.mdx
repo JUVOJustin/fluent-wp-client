@@ -1,35 +1,27 @@
 ---
 title: Usage
 short_title: Usage
-description: Primary developer guide for fluent-wp-client covering CRUD, auth, and abilities.
+description: Primary developer guide for fluent-wp-client covering API styles, method reference, CRUD, relations, pagination, and error handling.
 sidebar:
   order: 2
 ---
 
-import { CardGrid, Steps, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
-
-Fluent WP Client is built to easily interact with the WordPress Rest API keeping developer experience, type safety, and extensibility in mind. Using the client is straightforward, but the library also provides powerful tools for advanced use cases like custom authentication strategies and schema validation.
+import { CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
 
 <CardGrid>
-  <LinkCard
-    title="Authentication guide"
-    href="./auth.mdx"
-    description="Choose the right auth strategy, including request-aware resolver helpers."
-  />
+  <LinkCard title="Authentication" href="./auth.mdx" description="Auth strategies and resolver helpers." />
+  <LinkCard title="Custom endpoints" href="./custom-endpoints.mdx" description="CPT/taxonomy CRUD and plugin namespaces." />
 </CardGrid>
 
 ## API styles
 
-The client exposes four complementary styles.
-
 <Tabs>
   <TabItem label="Content builders">
 
-```ts title="1) Unified post-like resource API (recommended default)"
+```ts title="Unified post-like resource API (recommended)"
 const posts = wp.content('posts');
-const recentPosts = await posts.list({ perPage: 10, page: 1 });
+const recentPosts = await posts.list({ perPage: 10 });
 const post = await posts.item('hello-world');
-const blocks = await posts.item('hello-world').getBlocks();
 
 const books = wp.content('books');
 const allBooks = await books.listAll();
@@ -38,10 +30,9 @@ const genres = await wp.terms('genre').list({ perPage: 100 });
 ```
 
   </TabItem>
-
   <TabItem label="First-class resources">
 
-```ts title="2) Fluent first-class resource clients"
+```ts title="Fluent first-class resource clients"
 const media = await wp.media().list({ perPage: 20 });
 const me = await wp.users().me();
 const comments = await wp.comments().list({ post: 42 });
@@ -49,10 +40,9 @@ const settings = await wp.settings().get();
 ```
 
   </TabItem>
-
   <TabItem label="Low-level request">
 
-```ts title="3) Low-level request transport"
+```ts title="Low-level request transport"
 const { data, response } = await wp.request({
   endpoint: '/wp-json/my-plugin/v1/sync',
   method: 'POST',
@@ -61,20 +51,16 @@ const { data, response } = await wp.request({
 ```
 
   </TabItem>
-
   <TabItem label="Abilities">
 
-```ts title="4) WordPress abilities"
-const definitions = await wp.getAbilities();
+```ts title="WordPress abilities"
 const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
 
-const processed = await wp
+const result = await wp
   .ability<{ name: string }, { processed: boolean }>('test/process-complex')
   .inputSchema(z.object({ name: z.string() }))
   .outputSchema(z.object({ processed: z.boolean() }))
   .run({ name: 'demo' });
-
-console.log(definitions.length, siteTitle.title, processed.processed);
 ```
 
   </TabItem>
@@ -82,496 +68,226 @@ console.log(definitions.length, siteTitle.title, processed.processed);
 
 ## Method reference
 
-### Read helpers
+### Content and term builders
 
-- `content('posts')` / `content('pages')` / `content(resource)`
-- `media()`
-- `terms('categories')` / `terms('tags')` / `terms(resource)`
-- `users()`
-- `comments()`
-- `settings()`
-- `searchContent(query, filter?)`
-
-`content(resource).item(idOrSlug)` returns one promise-like query.
-You can `await` it directly for the resource, and you can also call:
-
-- `.getContent()` for `{ raw, rendered, protected }` via `context=edit`
-- `.getBlocks()` for parsed Gutenberg blocks
-
-See [Embedded data](#embedded-data-is-opt-in-for-dto-reads) for `_embed` behavior on DTO reads and relation hydration.
-
-Post/page list methods (`content('posts').list()`, `content('pages').list()`) return plain serializable DTO arrays without block helpers. Use a single-item query for block access:
-
-```ts
-const posts = await wp.content('posts').list({ perPage: 5 });
-const blocks = await wp.content('posts').item(posts[0].id).getBlocks();
+```
+content('posts') / content('pages') / content(resource, schema?)
+terms('categories') / terms('tags') / terms(resource, schema?)
 ```
 
-Read helpers also accept request-scoped custom headers as the last argument:
+Each builder exposes:
+- `.list(filter?)` — one page
+- `.listAll(filter?)` — auto-paginates all pages
+- `.listPaginated(filter?)` — returns `{ data, total, totalPages, page, perPage }`
+- `.item(idOrSlug)` — single item (awaitable)
+- `.create()` / `.update()` / `.delete()` — mutations
+- `.describe()` — JSON Schema discovery
+
+`content(resource).item(idOrSlug)` also supports `.getContent()` for `{ raw, rendered, protected }` and `.with(...)` for relation hydration.
+
+:::caution
+`.getContent()` uses `context=edit` and requires edit capabilities.
+:::
+
+Passing a schema to `content(resource, schema)` or `terms(resource, schema)` validates all reads and mutations on that resource client.
+
+### First-class resources
+
+| Resource | Extras |
+| --- | --- |
+| `media()` | `.upload()`, `.getImageUrl()`, `.with(...)` on items |
+| `users()` | `.me()`, `.with(...)` on items |
+| `comments()` | `.with(...)` on items |
+| `settings()` | `.get()`, `.update()`, `.describe()` (singleton) |
+
+All collection resources share `.list()`, `.listAll()`, `.listPaginated()`, `.item()`, `.create()`, `.update()`, `.delete()`, `.describe()`.
+
+### Search
+
+```ts
+const results = await wp.searchContent('hello');
+const pages = await wp.searchContent('about', { type: 'post', subtype: 'page' });
+const mixed = await wp.searchContent('test', { subtype: ['post', 'page', 'book'] });
+```
+
+Returns `{ id, title, url, type, subtype }[]`.
+
+### Extensible collection filters
+
+Typed core filters accept extra unknown keys. CamelCase names become snake_case query params automatically:
+
+```ts
+const posts = await wp.content('posts').list({
+  search: 'hello',
+  include: [4, 8],
+  titleSearch: 'Hello',  // becomes title_search
+});
+```
+
+### Request-scoped headers
+
+All read and mutation helpers accept optional custom headers:
 
 ```ts
 const posts = await wp.content('posts').list(
   { perPage: 5 },
-  {
-    headers: {
-      'x-crossposter-source-entity-type': 'post',
-    },
-  },
+  { headers: { 'x-custom-header': 'value' } },
 );
 ```
 
-Media uses a different schema (`description`/`caption`, no `content.raw`), so media helpers do not expose `getBlocks()`.
+:::caution[Auth overrides are blocked]
+To use different auth credentials, create a separate `WordPressClient` instance.
+:::
 
-### First-class resource clients
+### Auth and ability helpers
 
-`media()`, `comments()`, `users()`, and `settings()` mirror the same fluent style as `content()` and `terms()`.
+- `loginWithJwt(credentials)` / `validateJwtToken(token?)`
+- `getAbilities()` / `getAbility(name)` / `getAbilityCategories()`
+- `executeGetAbility()` / `executeRunAbility()` / `executeDeleteAbility()`
+- `ability<TInput, TOutput>(name)` — fluent builder
 
-- Collection resources: `.list()`, `.listAll()`, `.listPaginated()`, `.item()`, `.create()`, `.update()`, `.delete()`, `.describe()`
-- Item queries: `media().item(...)`, `comments().item(...)`, and `users().item(...)` are awaitable builders; media/comments support `.with(...)` for relation hydration and users support custom `.with(...)` relations
-- Media extras: `.upload()`, `.getImageUrl()`
-- Users extras: `.me()`
-- Settings singleton: `.get()`, `.update()`, `.describe()`
+### Transport
 
-### Generic resource builders
+- `request(options)` / `fetchAPI(endpoint, params?)` / `fetchAPIPaginated(endpoint, params?)`
+- `setHeaders(name, value)` / `hasAuth()`
+- `route(resource, namespace?)` / `namespace('my-plugin/v1').route('sync')`
 
-- Builders: `content(resource, schema?)`, `terms(resource, schema?)`
+## Relation hydration
 
-`content(resource)` and `terms(resource)` expose the shared pagination helpers used by posts, pages, CPTs, and custom taxonomies:
-
-- `.list(filter?)`
-- `.listAll(filter?)`
-- `.listPaginated(filter?)`
-
-If `page`/`perPage` are omitted, endpoint defaults are preserved.
-
-Passing a schema to `content(resource, schema)` validates content reads and mutations for that resource client, including schema-backed `item(...).with(...)` calls.
-
-Passing a schema to `terms(resource, schema)` validates generic taxonomy reads and mutations for that resource client.
-
-The content and term builders accept a `search` string to filter results by keyword:
+### `embed: true` vs `.with()`
 
 ```ts
-const posts = await wp.content('posts').list({ search: 'hello world' });
-const allPosts = await wp.content('posts').listAll({ search: 'hello world' });
-
-// Generic content builder
-const bookResults = await wp.content('books').list({ search: 'Test Book' });
-const allBookResults = await wp.content('books').listAll({ search: 'Test Book' });
-
-// Generic taxonomy builder
-const genreResults = await wp.terms('genre').list({ search: 'Science Fiction' });
-```
-
-### Extensible collection filters
-
-Known content builders keep their typed core filters and also accept extra endpoint-specific params for plugin routes or project-specific REST extensions.
-
-Unknown keys are forwarded through the normal query serializer, so camelCase filter names become snake_case query params and array values are emitted as repeated `param[]` entries.
-
-```ts
-const posts = await wp.content('posts').list({
-  search: 'hello world',
-  include: [4, 8],
-  slug: ['hello-world', 'release-notes'],
-  titleSearch: 'Hello',
-});
-
-const books = await wp.content('books').list({
-  include: [164, 165],
-  titleSearch: 'Test Book',
-});
-```
-
-### Embedded data and relation hydration
-
-There are two ways to access related entities in WordPress REST API responses. Understanding the difference helps you choose the right approach for your use case.
-
-#### Option 1: Raw `_embedded` data (`embed: true`)
-
-When you pass `embed: true`, WordPress returns raw `_embedded` data from its REST API. This gives you direct access to WordPress's internal embed structure, but requires manual parsing and lacks type safety.
-
-```ts
-// Returns raw WordPress _embedded structure
+// Raw WordPress _embedded — untyped, manual parsing
 const posts = await wp.content('posts').list({ perPage: 10, embed: true });
+posts[0]._embedded['wp:term'] // mixed categories + tags
 
-// Access raw embedded data manually
-posts[0]._embedded.author[0]           // WordPress user object
-posts[0]._embedded['wp:term']          // Mixed array of categories and tags
-posts[0]._embedded['wp:featuredmedia'] // Media item array
-```
-
-**Use `embed: true` when:**
-- You need access to plugin-specific embedded data (ACF, WooCommerce, etc.)
-- You're building low-level integrations that consume raw WordPress structures
-- You need data that doesn't fit standard relations
-
-#### Option 2: Client-side relation hydration (`.with()`)
-
-The `.with()` method provides intelligent relation hydration with full type safety, automatic fallback handling, and a clean API.
-
-```ts
-// Returns typed, hydrated relations
+// Typed relation hydration — clean API with fallbacks
 const post = await wp.content('posts').item('hello-world').with('author', 'categories', 'tags');
-
-// Access typed relations through the `related` property
-post.related.author        // WordPressAuthor | null
-post.related.categories    // WordPressCategory[]
-post.related.tags          // WordPressTag[]
-post.related.featuredMedia // WordPressMedia | null
+post.related.author     // WordPressAuthor | null
+post.related.categories // WordPressCategory[]
 ```
 
-**Why `.with()` is generally better:**
+:::tip[Prefer `.with()`]
+Type safety, clean names, automatic taxonomy separation, and fallback API calls when `_embedded` is missing.
+:::
 
 | Feature | `embed: true` | `.with()` |
 |---------|--------------|-----------|
-| **Type safety** | Manual casting required | Fully typed (TypeScript) |
-| **Structure** | WordPress internal format (`wp:term`, `wp:featuredmedia`) | Clean names (`categories`, `featuredMedia`) |
-| **Fallback** | No fallback—if `_embedded` missing, data is unavailable | Automatic API calls using ID fields |
-| **Custom relations** | Manual parsing of plugin embeds | Register once, use everywhere |
-| **ACF support** | Parse `_embedded['acf:post']` manually | Use `registerAcfRelationship()` helpers |
-| **Taxonomy handling** | Manually filter `_embedded['wp:term']` | Automatic category/tag separation |
+| Type safety | Manual casting | Fully typed |
+| Names | `wp:term`, `wp:featuredmedia` | `categories`, `featuredMedia` |
+| Fallback | None | Automatic API calls from ID fields |
+| Custom relations | Manual | Register once, use everywhere |
 
-**Use `.with()` when:**
-- You want type-safe access to related entities
-- You need automatic fallback for missing embedded data
-- You're using custom relations or ACF fields
-- You want a cleaner, more maintainable API
+You can combine both: `.item('slug', { embed: true }).with('author')` gives you raw `_embedded` AND typed `related`.
 
-#### Combining both approaches
+### Internals and edge cases
 
-You can use both together when you need raw embedded data AND typed relations:
+`.with()` internally requests `_embed`, hydrates `related`, and strips `_embedded` from the output. If `_embedded` is missing, it falls back to API calls using ID fields.
 
 ```ts
-// Both _embedded AND related property
-const post = await wp.content('posts').item('hello-world', { embed: true }).with('author');
+// Missing author ID → null (not an error)
+const post = await publicClient.content('posts').item('slug').with('author');
 
-// post._embedded contains raw WordPress data
-// post.related.author contains typed, hydrated author
+// No categories → empty array
+post.related.categories // []
 ```
 
-**Payload behavior:**
+### Built-in relation names
 
-| Call | `_embedded` in response | `related` property |
-|------|------------------------|-------------------|
-| `.item('slug')` | No | No |
-| `.item('slug', { embed: true })` | Yes | No |
-| `.item('slug').with('author')` | No | Yes |
-| `.item('slug', { embed: true }).with('author')` | Yes | Yes |
+`author`, `categories`, `tags`, `terms`, `featuredMedia`, `parent`
 
-The same pattern applies to list methods (`.list()`, `.listAll()`, `.listPaginated()`).
+Custom taxonomies are at `terms.taxonomies.<taxonomy>`. For ACF and plugin relations, see the [extensible relations guide](./extensible-relations.mdx).
 
 ### Post-like typing
-
-Use `WordPressCustomPost<TExtra>` or `WordPressPostLike` for CPTs where WordPress supports may disable `title`, `content`, `excerpt`, or `author`. Use `WordPressPostBase` only when the post type is guaranteed to expose content-bearing fields.
 
 ```ts
 import type { WordPressCustomPost, WordPressPostBase } from 'fluent-wp-client';
 
-// Sparse CPT — title, content, and excerpt are optional.
-type Artifact = WordPressCustomPost<{ type: 'artifact' }>;
-
-// Content-bearing CPT — title, content, and excerpt are required.
-type ContentBook = WordPressPostBase & { type: 'book' };
+type Artifact = WordPressCustomPost<{ type: 'artifact' }>;     // sparse — optional fields
+type ContentBook = WordPressPostBase & { type: 'book' };       // strict — requires content fields
 ```
-
-### Mutation helpers
-
-- Content: `content('posts').create/update/delete`, `content('pages').create/update/delete`, `content(resource).create/update/delete`
-- Terms: `terms(resource).create/update/delete`
-- Users: `users().create/update/delete`
-- Comments: `comments().create/update/delete`
-- Media: `media().create/upload/update/delete`
-- Settings: `settings().update`
-
-Helpers accept request-scoped custom headers so you can pass one-off metadata without mutating shared client defaults.
-
-```ts
-const createdPost = await wp.content('posts').create(
-  { title: 'Post title', status: 'draft' },
-  {
-    headers: {
-      'x-crossposter-source-base-url': 'https://source.example',
-      'x-crossposter-source-entity-type': 'post',
-      'x-crossposter-source-entity-id': '42',
-    },
-  },
-);
-
-await wp.content('posts').delete(createdPost.id, {
-  force: true,
-  headers: {
-    'x-crossposter-source-entity-id': '42',
-  },
-});
-```
-
-`content(resource).create()` / `.update()` support both patterns:
-
-- `content('posts').create(input, responseSchema?)`
-- `content('posts').create(input, requestOptions?)`
-- `content('posts').create(input, responseSchema?, requestOptions?)`
-
-Auth overrides are intentionally blocked on mutation helper options. If you need different auth credentials or auth headers, create a new `WordPressClient` instance with the desired auth configuration.
-
-The same auth-override rule applies to read and listing helpers.
-
-### Auth and ability helpers
-
-- `loginWithJwt(credentials)`
-- `validateJwtToken(token?)`
-- `getAbilities()` / `getAbility(name)`
-- `getAbilityCategories()` / `getAbilityCategory(slug)`
-- `executeGetAbility(name, input?, responseSchema?)`
-- `executeRunAbility(name, input?, responseSchema?)`
-- `executeDeleteAbility(name, input?, responseSchema?)`
-- `ability<TInput, TOutput>(name)`
-
-### Relation helpers
-
-- `content('posts').item(idOrSlug).with(...relations)`
-
-Supported relation names:
-
-- `author`
-- `categories`
-- `tags`
-- `terms`
-- `featuredMedia`
-
-`terms` always returns core `categories` and `tags` arrays when available, plus `terms.taxonomies` for generic taxonomy access. For custom post types, custom taxonomies such as `genre` are exposed under `terms.taxonomies.<taxonomy>`.
-Relation queries automatically request `_embed` for the base content fetch.
-
-### Transport and request control
-
-- `request(options)`
-- `fetchAPI(endpoint, params?)`
-- `fetchAPIPaginated(endpoint, params?)`
-- `setHeaders(name, value)` / `setHeaders(headers)`
-- `hasAuth()`
 
 ## CRUD walkthrough
 
-### Posts
+### Posts and pages
 
 ```ts
 const posts = wp.content('posts');
-
-const createdPost = await posts.create({ title: 'Post title', status: 'draft' });
-
-const updatedPost = await posts.update(createdPost.id, {
-  title: 'Post title updated',
-  status: 'publish',
-});
-
-await posts.delete(createdPost.id, { force: true });
+const created = await posts.create({ title: 'My post', status: 'draft' });
+await posts.update(created.id, { title: 'Updated', status: 'publish' });
+await posts.delete(created.id, { force: true });
 ```
 
-### Gutenberg block parsing
+### Terms
 
 ```ts
-const postQuery = wp.content('posts').item('hello-world');
-const pageQuery = wp.content('pages').item('about');
-
-const postBlocks = await postQuery.getBlocks();
-const pageBlocks = await pageQuery.getBlocks();
-
-const postList = await wp.content('posts').list({ perPage: 5 });
-const firstListItemBlocks = await wp.content('posts').item(postList[0].id).getBlocks();
-```
-
-`getBlocks()` requires edit capabilities because it reads `content.raw` using `context=edit`.
-When credentials cannot access edit context, WordPress returns the expected auth/capability error.
-
-### Pages
-
-```ts
-const pages = wp.content('pages');
-
-const createdPage = await pages.create({ title: 'About us', status: 'draft' });
-
-await pages.update(createdPage.id, { status: 'publish' });
-await pages.delete(createdPage.id, { force: true });
-```
-
-### Categories and tags
-
-```ts
-const categories = wp.terms('categories');
-const tags = wp.terms('tags');
-
-const category = await categories.create({ name: 'News' });
-const tag = await tags.create({ name: 'featured' });
-
-await categories.update(category.id, { name: 'Company News' });
-await tags.update(tag.id, { name: 'featured-updated' });
-
-await categories.delete(category.id, { force: true });
-await tags.delete(tag.id, { force: true });
+const cat = await wp.terms('categories').create({ name: 'News' });
+await wp.terms('categories').update(cat.id, { name: 'Company News' });
+await wp.terms('categories').delete(cat.id, { force: true });
 ```
 
 ### Comments
 
 ```ts
-const post = await wp.content('posts').item('hello-world');
-const comments = wp.comments();
-
-if (!post) {
-  throw new Error('Post not found.');
-}
-
-const comment = await comments.create({
-  post: post.id,
-  content: 'Nice post!',
-  status: 'approve',
-});
-
-await comments.update(comment.id, { content: 'Nice post, updated.' });
-await comments.delete(comment.id, { force: true });
+const comment = await wp.comments().create({ post: 42, content: 'Nice!', status: 'approve' });
+await wp.comments().update(comment.id, { content: 'Updated.' });
+await wp.comments().delete(comment.id, { force: true });
 ```
 
-### Media upload
+### Media
 
 ```ts
-const mediaClient = wp.media();
-
-const media = await mediaClient.upload({
-  file: imageBlob,
-  filename: 'cover.jpg',
-  mimeType: 'image/jpeg',
-  title: 'Cover image',
-  alt_text: 'Book cover image',
-}, {
-  headers: {
-    'x-crossposter-source-entity-id': 'book-42',
-  },
+const media = await wp.media().upload({
+  file: imageBlob, filename: 'cover.jpg', mimeType: 'image/jpeg',
+  title: 'Cover', alt_text: 'Book cover',
 });
-
-await mediaClient.update(media.id, { caption: 'Updated caption' });
-await mediaClient.delete(media.id, { force: true });
+await wp.media().delete(media.id, { force: true });
 ```
 
 ### Users and settings
 
 ```ts
-const users = await wp.users().list({ roles: ['author'] });
 const me = await wp.users().me();
-
 const settings = await wp.settings().get();
-await wp.settings().update({ title: `${settings.title} - Updated` });
+await wp.settings().update({ title: 'New Title' });
 ```
 
-### Generic CPT CRUD
-
-```ts
-const books = wp.content('books');
-
-const createdBook = await books.create({ title: 'Book title', status: 'draft' });
-await books.update(createdBook.id, { status: 'publish' }, {
-  headers: {
-    'x-crossposter-source-entity-id': String(createdBook.id),
-  },
-});
-await books.delete(createdBook.id, {
-  force: true,
-  headers: {
-    'x-crossposter-source-entity-id': String(createdBook.id),
-  },
-});
-```
-
-### Generic taxonomy CRUD
-
-```ts
-const genres = wp.terms('genre');
-
-const createdGenre = await genres.create({ name: 'Sci-Fi' });
-await genres.update(createdGenre.id, { name: 'Science Fiction' }, {
-  headers: {
-    'x-crossposter-source-entity-id': String(createdGenre.id),
-  },
-});
-await genres.delete(createdGenre.id, {
-  force: true,
-  headers: {
-    'x-crossposter-source-entity-id': String(createdGenre.id),
-  },
-});
-```
-
-## Cross-resource search
-
-`searchContent(query, filter?)` searches across posts, pages, and custom post types using the WordPress `/wp/v2/search` endpoint.
-
-```ts
-import type { WordPressSearchResult } from 'fluent-wp-client';
-
-// Basic keyword search
-const results = await wp.searchContent('hello');
-
-// Filter by resource type
-const posts = await wp.searchContent('hello', { type: 'post' });
-
-// Filter by a single subtype (post type)
-const pages = await wp.searchContent('about', {
-  type: 'post',
-  subtype: 'page',
-});
-
-// Filter by multiple subtypes — serialised as subtype[]=post&subtype[]=page&subtype[]=book
-const mixed = await wp.searchContent('test', {
-  type: 'post',
-  subtype: ['post', 'page', 'book'],
-});
-
-// Pagination, context, include and exclude
-const paged = await wp.searchContent('hello', {
-  perPage: 5,
-  context: 'embed',
-  exclude: [10, 20],
-  include: [5, 15],
-});
-```
-
-Each result has the shape `{ id, title, url, type, subtype }`.
-
-### Namespace and route helpers
-
-- `route(resource, namespace?)`
-- `namespace('my-plugin/v1').route('sync')`
-- `namespace('my-plugin/v1').resource('sync')`
-- `registerRoute('my-plugin/v1', '/authors/(?P<id>)')`
+For CPT and custom taxonomy CRUD, see the [custom endpoints guide](./custom-endpoints.mdx).
 
 ## Validation
 
-- Core mutation helpers validate responses with built-in schemas by default.
-- You can override defaults by passing any Standard Schema-compatible validator to `responseSchema`, `inputSchema`, or `outputSchema`.
+Mutations auto-validate with built-in schemas. Pass your own Standard Schema-compatible validator to override:
 
 ```ts
 import * as v from 'valibot';
 
-const postSchema = v.object({
-  id: v.number(),
-  slug: v.string(),
-  status: v.string(),
-});
-
 const created = await wp.content('posts').create(
-  { title: 'Schema validated', status: 'draft' },
-  postSchema,
+  { title: 'Validated', status: 'draft' },
+  v.object({ id: v.number(), slug: v.string(), status: v.string() }),
 );
 ```
 
-- Use `fluent-wp-client/zod` when you need native Zod APIs like `.extend()` or `.parse()`.
-- For full patterns and decision guidance, see [Validation guide](./validation.mdx).
+See the [validation guide](./validation.mdx) for Zod extension, Valibot, sparse CPT, and Astro patterns.
 
-## Pagination guidance
+## Gutenberg blocks
 
-- WordPress caps `per_page` at `100`.
-- Use `content(resource).listAll()` or `terms(resource).listAll()` for complete datasets.
-- Use `listPaginated()` when you need totals and page metadata.
+```ts
+import { withBlocks } from 'fluent-wp-client/blocks';
 
-## Error handling guidance
+const wpBlocks = withBlocks(wp);
+const blocks = await wpBlocks.content('posts').item('hello-world').blocks().get();
+```
 
-- API errors throw `WordPressApiError`.
-- Validation errors throw `WordPressSchemaValidationError`.
-- Cross-origin absolute URLs are rejected before requests are sent.
+See the [Gutenberg content guide](./gutenberg-content.mdx) for the full workflow.
+
+## Pagination
+
+:::note[WordPress caps `per_page` at 100]
+Use `.listAll()` for complete datasets. Use `.listPaginated()` for totals and page metadata.
+:::
+
+## Error handling
+
+- `WordPressApiError` — REST API errors with status, code, and payload
+- `WordPressSchemaValidationError` — validation failures
+- Cross-origin absolute URLs are rejected before requests are sent

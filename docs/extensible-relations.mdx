@@ -2,228 +2,50 @@
 title: Extensible Relations
 description: Extend the fluent relation hydration system with custom relations for ACF, plugins, and custom _embed/_links data.
 sidebar:
-  order: 7
+  order: 9
 ---
 
 ## Overview
 
-The fluent-wp-client relation hydration system is extensible. In addition to built-in WordPress relations (`author`, `categories`, `tags`, `terms`, `featuredMedia`, `parent`), you can register custom relations for:
+Beyond built-in relations (`author`, `categories`, `tags`, `terms`, `featuredMedia`, `parent`), you can register custom relations for ACF fields, plugin embeds, custom meta references, and shared `_links`/`_embedded` data.
 
-- **ACF field-type helpers** for `relationship`, `post_object`, and `taxonomy`
-- **Plugin custom embeds** (WooCommerce, custom plugins, etc.)
-- **Custom _links/_embed** data from any source
-- **Custom meta fields** that reference other entities
+## How it works
 
-## How It Works
+Custom relations follow two-phase resolution:
 
-### Two-Phase Resolution
-
-Custom relations follow the same pattern as built-in relations:
-
-1. **Embedded Data Extraction** - First, the resolver attempts to extract data from `_embedded[customKey]` (e.g., `_embedded['acf:post']`)
-2. **Fallback API Resolution** - If embedded data is unavailable, a fallback resolver makes API calls using ID fields from the post
-
-### The `CustomRelationConfig` Interface
-
-Define custom relations using the `CustomRelationConfig<T>` interface:
+1. **Extract from `_embedded`** — e.g., `_embedded['acf:post']`
+2. **Fallback API calls** — if embedded data is missing, resolve from ID fields
 
 ```typescript
 import { customRelationRegistry, type CustomRelationConfig } from 'fluent-wp-client';
 
-const myCustomRelation: CustomRelationConfig<MyRelatedType[]> = {
-  name: 'myRelation',           // Unique identifier
-  embeddedKey: 'my-plugin:items', // Key in _embedded
-  extractEmbedded: (data) => {   // Extract and transform embedded data
-    if (!Array.isArray(data)) return null;
-    return data.map(item => transformItem(item));
-  },
-  fallbackResolver: {            // Optional: fetch via API when embedded missing
+const myRelation: CustomRelationConfig<MyType[]> = {
+  name: 'myRelation',
+  embeddedKey: 'my-plugin:items',
+  extractEmbedded: (data) => Array.isArray(data) ? data.map(transformItem) : null,
+  fallbackResolver: {
     resolve: async (client, post) => {
       const ids = post.meta?.my_relation_ids;
-      if (!ids?.length) return [];
-      return fetchMyItems(ids);
+      return ids?.length ? fetchMyItems(ids) : [];
     },
   },
-  requiredFields: ['meta'],     // Fields to preserve in response
+  requiredFields: ['meta'],
 };
 
-customRelationRegistry.register(myCustomRelation);
+customRelationRegistry.register(myRelation);
 ```
-
-## Generic factories
-
-Many plugin relations follow the same shape:
-
-- data is exposed in `_embedded['namespace:key']`
-- the parent object stores one ID or an array of IDs for fallback hydration
-
-Use the generic ID-backed factories to avoid rewriting the same resolver logic:
-
-```typescript
-import {
-  createIdCollectionRelation,
-  createIdSingleRelation,
-  resolvePostReference,
-  resolvePostReferences,
-} from 'fluent-wp-client';
-
-const relatedPosts = createIdCollectionRelation({
-  name: 'relatedPosts',
-  embeddedKey: 'my-plugin:post',
-  extractEmbeddedItem: (item) => {
-    if (typeof item !== 'object' || !item) return null;
-    const post = item as Record<string, unknown>;
-    return typeof post.id === 'number' ? post : null;
-  },
-  getIds: (post) => (post as { meta?: Record<string, unknown> }).meta?.related_post_ids,
-  resolveMany: resolvePostReferences,
-  requiredFields: ['meta'],
-});
-
-const featuredPost = createIdSingleRelation({
-  name: 'featuredPost',
-  embeddedKey: 'my-plugin:post',
-  extractEmbeddedItem: (item) => {
-    if (typeof item !== 'object' || !item) return null;
-    const post = item as Record<string, unknown>;
-    return typeof post.id === 'number' ? post : null;
-  },
-  getId: (post) => (post as { meta?: Record<string, unknown> }).meta?.featured_post_id,
-  resolveOne: resolvePostReference,
-  requiredFields: ['meta'],
-});
-
-customRelationRegistry.register(relatedPosts);
-customRelationRegistry.register(featuredPost);
-```
-
-The bundled ACF helper factories use the same custom-relation API, but they resolve through ACF's field IDs plus `_links` / `_embedded` so one response can safely contain multiple ACF relational fields at once.
-
-### Shared link/embed bucket factories
-
-Some plugins expose multiple logical fields through one shared relation bucket. In that shape, the raw `_embedded` array is not enough because you need the field's stored IDs to know which items belong to which field.
-
-Use the shared-bucket factories for that case:
-
-```typescript
-import {
-  customRelationRegistry,
-  createLinkedEmbeddedCollectionRelation,
-  createLinkedEmbeddedSingleRelation,
-  resolveContentReference,
-  resolveContentReferences,
-} from 'fluent-wp-client';
-
-const linkedArticles = createLinkedEmbeddedCollectionRelation({
-  name: 'linkedArticles',
-  embeddedKey: 'my-plugin:item',
-  linksKey: 'my-plugin:item',
-  extractItem: (item) => {
-    if (typeof item !== 'object' || !item) return null;
-    const record = item as Record<string, unknown>;
-    return typeof record.id === 'number' ? record : null;
-  },
-  getIds: (post) => (post as { meta?: Record<string, unknown> }).meta?.linked_article_ids,
-  resolveMany: (client, ids) => resolveContentReferences(client, 'posts', ids),
-  requiredFields: ['meta', '_links'],
-});
-
-const primaryArticle = createLinkedEmbeddedSingleRelation({
-  name: 'primaryArticle',
-  embeddedKey: 'my-plugin:item',
-  linksKey: 'my-plugin:item',
-  extractItem: (item) => {
-    if (typeof item !== 'object' || !item) return null;
-    const record = item as Record<string, unknown>;
-    return typeof record.id === 'number' ? record : null;
-  },
-  getId: (post) => (post as { meta?: Record<string, unknown> }).meta?.primary_article_id,
-  resolveOne: (client, id) => resolveContentReference(client, 'posts', id),
-  requiredFields: ['meta', '_links'],
-});
-
-customRelationRegistry.register(linkedArticles);
-customRelationRegistry.register(primaryArticle);
-```
-
-These factories:
-
-- read the field's IDs first
-- filter `_embedded` items to those IDs
-- follow `_links` for missing items
-- optionally fall back to resource-specific fetchers
-
-That pattern is what the ACF helpers use internally.
-
-- `createLinkedEmbeddedCollectionRelation(...)` expects `getIds(...)` and optional `resolveMany(...)`.
-- `createLinkedEmbeddedSingleRelation(...)` expects `getId(...)` and optional `resolveOne(...)`.
-- Use `parseReferenceId(...)` or `parseLinkId(...)` when your plugin stores non-standard ID formats.
-
-### Built-in and custom taxonomy helpers
-
-You can use the same pattern for taxonomy relations. The helper layer includes built-in resolvers for both core taxonomies and custom taxonomies:
-
-```typescript
-import {
-  createIdCollectionRelation,
-  resolveTermReferences,
-} from 'fluent-wp-client';
-
-const categoryTerms = createIdCollectionRelation({
-  name: 'categoryTerms',
-  embeddedKey: 'wp:term',
-  extractEmbeddedItem: (item) => {
-    if (typeof item !== 'object' || !item) return null;
-    const term = item as Record<string, unknown>;
-    if (term.taxonomy !== 'category' || typeof term.id !== 'number') return null;
-    return term;
-  },
-  getIds: (post) => post.categories,
-  resolveMany: (client, ids) => resolveTermReferences(client, 'categories', ids),
-  requiredFields: ['categories'],
-});
-
-const genreTerms = createIdCollectionRelation({
-  name: 'genreTerms',
-  embeddedKey: 'wp:term',
-  extractEmbeddedItem: (item) => {
-    if (typeof item !== 'object' || !item) return null;
-    const term = item as Record<string, unknown>;
-    if (term.taxonomy !== 'genre' || typeof term.id !== 'number') return null;
-    return term;
-  },
-  getIds: (post) => (post as { genre?: number[] }).genre,
-  resolveMany: (client, ids) => resolveTermReferences(client, 'genre', ids),
-  requiredFields: ['genre'],
-});
-```
-
-`resolveTermReferences()` and `resolveTermReference()` work for core taxonomies like `categories` and `tags`, and for custom taxonomy resources such as `genre`.
-
-### Current builder scope
-
-The fluent relation query builder works for core posts, pages, and custom post types through the same `content(resource).item(...)` entry point:
-
-- `client.content('posts').item(idOrSlug).with(...)`
-- `client.content('pages').item(idOrSlug).with(...)`
-- `client.content('books').item(idOrSlug).with(...)`
-
-Core post taxonomies, custom taxonomy helpers, ACF relations, and custom registered relations all work through the same builder.
 
 ## ACF field helpers
 
-ACF `relationship`, `post_object`, and `taxonomy` fields are supported through explicit helper factories. The relation names are yours to choose.
+ACF `relationship`, `post_object`, and `taxonomy` fields have dedicated factories:
 
 ```typescript
 import {
-  WordPressClient,
   createAcfRelationshipRelation,
   createAcfPostObjectRelation,
   createAcfTaxonomyRelation,
   customRelationRegistry,
 } from 'fluent-wp-client';
-
-const client = new WordPressClient({ baseUrl: 'https://example.com' });
 
 customRelationRegistry.register(createAcfRelationshipRelation({
   relationName: 'linkedArticles',
@@ -243,387 +65,179 @@ customRelationRegistry.register(createAcfTaxonomyRelation({
   multiple: true,
 }));
 
-// Use ACF relations alongside built-in ones
+// Use alongside built-in relations
 const post = await client
   .content('posts')
   .item('my-post')
   .with('author', 'categories', 'linkedArticles', 'primaryArticle', 'linkedGenres');
-
-// Access related data
-console.log(post.related.author);
-console.log(post.related.categories);
-console.log(post.related.linkedArticles);
-console.log(post.related.primaryArticle);
-console.log(post.related.linkedGenres);
 ```
 
-The helper names map to actual ACF field types. The relation names you pass in are application-specific. Projects upgrading from the legacy app-specific ACF helpers should register the new field-type helper under their preferred relation name and then update `.with(...)` calls to use that registered name.
+### ACF PHP configuration
 
-### ACF Field Configuration
-
-For ACF relations to work, configure your ACF fields with `show_in_rest` enabled. For relational fields, use object return formats so ACF emits `_links` / `_embedded` resources:
+:::caution[Required ACF setup]
+ACF fields must have `show_in_rest => true` and `return_format => 'object'` for relation hydration to work.
+:::
 
 ```php
-// In your ACF field group
 [
   'name' => 'acf_related_posts',
   'type' => 'relationship',
-  'return_format' => 'object',  // Important: returns objects with _links
-  'show_in_rest' => true,
-]
-
-[
-  'name' => 'acf_featured_post',
-  'type' => 'post_object',
-  'return_format' => 'object',
-  'show_in_rest' => true,
-]
-
-[
-  'name' => 'acf_related_genres',
-  'type' => 'taxonomy',
-  'taxonomy' => 'genre',
-  'field_type' => 'multi_select',
   'return_format' => 'object',
   'show_in_rest' => true,
 ]
 ```
 
-When `_embed: true` is set, ACF includes related resources in `_embedded['acf:post']` and `_embedded['acf:term']`. The helpers also work without `_embed` by following ACF's `_links` entries.
+### Why field-based, not app-based
 
-### Why the helpers are field-based, not app-based
-
-ACF groups all relational links of the same kind under shared keys like `_links['acf:post']`. That means a response can contain multiple post-like ACF fields at once.
-
-The helpers solve this by:
-
-- reading the IDs from `acf[fieldName]`
-- filtering `_embedded` results to just those IDs
-- falling back to `_links` and fetching missing resources when needed
-
-This keeps one `relationship` field from accidentally hydrating items that belong to another `post_object` field on the same response.
-
-### Custom ACF field names
-
-Use the helper factories with whatever field names and relation names your project needs:
-
-```typescript
-customRelationRegistry.register(createAcfRelationshipRelation({
-  relationName: 'heroArticles',
-  fieldName: 'hero_related_posts',
-}));
-
-customRelationRegistry.register(createAcfPostObjectRelation({
-  relationName: 'heroArticle',
-  fieldName: 'hero_featured_post',
-  multiple: false,
-}));
-
-customRelationRegistry.register(createAcfTaxonomyRelation({
-  relationName: 'heroGenres',
-  fieldName: 'hero_genres',
-  resource: 'genre',
-  multiple: true,
-}));
-```
+ACF groups all relational links under shared keys like `_links['acf:post']`. The helpers disambiguate by reading IDs from `acf[fieldName]` and filtering `_embedded` results to just those IDs. This prevents one `relationship` field from hydrating items belonging to another `post_object` field.
 
 ### ACF helper options
 
-- `createAcfRelationshipRelation(...)` expects `relationName` and `fieldName`. Use `resource` only when you want an explicit same-resource fallback in addition to ACF links.
-- `createAcfPostObjectRelation(...)` expects `relationName`, `fieldName`, and `multiple` because `post_object` can be configured as single or multi-select.
-- `createAcfTaxonomyRelation(...)` expects `relationName`, `fieldName`, `resource`, and `multiple`. `resource` is the taxonomy REST base such as `categories`, `tags`, or `genre`.
+| Factory | Required params | Notes |
+| --- | --- | --- |
+| `createAcfRelationshipRelation` | `relationName`, `fieldName` | Optional `resource` for same-resource fallback |
+| `createAcfPostObjectRelation` | `relationName`, `fieldName`, `multiple` | `post_object` can be single or multi-select |
+| `createAcfTaxonomyRelation` | `relationName`, `fieldName`, `resource`, `multiple` | `resource` is the taxonomy REST base |
 
-## Creating Custom Relations
+## Generic factories
 
-### Example 1: WooCommerce Product Relations
+For non-ACF plugins with ID-based relations:
+
+```typescript
+import { createIdCollectionRelation, createIdSingleRelation, resolvePostReferences } from 'fluent-wp-client';
+
+const relatedPosts = createIdCollectionRelation({
+  name: 'relatedPosts',
+  embeddedKey: 'my-plugin:post',
+  extractEmbeddedItem: (item) => {
+    if (typeof item !== 'object' || !item) return null;
+    return typeof (item as any).id === 'number' ? item : null;
+  },
+  getIds: (post) => (post as any).meta?.related_post_ids,
+  resolveMany: resolvePostReferences,
+  requiredFields: ['meta'],
+});
+
+customRelationRegistry.register(relatedPosts);
+```
+
+### Shared embed bucket factories
+
+When a plugin exposes multiple fields through one shared `_embedded` key, use the linked-embedded factories:
+
+```typescript
+import { createLinkedEmbeddedCollectionRelation, resolveContentReferences } from 'fluent-wp-client';
+
+const linkedArticles = createLinkedEmbeddedCollectionRelation({
+  name: 'linkedArticles',
+  embeddedKey: 'my-plugin:item',
+  linksKey: 'my-plugin:item',
+  extractItem: (item) => typeof (item as any)?.id === 'number' ? item : null,
+  getIds: (post) => (post as any).meta?.linked_article_ids,
+  resolveMany: (client, ids) => resolveContentReferences(client, 'posts', ids),
+  requiredFields: ['meta', '_links'],
+});
+```
+
+These factories read IDs first, filter `_embedded` to matching items, follow `_links` for missing items, then fall back to resource fetchers.
+
+## Custom relation examples
+
+### WooCommerce products
 
 ```typescript
 import { customRelationRegistry, createArrayExtractor } from 'fluent-wp-client';
 
-interface WooProduct {
-  id: number;
-  name: string;
-  price: string;
-}
-
-const wooRelatedProducts: CustomRelationConfig<WooProduct[]> = {
+const wooProducts: CustomRelationConfig<WooProduct[]> = {
   name: 'relatedProducts',
   embeddedKey: 'woocommerce:related_products',
-  extractEmbedded: createArrayExtractor((item): WooProduct | null => {
-    if (typeof item !== 'object' || !item) return null;
+  extractEmbedded: createArrayExtractor((item) => {
     const obj = item as Record<string, unknown>;
-    if (typeof obj.id !== 'number') return null;
-    return {
-      id: obj.id,
-      name: String(obj.name ?? ''),
-      price: String(obj.price ?? ''),
-    };
+    return typeof obj?.id === 'number'
+      ? { id: obj.id, name: String(obj.name ?? ''), price: String(obj.price ?? '') }
+      : null;
   }),
   fallbackResolver: {
     resolve: async (client, post) => {
-      // Read from post meta or custom field
-      const relatedIds = (post as any).meta?.related_product_ids ?? [];
-      if (!relatedIds.length) return [];
-      
-      // Fetch products via WooCommerce API
-      const products: WooProduct[] = [];
-      for (const id of relatedIds) {
-        try {
-          const product = await client.request({
-            endpoint: `/wp-json/wc/v3/products/${id}`,
-            method: 'GET',
-          });
-          products.push(product.data as WooProduct);
-        } catch {
-          // Skip unavailable products
-        }
-      }
-      return products;
+      const ids = (post as any).meta?.related_product_ids ?? [];
+      return Promise.all(ids.map(async (id: number) => {
+        const { data } = await client.request({ endpoint: `/wp-json/wc/v3/products/${id}`, method: 'GET' });
+        return data as WooProduct;
+      })).then(results => results.filter(Boolean));
     },
   },
   requiredFields: ['meta'],
 };
 
-customRelationRegistry.register(wooRelatedProducts);
-
-// Use it
-const product = await client
-  .content('posts')
-  .item('product-slug')
-  .with('relatedProducts');
-
-console.log(product.related.relatedProducts);
+customRelationRegistry.register(wooProducts);
 ```
 
-### Example 2: Custom Plugin Embed
+### Plugin embed (no fallback)
 
 ```typescript
-// Your plugin adds custom data to _embedded['my-plugin:custom-data']
-const customPluginRelation: CustomRelationConfig<{ id: number; value: string }[]> = {
+customRelationRegistry.register({
   name: 'customPluginData',
   embeddedKey: 'my-plugin:custom-data',
   extractEmbedded: createArrayExtractor((item) => {
-    if (typeof item !== 'object' || !item) return null;
     const obj = item as Record<string, unknown>;
-    if (typeof obj.id !== 'number') return null;
-    return {
-      id: obj.id,
-      value: String(obj.value ?? ''),
-    };
+    return typeof obj?.id === 'number' ? { id: obj.id, value: String(obj.value ?? '') } : null;
   }),
-  // No fallback needed if data is always embedded
-};
-
-customRelationRegistry.register(customPluginRelation);
-```
-
-### Example 3: Single Item Relation
-
-For single-item relations (like featured media):
-
-```typescript
-import { createSingleExtractor } from 'fluent-wp-client';
-
-const featuredAuthor: CustomRelationConfig<{ id: number; name: string } | null> = {
-  name: 'featuredAuthor',
-  embeddedKey: 'custom:featured-author',
-  extractEmbedded: createSingleExtractor((item) => {
-    if (typeof item !== 'object' || !item) return null;
-    const obj = item as Record<string, unknown>;
-    if (typeof obj.id !== 'number') return null;
-    return {
-      id: obj.id,
-      name: String(obj.name ?? ''),
-    };
-  }),
-  fallbackResolver: {
-    resolve: async (client, post) => {
-      const authorId = (post as any).meta?.featured_author_id;
-      if (!authorId) return null;
-      try {
-        const author = await client.users().item(authorId);
-        if (!author) return null;
-        return { id: author.id, name: author.name };
-      } catch {
-        return null;
-      }
-    },
-  },
-  requiredFields: ['meta'],
-};
-
-customRelationRegistry.register(featuredAuthor);
-```
-
-## Helper Functions
-
-### `createArrayExtractor<T>(transform)`
-
-Creates an extractor that expects an array and returns a typed array:
-
-```typescript
-import { createArrayExtractor } from 'fluent-wp-client';
-
-const extractPosts = createArrayExtractor((item) => {
-  // Transform single item, return null to filter out
-  if (!isValidPost(item)) return null;
-  return transformPost(item);
 });
 ```
 
-### `createSingleExtractor<T>(transform)`
+## Extractor helpers
 
-Creates an extractor for single-item relations:
+- `createArrayExtractor<T>(transform)` — array of items, null items filtered out
+- `createSingleExtractor<T>(transform)` — single item or null
+- `extractEmbeddedData<T>(post, key)` — low-level `_embedded` access
 
-```typescript
-import { createSingleExtractor } from 'fluent-wp-client';
-
-const extractAuthor = createSingleExtractor((item) => {
-  if (!isValidAuthor(item)) return null;
-  return transformAuthor(item);
-});
-```
-
-### `extractEmbeddedData<T>(post, key)`
-
-Low-level helper to extract data from `_embedded`:
+## Registry API
 
 ```typescript
-import { extractEmbeddedData } from 'fluent-wp-client';
-
-const customData = extractEmbeddedData<unknown[]>(post, 'my-plugin:data');
-```
-
-## Managing Relations
-
-### Registry Methods
-
-```typescript
-import { customRelationRegistry } from 'fluent-wp-client';
-
-// Register a relation
-customRelationRegistry.register(myRelation);
-
-// Check if registered
-if (customRelationRegistry.has('myRelation')) {
-  // ...
-}
-
-// Get configuration
-const config = customRelationRegistry.get('myRelation');
-
-// Unregister
-customRelationRegistry.unregister('myRelation');
-
-// List all custom relations
-const names = customRelationRegistry.getAllNames();
-
-// Clear all custom relations
+customRelationRegistry.register(relation);
+customRelationRegistry.has('name');
+customRelationRegistry.get('name');
+customRelationRegistry.unregister('name');
+customRelationRegistry.getAllNames();
 customRelationRegistry.clear();
 ```
 
-### Required Fields
+## Type safety
 
-Specify `requiredFields` to ensure critical data isn't excluded:
-
+:::note
+Built-in relations are fully typed. Custom relations are `unknown` in `post.related` — cast at the call site:
 ```typescript
-const config: CustomRelationConfig<MyType[]> = {
-  name: 'myRelation',
-  embeddedKey: 'my-plugin:data',
-  extractEmbedded: (data) => /* ... */,
-  requiredFields: ['meta', 'acf'], // These fields are always preserved
-};
+const products = post.related.relatedProducts as WooProduct[];
 ```
+:::
 
-Use `getRequiredFields()` to check what fields are needed:
+## Best practices
 
-```typescript
-const builder = client.content('posts').item('my-post').with('author', 'myCustomRelation');
-const requiredFields = builder.getRequiredFields();
-// ['author', 'meta'] (assuming myCustomRelation requires 'meta')
-```
+:::tip
+1. Always provide fallback resolvers — `_embedded` may not be available.
+2. Return `null` or `[]` for missing data, never throw.
+3. Specify `requiredFields` to preserve critical data.
+4. Clean up with `customRelationRegistry.clear()` in tests.
+:::
 
-## Advanced Usage
-
-### Combining Built-In and Custom Relations
-
-```typescript
-const post = await client
-  .content('posts')
-  .item('my-post')
-  .with(
-    'author',           // Built-in
-    'categories',       // Built-in
-    'linkedArticles',   // Registered ACF relationship helper
-    'relatedProducts',  // Custom (WooCommerce)
-    'customPluginData'  // Custom (your plugin)
-  )
-;
-
-// All relations available in post.related
-```
-
-### Type Safety
-
-Built-in relations are strongly typed. Runtime-registered custom relations are currently exposed as `unknown` in `post.related`, so cast them at the call site when you need strict typing:
+## Migration from manual extraction
 
 ```typescript
-const post = await client.content('posts').item('my-post').with('relatedProducts');
-const relatedProducts = post.related.relatedProducts as WooProduct[];
-```
+// Before: manual ACF hydration
+const ids = post.acf?.acf_related_posts;
+const related = await Promise.all(ids?.map(id => client.content('posts').item(id)) ?? []);
 
-## Best Practices
-
-1. **Always provide fallback resolvers** - Don't rely solely on embedded data, as it may not always be available
-
-2. **Handle missing data gracefully** - Return `null` or `[]` rather than throwing errors
-
-3. **Specify required fields** - Help the client preserve critical data
-
-4. **Use type guards** - Validate embedded data before casting:
-   ```typescript
-   extractEmbedded: (data) => {
-     if (!Array.isArray(data)) return null;
-     return data.filter(isValidItem);
-   }
-   ```
-
-5. **Unregister in tests** - Clean up custom relations after tests to avoid interference
-
-6. **Document your relations** - Provide clear documentation for consumers of your custom relations
-
-## Migration from Manual Extraction
-
-If you currently extract ACF relations manually:
-
-**Before:**
-```typescript
-const post = await client.content('posts').item(123);
-const relatedIds = post.acf?.acf_related_posts;
-const relatedPosts = await Promise.all(
-  relatedIds?.map(id => client.content('posts').item(id)) ?? []
-);
-```
-
-**After:**
-```typescript
+// After: register once, use everywhere
 customRelationRegistry.register(createAcfRelationshipRelation({
-  relationName: 'linkedArticles',
-  fieldName: 'acf_related_posts',
+  relationName: 'linkedArticles', fieldName: 'acf_related_posts',
 }));
-
-const post = await client
-  .content('posts')
-  .item(123)
-  .with('linkedArticles');
-
-// Data is already hydrated
-console.log(post.related.linkedArticles);
+const post = await client.content('posts').item(123).with('linkedArticles');
 ```
 
-## Performance Considerations
+## Performance
 
-- **Embedded data is fastest** - No extra API calls
-- **Fallback resolvers add latency** - Consider caching or batching
-- **Multiple custom relations** - Each may trigger separate API calls
-- **Required fields** - Minimal impact, but avoid including unnecessary fields
+:::note
+- Embedded data is fastest (no extra API calls)
+- Fallback resolvers add latency — consider caching
+- Multiple custom relations may trigger separate API calls
+:::

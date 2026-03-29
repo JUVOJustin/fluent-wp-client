@@ -3,10 +3,16 @@ title: Schema Discovery
 short_title: Schema Discovery
 description: Fetch live JSON Schemas from WordPress at runtime and use them directly for input and output validation.
 sidebar:
-  order: 8
+  order: 7
 ---
 
-Schema discovery lets you fetch the JSON Schema WordPress exposes for any resource or ability, then use it directly for validation — without hard-coding schemas upfront. This is useful for generic integrations, AI agents, and tools that work across multiple sites.
+## Overview
+
+Schema discovery lets you fetch the JSON Schema WordPress exposes for any resource or ability, then use it directly for validation — without hard-coding schemas upfront.
+
+:::tip[When to use schema discovery]
+This is especially useful for generic integrations, AI agents, and tools that work across multiple sites where the schema shape is not known at build time.
+:::
 
 ## Describe a resource
 
@@ -88,7 +94,9 @@ Available kinds: `'content'`, `'terms'`, `'resources'`, `'abilities'`.
 
 ## Authentication
 
-Use an authenticated client to get full schema coverage, including write schemas:
+:::caution
+Use an authenticated client to get full schema coverage. Write schemas (`create`, `update`) are only available to users with appropriate capabilities.
+:::
 
 ```ts
 const wp = new WordPressClient({

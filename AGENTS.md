@@ -45,6 +45,8 @@ src/
   blocks-client.ts             # Block-aware client wrapper for the /blocks subpath
   blocks-entry.ts              # Public fluent-wp-client/blocks entrypoint
   blocks-zod.ts                # Public fluent-wp-client/blocks/zod entrypoint
+  ai-sdk/                      # Optional Vercel AI SDK tool factories
+  cli/                         # CLI discovery and code generation entrypoints
   abilities.ts                 # Ability methods and builder
   content-query.ts             # Raw content helper types and resolver
   types.ts                     # Re-export barrel for types/ subdirectory

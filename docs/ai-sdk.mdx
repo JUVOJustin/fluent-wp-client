@@ -1,0 +1,380 @@
+---
+title: AI SDK Integration
+short_title: AI SDK
+description: Expose WordPress capabilities as individually configurable AI SDK tools via the fluent-wp-client/ai-sdk entrypoint.
+sidebar:
+  order: 8
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+The `fluent-wp-client/ai-sdk` entrypoint provides tool factories that turn WordPress client methods into [Vercel AI SDK](https://sdk.vercel.ai/) tools. Each tool is imported and registered manually, giving you full control over which capabilities your AI agent has access to.
+
+## Install
+
+```bash title="Installing dependencies…"
+npm install fluent-wp-client ai
+```
+
+`ai` is an optional peer dependency -- only required when importing from `fluent-wp-client/ai-sdk`.
+
+## Quick start
+
+```typescript title="tools.ts"
+import { WordPressClient } from 'fluent-wp-client';
+import { getPostsTool, getPostTool, createPostTool } from 'fluent-wp-client/ai-sdk';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: 'xxxx xxxx xxxx xxxx' },
+});
+
+const tools = {
+  searchPosts: getPostsTool(wp, {
+    description: 'Search published blog posts.',
+    defaultArgs: { perPage: 5 },
+    fixedArgs: { status: 'publish', fields: ['id', 'slug', 'title', 'excerpt', 'link'] },
+  }),
+  readPost: getPostTool(wp, {
+    defaultArgs: { includeContent: true },
+  }),
+  draftPost: createPostTool(wp, {
+    description: 'Create a new draft post for editorial review.',
+    fixedInput: { status: 'draft' },
+  }),
+};
+```
+
+Pass these tools to `generateText`, `streamText`, or any AI SDK agent:
+
+```typescript title="agent.ts"
+import { generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+const { text } = await generateText({
+  model: openai('gpt-4o'),
+  tools,
+  prompt: 'Find the latest 3 posts about TypeScript.',
+});
+```
+
+## Design principles
+
+### Manual composition
+
+There is no `.toAiSDK()` magic or auto-registration helper. You import individual factories, configure each one, and add it to your `tools` object. This is intentional:
+
+- You control which operations the model can perform.
+- Different tools can use different client instances (e.g. public vs. admin).
+- Descriptions and defaults are tuned per tool, not globally.
+
+### Lean tool surface
+
+Each resource exposes just enough tools for a model to work effectively:
+
+| Pattern | Tool | What the model can do |
+|---|---|---|
+| **Collection** | `getPostsTool` | Search, filter, paginate, sort, select fields |
+| **Single item** | `getPostTool` | Fetch by ID or slug, optionally expand content/blocks |
+| **Create** | `createPostTool` | Create a new resource |
+| **Update** | `updatePostTool` | Update an existing resource |
+| **Delete** | `deletePostTool` | Delete a resource |
+
+A single `getPostsTool` replaces what would otherwise be separate search, list, and paginated tools. The model calls it with `{ search: "keyword" }`, `{ perPage: 5, page: 2 }`, or `{ categories: [3], orderby: "date" }` as needed.
+
+### Auth inheritance
+
+Every tool executes through the `WordPressClient` instance you pass to the factory. Auth headers, cookies, credentials, and custom `fetch` all carry through automatically. Tool input schemas intentionally exclude auth fields.
+
+```typescript
+const publicWp = new WordPressClient({ baseUrl });
+const adminWp = new WordPressClient({ baseUrl, auth: { username, password } });
+
+const tools = {
+  searchPosts: getPostsTool(publicWp, { fixedArgs: { status: 'publish' } }),
+  createPost: createPostTool(adminWp),
+};
+```
+
+## Configuration options
+
+Every tool factory accepts an options object with three configuration surfaces:
+
+### `description`
+
+Override the AI-facing tool description. Use this to give the model better context for when and how to call the tool.
+
+```typescript
+getPostsTool(wp, {
+  description: 'Search the company knowledge base for internal articles.',
+});
+```
+
+### `defaultArgs`
+
+Provide fallback values the model can override. Useful for sensible defaults that shouldn't require explicit model input every time.
+
+```typescript
+getPostsTool(wp, {
+  defaultArgs: { perPage: 5, status: 'publish' },
+});
+// Model calls with { search: "react" }
+// Executes as { search: "react", perPage: 5, status: "publish" }
+```
+
+### `fixedArgs`
+
+Lock values that always override model input. Use this to enforce constraints the model should not bypass.
+
+```typescript
+getPostsTool(wp, {
+  fixedArgs: { status: 'publish', fields: ['id', 'slug', 'title', 'excerpt'] },
+});
+// Model calls with { status: "draft", perPage: 10 }
+// Executes as { status: "publish", perPage: 10, fields: [...] }
+```
+
+### Mutation tools: `defaultInput` and `fixedInput`
+
+Create and update tools wrap the write payload in an `input` object. `defaultInput` and `fixedInput` apply the same precedence logic to nested fields:
+
+```typescript
+createPostTool(adminWp, {
+  description: 'Draft a new post for review.',
+  fixedInput: { status: 'draft', author: 7 },
+});
+// Model provides: { input: { title: "New Article", content: "..." } }
+// Executes as:    { title: "New Article", content: "...", status: "draft", author: 7 }
+```
+
+```typescript
+updatePostTool(adminWp, {
+  defaultInput: { status: 'draft' },
+});
+// Model provides: { id: 42, input: { title: "Edited" } }
+// Executes as:    id=42, { title: "Edited", status: "draft" }
+// Model provides: { id: 42, input: { title: "Final", status: "publish" } }
+// Executes as:    id=42, { title: "Final", status: "publish" }  (model wins)
+```
+
+## Available tools
+
+### Core resources
+
+<Tabs>
+<TabItem label="Posts">
+```typescript
+import {
+  getPostsTool,     // Search, filter, paginate posts
+  getPostTool,      // Fetch by ID or slug (+ content/blocks)
+  createPostTool,   // Create a post
+  updatePostTool,   // Update a post
+  deletePostTool,   // Delete a post
+} from 'fluent-wp-client/ai-sdk';
+```
+</TabItem>
+<TabItem label="Pages">
+```typescript
+import {
+  getPagesTool,     // Search, filter, paginate pages
+  getPageTool,      // Fetch by ID or slug (+ content/blocks)
+  createPageTool,   // Create a page
+  updatePageTool,   // Update a page
+  deletePageTool,   // Delete a page
+} from 'fluent-wp-client/ai-sdk';
+```
+</TabItem>
+<TabItem label="Media">
+```typescript
+import {
+  getMediaTool,     // Search, filter media items
+  getMediaItemTool, // Fetch by ID or slug
+  deleteMediaTool,  // Delete a media item
+} from 'fluent-wp-client/ai-sdk';
+```
+</TabItem>
+<TabItem label="Categories">
+```typescript
+import {
+  getCategoriesTool,    // Search and filter categories
+  getCategoryTool,      // Fetch by ID or slug
+  createCategoryTool,   // Create a category
+  updateCategoryTool,   // Update a category
+  deleteCategoryTool,   // Delete a category
+} from 'fluent-wp-client/ai-sdk';
+```
+</TabItem>
+<TabItem label="Tags">
+```typescript
+import {
+  getTagsTool,     // Search and filter tags
+  getTagTool,      // Fetch by ID or slug
+  createTagTool,   // Create a tag
+  updateTagTool,   // Update a tag
+  deleteTagTool,   // Delete a tag
+} from 'fluent-wp-client/ai-sdk';
+```
+</TabItem>
+<TabItem label="Users">
+```typescript
+import {
+  getUsersTool,    // Search and filter users
+  getUserTool,     // Fetch by ID
+  createUserTool,  // Create a user
+  updateUserTool,  // Update a user
+  deleteUserTool,  // Delete a user
+} from 'fluent-wp-client/ai-sdk';
+```
+</TabItem>
+<TabItem label="Comments">
+```typescript
+import {
+  getCommentsTool,    // Search and filter comments
+  getCommentTool,     // Fetch by ID
+  createCommentTool,  // Create a comment
+  updateCommentTool,  // Update a comment
+  deleteCommentTool,  // Delete a comment
+} from 'fluent-wp-client/ai-sdk';
+```
+</TabItem>
+<TabItem label="Settings">
+```typescript
+import {
+  getSettingsTool,     // Read site settings
+  updateSettingsTool,  // Update site settings
+} from 'fluent-wp-client/ai-sdk';
+```
+</TabItem>
+</Tabs>
+
+### Generic resources (custom post types and taxonomies)
+
+```typescript
+import {
+  getContentCollectionTool,  // List CPT items
+  getContentTool,            // Fetch one CPT item by ID or slug
+  createContentTool,         // Create a CPT item
+  updateContentTool,         // Update a CPT item
+  deleteContentTool,         // Delete a CPT item
+  getTermCollectionTool,     // List taxonomy terms
+  getTermTool,               // Fetch one term by ID or slug
+  createTermTool,            // Create a term
+  updateTermTool,            // Update a term
+  deleteTermTool,            // Delete a term
+} from 'fluent-wp-client/ai-sdk';
+
+const tools = {
+  searchBooks: getContentCollectionTool(wp, 'books', {
+    description: 'Search the book catalog.',
+    fixedArgs: { status: 'publish' },
+  }),
+  getBook: getContentTool(wp, 'books'),
+  listGenres: getTermCollectionTool(wp, 'genre'),
+};
+```
+
+### WordPress abilities
+
+```typescript
+import {
+  getAbilitiesTool,         // List all registered abilities
+  getAbilityTool,           // Get metadata for one ability
+  executeGetAbilityTool,    // Execute a read-only ability (GET)
+  executeRunAbilityTool,    // Execute an ability (POST)
+  executeDeleteAbilityTool, // Execute a destructive ability (DELETE)
+} from 'fluent-wp-client/ai-sdk';
+```
+
+## Single item getters
+
+Post-like getter tools (`getPostTool`, `getPageTool`) return a content envelope instead of the raw DTO:
+
+```typescript
+const tool = getPostTool(wp, { defaultArgs: { includeContent: true } });
+
+// Model calls: { id: 42, includeContent: true, includeBlocks: true }
+// Returns:
+// {
+//   item: { id: 42, title: { rendered: "..." }, ... },
+//   content: { raw: "<!-- wp:paragraph -->...", rendered: "<p>...", protected: false },
+//   blocks: [{ blockName: "core/paragraph", ... }]
+// }
+```
+
+Non-content resources (`getCategoryTool`, `getTagTool`, etc.) return the DTO directly.
+
+All single-item tools accept either `id` or `slug`:
+
+```typescript
+// By ID
+{ id: 42 }
+
+// By slug
+{ slug: 'hello-world' }
+```
+
+## Field selection
+
+Collection tools and single-item tools support `fields` to limit the response payload. This reduces token usage in agent conversations:
+
+```typescript
+getPostsTool(wp, {
+  fixedArgs: { fields: ['id', 'slug', 'title', 'excerpt', 'link'] },
+});
+```
+
+The model can also request field selection at runtime. Both `fields` and `_fields` are accepted and normalized automatically.
+
+## Full example
+
+```typescript title="wordpress-agent.ts"
+import { generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { WordPressClient } from 'fluent-wp-client';
+import {
+  getPostsTool,
+  getPostTool,
+  getCategoriesTool,
+  createPostTool,
+  updatePostTool,
+} from 'fluent-wp-client/ai-sdk';
+
+const publicWp = new WordPressClient({
+  baseUrl: 'https://blog.example.com',
+});
+
+const adminWp = new WordPressClient({
+  baseUrl: 'https://blog.example.com',
+  auth: { username: 'editor', password: 'xxxx xxxx xxxx xxxx' },
+});
+
+const tools = {
+  searchPosts: getPostsTool(publicWp, {
+    description: 'Search published blog posts by keyword, category, or tag.',
+    defaultArgs: { perPage: 5 },
+    fixedArgs: { status: 'publish', fields: ['id', 'slug', 'title', 'excerpt', 'link', 'categories'] },
+  }),
+  readPost: getPostTool(publicWp, {
+    description: 'Read the full content of a blog post by ID or slug.',
+    defaultArgs: { includeContent: true },
+  }),
+  listCategories: getCategoriesTool(publicWp, {
+    description: 'List all blog categories.',
+  }),
+  draftPost: createPostTool(adminWp, {
+    description: 'Create a new draft blog post for editorial review.',
+    fixedInput: { status: 'draft' },
+  }),
+  publishPost: updatePostTool(adminWp, {
+    description: 'Publish an existing draft post.',
+    fixedInput: { status: 'publish' },
+  }),
+};
+
+const { text } = await generateText({
+  model: openai('gpt-4o'),
+  tools,
+  maxSteps: 10,
+  prompt: 'Find all posts about TypeScript in the Technology category, then draft a summary post.',
+});
+```

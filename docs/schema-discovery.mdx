@@ -10,6 +10,14 @@ sidebar:
 
 Schema discovery lets you fetch the JSON Schema WordPress exposes for any resource or ability, then use it directly for validation — without hard-coding schemas upfront.
 
+If you want generated artifacts instead of runtime discovery, use the built-in CLI:
+
+```bash title="Generating schema artifacts"
+npx fluent-wp-client schemas --url https://example.com
+npx fluent-wp-client schemas --format both --json-out wp-schemas.json --zod-out wp-schemas.ts
+npx fluent-wp-client types --url https://example.com
+```
+
 :::tip[When to use schema discovery]
 This is especially useful for generic integrations, AI agents, and tools that work across multiple sites where the schema shape is not known at build time.
 :::

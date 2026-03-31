@@ -7,10 +7,10 @@ import type { WordPressClientConfig } from '../types/client.js';
 import { discoverWordPress } from './discover.js';
 import {
   buildResourceSchemas,
-  generateTypes,
   generateJsonSchemas,
   generateZodSchemas,
 } from './codegen.js';
+import type { DiscoveryResourceFilters } from './discover.js';
 
 // ---------------------------------------------------------------------------
 // Interactive prompts
@@ -107,6 +107,92 @@ function flagValue(args: string[], flag: string): string | undefined {
 }
 
 /**
+ * Parses one comma-separated flag value into a normalized string list.
+ */
+function listFlagValues(args: string[], flag: string): string[] {
+  const value = flagValue(args, flag);
+
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Builds CLI auth configuration from non-interactive flags.
+ */
+function cliConfigOverrides(args: string[]): Partial<WordPressClientConfig> {
+  const username = flagValue(args, '--username');
+  const password = flagValue(args, '--password');
+  const token = flagValue(args, '--token');
+  const authHeader = flagValue(args, '--auth-header');
+  const methodsUsed = [
+    username || password ? 'application-password' : undefined,
+    token ? 'jwt' : undefined,
+    authHeader ? 'auth-header' : undefined,
+  ].filter(Boolean);
+
+  if (methodsUsed.length > 1) {
+    throw new Error('Choose only one auth mode: --username/--password, --token, or --auth-header.');
+  }
+
+  if ((username && !password) || (!username && password)) {
+    throw new Error('Provide both --username and --password together.');
+  }
+
+  if (username && password) {
+    return { auth: { username, password } };
+  }
+
+  if (token) {
+    return { auth: { token } };
+  }
+
+  if (authHeader) {
+    return { authHeader };
+  }
+
+  return {};
+}
+
+/**
+ * Collects resource include/exclude filters from CLI flags.
+ */
+function cliDiscoveryFilters(args: string[]): DiscoveryResourceFilters {
+  const include = listFlagValues(args, '--include');
+  const exclude = listFlagValues(args, '--exclude');
+
+  return {
+    include: include.length > 0 ? include : undefined,
+    exclude: exclude.length > 0 ? exclude : undefined,
+  };
+}
+
+/**
+ * Applies non-interactive CLI overrides without leaving conflicting auth state behind.
+ */
+function mergeCliConfig(
+  baseConfig: WordPressClientConfig,
+  overrideConfig: Partial<WordPressClientConfig>,
+): WordPressClientConfig {
+  const nextConfig: WordPressClientConfig = { ...baseConfig };
+
+  if (overrideConfig.auth || overrideConfig.authHeader) {
+    delete nextConfig.auth;
+    delete nextConfig.authHeader;
+  }
+
+  return {
+    ...nextConfig,
+    ...overrideConfig,
+  };
+}
+
+/**
  * Writes content to a file, creating parent directories as needed.
  */
 function writeFile(filePath: string, content: string): void {
@@ -128,46 +214,57 @@ async function main() {
 fluent-wp-client CLI
 
 Usage:
-  fluent-wp-client schemas   Generate resource schemas (recommended)
-  fluent-wp-client types     Generate TypeScript type declarations (legacy)
+  fluent-wp-client schemas   Generate resource schemas
 
-Options for \`schemas\`:
+Options:
   --format <format>     Output format: zod (default), json-schema, both
   --out <file>          Output file for \`zod\` format (default: wp-schemas.ts)
   --zod-out <file>      Output file for Zod module (default: wp-schemas.ts)
   --json-out <file>     Output file for JSON Schema (default: wp-schemas.json)
   --url <url>           WordPress site URL (skips interactive prompt)
-
-Options for \`types\`:
-  --out <file>          Output file (default: wp-types.d.ts)
-  --url <url>           WordPress site URL (skips interactive prompt)
+  --username <name>     Application-password username for authenticated discovery
+  --password <value>    Application password for authenticated discovery
+  --token <value>       JWT bearer token for authenticated discovery
+  --auth-header <value> Prebuilt Authorization header value
+  --include <list>      Comma-separated resource slugs/rest bases to include
+  --exclude <list>      Comma-separated resource slugs/rest bases to exclude
 
 Examples:
   npx fluent-wp-client schemas --url https://example.com
+  npx fluent-wp-client schemas --url https://example.com --username admin --password "xxxx xxxx xxxx xxxx"
+  npx fluent-wp-client schemas --url https://example.com --include posts,books
   npx fluent-wp-client schemas --format json-schema --url https://example.com
   npx fluent-wp-client schemas --format both --url https://example.com
   npx fluent-wp-client schemas --format both --json-out schemas.json --zod-out schemas.ts
-  npx fluent-wp-client types --url https://example.com
 `);
     process.exit(0);
   }
 
-  if (command !== 'types' && command !== 'schemas') {
+  if (command !== 'schemas') {
     console.error(`Unknown command: ${command}`);
     console.error('Run "fluent-wp-client --help" for usage.');
     process.exit(1);
   }
 
   // Resolve WordPress connection config.
+  let overrideConfig: Partial<WordPressClientConfig>;
+  try {
+    overrideConfig = cliConfigOverrides(args);
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
+  }
+
   const presetUrl = flagValue(args, '--url');
+  const resourceFilters = cliDiscoveryFilters(args);
   let config: WordPressClientConfig;
 
   if (presetUrl) {
-    config = { baseUrl: presetUrl };
+    config = mergeCliConfig({ baseUrl: presetUrl }, overrideConfig);
   } else {
     const rl = readline.createInterface({ input: stdin, output: stdout });
     try {
-      config = await collectConfig(rl);
+      config = mergeCliConfig(await collectConfig(rl), overrideConfig);
     } finally {
       rl.close();
     }
@@ -177,7 +274,7 @@ Examples:
 
   let discovery;
   try {
-    discovery = await discoverWordPress(config);
+    discovery = await discoverWordPress(config, resourceFilters);
   } catch (err) {
     console.error('Failed to connect to WordPress:', (err as Error).message);
     process.exit(1);
@@ -186,24 +283,6 @@ Examples:
   console.log(`Site: ${discovery.siteName}`);
   console.log(`Discovered ${discovery.resources.length} resources`);
 
-  // --- Legacy `types` command ---
-  if (command === 'types') {
-    const resourcesWithSchema = discovery.resources.filter((r) => r.schema?.properties);
-
-    if (resourcesWithSchema.length === 0) {
-      console.log('No resources with REST schemas found. Nothing to generate.');
-      process.exit(0);
-    }
-
-    const outFile = flagValue(args, '--out') ?? 'wp-types.d.ts';
-    console.log(`Generating TypeScript types for ${resourcesWithSchema.length} resources...`);
-
-    writeFile(outFile, generateTypes(resourcesWithSchema, discovery.siteName, discovery.siteUrl));
-    console.log(`Written to ${path.resolve(outFile)}`);
-    return;
-  }
-
-  // --- `schemas` command ---
   const resourceSchemas = buildResourceSchemas(discovery.resources);
 
   if (resourceSchemas.length === 0) {

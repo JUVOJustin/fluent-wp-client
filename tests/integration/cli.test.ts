@@ -52,25 +52,16 @@ afterAll(() => {
  * End-to-end coverage for CLI discovery and code generation against wp-env.
  */
 describe('CLI: code generation', () => {
-  it('generates CPT-aware types and schemas including custom meta and ACF fields', () => {
+  it('generates CPT-aware Zod schemas including custom meta and ACF fields', () => {
     const outputDir = createTempDir();
-    const typesPath = path.join(outputDir, 'wp-types.d.ts');
     const schemasPath = path.join(outputDir, 'wp-schemas.ts');
 
-    const typesRun = runCli(['types', '--url', getBaseUrl(), '--out', typesPath]);
     const schemasRun = runCli(['schemas', '--url', getBaseUrl(), '--out', schemasPath]);
 
-    const generatedTypes = fs.readFileSync(typesPath, 'utf-8');
     const generatedSchemas = fs.readFileSync(schemasPath, 'utf-8');
 
-    expect(typesRun.stdout).toContain('Generating TypeScript types');
-    expect(typesRun.stdout).toContain('Written to');
     expect(schemasRun.stdout).toContain('Generating zod schemas');
     expect(schemasRun.stdout).toContain('Zod schemas written to');
-
-    expect(generatedTypes).toContain('export interface WPBook');
-    expect(generatedTypes).toContain('test_book_isbn');
-    expect(generatedTypes).toContain('acf_subtitle');
 
     expect(generatedSchemas).toContain('export const wpBookSchema = z.fromJSONSchema');
     expect(generatedSchemas).toContain('"test_book_isbn"');
@@ -79,12 +70,39 @@ describe('CLI: code generation', () => {
 
   it('creates missing parent directories for the output path', () => {
     const outputDir = createTempDir();
-    const nestedTypesPath = path.join(outputDir, 'generated', 'types', 'wp-types.d.ts');
+    const nestedSchemasPath = path.join(outputDir, 'generated', 'schemas', 'wp-schemas.ts');
 
-    const typesRun = runCli(['types', '--url', getBaseUrl(), '--out', nestedTypesPath]);
+    const schemasRun = runCli(['schemas', '--url', getBaseUrl(), '--out', nestedSchemasPath]);
 
-    expect(typesRun.stdout).toContain('Written to');
-    expect(fs.existsSync(nestedTypesPath)).toBe(true);
-    expect(fs.readFileSync(nestedTypesPath, 'utf-8')).toContain('export interface WPBook');
+    expect(schemasRun.stdout).toContain('Zod schemas written to');
+    expect(fs.existsSync(nestedSchemasPath)).toBe(true);
+    expect(fs.readFileSync(nestedSchemasPath, 'utf-8')).toContain('export const wpBookSchema');
+  });
+
+  it('supports authenticated discovery flags and resource filters', () => {
+    const password = process.env.WP_APP_PASSWORD;
+
+    if (!password) {
+      throw new Error('WP_APP_PASSWORD not set — did global-setup run?');
+    }
+
+    const outputDir = createTempDir();
+    const schemasPath = path.join(outputDir, 'filtered-schemas.ts');
+
+    runCli([
+      'schemas',
+      '--url', getBaseUrl(),
+      '--username', 'admin',
+      '--password', password,
+      '--include', 'books,pages',
+      '--exclude', 'pages',
+      '--out', schemasPath,
+    ]);
+
+    const generatedSchemas = fs.readFileSync(schemasPath, 'utf-8');
+
+    expect(generatedSchemas).toContain('export const wpBookSchema');
+    expect(generatedSchemas).not.toContain('export const wpPageSchema');
+    expect(generatedSchemas).not.toContain('export const wpPostSchema');
   });
 });

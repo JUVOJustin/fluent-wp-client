@@ -1,0 +1,79 @@
+---
+title: CLI
+short_title: CLI
+description: Generate TypeScript, JSON Schema, and Zod-ready artifacts from live WordPress REST schemas with optional authenticated discovery and resource filtering.
+sidebar:
+  order: 9
+---
+
+## Overview
+
+`fluent-wp-client` ships a CLI for discovering live REST schemas from a WordPress site and generating code artifacts for downstream apps, validators, and AI/tooling workflows.
+
+## Command
+
+```bash title="CLI command"
+npx fluent-wp-client schemas --url https://example.com
+```
+
+The `schemas` command generates a Zod-ready TypeScript module, JSON Schema, or both.
+
+## Authentication
+
+Use non-interactive auth flags when discovery needs authenticated schemas or when you are running in CI:
+
+```bash title="Authenticated schema generation"
+npx fluent-wp-client schemas \
+  --url https://example.com \
+  --username admin \
+  --password "xxxx xxxx xxxx xxxx"
+```
+
+Supported auth flags:
+
+- `--username` and `--password` for WordPress application passwords
+- `--token` for JWT bearer auth
+- `--auth-header` for a prebuilt `Authorization` header value
+
+Use only one auth mode at a time.
+
+## Resource filtering
+
+Use `--include` and `--exclude` to limit generation to specific resources by slug or REST base:
+
+```bash title="Generating only selected resources"
+npx fluent-wp-client schemas \
+  --url https://example.com \
+  --include posts,books,genre \
+  --exclude posts
+```
+
+In this example only `books` and `genre` are generated.
+
+## Output formats
+
+```bash title="Available output formats"
+npx fluent-wp-client schemas --url https://example.com --format zod
+npx fluent-wp-client schemas --url https://example.com --format json-schema
+npx fluent-wp-client schemas --url https://example.com --format both \
+  --zod-out wp-schemas.ts \
+  --json-out wp-schemas.json
+```
+
+- `zod` writes a TypeScript module with JSON Schema literals, `z.fromJSONSchema(...)` validators, and inferred types.
+- `json-schema` writes one JSON document keyed by REST base.
+- `both` writes both artifacts in a single run.
+
+## Interactive mode
+
+If you omit `--url`, the CLI prompts for the site URL and auth method interactively.
+
+```bash title="Interactive mode"
+npx fluent-wp-client schemas
+```
+
+## Generated artifacts
+
+`schemas` produces normalized item schemas suitable for downstream validation and codegen.
+
+Use runtime discovery from [`schema-discovery.mdx`](./schema-discovery.mdx) when you want live schemas inside the app instead of build-time generated files.

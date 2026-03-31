@@ -49,7 +49,7 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 - **CLI schema/code generation** — `fluent-wp-client` ships a CLI for discovering resource schemas and generating TypeScript, JSON Schema, and Zod outputs
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
-- **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`, with schema-backed generic builders validating reads and mutations
+  - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`, with schema-backed generic builders validating reads and mutations; pass `inputSchema` in `MutationOptions` to validate and transform mutation payloads before the request is sent
 - **Extensible relation API** — fluent relations for posts and custom entities, plus generic ID-backed and shared link/embed relation factories
 
 ## Gutenberg block workflows

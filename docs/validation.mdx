@@ -1,7 +1,7 @@
 ---
 title: Validation
 short_title: Validation
-description: Validate fluent-wp-client responses with Standard Schema, native Zod, or custom validators like Valibot.
+description: Validate fluent-wp-client requests and responses with Standard Schema, native Zod, or custom validators like Valibot.
 sidebar:
   order: 8
 ---
@@ -25,6 +25,46 @@ Schemas are authored in Zod internally, but root exports expose only the Standar
 
 :::tip
 `content(resource, schema)` and `terms(resource, schema)` validate all reads and mutations on that resource client.
+:::
+
+## Input validation
+
+Pass `inputSchema` in the `MutationOptions` second argument to validate and transform the mutation payload **before** the HTTP request is sent. Invalid input throws `WordPressSchemaValidationError` without making the request.
+
+```ts
+import { z } from 'zod';
+
+const postInput = z.object({
+  title: z.string().trim().min(1),
+  status: z.enum(['draft', 'publish']),
+});
+
+// Throws WordPressSchemaValidationError before any HTTP request
+const post = await wp.content('posts').create(
+  { title: '  Hello  ', status: 'draft' },
+  { inputSchema: postInput },
+);
+```
+
+Schema transforms (such as `.trim()` or `.default()`) are applied to the input before the request is sent. Combine `inputSchema` with `responseSchema` to validate both sides:
+
+```ts
+const post = await wp.content('posts').create(input, {
+  inputSchema: postInput,
+  responseSchema: postSchema,
+});
+```
+
+`inputSchema` works on `create()`, `update()`, and `settings().update()` across all resource types.
+
+:::tip
+Use `.describe()` to fetch the live JSON Schema for any endpoint, convert it with `z.fromJSONSchema()`, and pass the result as `inputSchema` for fully server-driven validation.
+
+```ts
+const desc = await wp.content('books').describe();
+const inputSchema = z.fromJSONSchema(desc.schemas.create!);
+const book = await wp.content('books').create(input, { inputSchema });
+```
 :::
 
 ## Extend with Zod

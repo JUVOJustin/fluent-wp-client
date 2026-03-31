@@ -226,6 +226,7 @@ Reference integration suites:
 - `tests/integration/blocks.test.ts` — `blocks().get()`, `blocks().set()`, and raw content workflows through the block add-on.
 - `tests/integration/relations.test.ts` — fluent post relation hydration coverage.
 - `tests/integration/serialization.test.ts` — DTO serialization safety (`structuredClone`, `JSON.stringify`, no helper leakage).
+- `tests/integration/input-schema.test.ts` — `inputSchema` mutation validation coverage across posts, CPTs, terms, settings, schema transforms, and backward compatibility.
 - `tests/integration/discovery.test.ts` — schema discovery, catalog exploration, and dogfooding coverage (converting discovered schemas to Zod for validation).
 
 ### What to test when adding new features
@@ -253,12 +254,12 @@ The `.wp-env.json` file configures:
 
 ## Schema Discovery
 
-Before writing mutations against an unfamiliar resource or ability, call `.describe()` to fetch the live JSON Schema for that endpoint, then convert it with `z.fromJSONSchema()` and pass it to `create()`, `update()`, or `.inputSchema()`.
+Before writing mutations against an unfamiliar resource or ability, call `.describe()` to fetch the live JSON Schema for that endpoint, then convert it with `z.fromJSONSchema()` and pass it as `inputSchema` in `MutationOptions`.
 
 ```ts
 const desc = await wp.content('books').describe();
-const schema = z.fromJSONSchema(desc.schemas.create!);
-const book = await wp.content('books').create(input, schema);
+const inputSchema = z.fromJSONSchema(desc.schemas.create!);
+const book = await wp.content('books').create(input, { inputSchema });
 ```
 
 - `wp.content(resource).describe()` — `item`, `collection`, `create`, `update` schemas

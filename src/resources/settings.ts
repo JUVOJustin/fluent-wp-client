@@ -6,7 +6,7 @@ import type {
 import type { WordPressResourceDescription } from '../types/discovery.js';
 import { settingsSchema } from '../standard-schemas.js';
 import { compactPayload } from '../core/params.js';
-import { resolveMutationSchema } from '../core/mutation-helpers.js';
+import { resolveMutationSchema, type MutationOptions } from '../core/mutation-helpers.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { throwIfWordPressError } from '../core/errors.js';
 import { validateWithStandardSchema } from '../core/validation.js';
@@ -57,24 +57,35 @@ export class SettingsResource {
 
   /**
    * Updates WordPress site settings.
+   *
+   * Accepts an optional `MutationOptions` object as the second parameter to
+   * provide `inputSchema` (validates the settings payload before the request)
+   * and/or `responseSchema` (validates the server response). For backward
+   * compatibility, a bare Standard Schema or request overrides object are also
+   * accepted.
    */
   async update<TSettings = WordPressSettings>(
     input: Partial<WordPressSettings> & Record<string, unknown>,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TSettings> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<Partial<WordPressSettings> & Record<string, unknown>, TSettings> | WordPressStandardSchema<TSettings> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TSettings> {
     this.assertAuthenticated();
 
-    const resolved = resolveMutationSchema<TSettings>(
-      responseSchemaOrRequestOptions,
+    const resolved = resolveMutationSchema<TSettings, Partial<WordPressSettings> & Record<string, unknown>>(
+      mutationOptionsOrResponseSchema,
       requestOptions,
       undefined,
     );
 
+    // Validate and transform input before making the HTTP request
+    const body = resolved.inputSchema
+      ? await validateWithStandardSchema(resolved.inputSchema, input, 'WordPress settings input validation failed')
+      : input;
+
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: this.endpoint,
       method: 'POST',
-      body: compactPayload(input),
+      body: compactPayload(body as Partial<WordPressSettings> & Record<string, unknown>),
     }, resolved.requestOptions));
 
     throwIfWordPressError(response, data);
@@ -106,19 +117,22 @@ export function createSettingsClient<TResource extends WordPressSettings = WordP
     },
     update: <TResponse = TResource>(
       input: Partial<WordPressSettings> & Record<string, unknown>,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+      mutationOptionsOrResponseSchema?: MutationOptions<Partial<WordPressSettings> & Record<string, unknown>, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
       requestOptions?: WordPressRequestOverrides,
     ) => {
       const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
+        mutationOptionsOrResponseSchema,
         requestOptions,
         responseSchema as WordPressStandardSchema<TResponse> | undefined,
       );
 
       return resource.update<TResponse>(
         input,
-        resolved.responseSchema,
-        resolved.requestOptions,
+        {
+          inputSchema: resolved.inputSchema as WordPressStandardSchema<Partial<WordPressSettings> & Record<string, unknown>> | undefined,
+          responseSchema: resolved.responseSchema,
+          ...resolved.requestOptions,
+        },
       );
     },
     describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),

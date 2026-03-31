@@ -19,7 +19,7 @@ import {
 import { applyRequestOverrides } from './request-overrides.js';
 import { throwIfWordPressError } from './errors.js';
 import { validateWithStandardSchema } from './validation.js';
-import { resolveMutationArguments } from './mutation-helpers.js';
+import { resolveMutationArguments, type MutationOptions } from './mutation-helpers.js';
 
 /**
  * Dependencies required for resource operations.
@@ -163,23 +163,32 @@ export abstract class BaseCrudResource<
 
   /**
    * Executes one create or update mutation with shared request/schema handling.
+   *
+   * When the resolved options include an `inputSchema`, the input is validated
+   * and transformed before the HTTP request. Invalid input throws a
+   * `WordPressSchemaValidationError` without making the request.
    */
-  protected mutate<TResponse>(
+  protected async mutate<TResponse>(
     endpoint: string,
     input: TCreate | TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TCreate | TUpdate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResponse> {
-    const resolved = resolveMutationArguments<TResponse>(
-      responseSchemaOrRequestOptions,
+    const resolved = resolveMutationArguments<TResponse, TCreate | TUpdate>(
+      mutationOptionsOrResponseSchema,
       requestOptions,
     );
+
+    // Validate and transform input before making the HTTP request
+    const body = resolved.inputSchema
+      ? await validateWithStandardSchema(resolved.inputSchema, input, 'WordPress mutation input validation failed')
+      : input;
 
     return this.executeMutation<TResponse>(
       applyRequestOverrides({
         endpoint,
         method: 'POST',
-        body: compactPayload(input),
+        body: compactPayload(body as TCreate | TUpdate),
       }, resolved.requestOptions),
       resolved.responseSchema ?? (this.defaultSchema as WordPressStandardSchema<TResponse> | undefined),
     );
@@ -187,33 +196,43 @@ export abstract class BaseCrudResource<
 
   /**
    * Creates a new resource.
+   *
+   * Accepts an optional `MutationOptions` object as the second parameter to
+   * provide both `inputSchema` (validates the input before the request) and
+   * `responseSchema` (validates the server response). For backward compatibility,
+   * a bare Standard Schema or request overrides object are also accepted.
    */
   async create<TResponse = TResource>(
     input: TCreate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TCreate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResponse> {
     return this.mutate(
       this.endpoint,
       input,
-      responseSchemaOrRequestOptions,
+      mutationOptionsOrResponseSchema,
       requestOptions,
     );
   }
 
   /**
    * Updates an existing resource.
+   *
+   * Accepts an optional `MutationOptions` object as the third parameter to
+   * provide both `inputSchema` (validates the input before the request) and
+   * `responseSchema` (validates the server response). For backward compatibility,
+   * a bare Standard Schema or request overrides object are also accepted.
    */
   async update<TResponse = TResource>(
     id: number,
     input: TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TUpdate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResponse> {
     return this.mutate(
       `${this.endpoint}/${id}`,
       input,
-      responseSchemaOrRequestOptions,
+      mutationOptionsOrResponseSchema,
       requestOptions,
     );
   }

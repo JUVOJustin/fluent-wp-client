@@ -19,6 +19,7 @@ import type {
   WordPressSettings,
 } from '../schemas.js';
 import type { WordPressStandardSchema } from '../core/validation.js';
+import type { MutationOptions } from '../core/mutation-helpers.js';
 import type { WordPressResourceDescription } from './discovery.js';
 import type { WordPressMediaUploadInput } from './client.js';
 import type { ListAllOptions } from '../core/pagination.js';
@@ -138,13 +139,13 @@ export interface ContentResourceClient<
   item: (idOrSlug: number | string, options?: WordPressRequestOverrides & { embed?: boolean; fields?: string[] }) => PostRelationQueryBuilder<[], TResource>;
   create: <TResponse = TResource>(
     input: TCreate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TCreate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   update: <TResponse = TResource>(
     id: number,
     input: TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TUpdate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
@@ -170,13 +171,13 @@ export interface TermsResourceClient<
   item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => Promise<TResource | undefined>;
   create: <TResponse = TResource>(
     input: TCreate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TCreate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   update: <TResponse = TResource>(
     id: number,
     input: TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TUpdate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
@@ -205,7 +206,7 @@ export interface MediaResourceClient<
   };
   create: <TResponse = TResource>(
     input: TCreate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TCreate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   upload: <TResponse = TResource>(
@@ -216,7 +217,7 @@ export interface MediaResourceClient<
   update: <TResponse = TResource>(
     id: number,
     input: TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TUpdate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
@@ -239,13 +240,13 @@ export interface CommentsResourceClient<
   item: (id: number, options?: WordPressRequestOverrides) => ResourceItemQueryBuilder<TResource, CommentRelationMap, AllCommentRelations>;
   create: <TResponse = TResource>(
     input: TCreate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TCreate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   update: <TResponse = TResource>(
     id: number,
     input: TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TUpdate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
@@ -271,13 +272,13 @@ export interface UsersResourceClient<
   me: (options?: WordPressRequestOverrides) => Promise<TResource>;
   create: <TResponse = TResource>(
     input: TCreate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TCreate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   update: <TResponse = TResource>(
     id: number,
     input: TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TUpdate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   delete: (id: number, options?: UserDeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
@@ -293,7 +294,7 @@ export interface SettingsResourceClient<
   get: (options?: WordPressRequestOverrides) => Promise<TResource>;
   update: <TResponse = TResource>(
     input: Partial<WordPressSettings> & Record<string, unknown>,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<Partial<WordPressSettings> & Record<string, unknown>, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ) => Promise<TResponse>;
   describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;

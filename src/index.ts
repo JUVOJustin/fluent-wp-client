@@ -107,6 +107,11 @@ export {
 } from './core/validation.js';
 
 export {
+  type MutationOptions,
+  type ResolvedMutationArguments,
+} from './core/mutation-helpers.js';
+
+export {
   WordPressApiError,
   createWordPressApiError,
   throwIfWordPressError,

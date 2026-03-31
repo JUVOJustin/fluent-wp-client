@@ -6,7 +6,7 @@ import type {
   WordPressRequestOverrides,
 } from '../types/resources.js';
 import type { DeleteOptions, WordPressWritePayload } from '../types/payloads.js';
-import { resolveMutationSchema } from '../core/mutation-helpers.js';
+import { resolveMutationSchema, type MutationOptions } from '../core/mutation-helpers.js';
 
 /**
  * Creates reusable read validators for schema-backed resources.
@@ -122,13 +122,13 @@ export function createValidatedListMethods<TResource, TFilter extends QueryParam
 interface MutableResource<TCreate extends WordPressWritePayload, TUpdate extends WordPressWritePayload> {
   create<TResponse>(
     input: TCreate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TCreate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResponse>;
   update<TResponse>(
     id: number,
     input: TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+    mutationOptionsOrResponseSchema?: MutationOptions<TUpdate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TResponse>;
   delete(id: number, options?: DeleteOptions & WordPressRequestOverrides): Promise<WordPressDeleteResult>;
@@ -137,6 +137,9 @@ interface MutableResource<TCreate extends WordPressWritePayload, TUpdate extends
 /**
  * Creates CRUD client wrappers that layer mutation schema resolution on top of a resource.
  * Shared across content, terms, media, comments, and users client factories.
+ *
+ * Supports the full `MutationOptions` shape (including `inputSchema`) as the
+ * optional second parameter of `create()` and `update()`.
  */
 export function createCrudClientMethods<
   TResource,
@@ -149,39 +152,42 @@ export function createCrudClientMethods<
   return {
     create: <TResponse = TResource>(
       input: TCreate,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+      mutationOptionsOrResponseSchema?: MutationOptions<TCreate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
       requestOptions?: WordPressRequestOverrides,
     ) => {
       const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
+        mutationOptionsOrResponseSchema,
         requestOptions,
         clientResponseSchema as WordPressStandardSchema<TResponse> | undefined,
       );
 
-      return resource.create<TResponse>(
-        input,
-        resolved.responseSchema,
-        resolved.requestOptions,
-      );
+      // Pass inputSchema through to the underlying resource so input is validated
+      // before the HTTP request. Other resolved fields are forwarded explicitly.
+      return resource.create<TResponse>(input, {
+        inputSchema: resolved.inputSchema as WordPressStandardSchema<TCreate> | undefined,
+        responseSchema: resolved.responseSchema,
+        ...resolved.requestOptions,
+      });
     },
     update: <TResponse = TResource>(
       id: number,
       input: TUpdate,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
+      mutationOptionsOrResponseSchema?: MutationOptions<TUpdate, TResponse> | WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
       requestOptions?: WordPressRequestOverrides,
     ) => {
       const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
+        mutationOptionsOrResponseSchema,
         requestOptions,
         clientResponseSchema as WordPressStandardSchema<TResponse> | undefined,
       );
 
-      return resource.update<TResponse>(
-        id,
-        input,
-        resolved.responseSchema,
-        resolved.requestOptions,
-      );
+      // Pass inputSchema through to the underlying resource so input is validated
+      // before the HTTP request. Other resolved fields are forwarded explicitly.
+      return resource.update<TResponse>(id, input, {
+        inputSchema: resolved.inputSchema as WordPressStandardSchema<TUpdate> | undefined,
+        responseSchema: resolved.responseSchema,
+        ...resolved.requestOptions,
+      });
     },
     delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) =>
       resource.delete(id, options),

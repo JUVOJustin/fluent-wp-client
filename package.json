@@ -13,10 +13,17 @@
   "homepage": "https://github.com/JUVOJustin/fluent-wp-client#readme",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "fluent-wp-client": "./dist/cli/index.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./ai-sdk": {
+      "types": "./dist/ai-sdk/index.d.ts",
+      "import": "./dist/ai-sdk/index.js"
     },
     "./blocks": {
       "types": "./dist/blocks-entry.d.ts",
@@ -52,25 +59,31 @@
     "typescript",
     "deno",
     "bun",
-    "node"
+    "node",
+    "ai-sdk"
   ],
   "license": "GPL-2.0-or-later",
   "dependencies": {
-    "@standard-schema/spec": "^1.0.0",
-    "zod": "^4.0.0"
+    "@standard-schema/spec": "^1.1.0",
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
+    "ai": ">=5.0.0",
     "@wordpress/block-serialization-default-parser": "^5.0.0"
   },
   "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    },
     "@wordpress/block-serialization-default-parser": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@wordpress/block-serialization-default-parser": "^5.41.0",
-    "@wordpress/env": "^11.0.0",
-    "typescript": "^5.7.2",
-    "vitest": "^4.0.18"
+    "@wordpress/block-serialization-default-parser": "^5.42.0",
+    "@wordpress/env": "^11.2.0",
+    "ai": "^6.0.141",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
   }
 }

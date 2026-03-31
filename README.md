@@ -45,6 +45,8 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 - **Lean embedded payloads** — post-like DTO reads skip `_embed` by default, while relation hydration turns it on automatically when `.with(...)` is used
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
 - **Portable Gutenberg block add-on** — `fluent-wp-client/blocks` adds block type discovery, generated block JSON Schemas, parse/serialize/validate helpers, and explicit `.blocks().get()` / `.blocks().set()` content workflows
+- **AI SDK tool factories** — `fluent-wp-client/ai-sdk` exposes manually composable Vercel AI SDK tools for content reads, mutations, abilities, and block workflows
+- **CLI schema/code generation** — `fluent-wp-client` ships a CLI for discovering resource schemas and generating TypeScript, JSON Schema, and Zod outputs
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
 - **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
 - **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`, with schema-backed generic builders validating reads and mutations
@@ -102,6 +104,46 @@ if (result.valid) {
 `blocks().set()` does not implicitly fetch block types. Pass the schemas you want to allow when you need whitelist validation.
 
 If you want native Zod schemas for AI-produced block trees, import them from `fluent-wp-client/blocks/zod`.
+
+## AI SDK Integration
+
+Use the optional `fluent-wp-client/ai-sdk` entrypoint when you want manually composable [Vercel AI SDK](https://sdk.vercel.ai/) tools built on top of your WordPress client instance.
+
+```ts
+import { WordPressClient } from 'fluent-wp-client';
+import { getPostsTool, getPostTool, createPostTool } from 'fluent-wp-client/ai-sdk';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'editor', password: 'app-password' },
+});
+
+const tools = {
+  searchPosts: getPostsTool(wp, {
+    defaultArgs: { perPage: 5 },
+    fixedArgs: { status: 'publish' },
+  }),
+  readPost: getPostTool(wp, {
+    defaultArgs: { includeContent: true },
+  }),
+  draftPost: createPostTool(wp, {
+    fixedInput: { status: 'draft' },
+  }),
+};
+```
+
+See `docs/ai-sdk.mdx` for the full tool catalog and configuration model.
+
+## CLI
+
+Use the built-in CLI to discover WordPress REST schemas and generate code artifacts:
+
+```bash
+npx fluent-wp-client schemas --url https://example.com
+npx fluent-wp-client types --url https://example.com
+```
+
+The `schemas` command can emit JSON Schema, Zod-ready TypeScript modules, or both.
 
 ## Rate limiting and request control
 

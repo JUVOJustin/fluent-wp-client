@@ -96,6 +96,44 @@ export interface DiscoveredResource {
 }
 
 /**
+ * Optional include/exclude filters for CLI discovery.
+ */
+export interface DiscoveryResourceFilters {
+  include?: string[];
+  exclude?: string[];
+}
+
+/**
+ * Returns whether one resource matches a CLI filter token.
+ */
+function matchesResourceToken(resource: { slug: string; rest_base: string }, token: string): boolean {
+  const normalizedToken = token.trim().toLowerCase();
+  return resource.slug.toLowerCase() === normalizedToken || resource.rest_base.toLowerCase() === normalizedToken;
+}
+
+/**
+ * Applies include/exclude filters using either slug or rest base.
+ */
+function shouldDiscoverResource(
+  resource: { slug: string; rest_base: string },
+  filters?: DiscoveryResourceFilters,
+): boolean {
+  if (filters?.include && filters.include.length > 0) {
+    const included = filters.include.some((token) => matchesResourceToken(resource, token));
+
+    if (!included) {
+      return false;
+    }
+  }
+
+  if (filters?.exclude && filters.exclude.some((token) => matchesResourceToken(resource, token))) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Builds one request endpoint for resource schema discovery.
  */
 function createSchemaEndpoint(restNamespace: string | undefined, restBase: string): string {
@@ -129,7 +167,9 @@ async function fetchResourceSchema(
     });
 
     return response.data.schema;
-  } catch {
+  } catch (err) {
+    // Log the error for debugging but return the fallback schema
+    console.warn(`Failed to fetch schema for ${restBase}:`, err);
     return route?.schema;
   }
 }
@@ -139,6 +179,22 @@ async function fetchResourceSchema(
  * and their REST API schemas.
  */
 export async function discoverWordPress(config: WordPressClientConfig): Promise<{
+  siteName: string;
+  siteUrl: string;
+  resources: DiscoveredResource[];
+}>;
+export async function discoverWordPress(
+  config: WordPressClientConfig,
+  filters: DiscoveryResourceFilters,
+): Promise<{
+  siteName: string;
+  siteUrl: string;
+  resources: DiscoveredResource[];
+}>;
+export async function discoverWordPress(
+  config: WordPressClientConfig,
+  filters?: DiscoveryResourceFilters,
+): Promise<{
   siteName: string;
   siteUrl: string;
   resources: DiscoveredResource[];
@@ -169,7 +225,8 @@ export async function discoverWordPress(config: WordPressClientConfig): Promise<
   // Collect post type resources.
   for (const pt of Object.values(typesResponse)) {
     if (!pt.rest_base) continue;
-    const routeKey = `/${pt.rest_namespace ?? 'wp/v2'}/${pt.rest_base}`;
+    if (!shouldDiscoverResource(pt, filters)) continue;
+    const routeKey = createSchemaEndpoint(pt.rest_namespace, pt.rest_base);
     const route = discovery.routes[routeKey];
 
     resources.push({
@@ -184,7 +241,8 @@ export async function discoverWordPress(config: WordPressClientConfig): Promise<
   // Collect taxonomy resources.
   for (const tax of Object.values(taxonomiesResponse)) {
     if (!tax.rest_base) continue;
-    const routeKey = `/${tax.rest_namespace ?? 'wp/v2'}/${tax.rest_base}`;
+    if (!shouldDiscoverResource(tax, filters)) continue;
+    const routeKey = createSchemaEndpoint(tax.rest_namespace, tax.rest_base);
     const route = discovery.routes[routeKey];
 
     resources.push({

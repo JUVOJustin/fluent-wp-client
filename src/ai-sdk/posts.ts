@@ -3,7 +3,7 @@ import type { WordPressClient } from '../client.js';
 import type { PostsFilter } from '../types/filters.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
-import { prepareCollectionArgs, resolveContentQuery, type ContentQueryLike } from './factories.js';
+import { prepareCollectionArgs, resolveContentQuery, type ContentQueryLike, asToolArgs, withToolErrorHandling } from './factories.js';
 import type { WordPressPost } from '../schemas.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
 import {
@@ -22,11 +22,13 @@ export const getPostsTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Search and filter WordPress posts',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: postsCollectionInputSchema,
-  execute: async (args) => {
-    const filter = prepareCollectionArgs(args as unknown as Record<string, unknown>, options);
+  execute: withToolErrorHandling(async (args) => {
+    const filter = prepareCollectionArgs(asToolArgs(args), options);
     return client.content('posts').list(filter as PostsFilter & QueryParams);
-  },
+  }),
 });
 
 /**
@@ -38,9 +40,11 @@ export const getPostTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Get a single WordPress post by ID or slug',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: contentGetInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const contentOpts = merged as { includeContent?: boolean; includeBlocks?: boolean };
 
     if (merged.id) {
@@ -50,7 +54,7 @@ export const getPostTool = (
       return resolveContentQuery(client.content('posts').item(merged.slug as string) as unknown as ContentQueryLike<WordPressPost | undefined>, contentOpts);
     }
     throw new Error('Either id or slug must be provided.');
-  },
+  }),
 });
 
 /**
@@ -61,12 +65,14 @@ export const createPostTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Create a new WordPress post',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: postCreateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content('posts').create(withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -77,12 +83,14 @@ export const updatePostTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Update an existing WordPress post',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: postUpdateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content('posts').update(withInput.id as number, withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -93,9 +101,11 @@ export const deletePostTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Delete a WordPress post',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     return client.content('posts').delete(merged.id as number, { force: merged.force as boolean | undefined });
-  },
+  }),
 });

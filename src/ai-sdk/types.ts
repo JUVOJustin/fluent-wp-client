@@ -9,6 +9,10 @@ import type { WordPressClient } from '../client.js';
 export interface ToolFactoryOptions<TArgs extends Record<string, unknown>> {
   /** Override the AI-facing tool description. */
   description?: string;
+  /** Enable provider strict-mode tool calling when supported. */
+  strict?: boolean;
+  /** Require approval before executing this tool. */
+  needsApproval?: boolean | ((input: TArgs) => boolean | Promise<boolean>);
   /** Default arguments merged underneath model-provided input. */
   defaultArgs?: Partial<TArgs>;
   /** Locked arguments that always override model-provided input. */

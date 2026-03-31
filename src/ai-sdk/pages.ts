@@ -3,7 +3,7 @@ import type { WordPressClient } from '../client.js';
 import type { PagesFilter } from '../types/filters.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
-import { prepareCollectionArgs, resolveContentQuery, type ContentQueryLike } from './factories.js';
+import { prepareCollectionArgs, resolveContentQuery, type ContentQueryLike, asToolArgs, withToolErrorHandling } from './factories.js';
 import type { WordPressPage } from '../schemas.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
 import {
@@ -22,11 +22,13 @@ export const getPagesTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Search and filter WordPress pages',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: pagesCollectionInputSchema,
-  execute: async (args) => {
-    const filter = prepareCollectionArgs(args as unknown as Record<string, unknown>, options);
+  execute: withToolErrorHandling(async (args) => {
+    const filter = prepareCollectionArgs(asToolArgs(args), options);
     return client.content('pages').list(filter as PagesFilter & QueryParams);
-  },
+  }),
 });
 
 /**
@@ -37,14 +39,16 @@ export const getPageTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Get a single WordPress page by ID or slug',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: contentGetInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const contentOpts = merged as { includeContent?: boolean; includeBlocks?: boolean };
     if (merged.id) return resolveContentQuery(client.content('pages').item(merged.id as number) as unknown as ContentQueryLike<WordPressPage | undefined>, contentOpts);
     if (merged.slug) return resolveContentQuery(client.content('pages').item(merged.slug as string) as unknown as ContentQueryLike<WordPressPage | undefined>, contentOpts);
     throw new Error('Either id or slug must be provided.');
-  },
+  }),
 });
 
 /**
@@ -55,12 +59,14 @@ export const createPageTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Create a new WordPress page',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: postCreateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content('pages').create(withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -71,12 +77,14 @@ export const updatePageTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Update an existing WordPress page',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: postUpdateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content('pages').update(withInput.id as number, withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -87,9 +95,11 @@ export const deletePageTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Delete a WordPress page',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     return client.content('pages').delete(merged.id as number, { force: merged.force as boolean | undefined });
-  },
+  }),
 });

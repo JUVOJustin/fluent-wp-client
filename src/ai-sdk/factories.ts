@@ -1,9 +1,22 @@
 import type { WordPressClient } from '../client.js';
-import type { WordPressPostBase } from '../schemas.js';
+import type { WordPressPostLike } from '../schemas.js';
 import { parseWordPressBlocks, type WordPressParsedBlock } from '../blocks.js';
 import type { WordPressRawContentResult } from '../content-query.js';
+import { WordPressApiError } from '../core/errors.js';
 import { mergeToolArgs } from './merge.js';
 import type { ToolFactoryOptions } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Type assertions
+// ---------------------------------------------------------------------------
+
+/**
+ * Type assertion helper to convert AI SDK tool args to a generic record.
+ * Use this instead of double-casting through `unknown` for consistency.
+ */
+export function asToolArgs<T extends Record<string, unknown>>(args: T): Record<string, unknown> {
+  return args as Record<string, unknown>;
+}
 
 // ---------------------------------------------------------------------------
 // Field normalization
@@ -38,6 +51,78 @@ export function prepareCollectionArgs(
 }
 
 // ---------------------------------------------------------------------------
+// Tool error envelopes
+// ---------------------------------------------------------------------------
+
+/**
+ * Serializable error shape returned by AI SDK tools when execution fails.
+ */
+export interface WordPressAIToolErrorResult {
+  ok: false;
+  error: {
+    type: 'wordpress_api_error' | 'tool_error';
+    message: string;
+    code?: string | null;
+    status?: number;
+    statusText?: string;
+    details?: unknown;
+  };
+}
+
+/**
+ * Converts thrown runtime errors into a stable, model-readable envelope.
+ */
+export function toToolErrorResult(error: unknown): WordPressAIToolErrorResult {
+  if (error instanceof WordPressApiError) {
+    return {
+      ok: false,
+      error: {
+        type: 'wordpress_api_error',
+        message: error.message,
+        code: error.code,
+        status: error.status,
+        statusText: error.statusText,
+        details: error.responseBody,
+      },
+    };
+  }
+
+  if (error instanceof Error) {
+    return {
+      ok: false,
+      error: {
+        type: 'tool_error',
+        message: error.message,
+      },
+    };
+  }
+
+  return {
+    ok: false,
+    error: {
+      type: 'tool_error',
+      message: 'Unknown tool execution error',
+      details: error,
+    },
+  };
+}
+
+/**
+ * Wraps tool execution so WordPress and runtime failures stay machine-readable.
+ */
+export function withToolErrorHandling<TArgs, TResult>(
+  execute: (args: TArgs) => Promise<TResult>,
+): (args: TArgs) => Promise<TResult | WordPressAIToolErrorResult> {
+  return async (args: TArgs) => {
+    try {
+      return await execute(args);
+    } catch (error) {
+      return toToolErrorResult(error);
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Content query envelope
 // ---------------------------------------------------------------------------
 
@@ -53,7 +138,7 @@ export interface ContentItemResult<T> {
 /**
  * Resolves a WordPressContentQuery into a plain serializable envelope.
  */
-export interface ContentQueryLike<TContent extends WordPressPostBase | undefined> {
+export interface ContentQueryLike<TContent extends WordPressPostLike | undefined> {
   then<TResult1 = TContent, TResult2 = never>(
     onfulfilled?: ((value: TContent) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
@@ -64,7 +149,7 @@ export interface ContentQueryLike<TContent extends WordPressPostBase | undefined
 /**
  * Resolves a post-like item query into a plain serializable envelope.
  */
-export async function resolveContentQuery<TContent extends WordPressPostBase | undefined>(
+export async function resolveContentQuery<TContent extends WordPressPostLike | undefined>(
   query: ContentQueryLike<TContent>,
   args: { includeContent?: boolean; includeBlocks?: boolean },
 ): Promise<ContentItemResult<TContent> | undefined> {

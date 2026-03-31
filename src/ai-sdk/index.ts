@@ -22,7 +22,7 @@ export type {
   GenericMutationToolFactoryOptions,
 } from './types.js';
 
-export type { ContentItemResult } from './factories.js';
+export type { ContentItemResult, WordPressAIToolErrorResult } from './factories.js';
 
 // Posts
 export {

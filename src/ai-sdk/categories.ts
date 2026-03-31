@@ -3,7 +3,7 @@ import type { WordPressClient } from '../client.js';
 import type { CategoriesFilter } from '../types/filters.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
-import { prepareCollectionArgs } from './factories.js';
+import { prepareCollectionArgs, asToolArgs, withToolErrorHandling } from './factories.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
 import {
   categoriesCollectionInputSchema,
@@ -21,11 +21,13 @@ export const getCategoriesTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Search and filter WordPress categories',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: categoriesCollectionInputSchema,
-  execute: async (args) => {
-    const filter = prepareCollectionArgs(args as unknown as Record<string, unknown>, options);
+  execute: withToolErrorHandling(async (args) => {
+    const filter = prepareCollectionArgs(asToolArgs(args), options);
     return client.terms('categories').list(filter as CategoriesFilter & QueryParams);
-  },
+  }),
 });
 
 /**
@@ -36,13 +38,15 @@ export const getCategoryTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Get a single WordPress category by ID or slug',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: simpleGetInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     if (merged.id) return client.terms('categories').item(merged.id as number);
     if (merged.slug) return client.terms('categories').item(merged.slug as string);
     throw new Error('Either id or slug must be provided.');
-  },
+  }),
 });
 
 /**
@@ -53,12 +57,14 @@ export const createCategoryTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Create a new WordPress category',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: termCreateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.terms('categories').create(withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -69,12 +75,14 @@ export const updateCategoryTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Update an existing WordPress category',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: termUpdateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.terms('categories').update(withInput.id as number, withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -85,9 +93,11 @@ export const deleteCategoryTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Delete a WordPress category',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     return client.terms('categories').delete(merged.id as number, { force: merged.force as boolean | undefined });
-  },
+  }),
 });

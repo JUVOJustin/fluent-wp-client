@@ -2,11 +2,12 @@ import { tool } from 'ai';
 import type { WordPressClient } from '../client.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
-import { prepareCollectionArgs } from './factories.js';
+import { prepareCollectionArgs, resolveContentQuery, type ContentQueryLike, asToolArgs, withToolErrorHandling } from './factories.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
+import type { WordPressPostLike } from '../schemas.js';
 import {
   contentCollectionInputSchema,
-  simpleGetInputSchema,
+  contentGetInputSchema,
   contentCreateInputSchema,
   contentUpdateInputSchema,
   deleteInputSchema,
@@ -21,11 +22,13 @@ export const getContentCollectionTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? `Search and filter WordPress ${resource}`,
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: contentCollectionInputSchema,
-  execute: async (args) => {
-    const filter = prepareCollectionArgs(args as unknown as Record<string, unknown>, options);
+  execute: withToolErrorHandling(async (args) => {
+    const filter = prepareCollectionArgs(asToolArgs(args), options);
     return client.content(resource).list(filter as QueryParams);
-  },
+  }),
 });
 
 /**
@@ -37,13 +40,26 @@ export const getContentTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? `Get a single WordPress ${resource} item by ID or slug`,
-  inputSchema: simpleGetInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
-    if (merged.id) return client.content(resource).item(merged.id as number);
-    if (merged.slug) return client.content(resource).item(merged.slug as string);
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
+  inputSchema: contentGetInputSchema,
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const contentOpts = merged as { includeContent?: boolean; includeBlocks?: boolean };
+    if (merged.id) {
+      return resolveContentQuery(
+        client.content(resource).item(merged.id as number) as unknown as ContentQueryLike<WordPressPostLike | undefined>,
+        contentOpts,
+      );
+    }
+    if (merged.slug) {
+      return resolveContentQuery(
+        client.content(resource).item(merged.slug as string) as unknown as ContentQueryLike<WordPressPostLike | undefined>,
+        contentOpts,
+      );
+    }
     throw new Error('Either id or slug must be provided.');
-  },
+  }),
 });
 
 /**
@@ -55,12 +71,14 @@ export const createContentTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? `Create a new WordPress ${resource} item`,
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: contentCreateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content(resource).create(withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -72,12 +90,14 @@ export const updateContentTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? `Update an existing WordPress ${resource} item`,
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: contentUpdateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content(resource).update(withInput.id as number, withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -89,9 +109,11 @@ export const deleteContentTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? `Delete a WordPress ${resource} item`,
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     return client.content(resource).delete(merged.id as number, { force: merged.force as boolean | undefined });
-  },
+  }),
 });

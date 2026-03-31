@@ -296,6 +296,17 @@ export const simpleGetInputSchema = z.object({
 
 export type SimpleGetInput = z.infer<typeof simpleGetInputSchema>;
 
+/**
+ * Getter input for resources that only support numeric IDs.
+ */
+export const idOnlyGetInputSchema = z.object({
+  id: z.number().int()
+    .describe('Resource ID'),
+  ...fieldSelectionFields,
+}).describe('Get one resource by ID');
+
+export type IdOnlyGetInput = z.infer<typeof idOnlyGetInputSchema>;
+
 // ---------------------------------------------------------------------------
 // Mutation inputs
 // ---------------------------------------------------------------------------

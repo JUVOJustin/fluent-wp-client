@@ -3,11 +3,11 @@ import type { WordPressClient } from '../client.js';
 import type { CommentsFilter } from '../types/filters.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
-import { prepareCollectionArgs } from './factories.js';
+import { prepareCollectionArgs, asToolArgs, withToolErrorHandling } from './factories.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
 import {
   commentsCollectionInputSchema,
-  simpleGetInputSchema,
+  idOnlyGetInputSchema,
   commentCreateInputSchema,
   commentUpdateInputSchema,
   deleteInputSchema,
@@ -21,11 +21,13 @@ export const getCommentsTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Search and filter WordPress comments',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: commentsCollectionInputSchema,
-  execute: async (args) => {
-    const filter = prepareCollectionArgs(args as unknown as Record<string, unknown>, options);
+  execute: withToolErrorHandling(async (args) => {
+    const filter = prepareCollectionArgs(asToolArgs(args), options);
     return client.comments().list(filter as CommentsFilter & QueryParams);
-  },
+  }),
 });
 
 /**
@@ -36,12 +38,14 @@ export const getCommentTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Get a single WordPress comment by ID',
-  inputSchema: simpleGetInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
+  inputSchema: idOnlyGetInputSchema,
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     if (merged.id) return client.comments().item(merged.id as number);
     throw new Error('Comment ID must be provided.');
-  },
+  }),
 });
 
 /**
@@ -52,12 +56,14 @@ export const createCommentTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Create a new WordPress comment',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: commentCreateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.comments().create(withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -68,12 +74,14 @@ export const updateCommentTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Update an existing WordPress comment',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: commentUpdateInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.comments().update(withInput.id as number, withInput.input as Record<string, unknown>);
-  },
+  }),
 });
 
 /**
@@ -84,9 +92,11 @@ export const deleteCommentTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) => tool({
   description: options?.description ?? 'Delete a WordPress comment',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     return client.comments().delete(merged.id as number, { force: merged.force as boolean | undefined });
-  },
+  }),
 });

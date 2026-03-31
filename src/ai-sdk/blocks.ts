@@ -3,6 +3,7 @@ import { tool } from 'ai';
 import type { WordPressClient } from '../client.js';
 import { assertValidWordPressBlocks, parseWordPressBlocks, serializeWordPressBlocks, type WordPressParsedBlock } from '../blocks.js';
 import { mergeToolArgs } from './merge.js';
+import { asToolArgs, withToolErrorHandling } from './factories.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -76,9 +77,11 @@ export const getBlocksTool = (
 ) => tool({
   description: options?.description ??
     'Read the Gutenberg block structure of a post, page, or custom post type item. Requires edit-level authentication.',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: getBlocksInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const resource = merged.resource as string;
     const id = merged.id as number;
 
@@ -93,7 +96,7 @@ export const getBlocksTool = (
 
     const blocks = await parseWordPressBlocks(raw);
     return { id, resource, blocks };
-  },
+  }),
 });
 
 /**
@@ -109,9 +112,11 @@ export const setBlocksTool = (
 ) => tool({
   description: options?.description ??
     'Write a Gutenberg block structure to a post, page, or custom post type item. Replaces the full content. Requires edit-level authentication.',
+  strict: options?.strict,
+  needsApproval: options?.needsApproval,
   inputSchema: setBlocksInputSchema,
-  execute: async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, args as unknown as Record<string, unknown>, options?.fixedArgs);
+  execute: withToolErrorHandling(async (args) => {
+    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
     const resource = merged.resource as string;
     const id = merged.id as number;
     const blocks = merged.blocks as WordPressParsedBlock[];
@@ -122,5 +127,5 @@ export const setBlocksTool = (
 
     const result = await client.content(resource).update(id, { content: rawContent });
     return { id, resource, updated: true, result };
-  },
+  }),
 });

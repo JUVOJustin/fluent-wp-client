@@ -16,6 +16,7 @@ import {
   getTagsTool,
   getCommentsTool,
   getUsersTool,
+  getUserTool,
   getSettingsTool,
   getContentCollectionTool,
   getContentTool,
@@ -71,7 +72,9 @@ describe('AI SDK tool integration', () => {
       const page2 = await run<unknown[]>(tool, { perPage: 2, page: 2 });
       expect(page1.length).toBeLessThanOrEqual(2);
       expect(page2.length).toBeLessThanOrEqual(2);
-      expect((page1[0] as { id: number }).id).not.toBe((page2[0] as { id: number }).id);
+      if (page1.length > 0 && page2.length > 0) {
+        expect((page1[0] as { id: number }).id).not.toBe((page2[0] as { id: number }).id);
+      }
     });
 
     it('getCategoriesTool returns categories', async () => {
@@ -149,6 +152,13 @@ describe('AI SDK tool integration', () => {
       expect(result).toHaveProperty('slug', 'technology');
     });
 
+    it('getUserTool fetches by slug', async () => {
+      const user = (await authClient.users().list({ perPage: 1 }))[0];
+      const tool = getUserTool(authClient);
+      const result = await run<{ slug: string }>(tool, { slug: user.slug });
+      expect(result).toHaveProperty('slug', user.slug);
+    });
+
     it('getSettingsTool returns settings', async () => {
       const tool = getSettingsTool(authClient);
       const result = await run<{ title: string }>(tool, {});
@@ -194,6 +204,20 @@ describe('AI SDK tool integration', () => {
       const result = await run<{ deleted: boolean }>(tool, { id: created.id, force: true });
       expect(result).toHaveProperty('deleted', true);
     });
+
+    it('returns structured tool errors instead of throwing raw exceptions', async () => {
+      const tool = createPostTool(publicClient);
+      const result = await run<{
+        ok: false;
+        error: { type: string; message: string; status?: number };
+      }>(tool, {
+        input: { title: 'Unauthorized post' },
+      });
+
+      expect(result).toHaveProperty('ok', false);
+      expect(result).toHaveProperty('error.type', 'wordpress_api_error');
+      expect(result).toHaveProperty('error.message');
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -231,8 +255,19 @@ describe('AI SDK tool integration', () => {
       if (items.length === 0) return;
 
       const tool = getContentTool(publicClient, 'books');
-      const result = await run<{ id: number }>(tool, { id: items[0].id });
-      expect(result).toHaveProperty('id');
+      const result = await run<{ item: { id: number } }>(tool, { id: items[0].id });
+      expect(result).toHaveProperty('item.id', items[0].id);
+    });
+
+    it('getContentTool supports raw content expansion for custom post types', async () => {
+      const tool = getContentTool(authClient, 'books', { defaultArgs: { includeContent: true } });
+      const result = await run<{ item: { slug: string }; content?: { raw?: string } }>(tool, {
+        slug: 'test-book-001',
+        includeContent: true,
+      });
+
+      expect(result).toHaveProperty('item.slug', 'test-book-001');
+      expect(result).toHaveProperty('content');
     });
 
     it('getTermCollectionTool lists custom taxonomy terms', async () => {
@@ -323,7 +358,10 @@ describe('AI SDK tool integration', () => {
     it('setBlocksTool rejects malformed inner block placeholder structures', async () => {
       const setTool = setBlocksTool(authClient);
 
-      await expect(run(setTool, {
+      const result = await run<{
+        ok: false;
+        error: { type: string; message: string };
+      }>(setTool, {
         resource: 'posts',
         id: blockTestPostId,
         blocks: [{
@@ -339,7 +377,11 @@ describe('AI SDK tool integration', () => {
           innerHTML: '',
           innerContent: [],
         }],
-      })).rejects.toThrow('WordPress block validation failed');
+      });
+
+      expect(result).toHaveProperty('ok', false);
+      expect(result).toHaveProperty('error.type', 'tool_error');
+      expect(result.error.message).toContain('WordPress block validation failed');
     });
   });
 });

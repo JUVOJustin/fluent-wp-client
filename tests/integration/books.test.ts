@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient, contentWordPressSchema } from 'fluent-wp-client';
+import { WordPressClient } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
@@ -76,7 +76,7 @@ describe('Client: Books', () => {
     });
 
     it('content() list() supports the search parameter with validation', async () => {
-      const booksClient = publicClient.content('books', contentWordPressSchema);
+      const booksClient = publicClient.content('books');
       const results = await booksClient.list({ search: 'Test Book 001' });
 
       expect(Array.isArray(results)).toBe(true);
@@ -101,7 +101,7 @@ describe('Client: Books', () => {
     });
 
     it('content() list() forwards custom registered collection filters for custom post types', async () => {
-      const booksClient = publicClient.content('books', contentWordPressSchema);
+      const booksClient = publicClient.content('books');
       const results = await booksClient.list({ titleSearch: 'Test Book 001' });
 
       expect(results.length).toBeGreaterThan(0);
@@ -109,7 +109,7 @@ describe('Client: Books', () => {
     });
 
     it('content() listAll() supports the search parameter', async () => {
-      const booksClient = publicClient.content('books', contentWordPressSchema);
+      const booksClient = publicClient.content('books');
       const results = await booksClient.listAll({ search: 'Test Book' });
 
       expect(results.length).toBeGreaterThan(0);
@@ -119,14 +119,14 @@ describe('Client: Books', () => {
     });
 
     it('content() listAll returns every seeded book', async () => {
-      const books = publicClient.content('books', contentWordPressSchema);
+      const books = publicClient.content('books');
       const all = await books.listAll();
 
       expect(all).toHaveLength(10);
     });
 
     it('content() listPaginated returns pagination metadata', async () => {
-      const books = publicClient.content('books', contentWordPressSchema);
+      const books = publicClient.content('books');
       const result = await books.listPaginated({ perPage: 5, page: 1 });
 
       expect(result.data).toHaveLength(5);
@@ -136,7 +136,7 @@ describe('Client: Books', () => {
     });
 
     it('content() item validates one seeded book with the strict content schema', async () => {
-      const books = publicClient.content('books', contentWordPressSchema);
+      const books = publicClient.content('books');
       const book = await books.item('test-book-001');
 
       expect(book).toBeDefined();
@@ -148,7 +148,7 @@ describe('Client: Books', () => {
 
   describe('crud', () => {
     it('creates, updates, and deletes custom post types with generic content()', async () => {
-      const books = authClient.content('books', contentWordPressSchema);
+      const books = authClient.content('books');
 
       const created = await books.create({
         title: 'Client CRUD: Book create',
@@ -172,7 +172,7 @@ describe('Client: Books', () => {
     });
 
     it('throws for unauthenticated custom post type creation', async () => {
-      const publicBooks = publicClient.content('books', contentWordPressSchema);
+      const publicBooks = publicClient.content('books');
 
       await expect(
         publicBooks.create({
@@ -185,7 +185,7 @@ describe('Client: Books', () => {
     });
 
     it('throws for a non-existent custom post type entry on update', async () => {
-      const books = authClient.content('books', contentWordPressSchema);
+      const books = authClient.content('books');
 
       await expect(
         books.update(999999, { title: 'Ghost Book' }),

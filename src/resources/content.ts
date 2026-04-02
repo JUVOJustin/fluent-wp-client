@@ -13,9 +13,7 @@ import {
   BasePostLikeResource,
   type PostLikeResourceContext,
 } from '../core/resource-base.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
 import type { ListAllOptions } from '../core/pagination.js';
-import { pageSchema, postSchema } from '../standard-schemas.js';
 import type { WordPressPostLike } from '../schemas.js';
 import type {
   ContentResourceClient,
@@ -26,11 +24,6 @@ import type {
 } from '../types/resources.js';
 import type { WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
-import {
-  createSchemaValidators,
-  createCrudClientMethods,
-  shouldSkipValidation,
-} from './schema-validation.js';
 
 /**
  * Ensures `_embedded` is present in the `_fields` list when embedding is active.
@@ -59,21 +52,16 @@ const missingRawPageMessage =
   'Raw page content is unavailable. The current credentials may not have edit capabilities for this page.';
 
 /**
- * Built-in defaults for known post-like resources.
+ * Known raw-content error messages for built-in post-like resources.
  */
 export const knownContentDefaults = {
   pages: {
-    defaultSchema: pageSchema,
     missingRawMessage: missingRawPageMessage,
   },
   posts: {
-    defaultSchema: postSchema,
     missingRawMessage: missingRawPostMessage,
   },
-} as const satisfies Record<string, {
-  defaultSchema: WordPressStandardSchema<WordPressPostLike>;
-  missingRawMessage: string;
-}>;
+} as const satisfies Record<string, { missingRawMessage: string }>;
 
 /**
  * Generic post-like resource used by core posts, pages, and custom post types.
@@ -85,88 +73,14 @@ export class GenericContentResource<
   // @ts-ignore - Type constraint complexity, safe at runtime
 > extends BasePostLikeResource<TContent, QueryParams & PaginationParams, TCreate, TUpdate> {
   private readonly relationClient: PostRelationClient;
-  private readonly hasExplicitResponseSchema: boolean;
-  private readonly validators: ReturnType<typeof createSchemaValidators<TContent>>;
 
   constructor(
     context: PostLikeResourceContext & {
       relationClient: PostRelationClient;
-      responseSchema?: WordPressStandardSchema<TContent>;
     },
   ) {
     super(context as any);
     this.relationClient = context.relationClient;
-    this.hasExplicitResponseSchema = context.responseSchema !== undefined;
-    this.validators = createSchemaValidators(
-      (context.responseSchema ?? context.defaultSchema) as WordPressStandardSchema<TContent> | undefined,
-      'Content response validation failed',
-    );
-  }
-
-  /**
-   * Skips built-in schema validation for field-filtered list responses.
-   */
-  private shouldSkipValidation(filter: QueryParams | undefined): boolean {
-    return !this.hasExplicitResponseSchema && filter?.fields !== undefined;
-  }
-
-  /**
-   * Validates one resolved content item using the configured read schema.
-   */
-  async validateResolvedContent(value: TContent): Promise<TContent> {
-    return this.validators.validate(value as unknown);
-  }
-
-  /**
-   * Lists content with optional validation.
-   */
-  async listWithValidation(
-    filter: QueryParams = {},
-    options?: WordPressRequestOverrides,
-  ): Promise<TContent[]> {
-    const items = await this.list(filter as QueryParams & PaginationParams, options);
-
-    if (this.shouldSkipValidation(filter)) {
-      return items as TContent[];
-    }
-
-    return this.validators.validateCollection(items as unknown[]);
-  }
-
-  /**
-   * Lists every page of content with optional validation.
-   */
-  async listAllWithValidation(
-    filter: Omit<QueryParams & PaginationParams, 'page'> = {},
-    options?: WordPressRequestOverrides,
-    listOptions?: ListAllOptions,
-  ): Promise<TContent[]> {
-    const items = await this.listAll(filter, options, listOptions);
-
-    if (this.shouldSkipValidation(filter)) {
-      return items as TContent[];
-    }
-
-    return this.validators.validateCollection(items as unknown[]);
-  }
-
-  /**
-   * Lists one page of content with pagination metadata and optional validation.
-   */
-  async listPaginatedWithValidation(
-    filter: QueryParams & PaginationParams = {},
-    options?: WordPressRequestOverrides,
-  ): Promise<PaginatedResponse<TContent>> {
-    const result = await this.listPaginated(filter, options);
-
-    if (this.shouldSkipValidation(filter)) {
-      return result as PaginatedResponse<TContent>;
-    }
-
-    return {
-      ...result,
-      data: await this.validators.validateCollection(result.data as unknown[]),
-    };
   }
 
   /**
@@ -186,7 +100,6 @@ export class GenericContentResource<
     idOrSlug: number | string,
     options: (WordPressRequestOverrides & { embed?: boolean; fields?: string[] }) | undefined,
     relations: TRelations,
-    finalizeContent?: (content: TContent) => PromiseLike<TContent>,
   ): PostRelationQueryBuilder<TRelations, TContent> {
     const { embed, fields, ...requestOverrides } = options ?? {};
     const userRequestedEmbed = embed === true;
@@ -203,7 +116,6 @@ export class GenericContentResource<
         return this.fetchContentBySlug(slug, requestOverrides, undefined, queryOptions?.embed, resolvedFields);
       },
       relations,
-      finalizeContent,
       {
         getEditById: (id, editFields) => this.fetchContentById(id, requestOverrides, 'edit', false, editFields),
         getEditBySlug: (slug, editFields) => this.fetchContentBySlug(slug, requestOverrides, 'edit', false, editFields),
@@ -219,42 +131,19 @@ export class GenericContentResource<
  */
 export function createContentClient<TResource extends WordPressPostLike>(
   resource: GenericContentResource<TResource>,
-  responseSchema?: WordPressStandardSchema<TResource>,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
-  const createRelationQuery = <TRelations extends readonly AllPostRelations[]>(
-    idOrSlug: number | string,
-    options: (WordPressRequestOverrides & { embed?: boolean; fields?: string[] }) | undefined,
-    relations: TRelations,
-  ): PostRelationQueryBuilder<TRelations, TResource> => {
-    const skipValidation = shouldSkipValidation(responseSchema !== undefined, options?.fields ? { fields: options.fields } : undefined);
-
-    return resource.itemQuery(
-      idOrSlug,
-      options,
-      relations,
-      // Field-restricted reads only skip built-in validation. Explicit caller
-      // schemas still run so partial-response clients can validate their shape.
-      skipValidation ? undefined : (content) => resource.validateResolvedContent(content),
-    );
-  };
-
-  const crudMethods = createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>(
-    resource as unknown as Parameters<typeof createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>>[0],
-    responseSchema,
-  );
-
   return {
     list: (filter = {}, options) => new ListRelationQueryBuilder(
       resource.getRelationClient(),
       filter as QueryParams & PaginationParams,
-      (f, opts) => resource.listWithValidation(f, opts) as Promise<TResource[]>,
+      (f, opts) => resource.list(f, opts) as Promise<TResource[]>,
       options,
     ),
     listAll: (filter = {}, options, listOptions) => new ListAllRelationQueryBuilder(
       resource.getRelationClient(),
       filter as Omit<QueryParams & PaginationParams, 'page'>,
-      (f, opts, lo) => resource.listAllWithValidation(f, opts, lo) as Promise<TResource[]>,
+      (f, opts, lo) => resource.listAll(f, opts, lo) as Promise<TResource[]>,
       options,
       [],
       listOptions,
@@ -262,11 +151,13 @@ export function createContentClient<TResource extends WordPressPostLike>(
     listPaginated: (filter = {}, options) => new PaginatedListRelationQueryBuilder(
       resource.getRelationClient(),
       filter as QueryParams & PaginationParams,
-      (f, opts) => resource.listPaginatedWithValidation(f, opts) as Promise<PaginatedResponse<TResource>>,
+      (f, opts) => resource.listPaginated(f, opts) as Promise<PaginatedResponse<TResource>>,
       options,
     ),
-    item: (idOrSlug, options) => createRelationQuery(idOrSlug, options, []),
-    ...crudMethods,
+    item: (idOrSlug, options) => resource.itemQuery(idOrSlug, options, []),
+    create: (input, options) => resource.create(input, options) as Promise<TResource>,
+    update: (id, input, options) => resource.update(id, input, options) as Promise<TResource>,
+    delete: (id, options) => resource.delete(id, options),
     describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
   };
 }

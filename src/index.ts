@@ -272,6 +272,7 @@ export type {
   WordPressDiscoveryOptions,
   WordPressDiscoveryWarning,
   WordPressJsonSchema,
+  WordPressResourceCapabilities,
   WordPressResourceDescription,
   WordPressResourceSchemaSet,
   WordPressAbilitySchemaSet,

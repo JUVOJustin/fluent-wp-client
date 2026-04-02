@@ -27,18 +27,18 @@ import {
   createDiscoveryMethods,
   type DiscoveryMethods,
 } from './discovery.js';
-import {
-  type WordPressAuthor,
-  type WordPressCategory,
-  type WordPressComment,
-  type WordPressMedia,
-  type WordPressPage,
-  type WordPressPost,
-  type WordPressPostLike,
-  type WordPressPostWriteBase,
-  type WordPressSearchResult,
-  type WordPressSettings,
-  type WordPressTag,
+import type {
+  WordPressAuthor,
+  WordPressCategory,
+  WordPressComment,
+  WordPressMedia,
+  WordPressPage,
+  WordPressPost,
+  WordPressPostLike,
+  WordPressPostWriteBase,
+  WordPressSearchResult,
+  WordPressSettings,
+  WordPressTag,
 } from './schemas.js';
 import { filterToParams } from './core/params.js';
 import { WordPressTransport, createRuntime, type WordPressRuntime } from './core/transport.js';
@@ -62,32 +62,32 @@ import type {
   PaginationParams,
   SettingsResourceClient,
   UsersResourceClient,
+  WordPressRequestOverrides as _Overrides,
 } from './types/resources.js';
-import type { WordPressStandardSchema } from './core/validation.js';
 import type { PostRelationClient } from './builders/relations.js';
 import type { TermWriteInput, UserWriteInput, WordPressWritePayload } from './types/payloads.js';
 
 /**
  * Runtime-agnostic WordPress API client with typed resources and CRUD helpers.
- * 
+ *
  * This is the main entry point for the fluent-wp-client library.
  * It provides a flat API that delegates to underlying resource classes.
- * 
+ *
  * @example
  * ```typescript
  * const client = new WordPressClient({
  *   baseUrl: 'https://example.com',
  *   auth: { username: 'admin', password: 'secret' }
  * });
- * 
+ *
  * // Read posts through the unified content API
  * const posts = client.content('posts');
  * const recentPosts = await posts.list({ perPage: 10 });
- * 
+ *
  * // Single-item queries are awaitable and expose raw content helpers
  * const post = await posts.item(123);
  * const content = await posts.item(123).getContent();
- * 
+ *
  * // Custom post types use the same API surface
  * const books = client.content('books');
  * const allBooks = await books.list();
@@ -96,7 +96,7 @@ import type { TermWriteInput, UserWriteInput, WordPressWritePayload } from './ty
 export class WordPressClient {
   private readonly transport: WordPressTransport;
   private readonly runtime: WordPressRuntime;
-  
+
   // Resource instances (private to avoid naming conflicts with public methods)
   private readonly mediaResource: MediaResource;
   private readonly usersResource: UsersResource;
@@ -190,50 +190,26 @@ export class WordPressClient {
 
   // ============= FIRST-CLASS RESOURCE API =============
 
-  media(): MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload>;
-  media<TResource extends WordPressMedia>(
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): MediaResourceClient<TResource, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload>;
-  media<TResource extends WordPressMedia = WordPressMedia>(
-    responseSchema?: WordPressStandardSchema<TResource>,
-  ): MediaResourceClient<TResource, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload> {
-    return createMediaClient(this.mediaResource, this as unknown as PostRelationClient, responseSchema, (options) =>
+  media(): MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload> {
+    return createMediaClient(this.mediaResource, this as unknown as PostRelationClient, (options) =>
       this.discoveryMethods.describeResource('media', options),
     );
   }
 
-  comments(): CommentsResourceClient<WordPressComment, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload>;
-  comments<TResource extends WordPressComment>(
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload>;
-  comments<TResource extends WordPressComment = WordPressComment>(
-    responseSchema?: WordPressStandardSchema<TResource>,
-  ): CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
-    return createCommentsClient(this.commentsResource, this as unknown as PostRelationClient, responseSchema, (options) =>
+  comments(): CommentsResourceClient<WordPressComment, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
+    return createCommentsClient(this.commentsResource, this as unknown as PostRelationClient, (options) =>
       this.discoveryMethods.describeResource('comments', options),
     );
   }
 
-  users(): UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>;
-  users<TResource extends WordPressAuthor>(
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>;
-  users<TResource extends WordPressAuthor = WordPressAuthor>(
-    responseSchema?: WordPressStandardSchema<TResource>,
-  ): UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
-    return createUsersClient(this.usersResource, this as unknown as PostRelationClient, responseSchema, (options) =>
+  users(): UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
+    return createUsersClient(this.usersResource, this as unknown as PostRelationClient, (options) =>
       this.discoveryMethods.describeResource('users', options),
     );
   }
 
-  settings(): SettingsResourceClient<WordPressSettings>;
-  settings<TResource extends WordPressSettings>(
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): SettingsResourceClient<TResource>;
-  settings<TResource extends WordPressSettings = WordPressSettings>(
-    responseSchema?: WordPressStandardSchema<TResource>,
-  ): SettingsResourceClient<TResource> {
-    return createSettingsClient(this.settingsResource, responseSchema, (options) =>
+  settings(): SettingsResourceClient<WordPressSettings> {
+    return createSettingsClient(this.settingsResource, (options) =>
       this.discoveryMethods.describeResource('settings', options),
     );
   }
@@ -243,26 +219,16 @@ export class WordPressClient {
   content(
     resource: 'posts',
   ): ContentResourceClient<WordPressPost, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
-  content<TResource extends WordPressPostLike>(
-    resource: 'posts',
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): ContentResourceClient<TResource, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
   content(
     resource: 'pages',
   ): ContentResourceClient<WordPressPage, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
-  content<TResource extends WordPressPostLike>(
-    resource: 'pages',
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): ContentResourceClient<TResource, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-    responseSchema?: WordPressStandardSchema<TResource>,
   ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload>;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-    responseSchema?: WordPressStandardSchema<TResource>,
   ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
-    return this.genericResourcesRegistry.content(resource, responseSchema);
+    return this.genericResourcesRegistry.content(resource);
   }
 
   // ============= GENERIC TERMS API =============
@@ -270,26 +236,16 @@ export class WordPressClient {
   terms(
     resource: 'categories',
   ): TermsResourceClient<WordPressCategory, ExtensibleFilter<CategoriesFilter>, TermWriteInput, TermWriteInput>;
-  terms<TResource>(
-    resource: 'categories',
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): TermsResourceClient<TResource, ExtensibleFilter<CategoriesFilter>, TermWriteInput, TermWriteInput>;
   terms(
     resource: 'tags',
   ): TermsResourceClient<WordPressTag, ExtensibleFilter<TagsFilter>, TermWriteInput, TermWriteInput>;
-  terms<TResource>(
-    resource: 'tags',
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): TermsResourceClient<TResource, ExtensibleFilter<TagsFilter>, TermWriteInput, TermWriteInput>;
   terms<TResource = WordPressCategory>(
     resource: string,
-    responseSchema?: WordPressStandardSchema<TResource>,
   ): TermsResourceClient<TResource, QueryParams & PaginationParams, TermWriteInput, TermWriteInput>;
   terms<TResource = WordPressCategory>(
     resource: string,
-    responseSchema?: WordPressStandardSchema<TResource>,
   ): TermsResourceClient<TResource, QueryParams & PaginationParams, TermWriteInput, TermWriteInput> {
-    return this.genericResourcesRegistry.terms(resource, responseSchema);
+    return this.genericResourcesRegistry.terms(resource);
   }
 
   // ============= CROSS-RESOURCE SEARCH =============
@@ -349,7 +305,7 @@ export class WordPressClient {
   async executeGetAbility<TOutput = unknown>(
     name: string,
     input?: unknown,
-    responseSchema?: WordPressStandardSchema<TOutput>,
+    responseSchema?: import('./core/validation.js').WordPressStandardSchema<TOutput>,
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
     return this.abilityMethods.executeGetAbility(name, input, responseSchema, options);
@@ -361,7 +317,7 @@ export class WordPressClient {
   async executeRunAbility<TOutput = unknown>(
     name: string,
     input?: unknown,
-    responseSchema?: WordPressStandardSchema<TOutput>,
+    responseSchema?: import('./core/validation.js').WordPressStandardSchema<TOutput>,
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
     return this.abilityMethods.executeRunAbility(name, input, responseSchema, options);
@@ -373,7 +329,7 @@ export class WordPressClient {
   async executeDeleteAbility<TOutput = unknown>(
     name: string,
     input?: unknown,
-    responseSchema?: WordPressStandardSchema<TOutput>,
+    responseSchema?: import('./core/validation.js').WordPressStandardSchema<TOutput>,
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
     return this.abilityMethods.executeDeleteAbility(name, input, responseSchema, options);
@@ -382,19 +338,46 @@ export class WordPressClient {
   // ============= DISCOVERY API =============
 
   /**
+   * Seeds the internal discovery cache from an externally supplied catalog.
+   *
+   * Enables a "explore once, store anywhere, restore later" pattern so
+   * expensive `OPTIONS` discovery requests are only made when needed:
+   *
+   * ```typescript
+   * // First run: explore and persist
+   * const catalog = await wp.explore();
+   * await kv.set('wp:catalog', JSON.stringify(catalog));
+   *
+   * // Subsequent runs: restore from storage
+   * const stored = JSON.parse(await kv.get('wp:catalog') ?? 'null');
+   * if (stored) wp.useCatalog(stored);
+   *
+   * // describe() now uses the seeded cache — no network round-trip needed
+   * const desc = await wp.content('pages').describe();
+   * console.log(desc.capabilities.queryParams); // ['page', 'per_page', 'lang', ...]
+   * ```
+   *
+   * Returns `this` so the call can be chained after construction.
+   */
+  useCatalog(catalog: WordPressDiscoveryCatalog): this {
+    this.discoveryMethods.seedCatalog(catalog);
+    return this;
+  }
+
+  /**
    * Explores and catalogs all discoverable resources and abilities.
-   * 
+   *
    * Discovery exposes JSON Schema shapes for upstream introspection,
    * AI/tool generation, and schema-aware integrations.
-   * 
+   *
    * @example
    * ```typescript
    * // Discover everything
    * const catalog = await wp.explore();
-   * 
+   *
    * // Force refresh
    * const fresh = await wp.explore({ refresh: true });
-   * 
+   *
    * // Limit to specific kinds
    * const contentOnly = await wp.explore({ include: ['content'] });
    * ```

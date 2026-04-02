@@ -12,10 +12,8 @@ import type { CommentsFilter } from '../types/filters.js';
 import type { ExtensibleFilter } from '../types/resources.js';
 import type { WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
-import { commentSchema } from '../standard-schemas.js';
 import { BaseCrudResource } from '../core/resource-base.js';
 import type { WordPressRuntime } from '../core/transport.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
 import { ResourceItemQueryBuilder } from '../builders/resource-item-relations.js';
 import {
   createSingleExtractor,
@@ -27,11 +25,6 @@ import {
   extractEmbeddedPost,
   resolveAuthorById,
 } from '../builders/item-relation-resolver.js';
-import {
-  createSchemaValidators,
-  createValidatedListMethods,
-  createCrudClientMethods,
-} from './schema-validation.js';
 
 const extractEmbeddedComment = createSingleExtractor(
   (item: unknown) => item as WordPressComment,
@@ -50,35 +43,21 @@ export class CommentsResource extends BaseCrudResource<
    * Creates a comments resource instance.
    */
   static create(runtime: WordPressRuntime): CommentsResource {
-    return new CommentsResource({
-      runtime,
-      endpoint: '/comments',
-      defaultSchema: commentSchema,
-    });
+    return new CommentsResource({ runtime, endpoint: '/comments' });
   }
 }
 
 /**
- * Creates a typed comments client with optional read and mutation validation.
+ * Creates a typed comments client.
  */
-export function createCommentsClient<TResource extends WordPressComment = WordPressComment>(
+export function createCommentsClient(
   resource: CommentsResource,
   relationClient: PostRelationClient,
-  responseSchema?: WordPressStandardSchema<TResource>,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
-): CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
-  const hasExplicitResponseSchema = responseSchema !== undefined;
-  const validators = createSchemaValidators(
-    (responseSchema ?? commentSchema) as WordPressStandardSchema<TResource>,
-    'Comment response validation failed',
-  );
-
+): CommentsResourceClient<WordPressComment, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
   const builtInRelations = new Set<AllCommentRelations>(['author', 'post', 'parent']);
 
-  const loadComment = async (id: number, options?: WordPressRequestOverrides) =>
-    validators.validate(await resource.getById(id, options) as unknown);
-
-  const resolveAuthorRelation = async (comment: TResource): Promise<WordPressAuthor | null> => {
+  const resolveAuthorRelation = async (comment: WordPressComment): Promise<WordPressAuthor | null> => {
     const embeddedAuthor = extractEmbeddedAuthor(extractEmbeddedData(comment, 'author'));
 
     if (embeddedAuthor) {
@@ -88,7 +67,7 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
     return resolveAuthorById(relationClient, comment.author);
   };
 
-  const resolvePostRelation = async (comment: TResource): Promise<WordPressPostLike | null> => {
+  const resolvePostRelation = async (comment: WordPressComment): Promise<WordPressPostLike | null> => {
     const embeddedPost = extractEmbeddedPost(extractEmbeddedData(comment, 'up'));
 
     if (embeddedPost) {
@@ -127,7 +106,7 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
     return null;
   };
 
-  const resolveParentRelation = async (comment: TResource): Promise<WordPressComment | null> => {
+  const resolveParentRelation = async (comment: WordPressComment): Promise<WordPressComment | null> => {
     const embeddedParent = extractEmbeddedComment(extractEmbeddedData(comment, 'in-reply-to'));
 
     if (embeddedParent) {
@@ -151,7 +130,7 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
     options?: WordPressRequestOverrides,
   ) => new ResourceItemQueryBuilder(
     relationClient,
-    () => loadComment(id, options),
+    () => resource.getById(id, options),
     builtInRelations,
     async (comment, relationSet) => {
       const related: Record<string, unknown> = {};
@@ -170,22 +149,16 @@ export function createCommentsClient<TResource extends WordPressComment = WordPr
 
       return related;
     },
-  )) as CommentsResourceClient<TResource, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload>['item'];
-
-  const listMethods = createValidatedListMethods(
-    resource as unknown as Parameters<typeof createValidatedListMethods<TResource, ExtensibleFilter<CommentsFilter>>>[0],
-    validators,
-    hasExplicitResponseSchema,
-  );
-  const crudMethods = createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>(
-    resource as unknown as Parameters<typeof createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>>[0],
-    responseSchema,
-  );
+  )) as CommentsResourceClient<WordPressComment, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload>['item'];
 
   return {
-    ...listMethods,
-    ...crudMethods,
+    list: (filter = {}, options) => resource.list(filter, options),
+    listAll: (filter = {}, options, listOptions) => resource.listAll(filter, options, listOptions),
+    listPaginated: (filter = {}, options) => resource.listPaginated(filter, options),
+    create: (input, options) => resource.create(input, options),
+    update: (id, input, options) => resource.update(id, input, options),
     item,
+    delete: (id, options) => resource.delete(id, options),
     describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
   };
 }

@@ -1,8 +1,6 @@
 import { beforeAll, describe, expect, it, afterAll } from 'vitest';
 import {
   WordPressClient,
-  WordPressSchemaValidationError,
-  contentWordPressSchema,
   createAcfPostObjectRelation,
   createAcfRelationshipRelation,
   createAcfTaxonomyRelation,
@@ -17,7 +15,6 @@ import {
   resolveTermReferences,
   type CustomRelationConfig,
   type WordPressPostLike,
-  type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
@@ -495,7 +492,7 @@ describe('Client: Custom Relation Resolvers', () => {
       }));
 
       const book = await authClient
-        .content('books', contentWordPressSchema)
+        .content('books')
         .item('test-book-001')
         .with('author', 'bookLinkedPost')
         ;
@@ -505,74 +502,7 @@ describe('Client: Custom Relation Resolvers', () => {
       expect(book.related.bookLinkedPost !== undefined).toBe(true);
     });
 
-    it('validates schema-backed relation builder reads for content().item()', async () => {
-      const rejectSeedBookSchema: WordPressStandardSchema<WordPressPostLike> = {
-        '~standard': {
-          version: 1,
-          vendor: 'integration-test',
-          validate(value) {
-            if (typeof value !== 'object' || value === null) {
-              return { issues: [{ message: 'Expected content object response.' }] };
-            }
 
-            const record = value as Record<string, unknown>;
-
-            if (typeof record.slug !== 'string') {
-              return { issues: [{ message: 'Expected string slug.' }] };
-            }
-
-            if (record.slug === 'test-book-001') {
-              return { issues: [{ message: 'Expected schema-backed relation read validation failure.' }] };
-            }
-
-            return { value: record as WordPressPostLike };
-          },
-        },
-      };
-
-      await expect(
-        publicClient
-          .content('books', rejectSeedBookSchema)
-          .item('test-book-001')
-          .with('author'),
-      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
-    });
-
-    it('validates the base content before adding related data with item().with()', async () => {
-      const baseOnlyBookSchema: WordPressStandardSchema<WordPressPostLike> = {
-        '~standard': {
-          version: 1,
-          vendor: 'integration-test',
-          validate(value) {
-            if (typeof value !== 'object' || value === null) {
-              return { issues: [{ message: 'Expected content object response.' }] };
-            }
-
-            const record = value as Record<string, unknown>;
-
-            if (typeof record.slug !== 'string') {
-              return { issues: [{ message: 'Expected string slug.' }] };
-            }
-
-            if ('related' in record) {
-              return {
-                issues: [{ message: 'Base content schemas should not receive relation payloads.', path: ['related'] }],
-              };
-            }
-
-            return { value: record as WordPressPostLike };
-          },
-        },
-      };
-
-      const book = await publicClient
-        .content('books', baseOnlyBookSchema)
-        .item('test-book-001')
-        .with('author');
-
-      expect(book.slug).toBe('test-book-001');
-      expect(book.related.author).toBeDefined();
-    });
 
     it('hydrates custom taxonomy terms for custom post types through content().item().with()', async () => {
       const genre = await authClient.terms('genre').create({
@@ -581,7 +511,7 @@ describe('Client: Custom Relation Resolvers', () => {
       });
       createdGenreIds.push(genre.id);
 
-      const book = await authClient.content('books', contentWordPressSchema).create({
+      const book = await authClient.content('books').create({
         title: 'Custom Relations: Book Terms',
         status: 'draft',
         genre: [genre.id],
@@ -589,7 +519,7 @@ describe('Client: Custom Relation Resolvers', () => {
       createdBookIds.push(book.id);
 
       const hydrated = await authClient
-        .content('books', contentWordPressSchema)
+        .content('books')
         .item(book.id)
         .with('terms');
 

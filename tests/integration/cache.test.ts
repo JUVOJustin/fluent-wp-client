@@ -121,17 +121,6 @@ describe('Client: internal caching', () => {
   });
 
   describe('resource registry caching', () => {
-    it('bypasses cache with custom schema', async () => {
-      const schema = {
-        '~standard': { validate: (data: unknown) => ({ value: data }) },
-      };
-      
-      const c1 = authClient.content('posts', schema as any);
-      const c2 = authClient.content('posts', schema as any);
-      
-      expect(c1).not.toBe(c2);
-    });
-
     it('separate clients have separate caches', async () => {
       const password = process.env.WP_APP_PASSWORD;
       if (!password) throw new Error('WP_APP_PASSWORD not set');

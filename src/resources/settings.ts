@@ -4,13 +4,9 @@ import type {
   WordPressRequestOverrides,
 } from '../types/resources.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
-import { settingsSchema } from '../standard-schemas.js';
 import { compactPayload } from '../core/params.js';
-import { resolveMutationSchema } from '../core/mutation-helpers.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { throwIfWordPressError } from '../core/errors.js';
-import { validateWithStandardSchema } from '../core/validation.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
 import type { WordPressRuntime } from '../core/transport.js';
 
 /**
@@ -52,75 +48,39 @@ export class SettingsResource {
     }, requestOptions));
 
     throwIfWordPressError(response, data);
-    return validateWithStandardSchema(settingsSchema, data, 'Settings response validation failed');
+    return data as WordPressSettings;
   }
 
   /**
    * Updates WordPress site settings.
    */
-  async update<TSettings = WordPressSettings>(
+  async update(
     input: Partial<WordPressSettings> & Record<string, unknown>,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TSettings> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TSettings> {
+    options?: WordPressRequestOverrides,
+  ): Promise<WordPressSettings> {
     this.assertAuthenticated();
-
-    const resolved = resolveMutationSchema<TSettings>(
-      responseSchemaOrRequestOptions,
-      requestOptions,
-      undefined,
-    );
 
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: this.endpoint,
       method: 'POST',
       body: compactPayload(input),
-    }, resolved.requestOptions));
+    }, options));
 
     throwIfWordPressError(response, data);
-
-    return validateWithStandardSchema(
-      resolved.responseSchema ?? (settingsSchema as WordPressStandardSchema<TSettings>),
-      data,
-      'Settings response validation failed',
-    );
+    return data as WordPressSettings;
   }
 }
 
 /**
- * Creates a typed settings client with optional mutation validation.
+ * Creates a typed settings client.
  */
-export function createSettingsClient<TResource extends WordPressSettings = WordPressSettings>(
+export function createSettingsClient(
   resource: SettingsResource,
-  responseSchema?: WordPressStandardSchema<TResource>,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
-): SettingsResourceClient<TResource> {
+): SettingsResourceClient<WordPressSettings> {
   return {
-    get: async (options) => {
-      const settings = await resource.get(options);
-      return validateWithStandardSchema(
-        (responseSchema ?? settingsSchema) as WordPressStandardSchema<TResource>,
-        settings,
-        'Settings response validation failed',
-      );
-    },
-    update: <TResponse = TResource>(
-      input: Partial<WordPressSettings> & Record<string, unknown>,
-      responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-      requestOptions?: WordPressRequestOverrides,
-    ) => {
-      const resolved = resolveMutationSchema(
-        responseSchemaOrRequestOptions,
-        requestOptions,
-        responseSchema as WordPressStandardSchema<TResponse> | undefined,
-      );
-
-      return resource.update<TResponse>(
-        input,
-        resolved.responseSchema,
-        resolved.requestOptions,
-      );
-    },
+    get: (options) => resource.get(options),
+    update: (input, options) => resource.update(input, options),
     describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
   };
 }

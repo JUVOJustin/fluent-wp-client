@@ -135,7 +135,6 @@ export class PostRelationQueryBuilder<
     private readonly getById: (id: number, options?: PostRelationLoadOptions) => PromiseLike<TContent>,
     private readonly getBySlug: (slug: string, options?: PostRelationLoadOptions) => PromiseLike<TContent | undefined>,
     relations: readonly AllPostRelations[] = [],
-    private readonly finalizeContent?: (content: TContent) => PromiseLike<TContent>,
     options: {
       getEditById?: (id: number, fields?: string[]) => PromiseLike<TContent>;
       getEditBySlug?: (slug: string, fields?: string[]) => PromiseLike<TContent | undefined>;
@@ -229,7 +228,6 @@ export class PostRelationQueryBuilder<
       this.getById,
       this.getBySlug,
       Array.from(nextRelations),
-      this.finalizeContent,
       {
         getEditById: this.getEditById,
         getEditBySlug: this.getEditBySlug,
@@ -264,27 +262,24 @@ export class PostRelationQueryBuilder<
     
     const resolver = new ItemRelationResolver(this.client, this.relationSet);
     const related = await resolver.resolveRelated(post);
-    const content = this.finalizeContent
-      ? await this.finalizeContent(post)
-      : post;
 
     if (this.relationSet.size === 0) {
-      return content as ContentItemResult<TContent, TRelations>;
+      return post as ContentItemResult<TContent, TRelations>;
     }
 
     // Strip _embedded from response unless user explicitly requested it
     if (this.userRequestedEmbed) {
       return {
-        ...content,
+        ...post,
         related: related as SelectedPostRelations<TRelations>,
       } as ContentItemResult<TContent, TRelations>;
     }
 
-    const contentRecord = content as Record<string, unknown>;
-    const { _embedded, ...contentWithoutEmbedded } = contentRecord;
+    const postRecord = post as Record<string, unknown>;
+    const { _embedded, ...postWithoutEmbedded } = postRecord;
 
     return {
-      ...(contentWithoutEmbedded as TContent),
+      ...(postWithoutEmbedded as TContent),
       related: related as SelectedPostRelations<TRelations>,
     } as ContentItemResult<TContent, TRelations>;
   }

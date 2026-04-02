@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   WordPressClient,
+  WordPressSchemaValidationError,
   createJwtAuthHeader,
   postSchema,
   type ContentResourceClient,
@@ -8,6 +9,7 @@ import {
   type PostsFilter,
   type WordPressPost,
   type WordPressPostWriteBase,
+  type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import { createAuthClient, createJwtAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-client';
 
@@ -107,6 +109,47 @@ describe('Client: Posts', () => {
       const post = await postsClient(publicClient).item('this-slug-does-not-exist-999');
 
       expect(post).toBeUndefined();
+    });
+
+    it('content(\'posts\').item() validates field-filtered reads when a schema is provided', async () => {
+      const rejectingSchema: WordPressStandardSchema<WordPressPost> = {
+        '~standard': {
+          version: 1,
+          vendor: 'integration-test',
+          validate(value) {
+            if (typeof value !== 'object' || value === null) {
+              return { issues: [{ message: 'Expected post object response.' }] };
+            }
+
+            const record = value as Record<string, unknown>;
+
+            if (typeof record.id !== 'number') {
+              return { issues: [{ message: 'Expected numeric id.' }] };
+            }
+
+            if (typeof record.slug !== 'string') {
+              return { issues: [{ message: 'Expected string slug.' }] };
+            }
+
+            if (record.slug === 'test-post-001') {
+              return { issues: [{ message: 'Expected seeded post validation failure.' }] };
+            }
+
+            return {
+              value: {
+                id: record.id,
+                slug: record.slug,
+              } as unknown as WordPressPost,
+            };
+          },
+        },
+      };
+
+      await expect(
+        publicClient
+          .content('posts', rejectingSchema)
+          .item('test-post-001', { fields: ['id', 'slug'] }),
+      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
     });
 
     it('content(\'posts\').listAll() returns all 150 seed posts', async () => {

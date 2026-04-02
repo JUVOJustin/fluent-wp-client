@@ -29,7 +29,28 @@ import type { WordPressResourceDescription } from '../types/discovery.js';
 import {
   createSchemaValidators,
   createCrudClientMethods,
+  shouldSkipValidation,
 } from './schema-validation.js';
+
+/**
+ * Ensures `_embedded` is present in the `_fields` list when embedding is active.
+ * WordPress includes `_embedded` as a top-level response key alongside the main
+ * object fields. Without it in `_fields`, the embedded relation data is stripped
+ * from the response even when `_embed=true` is set, forcing per-relation
+ * fallback sub-requests instead of using the already-fetched embedded data.
+ */
+function mergeRequestFields(
+  userFields: string[] | undefined,
+  embedActive: boolean,
+): string[] | undefined {
+  if (!userFields || !embedActive) {
+    return userFields;
+  }
+
+  const merged = new Set(userFields);
+  merged.add('_embedded');
+  return Array.from(merged);
+}
 
 const missingRawPostMessage =
   'Raw post content is unavailable. The current credentials may not have edit capabilities for this post.';
@@ -157,6 +178,9 @@ export class GenericContentResource<
 
   /**
    * Creates one awaitable single-item query with optional relation hydration.
+   * Extracts `embed` and `fields` from options before wiring closures so that
+   * `_fields` is correctly sent and `_embedded` is preserved when relation
+   * hydration enables embed on a field-restricted request.
    */
   itemQuery<TRelations extends readonly AllPostRelations[]>(
     idOrSlug: number | string,
@@ -164,18 +188,25 @@ export class GenericContentResource<
     relations: TRelations,
     finalizeContent?: (content: TContent) => PromiseLike<TContent>,
   ): PostRelationQueryBuilder<TRelations, TContent> {
-    const userRequestedEmbed = options?.embed === true;
-    
+    const { embed, fields, ...requestOverrides } = options ?? {};
+    const userRequestedEmbed = embed === true;
+
     return new PostRelationQueryBuilder<TRelations, TContent>(
       this.relationClient,
       typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
-      (id, queryOptions) => this.fetchContentById(id, options, undefined, queryOptions?.embed),
-      (slug, queryOptions) => this.fetchContentBySlug(slug, options, undefined, queryOptions?.embed),
+      (id, queryOptions) => {
+        const resolvedFields = mergeRequestFields(fields, queryOptions?.embed === true);
+        return this.fetchContentById(id, requestOverrides, undefined, queryOptions?.embed, resolvedFields);
+      },
+      (slug, queryOptions) => {
+        const resolvedFields = mergeRequestFields(fields, queryOptions?.embed === true);
+        return this.fetchContentBySlug(slug, requestOverrides, undefined, queryOptions?.embed, resolvedFields);
+      },
       relations,
       finalizeContent,
       {
-        getEditById: (id, editFields) => this.fetchContentById(id, options, 'edit', false, editFields),
-        getEditBySlug: (slug, editFields) => this.fetchContentBySlug(slug, options, 'edit', false, editFields),
+        getEditById: (id, editFields) => this.fetchContentById(id, requestOverrides, 'edit', false, editFields),
+        getEditBySlug: (slug, editFields) => this.fetchContentBySlug(slug, requestOverrides, 'edit', false, editFields),
         missingRawMessage: this.missingRawMessage,
         userRequestedEmbed,
       },
@@ -195,12 +226,18 @@ export function createContentClient<TResource extends WordPressPostLike>(
     idOrSlug: number | string,
     options: (WordPressRequestOverrides & { embed?: boolean; fields?: string[] }) | undefined,
     relations: TRelations,
-  ): PostRelationQueryBuilder<TRelations, TResource> => resource.itemQuery(
-    idOrSlug,
-    options,
-    relations,
-    (content) => resource.validateResolvedContent(content),
-  );
+  ): PostRelationQueryBuilder<TRelations, TResource> => {
+    const skipValidation = shouldSkipValidation(responseSchema !== undefined, options?.fields ? { fields: options.fields } : undefined);
+
+    return resource.itemQuery(
+      idOrSlug,
+      options,
+      relations,
+      // Field-restricted reads only skip built-in validation. Explicit caller
+      // schemas still run so partial-response clients can validate their shape.
+      skipValidation ? undefined : (content) => resource.validateResolvedContent(content),
+    );
+  };
 
   const crudMethods = createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>(
     resource as unknown as Parameters<typeof createCrudClientMethods<TResource, WordPressWritePayload, WordPressWritePayload>>[0],

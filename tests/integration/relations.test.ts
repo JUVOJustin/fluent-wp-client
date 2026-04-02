@@ -64,6 +64,66 @@ describe('Client: post relation hydration', () => {
     expect(hydrated.related.author).toBeNull();
   });
 
+  describe('_fields restriction with .with()', () => {
+    /**
+     * When the caller restricts _fields, the client must add _embedded so
+     * WordPress includes embedded relation data alongside the trimmed main
+     * object. Without _embedded in _fields, relations would be silently
+     * dropped from the response and every .with() call would trigger a
+     * separate fallback sub-request.
+     */
+    it('resolves author via _embedded when _fields restricts the response', async () => {
+      const post = await authClient
+        .content('posts')
+        .item('test-post-001', { fields: ['id', 'title'] })
+        .with('author');
+
+      expect(post.id).toBeTypeOf('number');
+      expect(post.title).toBeDefined();
+      // Author must be hydrated from _embedded.author, not a fallback sub-request,
+      // because 'author' (the ID field) is not included in _fields.
+      expectAuthorRelation((post as { author?: number }).author ?? 0, post.related.author);
+    });
+
+    it('resolves categories and tags via _embedded when _fields restricts the response', async () => {
+      const post = await authClient
+        .content('posts')
+        .item('test-post-001', { fields: ['id', 'slug'] })
+        .with('categories', 'tags');
+
+      expect(post.id).toBeTypeOf('number');
+      // Terms must be hydrated from _embedded.wp:term.
+      expect(Array.isArray(post.related.categories)).toBe(true);
+      expect(post.related.categories.length).toBeGreaterThan(0);
+      expect(Array.isArray(post.related.tags)).toBe(true);
+      expect(post.related.tags.length).toBeGreaterThan(0);
+    });
+
+    it('resolves all relations via _embedded with a strict _fields list', async () => {
+      const post = await authClient
+        .content('posts')
+        .item('test-post-001', { fields: ['id', 'title', 'slug'] })
+        .with('author', 'categories', 'tags');
+
+      expect(post.slug).toBe('test-post-001');
+      expectAuthorRelation((post as { author?: number }).author ?? 0, post.related.author);
+      expect(post.related.categories.length).toBeGreaterThan(0);
+      expect(post.related.tags.length).toBeGreaterThan(0);
+    });
+
+    it('sends _fields correctly without .with() and does not request _embedded', async () => {
+      // Without relations, _fields must be sent as-is — no _embedded injected.
+      const post = await authClient
+        .content('posts')
+        .item('test-post-001', { fields: ['id', 'slug', 'title'] });
+
+      expect(post.id).toBeTypeOf('number');
+      expect(post.slug).toBe('test-post-001');
+      // The response is the raw DTO (no .related) when no relations are requested.
+      expect((post as { related?: unknown }).related).toBeUndefined();
+    });
+  });
+
   describe('parent relation', () => {
     it('hydrates parent relation for hierarchical pages via embedded data', async () => {
       // The child page 'services-web-development' should have 'services' as its parent

@@ -148,6 +148,7 @@ export class WordPressClient {
     this.abilityMethods = createAbilityMethods({
       fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
       request: this.runtime.request.bind(this.runtime),
+      describeAbility: (name, options) => this.discoveryMethods.describeAbility(name, options),
     });
   }
 

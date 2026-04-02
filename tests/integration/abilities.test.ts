@@ -184,28 +184,19 @@ describe('Client: Abilities', () => {
     it('throws when one required execute-ability input field is missing', async () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { key: optionKey }),
-      ).rejects.toMatchObject({
-        name: 'WordPressApiError',
-        status: 400,
-      });
+      ).rejects.toThrow();
     });
 
     it('throws when one execute-ability input property name is wrong', async () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { wrong_field: 'x' }),
-      ).rejects.toMatchObject({
-        name: 'WordPressApiError',
-        status: 400,
-      });
+      ).rejects.toThrow();
     });
 
     it('throws when one execute-ability input type is wrong', async () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { value: 12345 }),
-      ).rejects.toMatchObject({
-        name: 'WordPressApiError',
-        status: 400,
-      });
+      ).rejects.toThrow();
     });
 
     it('executes one complex regular ability with nested input', async () => {
@@ -277,10 +268,7 @@ describe('Client: Abilities', () => {
         authClient.executeRunAbility('test/process-complex', {
           name: 'missing-settings',
         }),
-      ).rejects.toMatchObject({
-        name: 'WordPressApiError',
-        status: 400,
-      });
+      ).rejects.toThrow();
     });
 
     it('throws when one complex execute ability has a wrong nested type', async () => {
@@ -289,10 +277,7 @@ describe('Client: Abilities', () => {
           name: 'wrong-type',
           settings: 'not-an-object',
         }),
-      ).rejects.toMatchObject({
-        name: 'WordPressApiError',
-        status: 400,
-      });
+      ).rejects.toThrow();
     });
 
     it('supports fluent ability execution with local input and output validation', async () => {

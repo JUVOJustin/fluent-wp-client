@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { WordPressRequestOptions, WordPressRequestResult } from './types/client.js';
 import type { WordPressRequestOverrides } from './types/resources.js';
-import type { WordPressAbilityDescription } from './types/discovery.js';
+import type { WordPressAbilityDescription, WordPressJsonSchema } from './types/discovery.js';
 import { throwIfWordPressError } from './core/errors.js';
 import { applyRequestOverrides } from './core/request-overrides.js';
 import {
@@ -54,6 +54,12 @@ export type DeleteAbilityInput = z.infer<typeof zodDeleteAbilityInputSchema>;
 export interface WordPressAbilityRuntime {
   fetchAPI: <T>(endpoint: string, params?: SerializedQueryParams, options?: WordPressRequestOverrides) => Promise<T>;
   request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
+  /**
+   * Resolves an ability description from the discovery cache when available.
+   * When the catalog has been seeded via `useCatalog()` or populated by
+   * `explore()`, this returns immediately without a network round-trip.
+   */
+  describeAbility?: (name: string, options?: WordPressRequestOverrides) => Promise<WordPressAbilityDescription>;
 }
 
 /**
@@ -124,6 +130,22 @@ function createAbilityRequestBody(input: unknown): { input: unknown } | undefine
 }
 
 /**
+ * Converts a discovered JSON Schema to a Standard Schema validator via Zod.
+ * Returns undefined when the JSON Schema is missing or conversion fails.
+ */
+function jsonSchemaToValidator<T>(schema: WordPressJsonSchema | undefined): WordPressStandardSchema<T> | undefined {
+  if (!schema) {
+    return undefined;
+  }
+
+  try {
+    return z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]) as unknown as WordPressStandardSchema<T>;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Validates one optional ability input payload before the request runs.
  */
 async function validateAbilityInput<TInput>(
@@ -177,7 +199,55 @@ async function parseAbilityMetadata<TOutput>(
 }
 
 /**
+ * Resolves the effective input and output validators for an ability execution.
+ *
+ * Priority:
+ * 1. Explicit validators from `.inputSchema()` / `.outputSchema()` always win
+ * 2. Discovered schemas from the catalog (converted via `z.fromJSONSchema()`)
+ * 3. No validation (passthrough)
+ */
+async function resolveAbilityValidators<TInput, TOutput>(
+  runtime: WordPressAbilityRuntime,
+  abilityName: string,
+  explicitInput: WordPressStandardSchema<TInput> | undefined,
+  explicitOutput: WordPressStandardSchema<TOutput> | undefined,
+): Promise<{
+  inputValidator: WordPressStandardSchema<TInput> | undefined;
+  outputValidator: WordPressStandardSchema<TOutput> | undefined;
+}> {
+  // Both explicitly provided — skip discovery entirely
+  if (explicitInput && explicitOutput) {
+    return { inputValidator: explicitInput, outputValidator: explicitOutput };
+  }
+
+  // No discovery method available — use whatever was provided
+  if (!runtime.describeAbility) {
+    return { inputValidator: explicitInput, outputValidator: explicitOutput };
+  }
+
+  // Attempt to resolve from the discovery cache (no-op if not cached)
+  let description: WordPressAbilityDescription | undefined;
+
+  try {
+    description = await runtime.describeAbility(abilityName);
+  } catch {
+    // Discovery failed (network error, ability not found, etc.)
+    return { inputValidator: explicitInput, outputValidator: explicitOutput };
+  }
+
+  return {
+    inputValidator: explicitInput ?? jsonSchemaToValidator<TInput>(description.schemas.input),
+    outputValidator: explicitOutput ?? jsonSchemaToValidator<TOutput>(description.schemas.output),
+  };
+}
+
+/**
  * Fluent executor for one registered WordPress ability.
+ *
+ * When a catalog is seeded via `useCatalog()` or populated by `explore()`,
+ * the builder auto-applies discovered input and output schemas without
+ * explicit `.inputSchema()` / `.outputSchema()` calls. Explicit schemas
+ * always take priority over discovered ones.
  */
 export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
   constructor(
@@ -189,6 +259,7 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
 
   /**
    * Adds local validation for the ability input payload.
+   * Takes priority over any discovered schema from the catalog.
    */
   inputSchema<TNextInput>(schema: WordPressStandardSchema<TNextInput>): WordPressAbilityBuilder<TNextInput, TOutput> {
     return new WordPressAbilityBuilder<TNextInput, TOutput>(
@@ -201,6 +272,7 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
 
   /**
    * Adds local validation for the ability output payload.
+   * Takes priority over any discovered schema from the catalog.
    */
   outputSchema<TNextOutput>(schema: WordPressStandardSchema<TNextOutput>): WordPressAbilityBuilder<TInput, TNextOutput> {
     return new WordPressAbilityBuilder<TInput, TNextOutput>(
@@ -227,49 +299,69 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
    * Executes the configured ability through `GET /run`.
    */
   async get(input?: TInput, requestOptions?: WordPressRequestOverrides): Promise<TOutput> {
-    const validatedInput = await validateAbilityInput(this.inputValidator, input);
+    const { inputValidator, outputValidator } = await resolveAbilityValidators(
+      this.runtime, this.abilityName, this.inputValidator, this.outputValidator,
+    );
+
+    const validatedInput = await validateAbilityInput(inputValidator, input);
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: createAbilityRunEndpoint(this.abilityName),
       method: 'GET',
       params: createAbilityQueryParams(validatedInput),
     }, requestOptions));
 
-    return parseAbilityResponse(response, data, this.outputValidator);
+    return parseAbilityResponse(response, data, outputValidator);
   }
 
   /**
    * Executes the configured ability through `POST /run`.
    */
   async run(input?: TInput, requestOptions?: WordPressRequestOverrides): Promise<TOutput> {
-    const validatedInput = await validateAbilityInput(this.inputValidator, input);
+    const { inputValidator, outputValidator } = await resolveAbilityValidators(
+      this.runtime, this.abilityName, this.inputValidator, this.outputValidator,
+    );
+
+    const validatedInput = await validateAbilityInput(inputValidator, input);
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: createAbilityRunEndpoint(this.abilityName),
       method: 'POST',
       body: createAbilityRequestBody(validatedInput),
     }, requestOptions));
 
-    return parseAbilityResponse(response, data, this.outputValidator);
+    return parseAbilityResponse(response, data, outputValidator);
   }
 
   /**
    * Executes the configured ability through `DELETE /run`.
    */
   async delete(input?: TInput, requestOptions?: WordPressRequestOverrides): Promise<TOutput> {
-    const validatedInput = await validateAbilityInput(this.inputValidator, input);
+    const { inputValidator, outputValidator } = await resolveAbilityValidators(
+      this.runtime, this.abilityName, this.inputValidator, this.outputValidator,
+    );
+
+    const validatedInput = await validateAbilityInput(inputValidator, input);
     const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: createAbilityRunEndpoint(this.abilityName),
       method: 'DELETE',
       params: createAbilityQueryParams(validatedInput),
     }, requestOptions));
 
-    return parseAbilityResponse(response, data, this.outputValidator);
+    return parseAbilityResponse(response, data, outputValidator);
   }
 
   /**
    * Returns a JSON Schema descriptor for this ability.
-   * Includes input/output schemas and annotations.
+   *
+   * Routes through the discovery cache when available so a pre-seeded
+   * catalog via `useCatalog()` avoids a network round-trip.
    */
   async describe(requestOptions?: WordPressRequestOverrides): Promise<WordPressAbilityDescription> {
+    // Use the discovery cache when available
+    if (this.runtime.describeAbility) {
+      return this.runtime.describeAbility(this.abilityName, requestOptions);
+    }
+
+    // Fallback: direct fetch
     const ability = await this.runtime.fetchAPI<WordPressAbility>(
       createAbilityEndpoint(this.abilityName),
       undefined,

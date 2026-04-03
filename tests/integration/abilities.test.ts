@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { WordPressClient, createJwtAuthHeader } from 'fluent-wp-client';
+import {
+  WordPressClient,
+  WordPressSchemaValidationError,
+  createJwtAuthHeader,
+} from 'fluent-wp-client';
 import { createAuthClient, createJwtAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-client';
 
 /**
@@ -184,19 +188,28 @@ describe('Client: Abilities', () => {
     it('throws when one required execute-ability input field is missing', async () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { key: optionKey }),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({
+        name: 'WordPressApiError',
+        status: 400,
+      });
     });
 
     it('throws when one execute-ability input property name is wrong', async () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { wrong_field: 'x' }),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({
+        name: 'WordPressApiError',
+        status: 400,
+      });
     });
 
     it('throws when one execute-ability input type is wrong', async () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { value: 12345 }),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({
+        name: 'WordPressApiError',
+        status: 400,
+      });
     });
 
     it('executes one complex regular ability with nested input', async () => {
@@ -268,7 +281,10 @@ describe('Client: Abilities', () => {
         authClient.executeRunAbility('test/process-complex', {
           name: 'missing-settings',
         }),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({
+        name: 'WordPressApiError',
+        status: 400,
+      });
     });
 
     it('throws when one complex execute ability has a wrong nested type', async () => {
@@ -277,7 +293,10 @@ describe('Client: Abilities', () => {
           name: 'wrong-type',
           settings: 'not-an-object',
         }),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({
+        name: 'WordPressApiError',
+        status: 400,
+      });
     });
 
     it('supports fluent ability execution with local input and output validation', async () => {
@@ -366,6 +385,55 @@ describe('Client: Abilities', () => {
         name: 'WordPressApiError',
         status: 401,
       });
+    });
+  });
+
+  describe('catalog-aware describe()', () => {
+    it('describe() returns from cache when catalog is seeded via useCatalog()', async () => {
+      const catalog = await authClient.explore({ include: ['abilities'] });
+      const freshClient = createAuthClient();
+      freshClient.useCatalog(catalog);
+
+      // Should resolve from cache without a network round-trip
+      const desc = await freshClient.ability('test/process-complex').describe();
+
+      expect(desc.kind).toBe('ability');
+      expect(desc.name).toBe('test/process-complex');
+      expect(desc.schemas.input).toBeDefined();
+      expect(desc.schemas.output).toBeDefined();
+    });
+
+    it('run() does not validate input even when catalog has schemas', async () => {
+      const catalog = await authClient.explore({ include: ['abilities'] });
+
+      // Confirm the catalog carries an input schema for the ability
+      expect(catalog.abilities['test/update-option']?.schemas.input).toBeDefined();
+
+      const seededClient = createAuthClient();
+      seededClient.useCatalog(catalog);
+
+      // Send invalid input — should pass through to WordPress (no local validation)
+      await expect(
+        seededClient.executeRunAbility('test/update-option', { wrong_field: 'x' }),
+      ).rejects.toMatchObject({
+        name: 'WordPressApiError',
+        status: 400,
+      });
+    });
+
+    it('explicit inputSchema() still validates before the request', async () => {
+      const strictInput = z.object({
+        key: z.string().min(1),
+        value: z.string().min(1),
+      });
+
+      // Invalid input should be caught locally by the explicit schema
+      await expect(
+        authClient
+          .ability('test/update-option')
+          .inputSchema(strictInput)
+          .run({ wrong_field: 'x' } as any),
+      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
     });
   });
 });

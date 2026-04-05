@@ -285,6 +285,101 @@ import {
 } from 'fluent-wp-client/ai-sdk';
 ```
 
+## Instance-aware Zod schemas for AI tools
+
+The built-in tool factories use generic input schemas that cover core WordPress fields. For tighter validation that reflects your actual WordPress instance — including custom post types, ACF fields, custom taxonomies, and plugin-registered query parameters — convert the discovered JSON Schema to Zod.
+
+<Tabs>
+<TabItem label="Runtime (dynamic)">
+
+Use runtime conversion when the WordPress instance is not known at build time — multi-tenant apps, user-provided sites, or agents that connect to different instances.
+
+```ts title="Discover and validate at runtime"
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { WordPressClient } from 'fluent-wp-client';
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+const wp = new WordPressClient({
+  baseUrl: siteUrl,
+  auth: { username, password },
+});
+
+// Discover the actual schema for this instance
+const catalog = await wp.explore({ include: ['content'] });
+const postSchemas = zodSchemasFromDescription(catalog.content.posts);
+
+// The model gets the real create schema — including custom fields
+const { object } = await generateObject({
+  model: openai('gpt-4o-mini'),
+  schema: postSchemas.create!,
+  prompt: 'Draft a short release announcement post.',
+});
+
+await wp.content('posts').create(object);
+```
+
+For abilities:
+
+```ts title="Discover ability input schema at runtime"
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+const catalog = await wp.explore({ include: ['abilities'] });
+const calcSchemas = zodSchemasFromDescription(catalog.abilities['acme/calculate']);
+
+// Use the discovered input schema as a tool's inputSchema
+const calculateTool = tool({
+  description: 'Run a calculation via the WordPress ability API.',
+  inputSchema: calcSchemas.input!,
+  execute: async (input) => wp.ability('acme/calculate').run(input),
+});
+```
+</TabItem>
+<TabItem label="CLI (static)">
+
+Use CLI-generated schemas when your app connects to a single known WordPress instance. The generated file gives you compile-time type safety and tree-shakeable validators.
+
+```bash title="Generate schema files"
+npx fluent-wp-client schemas \
+  --url https://example.com \
+  --username admin \
+  --password "xxxx xxxx xxxx xxxx" \
+  --format zod \
+  --zod-out src/lib/wp-schemas.ts
+```
+
+```ts title="Use generated schemas with AI SDK"
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { wpPostSchema } from './lib/wp-schemas';
+
+const { object } = await generateObject({
+  model: openai('gpt-4o-mini'),
+  schema: wpPostSchema,
+  prompt: 'Draft a short release announcement post.',
+});
+
+await adminWp.content('posts').create(object);
+```
+
+:::note
+Regenerate the schema file when your WordPress instance changes (new custom fields, plugins, etc.):
+```bash
+npx fluent-wp-client schemas --url https://example.com --format zod --zod-out src/lib/wp-schemas.ts
+```
+:::
+</TabItem>
+</Tabs>
+
+### When to use which
+
+| Scenario | Approach |
+|----------|----------|
+| Multi-tenant platform, user-provided WordPress URLs | **Runtime** — `explore()` + `zodSchemasFromDescription()` |
+| AI agent that adapts to the connected site | **Runtime** — schema reflects actual capabilities |
+| Single known WordPress instance | **CLI** — compile-time types, no runtime discovery |
+| CI validation or shared schema across services | **CLI** — checked-in schema file |
+
 ## Single item getters
 
 Post-like getter tools (`getPostTool`, `getPageTool`) return a content envelope instead of the raw DTO:

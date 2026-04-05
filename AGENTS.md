@@ -12,7 +12,7 @@
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Root package schema exports must be typed as Standard Schema (`WordPressStandardSchema`) to keep the default API validator-agnostic.
 - Native Zod schema exports belong in the dedicated `fluent-wp-client/zod` entrypoint only.
-- Core mutation helpers should use built-in default response validation, while schema arguments (`responseSchema`, `inputSchema`, `outputSchema`) must always allow callers to override validation behavior.
+- Core request and mutation helpers should defer validation to WordPress. When local validation is needed, use `.describe()`, `.explore()`, or generated schema artifacts in application code.
 - Validate and require only the minimum data needed for a feature to work. Keep optional and custom fields extensible so projects can layer in ACF fields, meta, relations, and plugin data without fighting the package.
 - Keep native posts/pages strict, but default generic custom post type reads to a flexible post-like shape because WordPress supports can remove `title`, `content`, `excerpt`, `author`, and related fields from REST responses.
 - Avoid hard-coded assumptions that only fit default posts and pages. Always leave room for custom post types, taxonomies, fields, actions, and REST namespaces.
@@ -49,11 +49,11 @@ src/
   cli/                         # CLI discovery and code generation entrypoints
   abilities.ts                 # Ability methods and builder
   content-query.ts             # Raw content helper types and resolver
+  zod-helpers.ts               # Runtime JSON Schema → Zod conversion helpers (used by /zod and CLI)
   types.ts                     # Re-export barrel for types/ subdirectory
 
   core/                        # Core infrastructure
     errors.ts                  # WordPressApiError, throwIfWordPressError
-    mutation-helpers.ts        # Shared mutation overload resolution
     pagination.ts              # createWordPressPaginator
     query-base.ts              # ExecutableQuery and immutable builder primitives
     validation.ts              # Standard Schema validation helpers
@@ -76,8 +76,6 @@ src/
     content.ts                 # Generic post-like resource + client factory
     terms.ts                   # Generic term resource + client factory
     registry.ts                # Shared generic resource registry
-    schema-validation.ts       # Shared read-validation helpers for resources
-
   builders/                    # Fluent query/request builders
     relations.ts               # PostRelationQueryBuilder
     acf-relations.ts           # ACF relation factories built on shared contracts
@@ -253,12 +251,13 @@ The `.wp-env.json` file configures:
 
 ## Schema Discovery
 
-Before writing mutations against an unfamiliar resource or ability, call `.describe()` to fetch the live JSON Schema for that endpoint, then convert it with `z.fromJSONSchema()` and pass it to `create()`, `update()`, or `.inputSchema()`.
+Before writing mutations against an unfamiliar resource or ability, call `.describe()` to fetch the live JSON Schema for that endpoint, then convert it with `z.fromJSONSchema()` and validate the payload before sending it.
 
 ```ts
 const desc = await wp.content('books').describe();
 const schema = z.fromJSONSchema(desc.schemas.create!);
-const book = await wp.content('books').create(input, schema);
+const validatedInput = schema.parse(input);
+const book = await wp.content('books').create(validatedInput);
 ```
 
 - `wp.content(resource).describe()` — `item`, `collection`, `create`, `update` schemas

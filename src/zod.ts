@@ -154,3 +154,11 @@ export {
   createWordPressPaginator,
   type WordPressPaginatorOptions,
 } from './core/pagination.js';
+
+export {
+  zodFromJsonSchema,
+  zodSchemasFromDescription,
+  stripDateTimeFormats,
+  type ResourceZodSchemas,
+  type AbilityZodSchemas,
+} from './zod-helpers.js';

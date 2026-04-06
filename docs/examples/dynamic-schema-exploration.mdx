@@ -1,0 +1,236 @@
+---
+title: Discovery and catalog caching
+description: Explore a WordPress site once, cache the result in any KV store, convert schemas to Zod on the fly, and restore them into later client instances.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+`explore()` returns a fully serializable catalog of every registered resource. You can persist it in Redis, `localStorage`, a file, or any key-value store and hand it back to the client later via `useCatalog()`.
+
+## Inspecting capabilities
+
+Every resource description includes a `capabilities` object derived from the live OPTIONS response. No need to parse raw schemas or `raw.args` yourself:
+
+```ts
+const desc = await wp.content('pages').describe();
+
+desc.capabilities.queryParams  // ['page', 'per_page', 'search', 'lang', ...]
+desc.capabilities.readFields   // ['id', 'slug', 'title', 'content', ...]
+desc.capabilities.createFields // ['title', 'content', 'status', ...]
+desc.capabilities.updateFields // same as createFields, no required constraint
+```
+
+Plugin-added query params — WPML's `lang`, ACF format flags, or any custom collection filter — appear in `queryParams` automatically because they come directly from the site's OPTIONS response.
+
+## Caching the catalog
+
+Explore once and persist the result in any storage that accepts JSON:
+
+```ts
+import { WordPressClient, type WordPressDiscoveryCatalog } from 'fluent-wp-client';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: process.env.WP_APP_PASSWORD },
+});
+
+// Run once — e.g. at build time, in a warm-up script, or after deploys.
+const catalog = await wp.explore();
+
+// Persist to any KV store, file, or cache layer.
+await kv.set('wp:catalog', JSON.stringify(catalog));
+```
+
+## Restoring from cache
+
+On subsequent runs, load the stored catalog and pass it to `useCatalog()`.
+`describe()` will then use the cached data without making any OPTIONS requests:
+
+```ts
+const stored = JSON.parse(await kv.get('wp:catalog') ?? 'null');
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: process.env.WP_APP_PASSWORD },
+});
+
+if (stored) {
+  wp.useCatalog(stored);
+}
+
+// No network round-trip — uses the seeded cache.
+const desc = await wp.content('pages').describe();
+console.log(desc.capabilities.queryParams); // includes 'lang' when WPML is active
+```
+
+`useCatalog()` returns `this` so it can be chained inline if you prefer:
+
+```ts
+const wp = new WordPressClient({ baseUrl: 'https://example.com', auth: { ... } })
+  .useCatalog(stored);
+```
+
+## Converting discovered schemas to Zod
+
+The catalog contains plain JSON Schema objects. The `fluent-wp-client/zod` subpackage provides helpers to convert them to Zod validators at runtime — no CLI code generation step required.
+
+<Tabs>
+<TabItem label="Single schema">
+
+```ts title="Convert one JSON Schema to a Zod validator"
+import { zodFromJsonSchema } from 'fluent-wp-client/zod';
+
+const catalog = await wp.explore();
+const createSchema = zodFromJsonSchema(catalog.content.books.schemas.create!);
+
+// Validate a payload before sending it
+const validated = createSchema!.parse({
+  title: { raw: 'New Book' },
+  status: 'draft',
+  isbn: '978-3-16-148410-0',
+});
+
+await wp.content('books').create(validated);
+```
+</TabItem>
+<TabItem label="All operation schemas">
+
+```ts title="Convert all schemas for a resource at once"
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+const catalog = await wp.explore();
+const bookSchemas = zodSchemasFromDescription(catalog.content.books);
+
+// bookSchemas.item     — validate a read response
+// bookSchemas.create   — validate a create payload
+// bookSchemas.update   — validate an update payload
+// bookSchemas.collection — validate a collection response
+
+const validated = bookSchemas.create!.parse({
+  title: { raw: 'New Book' },
+  status: 'publish',
+});
+```
+</TabItem>
+<TabItem label="Ability schemas">
+
+```ts title="Convert ability input/output schemas"
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+const catalog = await wp.explore({ include: ['abilities'] });
+const calcSchemas = zodSchemasFromDescription(catalog.abilities['acme/calculate']);
+
+// Validate input before execution
+const input = calcSchemas.input!.parse({ amount: 100, currency: 'USD' });
+const result = await wp.ability('acme/calculate').run(input);
+
+// Optionally validate output
+const validated = calcSchemas.output!.parse(result);
+```
+</TabItem>
+</Tabs>
+
+:::tip[Serialization boundary]
+The catalog itself is always plain JSON — safe for `JSON.stringify`, `structuredClone`, and cross-boundary transport. Zod validators are created from the catalog at runtime and exist only in memory. This keeps the storage layer clean while giving you real validators on demand.
+:::
+
+## Multi-site pattern
+
+When your app manages multiple WordPress instances, combine catalog caching with runtime Zod conversion so each client adapts to its site:
+
+```ts title="Per-site schema discovery"
+import { WordPressClient } from 'fluent-wp-client';
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+async function validateAndCreate(
+  siteUrl: string,
+  auth: { username: string; password: string },
+  postData: unknown,
+) {
+  const wp = new WordPressClient({ baseUrl: siteUrl, auth });
+
+  // Check for a cached catalog first
+  const stored = JSON.parse(await kv.get(`wp:catalog:${siteUrl}`) ?? 'null');
+  if (stored) wp.useCatalog(stored);
+
+  // Explore if not cached
+  const catalog = stored ?? await wp.explore({ include: ['content'] });
+  if (!stored) await kv.set(`wp:catalog:${siteUrl}`, JSON.stringify(catalog));
+
+  // Convert to Zod — reflects this site's actual fields
+  const schemas = zodSchemasFromDescription(catalog.content.posts);
+  const validated = schemas.create!.parse(postData);
+
+  return wp.content('posts').create(validated);
+}
+```
+
+## Discovering and extracting ACF relations
+
+`explore()` returns the full item schema for every post type, including ACF field shapes. Combined with embed extraction helpers, you can discover and extract ACF relation data without hard-coding field names.
+
+:::note[ACF setup requirement]
+ACF fields must have `show_in_rest: true` for embed-based extraction to work.
+:::
+
+```ts title="Discover embeddable relations from a post"
+import {
+  WordPressClient,
+  getEmbeddableLinkKeys,
+  getAcfFieldPosts,
+  getAcfFieldPost,
+  getAcfFieldTerms,
+} from 'fluent-wp-client';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: process.env.WP_APP_PASSWORD },
+});
+
+// Restore a previously stored catalog if available.
+const stored = JSON.parse(await kv.get('wp:catalog') ?? 'null');
+if (stored) wp.useCatalog(stored);
+
+// Explore content types (uses cached catalog when available).
+const catalog = await wp.explore({ include: ['content'] });
+
+for (const restBase of Object.keys(catalog.content)) {
+  // Discover which embed keys this post type supports.
+  const sample = await wp.content(restBase).item(1, { fields: ['id', '_links'] }).catch(() => null);
+  if (!sample) continue;
+
+  const embeddable = getEmbeddableLinkKeys(sample);
+  console.log(restBase, 'embeddable keys:', embeddable);
+  // e.g. ['author', 'wp:term', 'wp:featuredmedia', 'acf:post', 'acf:term', ...]
+
+  // Fetch posts with all embeddable relations.
+  const posts = await wp.content(restBase).list({
+    status: 'publish',
+    perPage: 100,
+    embed: true,
+  });
+
+  for (const post of posts) {
+    // Extract ACF relations using typed helpers.
+    const relatedPosts = getAcfFieldPosts(post, 'acf_related_posts');
+    const featuredPost = getAcfFieldPost(post, 'acf_featured_post');
+    const relatedTerms = getAcfFieldTerms(post, 'acf_related_genres');
+
+    console.log(post.slug, {
+      relatedPosts: relatedPosts.length,
+      featuredPost: featuredPost?.id,
+      relatedTerms: relatedTerms.length,
+    });
+  }
+}
+```
+
+:::tip[Persist after explore]
+Store the catalog after a full explore to avoid repeating OPTIONS requests on every startup:
+
+```ts
+if (!stored) {
+  await kv.set('wp:catalog', JSON.stringify(catalog));
+}
+```
+:::

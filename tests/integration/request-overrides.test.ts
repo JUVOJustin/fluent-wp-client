@@ -426,7 +426,7 @@ describe('Client: request-scoped mutation overrides', () => {
     const defaultBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001' });
     const embeddedBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001', embed: true });
     const plainItem = await client.content('posts').item('test-post-001');
-    const relatedItem = await client.content('posts').item('test-post-002').with('author');
+    const relatedItem = await client.content('posts').item('test-post-002', { embed: true });
 
     expect(defaultPosts).toHaveLength(1);
     expect(embeddedPosts).toHaveLength(1);
@@ -552,51 +552,4 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.usedInjectedSlugParam).toBe(false);
   });
 
-  it('merges nested headers instead of overwriting them', async () => {
-    const seen: { headers?: Record<string, string> } = {};
-
-    const client = createObservedAuthClient((method, url, headers) => {
-      if (method !== 'POST') {
-        return;
-      }
-
-      if (url.pathname.endsWith('/wp-json/wp/v2/posts')) {
-        // Convert Headers to plain object for inspection
-        const headerObj: Record<string, string> = {};
-        headers.forEach((value, key) => {
-          headerObj[key] = value;
-        });
-        seen.headers = headerObj;
-      }
-    });
-
-    // Create with headers in both arguments - should merge, not overwrite
-    const created = await client.content('posts').create(
-      {
-        title: 'Headers merge test',
-        status: 'draft',
-      },
-      {
-        headers: {
-          'x-base-header': 'base-value',
-          'x-shared-header': 'base-shared',
-        },
-      },
-      {
-        headers: {
-          'x-override-header': 'override-value',
-          'x-shared-header': 'override-shared',
-        },
-      },
-    );
-
-    await client.content('posts').delete(created.id, { force: true });
-
-    // Verify headers were merged properly
-    expect(seen.headers).toBeDefined();
-    expect(seen.headers?.['x-base-header']).toBe('base-value');
-    expect(seen.headers?.['x-override-header']).toBe('override-value');
-    // Second headers should override first for same key
-    expect(seen.headers?.['x-shared-header']).toBe('override-shared');
-  });
 });

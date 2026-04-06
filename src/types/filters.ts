@@ -29,8 +29,15 @@ export interface BaseContentFilter extends PaginationParams {
  * Shared content filter fields for endpoints that support WordPress `_embed`.
  */
 export interface EmbeddableContentFilter extends BaseContentFilter {
-  /** Opts into WordPress `_embed` for content reads. Disabled by default. */
-  embed?: boolean;
+  /**
+   * Controls WordPress `_embed` for content reads. Disabled by default.
+   *
+   * - `true` embeds all linked resources.
+   * - A string array selects specific link relation types, e.g. `['author', 'wp:term']`.
+   *
+   * @see https://developer.wordpress.org/rest-api/using-the-rest-api/global-parameters/#_embed
+   */
+  embed?: boolean | string[];
 }
 
 /**

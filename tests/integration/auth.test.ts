@@ -2,7 +2,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import {
   WordPressApiError,
   WordPressClient,
-  WordPressSchemaValidationError,
   jwtAuthErrorResponseSchema,
   jwtAuthTokenResponseSchema,
   jwtAuthValidationResponseSchema,
@@ -154,27 +153,4 @@ describe('Client: Auth', () => {
     expect(result.data).toBeDefined();
   });
 
-  it('settings().update accepts a custom responseSchema override and returns a narrowed type', async () => {
-    const authClient = createAuthClient();
-
-    const minimalSettingsSchema = {
-      '~standard': {
-        validate: (value: unknown) => {
-          const obj = value as Record<string, unknown>;
-          if (typeof obj?.title !== 'string') {
-            return { issues: [{ message: 'title must be a string', path: ['title'] }] };
-          }
-          return { value: { title: obj.title } };
-        },
-      },
-    };
-
-    const result = await authClient.settings().update(
-      { title: 'Test Site Title Override' },
-      minimalSettingsSchema as any,
-    );
-
-    expect(typeof result.title).toBe('string');
-    expect((result as any).description).toBeUndefined();
-  });
 });

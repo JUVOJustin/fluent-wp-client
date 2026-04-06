@@ -151,6 +151,10 @@ WP_CLI::success( 'Tags created: ' . implode( ', ', array_keys( $tag_ids ) ) );
 /* Posts — 150 total, 30 per category                                 */
 /* ------------------------------------------------------------------ */
 
+// Get admin user ID for post author
+$admin_user = get_user_by( 'login', 'admin' );
+$post_author_id = $admin_user ? $admin_user->ID : 1;
+
 $category_slugs = array_keys( $category_ids );
 
 // Tag assignment per category group
@@ -187,6 +191,7 @@ for ( $i = 1; $i <= 150; $i++ ) {
 		'post_excerpt' => "Excerpt for test post $padded",
 		'post_status'  => 'publish',
 		'post_type'    => 'post',
+		'post_author'  => $post_author_id,
 		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-01 +{$i} hours" ) ),
 	], true );
 
@@ -252,6 +257,7 @@ foreach ($page_definitions as $index => $def) {
 		'post_content' => "<!-- wp:paragraph -->\n<p>{$def['content']}</p>\n<!-- /wp:paragraph -->",
 		'post_status'  => 'publish',
 		'post_type'    => 'page',
+		'post_author'  => $post_author_id,
 		'menu_order'   => $index + 1,
 		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-01 +{$index} hours" ) ),
 		'post_parent'  => 0,
@@ -323,6 +329,7 @@ foreach ($child_page_definitions as $index => $def) {
 		'post_content' => "<!-- wp:paragraph -->\n<p>{$def['content']}</p>\n<!-- /wp:paragraph -->",
 		'post_status'  => 'publish',
 		'post_type'    => 'page',
+		'post_author'  => $post_author_id,
 		'post_parent'  => $parent_id,
 		'menu_order'   => $index + 1,
 		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-15 +{$index} hours" ) ),
@@ -361,6 +368,7 @@ for ( $i = 1; $i <= 10; $i++ ) {
 		'post_excerpt' => "Excerpt for test book $padded",
 		'post_status'  => 'publish',
 		'post_type'    => 'book',
+		'post_author'  => $post_author_id,
 		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-01 +{$i} hours" ) ),
 	], true );
 
@@ -397,6 +405,7 @@ for ( $i = 1; $i <= 3; $i++ ) {
 		'post_excerpt' => "Hidden artifact excerpt $padded",
 		'post_status'  => 'publish',
 		'post_type'    => 'artifact',
+		'post_author'  => $post_author_id,
 		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-02-01 +{$i} hours" ) ),
 	], true );
 

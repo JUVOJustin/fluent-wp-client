@@ -43,7 +43,7 @@ export const getPageTool = (
   needsApproval: options?.needsApproval,
   inputSchema: contentGetInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const contentOpts = merged as { includeContent?: boolean; includeBlocks?: boolean };
     if (merged.id) return resolveContentQuery(client.content('pages').item(merged.id as number) as unknown as ContentQueryLike<WordPressPage | undefined>, contentOpts);
     if (merged.slug) return resolveContentQuery(client.content('pages').item(merged.slug as string) as unknown as ContentQueryLike<WordPressPage | undefined>, contentOpts);
@@ -63,7 +63,7 @@ export const createPageTool = (
   needsApproval: options?.needsApproval,
   inputSchema: postCreateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content('pages').create(withInput.input as Record<string, unknown>);
   }),
@@ -81,7 +81,7 @@ export const updatePageTool = (
   needsApproval: options?.needsApproval,
   inputSchema: postUpdateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content('pages').update(withInput.id as number, withInput.input as Record<string, unknown>);
   }),
@@ -99,7 +99,7 @@ export const deletePageTool = (
   needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     return client.content('pages').delete(merged.id as number, { force: merged.force as boolean | undefined });
   }),
 });

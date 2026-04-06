@@ -1,7 +1,7 @@
 ---
 title: fluent-wp-client
 short_title: Overview
-description: Runtime-agnostic TypeScript client for the WordPress REST API with typed CRUD, auth, relations, and an optional Gutenberg block add-on.
+description: Runtime-agnostic TypeScript client for the WordPress REST API with typed CRUD, auth, embed extraction, and an optional Gutenberg block add-on.
 sidebar:
   order: 1
 ---
@@ -32,11 +32,15 @@ import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 3. Use it
 
    ```ts
+   import { getEmbeddedAuthor, getEmbeddedTerms } from 'fluent-wp-client';
+
    // List posts
    const posts = await wp.content('posts').list({ perPage: 10 });
 
-   // Get a single item with relations
-   const book = await wp.content('books').item('my-book').with('author', 'terms');
+   // Get a single item with embedded relations
+   const book = await wp.content('books').item('my-book', { embed: true });
+   const author = getEmbeddedAuthor(book);
+   const genres = getEmbeddedTerms(book, 'genre');
 
    // Create (requires auth)
    const draft = await wp.content('posts').create({ title: 'Hello', status: 'draft' });
@@ -56,7 +60,7 @@ import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 - **Unified content builders** — `content('posts')`, `content('books')`, `terms('genre')` share one API shape
 - **First-class resource clients** — `media()`, `comments()`, `users()`, `settings()`
 - **Cross-resource search** — `searchContent()` across posts, pages, and CPTs
-- **Smart relation hydration** — `.with('author', 'categories')` returns typed data with automatic fallbacks
+- **Embed and extraction helpers** — `embed: true` or selective `embed: ['author', 'wp:term']` plus typed extraction functions
 - **Lean payloads** — no `_embed` overhead by default
 - **Flexible CPT defaults** — tolerates post types that omit `title`, `content`, or `excerpt`
 - **Gutenberg block add-on** — `fluent-wp-client/blocks` for block discovery, parsing, validation, and writes
@@ -66,7 +70,7 @@ import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 - **Schema discovery** — fetch live JSON Schemas, convert to Zod with `z.fromJSONSchema()`
 - **CLI code generation** — generate TypeScript, JSON Schema, and Zod-ready artifacts from live REST schemas
 - **Standard Schema validation** — validator-agnostic root exports; native Zod via `fluent-wp-client/zod`
-- **Extensible relations** — register custom relations for ACF, plugins, shared embed buckets
+- **ACF extraction helpers** — `getAcfFieldPosts()`, `getAcfFieldPost()`, `getAcfFieldTerms()` for ACF relation fields
 
 ## Guides
 
@@ -74,7 +78,7 @@ import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
   <LinkCard
     title="Usage guide"
     href="./usage"
-    description="API styles, method reference, relations, CRUD, pagination, and errors."
+    description="API styles, method reference, embed extraction, CRUD, pagination, and errors."
   />
   <LinkCard
     title="Authentication"
@@ -112,12 +116,12 @@ import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
     description="Standard Schema, Zod, Valibot, or ArkType."
   />
   <LinkCard
-    title="Extensible relations"
-    href="./extensible-relations"
-    description="ACF helpers, plugin embeds, and custom relation registries."
+    title="Embed extraction"
+    href="./usage"
+    description="Embed parameters, extraction helpers, and ACF relation extraction."
   />
 </CardGrid>
 
 ## Development notes
 
-Contributor-facing transport, mutation helpers, query primitives, and base resource classes live in `src/core/`. Relation contracts and builders live in `src/builders/`. The public API is re-exported from `src/index.ts`.
+Contributor-facing transport, mutation helpers, query primitives, and base resource classes live in `src/core/`. Query builders live in `src/builders/`. The public API is re-exported from `src/index.ts`.

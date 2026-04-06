@@ -40,7 +40,7 @@ export const getMediaItemTool = (
   needsApproval: options?.needsApproval,
   inputSchema: simpleGetInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     if (merged.id) return client.media().item(merged.id as number);
     if (merged.slug) return client.media().item(merged.slug as string);
     throw new Error('Either id or slug must be provided.');
@@ -59,7 +59,7 @@ export const deleteMediaTool = (
   needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     return client.media().delete(merged.id as number, { force: merged.force as boolean | undefined });
   }),
 });

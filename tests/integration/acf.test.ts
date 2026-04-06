@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient, contentWordPressSchema, createBasicAuthHeader } from 'fluent-wp-client';
+import { WordPressClient, createBasicAuthHeader } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-client';
 
 type ResourceName = 'posts' | 'pages' | 'books';
@@ -66,7 +66,7 @@ function createResourceHarness(client: WordPressClient, resource: ResourceName):
     };
   }
 
-  const books = client.content('books', contentWordPressSchema);
+  const books = client.content('books');
 
   return {
     create: (input) => books.create(input),

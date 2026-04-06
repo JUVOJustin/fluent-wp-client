@@ -365,12 +365,13 @@ export class WordPressTransport {
    */
   async loginWithJwt<TJwtResponse = JwtAuthTokenResponse>(
     credentials: JwtLoginCredentials,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TJwtResponse> {
-    const { data, response } = await this.request<unknown>({
+    const { data, response } = await this.request<unknown>(applyRequestOverrides({
       endpoint: '/wp-json/jwt-auth/v1/token',
       method: 'POST',
       body: credentials,
-    });
+    }, requestOptions));
 
     throwIfWordPressError(response, data);
     return data as TJwtResponse;
@@ -381,16 +382,17 @@ export class WordPressTransport {
    */
   async validateJwtToken<TJwtValidation = JwtAuthValidationResponse>(
     token?: string | JwtAuthCredentials,
+    requestOptions?: WordPressRequestOverrides,
   ): Promise<TJwtValidation> {
     const authHeader = token
       ? createJwtAuthHeader(typeof token === 'string' ? token : token.token)
       : undefined;
 
-    const { data, response } = await this.request<unknown>({
+    const { data, response } = await this.request<unknown>(applyRequestOverrides({
       endpoint: '/wp-json/jwt-auth/v1/token/validate',
       method: 'POST',
       auth: authHeader,
-    });
+    }, requestOptions));
 
     throwIfWordPressError(response, data);
     return data as TJwtValidation;

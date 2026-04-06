@@ -1,13 +1,8 @@
-import { PostRelationQueryBuilder } from './builders/relations.js';
-import type {
-  AllPostRelations,
-  ContentItemResult,
-} from './builders/relations.js';
+import { ContentItemQuery } from './builders/content-item-query.js';
 import { WordPressClient } from './client.js';
 import { type WordPressRawContentResult } from './content-query.js';
 import { ExecutableQuery } from './core/query-base.js';
 import type { WordPressRuntime } from './core/transport.js';
-import type { WordPressStandardSchema } from './core/validation.js';
 import { BlockTypesResource, createBlocksClient } from './resources/block-types.js';
 import type {
   WordPressBlockType,
@@ -58,33 +53,18 @@ function normalizeSetBlocksOptions(
  * Promise-like query that adds a dedicated `.blocks()` namespace on top of one content item query.
  */
 export class BlockContentItemQuery<
-  TRelations extends readonly AllPostRelations[] = [],
   TContent extends WordPressPostLike = WordPressPostLike,
   TFilter extends QueryParams & PaginationParams = QueryParams & PaginationParams,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
-> extends ExecutableQuery<ContentItemResult<TContent, TRelations> | undefined> {
+> extends ExecutableQuery<TContent | undefined> {
   constructor(
     private readonly resource: string,
     private readonly selector: number | string,
     private readonly contentClient: ContentResourceClient<TContent, TFilter, TCreate, TUpdate>,
-    private readonly baseQuery: PostRelationQueryBuilder<TRelations, TContent>,
+    private readonly baseQuery: ContentItemQuery<TContent>,
   ) {
     super();
-  }
-
-  /**
-   * Adds relation names to the underlying content query while preserving the block namespace.
-   */
-  with<TNext extends readonly AllPostRelations[]>(
-    ...relations: TNext
-  ): BlockContentItemQuery<[...TRelations, ...TNext], TContent, TFilter, TCreate, TUpdate> {
-    return new BlockContentItemQuery(
-      this.resource,
-      this.selector,
-      this.contentClient,
-      this.baseQuery.with(...relations),
-    );
   }
 
   /**
@@ -152,10 +132,10 @@ export class BlockContentItemQuery<
   }
 
   /**
-   * Delegates execution to the underlying relation query builder.
+   * Delegates execution to the underlying content item query.
    */
-  protected execute(): Promise<ContentItemResult<TContent, TRelations> | undefined> {
-    return Promise.resolve(this.baseQuery) as Promise<ContentItemResult<TContent, TRelations> | undefined>;
+  protected execute(): Promise<TContent | undefined> {
+    return Promise.resolve(this.baseQuery) as Promise<TContent | undefined>;
   }
 }
 
@@ -170,8 +150,8 @@ export type BlockAwareContentResourceClient<
 > = Omit<ContentResourceClient<TResource, TFilter, TCreate, TUpdate>, 'item'> & {
   item: (
     idOrSlug: number | string,
-    options?: WordPressRequestOverrides & { embed?: boolean; fields?: string[] },
-  ) => BlockContentItemQuery<[], TResource, TFilter, TCreate, TUpdate>;
+    options?: WordPressRequestOverrides & { embed?: boolean | string[]; fields?: string[] },
+  ) => BlockContentItemQuery<TResource, TFilter, TCreate, TUpdate>;
 };
 
 /**
@@ -180,26 +160,14 @@ export type BlockAwareContentResourceClient<
 export interface WordPressBlocksExtension {
   readonly baseClient: WordPressClient;
   blocks(): BlocksResourceClient<WordPressBlockType, ExtensibleFilter<BlockTypesFilter>>;
-  blocks<TResource extends WordPressBlockType>(
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): BlocksResourceClient<TResource, ExtensibleFilter<BlockTypesFilter>>;
   content(
     resource: 'posts',
   ): BlockAwareContentResourceClient<WordPressPost, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
-  content<TResource extends WordPressPostLike>(
-    resource: 'posts',
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): BlockAwareContentResourceClient<TResource, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
   content(
     resource: 'pages',
   ): BlockAwareContentResourceClient<WordPressPage, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
-  content<TResource extends WordPressPostLike>(
-    resource: 'pages',
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): BlockAwareContentResourceClient<TResource, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-    responseSchema?: WordPressStandardSchema<TResource>,
   ): BlockAwareContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload>;
 }
 
@@ -250,21 +218,13 @@ class WordPressBlocksSupport {
     this.runtime = getClientRuntime(baseClient);
   }
 
-  blocks(): BlocksResourceClient<WordPressBlockType, ExtensibleFilter<BlockTypesFilter>>;
-  blocks<TResource extends WordPressBlockType>(
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): BlocksResourceClient<TResource, ExtensibleFilter<BlockTypesFilter>>;
-  blocks<TResource extends WordPressBlockType = WordPressBlockType>(
-    responseSchema?: WordPressStandardSchema<TResource>,
-  ): BlocksResourceClient<TResource, ExtensibleFilter<BlockTypesFilter>> {
+  blocks(): BlocksResourceClient<WordPressBlockType, ExtensibleFilter<BlockTypesFilter>> {
     const discoveryMethods = createDiscoveryMethods(this.runtime);
     const cachedResource = blocksResourceCache.get(this.baseClient);
-    const resource = responseSchema
-      ? new BlockTypesResource(this.runtime, responseSchema)
-      : (cachedResource ?? new BlockTypesResource(this.runtime)) as BlockTypesResource<TResource>;
+    const resource = cachedResource ?? new BlockTypesResource(this.runtime);
 
-    if (!cachedResource && !responseSchema) {
-      blocksResourceCache.set(this.baseClient, resource as unknown as BlockTypesResource);
+    if (!cachedResource) {
+      blocksResourceCache.set(this.baseClient, resource);
     }
 
     return createBlocksClient(
@@ -276,24 +236,18 @@ class WordPressBlocksSupport {
   content(
     resource: 'posts',
   ): BlockAwareContentResourceClient<WordPressPost, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
-  content<TResource extends WordPressPostLike>(
-    resource: 'posts',
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): BlockAwareContentResourceClient<TResource, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
   content(
     resource: 'pages',
   ): BlockAwareContentResourceClient<WordPressPage, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
-  content<TResource extends WordPressPostLike>(
-    resource: 'pages',
-    responseSchema: WordPressStandardSchema<TResource>,
-  ): BlockAwareContentResourceClient<TResource, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-    responseSchema?: WordPressStandardSchema<TResource>,
+  ): BlockAwareContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload>;
+  content<TResource extends WordPressPostLike = WordPressPostLike>(
+    resource: string,
   ): BlockAwareContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
     return createBlockAwareContentClient(
       resource,
-      this.baseClient.content(resource, responseSchema),
+      this.baseClient.content(resource) as any,
     );
   }
 }

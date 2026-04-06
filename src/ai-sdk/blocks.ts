@@ -1,10 +1,40 @@
 import { z } from 'zod';
 import { tool } from 'ai';
 import type { WordPressClient } from '../client.js';
+import type { WordPressDiscoveryCatalog } from '../types/discovery.js';
 import { assertValidWordPressBlocks, parseWordPressBlocks, serializeWordPressBlocks, type WordPressParsedBlock } from '../blocks.js';
 import { mergeToolArgs } from './merge.js';
 import { asToolArgs, withToolErrorHandling } from './factories.js';
-import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
+import type { ContentMutationToolFactoryOptions, ContentToolFactoryOptions } from './types.js';
+
+function createContentTypeSelector(catalog?: WordPressDiscoveryCatalog) {
+  const contentTypes = Object.keys(catalog?.content ?? {});
+  if (contentTypes.length === 1) {
+    return z.literal(contentTypes[0]);
+  }
+
+  if (contentTypes.length > 1) {
+    return z.enum(contentTypes as [string, ...string[]]);
+  }
+
+  return z.string();
+}
+
+function createBlocksReadInputSchema(config: { catalog?: WordPressDiscoveryCatalog; contentType?: string }) {
+  if (config.contentType) {
+    return z.object({
+      id: z.number().int().describe('ID of the item to read blocks from'),
+    }).describe(`Read the Gutenberg block structure of a ${config.contentType} item`);
+  }
+
+  return z.object({
+    contentType: createContentTypeSelector(config.catalog)
+      .describe('REST base of the post-like resource, e.g. posts, pages, or books'),
+    id: z.number().int().describe('ID of the item to read blocks from'),
+  }).describe(
+    'Read the Gutenberg block structure of a post-like resource. Requires authentication with edit capabilities for the item.',
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Input schemas
@@ -14,7 +44,7 @@ import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js'
  * Input schema for reading blocks from any post-like resource.
  */
 export const getBlocksInputSchema = z.object({
-  resource: z.string()
+  contentType: z.string()
     .describe('REST base of the resource, e.g. "posts", "pages", or a custom post type like "books"'),
   id: z.number().int()
     .describe('ID of the item to read blocks from'),
@@ -46,7 +76,7 @@ const parsedBlockSchema: z.ZodType<WordPressParsedBlock> = z.lazy(() =>
  * Input schema for writing blocks to any post-like resource.
  */
 export const setBlocksInputSchema = z.object({
-  resource: z.string()
+  contentType: z.string()
     .describe('REST base of the resource, e.g. "posts", "pages", or a custom post type like "books"'),
   id: z.number().int()
     .describe('ID of the item to update'),
@@ -61,6 +91,34 @@ export const setBlocksInputSchema = z.object({
   'Requires authentication with edit capabilities for the item.',
 );
 
+function createBlocksWriteInputSchema(config: { catalog?: WordPressDiscoveryCatalog; contentType?: string }) {
+  if (config.contentType) {
+    return z.object({
+      id: z.number().int().describe('ID of the item to update'),
+      blocks: setBlocksInputSchema.shape.blocks,
+    }).describe(`Write Gutenberg blocks to a ${config.contentType} item`);
+  }
+
+  return z.object({
+    contentType: createContentTypeSelector(config.catalog)
+      .describe('REST base of the post-like resource, e.g. posts, pages, or books'),
+    id: z.number().int().describe('ID of the item to update'),
+    blocks: setBlocksInputSchema.shape.blocks,
+  }).describe(setBlocksInputSchema.description ?? 'Write a Gutenberg block structure to a post-like resource');
+}
+
+function resolveContentType(
+  merged: Record<string, unknown>,
+  options?: { contentType?: string },
+): string {
+  const contentType = options?.contentType ?? (typeof merged.contentType === 'string' ? merged.contentType : undefined);
+  if (!contentType) {
+    throw new Error('contentType must be provided either in the tool config or the tool input.');
+  }
+
+  return contentType;
+}
+
 // ---------------------------------------------------------------------------
 // Tool factories
 // ---------------------------------------------------------------------------
@@ -73,31 +131,34 @@ export const setBlocksInputSchema = z.object({
  */
 export const getBlocksTool = (
   client: WordPressClient,
-  options?: ToolFactoryOptions<Record<string, unknown>>,
-) => tool({
+  options?: ContentToolFactoryOptions<Record<string, unknown>>,
+) => {
+  const resolvedOptions = { ...options, catalog: options?.catalog ?? client.getCachedCatalog() };
+  return tool({
   description: options?.description ??
     'Read the Gutenberg block structure of a post, page, or custom post type item. Requires edit-level authentication.',
   strict: options?.strict,
-  needsApproval: options?.needsApproval,
-  inputSchema: getBlocksInputSchema,
-  execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
-    const resource = merged.resource as string;
+  needsApproval: options?.needsApproval as never,
+  inputSchema: (options?.inputSchema ?? createBlocksReadInputSchema(resolvedOptions)) as never,
+  execute: withToolErrorHandling(async (args: unknown) => {
+    const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
+    const contentType = resolveContentType(merged, options);
     const id = merged.id as number;
 
-    const content = await client.content(resource).item(id).getContent();
+    const content = await client.content(contentType).item(id).getContent();
     const raw = content?.raw;
     if (!raw) {
       throw new Error(
-        `Raw content unavailable for ${resource}/${id}. ` +
+        `Raw content unavailable for ${contentType}/${id}. ` +
         'Ensure the client is authenticated with edit capabilities for this item.',
       );
     }
 
     const blocks = await parseWordPressBlocks(raw);
-    return { id, resource, blocks };
+    return { id, contentType, blocks };
   }),
-});
+  });
+};
 
 /**
  * AI SDK tool that writes a Gutenberg block tree to any post-like resource.
@@ -108,16 +169,18 @@ export const getBlocksTool = (
  */
 export const setBlocksTool = (
   client: WordPressClient,
-  options?: MutationToolFactoryOptions<Record<string, unknown>>,
-) => tool({
+  options?: ContentMutationToolFactoryOptions<Record<string, unknown>>,
+) => {
+  const resolvedOptions = { ...options, catalog: options?.catalog ?? client.getCachedCatalog() };
+  return tool({
   description: options?.description ??
     'Write a Gutenberg block structure to a post, page, or custom post type item. Replaces the full content. Requires edit-level authentication.',
   strict: options?.strict,
-  needsApproval: options?.needsApproval,
-  inputSchema: setBlocksInputSchema,
-  execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
-    const resource = merged.resource as string;
+  needsApproval: options?.needsApproval as never,
+  inputSchema: (options?.inputSchema ?? createBlocksWriteInputSchema(resolvedOptions)) as never,
+  execute: withToolErrorHandling(async (args: unknown) => {
+    const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
+    const contentType = resolveContentType(merged, options);
     const id = merged.id as number;
     const blocks = merged.blocks as WordPressParsedBlock[];
 
@@ -125,7 +188,8 @@ export const setBlocksTool = (
 
     const rawContent = serializeWordPressBlocks(blocks);
 
-    const result = await client.content(resource).update(id, { content: rawContent });
-    return { id, resource, updated: true, result };
+    const result = await client.content(contentType).update(id, { content: rawContent });
+    return { id, contentType, updated: true, result };
   }),
-});
+  });
+};

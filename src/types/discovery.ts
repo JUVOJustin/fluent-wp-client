@@ -33,6 +33,36 @@ export interface WordPressAbilitySchemaSet {
 }
 
 /**
+ * Normalized capability surface for a REST resource endpoint.
+ *
+ * Derived from the raw OPTIONS response so callers never need to parse
+ * `raw.args` or walk `schemas.item.properties` themselves.
+ *
+ * All fields are plain serializable string arrays — safe to store in any
+ * KV store and load back via `wp.useCatalog()`.
+ */
+export interface WordPressResourceCapabilities {
+  /**
+   * Query params accepted by the collection GET endpoint.
+   * Includes plugin-added params such as `lang` (WPML), `acf_format`, etc.
+   */
+  queryParams: string[];
+  /**
+   * Fields present on item read responses (`GET /resource/:id`).
+   */
+  readFields: string[];
+  /**
+   * Fields accepted by the create endpoint (`POST /resource`).
+   */
+  createFields: string[];
+  /**
+   * Fields accepted by the update endpoint (`POST /resource/:id`).
+   * Identical to `createFields` but with no required constraints.
+   */
+  updateFields: string[];
+}
+
+/**
  * Description of a content or term resource with its schemas.
  */
 export interface WordPressResourceDescription {
@@ -43,6 +73,12 @@ export interface WordPressResourceDescription {
   namespace: string;  // usually wp/v2
   route: string;      // e.g., /wp-json/wp/v2/books
   schemas: WordPressResourceSchemaSet;
+  /**
+   * Normalized capability surface derived from the OPTIONS response.
+   * Present on freshly fetched descriptions and on catalogs loaded via
+   * `wp.useCatalog()` when the catalog was produced by this package.
+   */
+  capabilities?: WordPressResourceCapabilities;
   raw?: Record<string, unknown>;
 }
 

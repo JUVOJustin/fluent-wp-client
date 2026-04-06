@@ -7,12 +7,15 @@ import type {
 } from '../types/resources.js';
 
 interface EmbeddableQueryParams extends QueryParams {
-  embed?: boolean;
+  embed?: boolean | string[];
   _embed?: QueryParamValue;
 }
 
 /**
- * Normalizes the public `embed` toggle to the WordPress `_embed` query param.
+ * Normalizes the public `embed` option to the WordPress `_embed` query param.
+ *
+ * - `true` sends `_embed=true` (all embeddable link relations).
+ * - A string array sends a comma-separated list, e.g. `_embed=author,wp:term`.
  */
 export function resolveEmbedQueryParams(
   params: QueryParams = {},
@@ -22,6 +25,13 @@ export function resolveEmbedQueryParams(
 ): QueryParams {
   const { defaultEmbed = false } = options;
   const { embed, _embed, ...rest } = params as EmbeddableQueryParams;
+
+  if (Array.isArray(embed) && embed.length > 0) {
+    return {
+      ...rest,
+      _embed: embed.join(','),
+    };
+  }
 
   if (embed === true) {
     return {

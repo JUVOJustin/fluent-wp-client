@@ -1,4 +1,5 @@
 import type { DiscoveredResource, WPSchemaProperty, WPRouteSchema } from './discover.js';
+import { stripDateTimeFormats } from '../zod-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -23,42 +24,6 @@ function filterProperties(schema: WPRouteSchema): Record<string, WPSchemaPropert
     if (prop.readonly === true && key === '_links') continue;
     out[key] = prop;
   }
-  return out;
-}
-
-// ---------------------------------------------------------------------------
-// Normalization
-// ---------------------------------------------------------------------------
-
-/**
- * Strips `format: "date-time"` from all properties recursively.
- *
- * WordPress REST schemas mark date fields as `{ type: "string", format: "date-time" }`
- * but WordPress itself returns dates without a trailing `Z` (e.g. `2025-01-01T12:00:00`),
- * which fails Zod v4's strict ISO 8601 datetime validation. Stripping the format
- * makes these fields validate as plain strings while preserving every other constraint.
- */
-function stripDateTimeFormats(schema: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(schema)) {
-    if (key === 'format' && value === 'date-time') {
-      continue;
-    }
-
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      out[key] = stripDateTimeFormats(value as Record<string, unknown>);
-    } else if (Array.isArray(value)) {
-      out[key] = value.map((item) =>
-        typeof item === 'object' && item !== null
-          ? stripDateTimeFormats(item as Record<string, unknown>)
-          : item,
-      );
-    } else {
-      out[key] = value;
-    }
-  }
-
   return out;
 }
 

@@ -1,16 +1,13 @@
 /**
- * Deep-merges tool arguments following the defaultArgs -> modelArgs -> fixedArgs
+ * Deep-merges tool arguments following the modelArgs -> fixedArgs
  * precedence chain. Plain objects are merged recursively; all other values are
  * replaced by the higher-precedence source.
  */
 export function mergeToolArgs<T extends Record<string, unknown>>(
-  defaults: Partial<T> | undefined,
   model: T,
   fixed: Partial<T> | undefined,
 ): T {
-  const base = defaults ? deepMerge({} as T, defaults as T) : ({} as T);
-  const withModel = deepMerge(base, model);
-  return fixed ? deepMerge(withModel, fixed as T) : withModel;
+  return fixed ? deepMerge({ ...model }, fixed as T) : { ...model };
 }
 
 /**

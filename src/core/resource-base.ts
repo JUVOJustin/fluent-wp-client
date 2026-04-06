@@ -7,7 +7,6 @@ import type {
   WordPressDeleteResult,
 } from '../types/resources.js';
 import type { WordPressWritePayload, DeleteOptions } from '../types/payloads.js';
-import type { WordPressStandardSchema } from './validation.js';
 import type { WordPressRuntime } from './transport.js';
 import { createWordPressPaginator, type ListAllOptions } from './pagination.js';
 import {
@@ -18,8 +17,6 @@ import {
 } from './params.js';
 import { applyRequestOverrides } from './request-overrides.js';
 import { throwIfWordPressError } from './errors.js';
-import { validateWithStandardSchema } from './validation.js';
-import { resolveMutationArguments } from './mutation-helpers.js';
 
 /**
  * Dependencies required for resource operations.
@@ -30,15 +27,13 @@ export interface ResourceContext {
 }
 
 /**
- * Shared CRUD resource context with optional default mutation validation.
+ * Shared CRUD resource context.
  */
-export interface CrudResourceContext<TResource> extends ResourceContext {
-  defaultSchema?: WordPressStandardSchema<TResource>;
-}
+export type CrudResourceContext = ResourceContext;
 
 /**
  * Base class for collection-based WordPress resources.
- * 
+ *
  * Provides shared implementations for:
  * - list (single page)
  * - listAll (all pages via pagination)
@@ -128,7 +123,7 @@ export abstract class BaseCollectionResource<TResource, TFilter extends Paginati
 
 /**
  * Base class for resources with CRUD operations.
- * 
+ *
  * Extends BaseCollectionResource with create, update, and delete.
  */
 export abstract class BaseCrudResource<
@@ -137,85 +132,57 @@ export abstract class BaseCrudResource<
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > extends BaseCollectionResource<TResource, TFilter> {
-  protected readonly defaultSchema?: WordPressStandardSchema<TResource>;
-
-  constructor(context: CrudResourceContext<TResource>) {
+  constructor(context: CrudResourceContext) {
     super(context);
-    this.defaultSchema = context.defaultSchema;
   }
 
   /**
-   * Executes a mutation request with optional schema validation.
+   * Executes a mutation request and returns the raw API response.
    */
-  protected async executeMutation<T>(
+  protected async executeMutation<T = TResource>(
     options: Parameters<WordPressRuntime['request']>[0],
-    responseSchema?: WordPressStandardSchema<T>,
   ): Promise<T> {
     const { data, response } = await this.runtime.request<unknown>(options);
     throwIfWordPressError(response, data);
-
-    if (responseSchema) {
-      return validateWithStandardSchema(responseSchema, data, 'WordPress mutation response validation failed');
-    }
-
     return data as T;
   }
 
   /**
-   * Executes one create or update mutation with shared request/schema handling.
+   * Executes one create or update mutation.
    */
-  protected mutate<TResponse>(
+  protected mutate(
     endpoint: string,
     input: TCreate | TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    const resolved = resolveMutationArguments<TResponse>(
-      responseSchemaOrRequestOptions,
-      requestOptions,
-    );
-
-    return this.executeMutation<TResponse>(
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource> {
+    return this.executeMutation<TResource>(
       applyRequestOverrides({
         endpoint,
         method: 'POST',
         body: compactPayload(input),
-      }, resolved.requestOptions),
-      resolved.responseSchema ?? (this.defaultSchema as WordPressStandardSchema<TResponse> | undefined),
+      }, options),
     );
   }
 
   /**
    * Creates a new resource.
    */
-  async create<TResponse = TResource>(
+  async create(
     input: TCreate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return this.mutate(
-      this.endpoint,
-      input,
-      responseSchemaOrRequestOptions,
-      requestOptions,
-    );
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource> {
+    return this.mutate(this.endpoint, input, options);
   }
 
   /**
    * Updates an existing resource.
    */
-  async update<TResponse = TResource>(
+  async update(
     id: number,
     input: TUpdate,
-    responseSchemaOrRequestOptions?: WordPressStandardSchema<TResponse> | WordPressRequestOverrides,
-    requestOptions?: WordPressRequestOverrides,
-  ): Promise<TResponse> {
-    return this.mutate(
-      `${this.endpoint}/${id}`,
-      input,
-      responseSchemaOrRequestOptions,
-      requestOptions,
-    );
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource> {
+    return this.mutate(`${this.endpoint}/${id}`, input, options);
   }
 
   /**
@@ -238,13 +205,13 @@ export abstract class BaseCrudResource<
  * Configuration for post-like resources.
  */
 export interface PostLikeResourceContext<TContent extends WordPressPostBase = WordPressPostBase>
-  extends CrudResourceContext<TContent> {
+  extends CrudResourceContext {
   missingRawMessage: string;
 }
 
 /**
  * Base class for post-like resources (posts, pages, custom post types).
- * 
+ *
  * Extends BaseCrudResource with:
  * - Content query builders for single items with edit-context raw content access
  * - Opt-in `_embed` handling for collection filters
@@ -276,7 +243,7 @@ export abstract class BasePostLikeResource<
     id: number,
     options?: WordPressRequestOverrides,
     context?: 'edit',
-    embed = false,
+    embed: boolean | string[] = false,
     fields?: string[],
   ): Promise<TContent> {
     const params = filterToParams(
@@ -298,7 +265,7 @@ export abstract class BasePostLikeResource<
     slug: string,
     options?: WordPressRequestOverrides,
     context?: 'edit',
-    embed = false,
+    embed: boolean | string[] = false,
     fields?: string[],
   ): Promise<TContent | undefined> {
     const params = filterToParams(
@@ -314,5 +281,4 @@ export abstract class BasePostLikeResource<
 
     return items[0];
   }
-
 }

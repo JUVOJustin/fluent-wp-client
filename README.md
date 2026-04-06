@@ -37,20 +37,20 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 ## Features
 
 - **Unified typed content builders** — `content('posts')`, `content('pages')`, `content('books')`, and `terms('genre')` share one API shape, with stricter typing for built-in resources
-- **First-class fluent resource clients** — `media()`, `comments()`, `users()`, and `settings()` expose consistent `list/item/create/update/delete/describe` APIs, with `upload()` for media, `.with(...)` on item reads, and `me()` for users
+- **First-class fluent resource clients** — `media()`, `comments()`, `users()`, and `settings()` expose consistent `list/item/create/update/delete/describe` APIs, with `upload()` for media and `me()` for users
 - **Cross-resource search** — `searchContent()` queries across posts, pages, and CPTs via the `/wp/v2/search` endpoint
 - **Parallel bulk fetching** — `listAll()` fetches all pages in parallel batches for dramatic speed improvements on large datasets
 - **Rate limiting support** — `onRequest` callback lets you implement custom rate limiting or request logging
 - **Extensible collection filters** — built-in list helpers and generic resource builders accept typed core filters plus extra endpoint-specific query params
-- **Lean embedded payloads** — post-like DTO reads skip `_embed` by default, while relation hydration turns it on automatically when `.with(...)` is used
+- **Lean embedded payloads** — post-like DTO reads skip `_embed` by default; opt in with `embed: true` or selective `embed: ['author', 'wp:term']` and use typed extraction helpers
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
 - **Portable Gutenberg block add-on** — `fluent-wp-client/blocks` adds block type discovery, generated block JSON Schemas, parse/serialize/validate helpers, and explicit `.blocks().get()` / `.blocks().set()` content workflows
 - **AI SDK tool factories** — `fluent-wp-client/ai-sdk` exposes manually composable Vercel AI SDK tools for content reads, mutations, abilities, and block workflows
 - **CLI schema/code generation** — `fluent-wp-client` ships a CLI for discovering resource schemas and generating TypeScript, JSON Schema, and Zod outputs
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
-- **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
-- **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`, with schema-backed generic builders validating reads and mutations
-- **Extensible relation API** — fluent relations for posts and custom entities, plus generic ID-backed and shared link/embed relation factories
+- **WordPress Abilities API** — discover and execute registered abilities with the same upstream-validated model as the rest of WordPress
+- **Schema discovery and custom validation** — validator-agnostic root exports plus `.describe()`, `.explore()`, and CLI schema generation for app-level Zod, Valibot, or custom validation
+- **Embed extraction helpers** — `getEmbeddedAuthor()`, `getEmbeddedTerms()`, `getEmbeddedFeaturedMedia()`, `getEmbeddedParent()`, plus ACF helpers like `getAcfFieldPosts()` and `getAcfFieldTerms()`
 
 ## Gutenberg block workflows
 
@@ -111,22 +111,27 @@ Use the optional `fluent-wp-client/ai-sdk` entrypoint when you want manually com
 
 ```ts
 import { WordPressClient } from 'fluent-wp-client';
-import { getPostsTool, getPostTool, createPostTool } from 'fluent-wp-client/ai-sdk';
+import {
+  getContentCollectionTool,
+  getContentTool,
+  createContentTool,
+} from 'fluent-wp-client/ai-sdk';
 
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
   auth: { username: 'editor', password: 'app-password' },
 });
 
+await wp.explore();
+
 const tools = {
-  searchPosts: getPostsTool(wp, {
-    defaultArgs: { perPage: 5 },
-    fixedArgs: { status: 'publish' },
+  searchPosts: getContentCollectionTool(wp, {
+    contentType: 'posts',
+    fixedArgs: { perPage: 5, status: 'publish' },
   }),
-  readPost: getPostTool(wp, {
-    defaultArgs: { includeContent: true },
-  }),
-  draftPost: createPostTool(wp, {
+  readContent: getContentTool(wp),
+  draftPost: createContentTool(wp, {
+    contentType: 'posts',
     fixedInput: { status: 'draft' },
   }),
 };
@@ -208,14 +213,22 @@ Array params are serialized as repeated `param[]` entries instead of comma-joine
 
 ## Embedded data
 
-Post-like DTO reads stay lean by default. Pass `embed: true` on collection filters when you need raw `_embedded` data, and use relation queries when you want the client to hydrate related entities automatically.
+Post-like DTO reads stay lean by default. Pass `embed: true` or a selective embed array to include related data, then use typed extraction helpers to pull it out:
 
 ```ts
-const embeddedPosts = await wp.content('posts').list({ perPage: 10, embed: true });
+import { getEmbeddedAuthor, getEmbeddedTerms } from 'fluent-wp-client';
 
-const hydratedPost = await wp.content('posts')
-  .item('hello-world')
-  .with('author', 'terms');
+const post = await wp.content('posts').item('hello-world', { embed: true });
+const author = getEmbeddedAuthor(post);
+const categories = getEmbeddedTerms(post, 'category');
+
+// Selective embed reduces server-side work
+const post2 = await wp.content('posts').item('hello-world', {
+  embed: ['author', 'wp:term'],
+});
+
+// Embed on lists
+const posts = await wp.content('posts').list({ perPage: 10, embed: true });
 ```
 
 ## Auth examples
@@ -251,7 +264,7 @@ Full documentation lives in the [`docs/`](./docs/) folder:
 - [Custom endpoints](./docs/custom-endpoints.mdx) — custom post types, taxonomies, and plugin namespaces
 - [Abilities](./docs/abilities.mdx) — WordPress Abilities API
 - [Validation](./docs/validation.mdx) — Standard Schema, Zod, and custom validators
-- [Extensible relations](./docs/extensible-relations.mdx) — ACF field-type helpers, custom relation registration, and generic relation factories for IDs and shared link/embed buckets
+- [Embed extraction](./docs/usage.mdx#embed-and-extraction-helpers) — embed parameters, typed extraction helpers, and ACF relation extraction
 
 ## Development
 
@@ -266,7 +279,7 @@ npm test
 npm run wp:stop
 ```
 
-Core transport, mutation helpers, query primitives, and base resource classes live under `src/core/`, while relation contracts, relation definition factories, and the fluent relation builder live under `src/builders/`. Package consumers continue to import the public API from `src/index.ts`.
+Core transport, mutation helpers, query primitives, and base resource classes live under `src/core/`, while query builders live under `src/builders/`. Package consumers continue to import the public API from `src/index.ts`.
 
 Tests run against a real WordPress Docker container managed by [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/). See [`tests/`](./tests/) for setup details.
 

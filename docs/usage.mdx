@@ -1,7 +1,7 @@
 ---
 title: Usage
 short_title: Usage
-description: Primary developer guide for fluent-wp-client covering API styles, method reference, CRUD, relations, pagination, and error handling.
+description: Primary developer guide for fluent-wp-client covering API styles, method reference, CRUD, embed extraction, pagination, and error handling.
 sidebar:
   order: 2
 ---
@@ -58,8 +58,6 @@ const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-t
 
 const result = await wp
   .ability<{ name: string }, { processed: boolean }>('test/process-complex')
-  .inputSchema(z.object({ name: z.string() }))
-  .outputSchema(z.object({ processed: z.boolean() }))
   .run({ name: 'demo' });
 ```
 
@@ -71,8 +69,8 @@ const result = await wp
 ### Content and term builders
 
 ```
-content('posts') / content('pages') / content(resource, schema?)
-terms('categories') / terms('tags') / terms(resource, schema?)
+content('posts') / content('pages') / content(resource)
+terms('categories') / terms('tags') / terms(resource)
 ```
 
 Each builder exposes:
@@ -83,24 +81,22 @@ Each builder exposes:
 - `.create()` / `.update()` / `.delete()` — mutations
 - `.describe()` — JSON Schema discovery
 
-`content(resource).item(idOrSlug)` also supports `.getContent()` for `{ raw, rendered, protected }` and `.with(...)` for relation hydration.
+`content(resource).item(idOrSlug)` also supports `.getContent()` for `{ raw, rendered, protected }`. Pass `{ embed: true }` or `{ embed: ['author', 'wp:term'] }` to request embedded relations.
 
 :::caution
 `.getContent()` uses `context=edit` and requires edit capabilities.
 :::
 
-Passing a schema to `content(resource, schema)` or `terms(resource, schema)` validates all reads and mutations on that resource client.
-
 ### First-class resources
 
 | Resource | Extras |
 | --- | --- |
-| `media()` | `.upload()`, `.getImageUrl()`, `.with(...)` on items |
-| `users()` | `.me()`, `.with(...)` on items |
-| `comments()` | `.with(...)` on items |
+| `media()` | `.upload()`, `.getImageUrl()` |
+| `users()` | `.me()` |
+| `comments()` | — |
 | `settings()` | `.get()`, `.update()`, `.describe()` (singleton) |
 
-All collection resources share `.list()`, `.listAll()`, `.listPaginated()`, `.item()`, `.create()`, `.update()`, `.delete()`, `.describe()`.
+All collection resources share `.list()`, `.listAll()`, `.listPaginated()`, `.item()`, `.create()`, `.update()`, `.delete()`, `.describe()`. Pass `{ embed: true }` on `.item()` or `.list()` to request embedded data.
 
 ### Search
 
@@ -144,7 +140,7 @@ To use different auth credentials, create a separate `WordPressClient` instance.
 - `loginWithJwt(credentials)` / `validateJwtToken(token?)`
 - `getAbilities()` / `getAbility(name)` / `getAbilityCategories()`
 - `executeGetAbility()` / `executeRunAbility()` / `executeDeleteAbility()`
-- `ability<TInput, TOutput>(name)` — fluent builder
+- `ability<TInput, TOutput>(name)` — fluent builder with `.get()`, `.run()`, `.delete()`, `.describe()`
 
 ### Transport
 
@@ -152,51 +148,97 @@ To use different auth credentials, create a separate `WordPressClient` instance.
 - `setHeaders(name, value)` / `hasAuth()`
 - `route(resource, namespace?)` / `namespace('my-plugin/v1').route('sync')`
 
-## Relation hydration
+## Embed and extraction helpers
 
-### `embed: true` vs `.with()`
+WordPress's native `_embed` parameter tells the server to inline related data (author, terms, featured media, etc.) directly in the response. Extraction helpers let you pull typed data out of the embedded response without manual casting.
 
-```ts
-// Raw WordPress _embedded — untyped, manual parsing
+### Requesting embeds
+
+Pass `embed` as an option on `.item()` or `.list()`:
+
+```ts title="Request all embeddable relations"
+const post = await wp.content('posts').item('hello-world', { embed: true });
 const posts = await wp.content('posts').list({ perPage: 10, embed: true });
-posts[0]._embedded['wp:term'] // mixed categories + tags
-
-// Typed relation hydration — clean API with fallbacks
-const post = await wp.content('posts').item('hello-world').with('author', 'categories', 'tags');
-post.related.author     // WordPressAuthor | null
-post.related.categories // WordPressCategory[]
 ```
 
-:::tip[Prefer `.with()`]
-Type safety, clean names, automatic taxonomy separation, and fallback API calls when `_embedded` is missing.
-:::
-
-| Feature | `embed: true` | `.with()` |
-|---------|--------------|-----------|
-| Type safety | Manual casting | Fully typed |
-| Names | `wp:term`, `wp:featuredmedia` | `categories`, `featuredMedia` |
-| Fallback | None | Automatic API calls from ID fields |
-| Custom relations | Manual | Register once, use everywhere |
-
-You can combine both: `.item('slug', { embed: true }).with('author')` gives you raw `_embedded` AND typed `related`.
-
-### Internals and edge cases
-
-`.with()` internally requests `_embed`, hydrates `related`, and strips `_embedded` from the output. If `_embedded` is missing, it falls back to API calls using ID fields.
-
-```ts
-// Missing author ID → null (not an error)
-const post = await publicClient.content('posts').item('slug').with('author');
-
-// No categories → empty array
-post.related.categories // []
+```ts title="Selective embed (reduces WordPress server-side work)"
+const post = await wp.content('posts').item('hello-world', {
+  embed: ['author', 'wp:term'],
+});
 ```
 
-### Built-in relation names
+### Extracting typed data
 
-`author`, `categories`, `tags`, `terms`, `featuredMedia`, `parent`
+Import extraction helpers from the root package:
 
-Custom taxonomies are at `terms.taxonomies.<taxonomy>`. For ACF and plugin relations, see the [extensible relations guide](./extensible-relations.mdx).
+```ts title="Extract typed relations from an embedded post"
+import {
+  getEmbeddedAuthor,
+  getEmbeddedTerms,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedParent,
+} from 'fluent-wp-client';
+
+const post = await wp.content('posts').item('hello-world', { embed: true });
+
+const author = getEmbeddedAuthor(post);           // WordPressAuthor | null
+const categories = getEmbeddedTerms(post, 'category');  // WordPressCategory[]
+const tags = getEmbeddedTerms(post, 'post_tag');         // WordPressTag[]
+const media = getEmbeddedFeaturedMedia(post);      // WordPressMedia | null
+const parent = getEmbeddedParent(post);            // WordPressPostLike | null
+```
+
+### Discovering available embed keys
+
+Use `getEmbeddableLinkKeys()` to inspect which relations a post supports before requesting them:
+
+```ts title="Discover embeddable relations"
+import { getEmbeddableLinkKeys } from 'fluent-wp-client';
+
+const post = await wp.content('posts').item(1, { fields: ['id', '_links'] });
+const embeddable = getEmbeddableLinkKeys(post);
+// ['author', 'wp:term', 'wp:featuredmedia', 'replies', ...]
+```
+
+### Selective vs full embed
+
+| Approach | When to use |
+|----------|-------------|
+| `embed: true` | You need all relations — author, terms, media, parent, replies |
+| `embed: ['author', 'wp:term']` | You only need specific relations — reduces server work |
+| No embed (default) | Lean payloads — fetch relations separately if needed |
+
+### ACF relation extraction
+
+When ACF fields are configured with `show_in_rest: true`, ACF relation data can be embedded and extracted:
+
+```ts title="ACF embed and extraction"
+import {
+  getAcfFieldPosts,
+  getAcfFieldPost,
+  getAcfFieldTerms,
+} from 'fluent-wp-client';
+
+const post = await wp.content('posts').item('my-post', {
+  embed: ['acf:post', 'acf:term'],
+});
+
+const relatedPosts = getAcfFieldPosts(post, 'acf_related_posts');   // WordPressPost[]
+const featuredPost = getAcfFieldPost(post, 'acf_featured_post');    // WordPressPostLike | null
+const relatedTerms = getAcfFieldTerms(post, 'acf_related_genres');  // WordPressTerm[]
+```
+
+### Embed key reference
+
+| Embed key | Data | Extraction helper |
+|-----------|------|-------------------|
+| `author` | Post author | `getEmbeddedAuthor()` |
+| `wp:term` | Categories, tags, custom taxonomies | `getEmbeddedTerms()` |
+| `wp:featuredmedia` | Featured image | `getEmbeddedFeaturedMedia()` |
+| `up` | Parent post/page | `getEmbeddedParent()` |
+| `replies` | Comments | `getEmbeddedReplies()` |
+| `acf:post` | ACF post object / relationship fields | `getAcfFieldPosts()`, `getAcfFieldPost()` |
+| `acf:term` | ACF taxonomy fields | `getAcfFieldTerms()` |
 
 ### Post-like typing
 
@@ -256,18 +298,19 @@ For CPT and custom taxonomy CRUD, see the [custom endpoints guide](./custom-endp
 
 ## Validation
 
-Mutations auto-validate with built-in schemas. Pass your own Standard Schema-compatible validator to override:
+WordPress validates requests upstream. Use `.describe()`, `.explore()`, or the CLI when you want local validation in your app:
 
 ```ts
-import * as v from 'valibot';
+import { z } from 'zod';
 
-const created = await wp.content('posts').create(
-  { title: 'Validated', status: 'draft' },
-  v.object({ id: v.number(), slug: v.string(), status: v.string() }),
-);
+const desc = await wp.content('posts').describe();
+const createSchema = z.fromJSONSchema(desc.schemas.create!);
+
+const validatedInput = createSchema.parse({ title: 'Validated', status: 'draft' });
+const created = await wp.content('posts').create(validatedInput);
 ```
 
-See the [validation guide](./validation.mdx) for Zod extension, Valibot, sparse CPT, and Astro patterns.
+See the [validation guide](./validation.mdx) for real-time discovery, `explore()`, CLI-generated schemas, Astro, and AI SDK patterns.
 
 ## Gutenberg blocks
 
@@ -289,5 +332,4 @@ Use `.listAll()` for complete datasets. Use `.listPaginated()` for totals and pa
 ## Error handling
 
 - `WordPressApiError` — REST API errors with status, code, and payload
-- `WordPressSchemaValidationError` — validation failures
 - Cross-origin absolute URLs are rejected before requests are sent

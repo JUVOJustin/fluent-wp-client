@@ -34,7 +34,7 @@ export const updateSettingsTool = (
   needsApproval: options?.needsApproval,
   inputSchema: settingsUpdateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.settings().update(withInput.input as Record<string, unknown>);
   }),

@@ -1,18 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import {
-  WordPressClient,
-  WordPressSchemaValidationError,
-  contentWordPressSchema,
-  postLikeWordPressSchema,
-} from 'fluent-wp-client';
+import { WordPressClient } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
  * Seed data: 3 sparse artifacts registered through the `artifact` custom post type.
  *
- * Verifies that generic content reads default to the flexible post-like schema
- * when a CPT disables title and editor support, and that strict schemas fail
- * fast on both reads and mutations.
+ * Verifies that generic content reads work correctly for sparse CPTs where
+ * WordPress has disabled title, editor, excerpt, author, and comment support.
  */
 describe('Client: Artifacts', () => {
   let publicClient: WordPressClient;
@@ -51,42 +45,22 @@ describe('Client: Artifacts', () => {
       expect(artifact).toHaveProperty('acf.acf_subtitle', 'Subtitle for test artifact 001');
     });
 
-    it('content() validates sparse artifacts with the flexible post-like schema', async () => {
-      const artifacts = publicClient.content('artifacts', postLikeWordPressSchema);
-      const all = await artifacts.listAll();
-      const artifact = await artifacts.item('test-artifact-001');
+    it('content() listAll() returns all 3 sparse artifacts', async () => {
+      const all = await publicClient.content('artifacts').listAll();
 
       expect(all).toHaveLength(3);
       expect(all[0]).not.toHaveProperty('title');
       expect(all[0]).not.toHaveProperty('content');
-      expect(artifact?.slug).toBe('test-artifact-001');
-      expect(artifact).toHaveProperty('acf.acf_subtitle', 'Subtitle for test artifact 001');
-    });
-
-    it('content() throws a validation error on reads when a strict content schema is used', async () => {
-      const artifacts = publicClient.content('artifacts', contentWordPressSchema);
-
-      try {
-        await artifacts.item('test-artifact-001');
-        // Should not reach here
-        expect.fail('Expected validation error but got successful response');
-      } catch (error) {
-        expect(error).toBeInstanceOf(WordPressSchemaValidationError);
-      }
     });
   });
 
   describe('mutations', () => {
-    it('content() throws a validation error on update when a strict content schema is used', async () => {
+    it('content() update() succeeds on a sparse artifact', async () => {
       const artifact = await publicClient.content('artifacts').item('test-artifact-001');
       expect(artifact).toBeDefined();
 
-      const strictArtifacts = authClient.content('artifacts', contentWordPressSchema);
-
-      // The HTTP PATCH succeeds but the sparse response fails contentWordPressSchema validation.
-      await expect(
-        strictArtifacts.update(artifact!.id, { status: 'publish' }),
-      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
+      const updated = await authClient.content('artifacts').update(artifact!.id, { status: 'publish' });
+      expect(updated.id).toBe(artifact!.id);
     });
   });
 });

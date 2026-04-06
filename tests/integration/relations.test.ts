@@ -1,11 +1,18 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
+import {
+  WordPressClient,
+  getEmbeddedAuthor,
+  getEmbeddedTerms,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedParent,
+  getEmbeddableLinkKeys,
+} from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
- * Integration coverage for fluent relation hydration APIs.
+ * Integration coverage for embed-based relation fetching and extraction helpers.
  */
-describe('Client: post relation hydration', () => {
+describe('Client: embed and relation extraction', () => {
   let publicClient: WordPressClient;
   let authClient: WordPressClient;
 
@@ -14,100 +21,201 @@ describe('Client: post relation hydration', () => {
     authClient = createAuthClient();
   });
 
-  function postsClient(client: WordPressClient) {
-    return client.content('posts');
-  }
+  describe('selective embed via embed option', () => {
+    it('fetches a post with all embeds using embed: true', async () => {
+      const post = await authClient.content('posts').item('test-post-001', { embed: true });
 
-  function pagesClient(client: WordPressClient) {
-    return client.content('pages');
-  }
-
-  /**
-   * Asserts author relation behavior for environments that expose or mask author IDs.
-   */
-  function expectAuthorRelation(authorId: number, relatedAuthor: { slug?: string } | null): void {
-    if (authorId === 0) {
-      expect(relatedAuthor).toBeNull();
-      return;
-    }
-
-    expect(relatedAuthor).toBeTruthy();
-    expect(relatedAuthor?.slug).toBe('admin');
-  }
-
-  it('hydrates related entities with content(\'posts\').item().with()', async () => {
-    const post = await postsClient(authClient).item('test-post-001').with('author', 'terms');
-
-    expect(post.slug).toBe('test-post-001');
-    expectAuthorRelation(post.author, post.related.author);
-    expect(post.related.terms.categories.length).toBeGreaterThan(0);
-    expect(post.related.terms.tags.length).toBeGreaterThan(0);
-  });
-
-  it('hydrates relation data with awaitable content(\'posts\').item().with()', async () => {
-    const hydrated = await authClient
-      .content('posts')
-      .item('test-post-002')
-      .with('author', 'categories', 'tags', 'featuredMedia');
-
-    expect(hydrated.slug).toBe('test-post-002');
-    expectAuthorRelation(hydrated.author, hydrated.related.author);
-    expect(Array.isArray(hydrated.related.categories)).toBe(true);
-    expect(Array.isArray(hydrated.related.tags)).toBe(true);
-    expect(hydrated.related.featuredMedia ?? null).toBeNull();
-  });
-
-  it('returns null author relation when public API masks author IDs', async () => {
-    const hydrated = await postsClient(publicClient).item('test-post-001').with('author');
-
-    expect(hydrated.author).toBe(0);
-    expect(hydrated.related.author).toBeNull();
-  });
-
-  describe('parent relation', () => {
-    it('hydrates parent relation for hierarchical pages via embedded data', async () => {
-      // The child page 'services-web-development' should have 'services' as its parent
-      const childPage = await pagesClient(authClient)
-        .item('services-web-development')
-        .with('parent');
-
-      expect(childPage.slug).toBe('services-web-development');
-      expect(childPage.parent).toBeGreaterThan(0);
-      expect(childPage.related.parent).toBeDefined();
-      expect(childPage.related.parent?.slug).toBe('services');
-      expect(childPage.related.parent?.id).toBe(childPage.parent);
+      expect(post).toBeDefined();
+      expect(post!.slug).toBe('test-post-001');
+      expect(post!._embedded).toBeDefined();
+      expect(getEmbeddedAuthor(post)).toBeDefined();
     });
 
-    it('hydrates parent relation for pages with multiple children', async () => {
-      // Test all child pages of 'services'
-      const childSlugs = ['services-web-development', 'services-consulting', 'services-support'];
+    it('fetches a post with selective embed for author only', async () => {
+      const post = await authClient.content('posts').item('test-post-001', { embed: ['author'] });
 
-      for (const childSlug of childSlugs) {
-        const childPage = await pagesClient(authClient).item(childSlug).with('parent');
+      expect(post).toBeDefined();
+      expect(post!.slug).toBe('test-post-001');
+      expect(post!._embedded).toBeDefined();
 
-        expect(childPage.parent).toBeGreaterThan(0);
-        expect(childPage.related.parent).toBeDefined();
-        expect(childPage.related.parent?.slug).toBe('services');
+      const author = getEmbeddedAuthor(post);
+      expect(author).toBeDefined();
+      expect(author?.slug).toBe('admin');
+    });
+
+    it('fetches a post with selective embed for terms', async () => {
+      const post = await authClient.content('posts').item('test-post-001', { embed: ['wp:term'] });
+
+      expect(post).toBeDefined();
+      const categories = getEmbeddedTerms(post, 'category');
+      expect(categories.length).toBeGreaterThan(0);
+
+      const tags = getEmbeddedTerms(post, 'post_tag');
+      expect(tags.length).toBeGreaterThan(0);
+    });
+
+    it('fetches a post with multiple selective embeds', async () => {
+      const post = await authClient.content('posts').item('test-post-001', {
+        embed: ['author', 'wp:term', 'wp:featuredmedia'],
+      });
+
+      expect(post).toBeDefined();
+      expect(getEmbeddedAuthor(post)).toBeDefined();
+      expect(getEmbeddedTerms(post, 'category').length).toBeGreaterThan(0);
+    });
+
+    it('returns no _embedded data when embed is not set', async () => {
+      const post = await authClient.content('posts').item('test-post-001');
+
+      expect(post).toBeDefined();
+      // WordPress does not include _embedded when _embed is absent
+      expect(post!._embedded).toBeUndefined();
+    });
+  });
+
+  describe('extraction helpers', () => {
+    it('getEmbeddedAuthor extracts the author from _embedded', async () => {
+      const post = await authClient.content('posts').item('test-post-001', { embed: ['author'] });
+      const author = getEmbeddedAuthor(post);
+
+      expect(author).toBeDefined();
+      expect(author?.id).toBeTypeOf('number');
+      expect(author?.slug).toBe('admin');
+    });
+
+    it('getEmbeddedTerms extracts categories', async () => {
+      const post = await authClient.content('posts').item('test-post-001', { embed: ['wp:term'] });
+      const categories = getEmbeddedTerms(post, 'category');
+
+      expect(categories.length).toBeGreaterThan(0);
+      expect(categories[0].taxonomy).toBe('category');
+    });
+
+    it('getEmbeddedTerms extracts tags', async () => {
+      const post = await authClient.content('posts').item('test-post-001', { embed: ['wp:term'] });
+      const tags = getEmbeddedTerms(post, 'post_tag');
+
+      expect(tags.length).toBeGreaterThan(0);
+      expect(tags[0].taxonomy).toBe('post_tag');
+    });
+
+    it('getEmbeddedTerms returns all terms when no taxonomy filter is provided', async () => {
+      const post = await authClient.content('posts').item('test-post-001', { embed: ['wp:term'] });
+      const allTerms = getEmbeddedTerms(post);
+
+      expect(allTerms.length).toBeGreaterThan(0);
+    });
+
+    it('getEmbeddedFeaturedMedia returns null when no featured image', async () => {
+      const post = await authClient.content('posts').item('test-post-001', { embed: true });
+      const media = getEmbeddedFeaturedMedia(post);
+
+      // May be null if no featured image is set on this post
+      expect(media === null || (typeof media === 'object' && 'id' in media)).toBe(true);
+    });
+
+    it('getEmbeddedAuthor returns null on a post without _embedded', async () => {
+      const post = await authClient.content('posts').item('test-post-001');
+      const author = getEmbeddedAuthor(post);
+
+      expect(author).toBeNull();
+    });
+  });
+
+  describe('parent relation via embed', () => {
+    it('extracts the parent page via getEmbeddedParent', async () => {
+      const child = await authClient.content('pages').item('services-web-development', { embed: ['up'] });
+
+      expect(child).toBeDefined();
+      expect(child!.parent).toBeGreaterThan(0);
+
+      const parent = getEmbeddedParent(child);
+      expect(parent).toBeDefined();
+      expect(parent?.slug).toBe('services');
+      expect(parent?.id).toBe(child!.parent);
+    });
+
+    it('returns null parent for top-level pages', async () => {
+      const page = await authClient.content('pages').item('about', { embed: ['up'] });
+
+      expect(page).toBeDefined();
+      expect(page!.parent).toBe(0);
+
+      const parent = getEmbeddedParent(page);
+      expect(parent).toBeNull();
+    });
+  });
+
+  describe('_fields + embed interaction', () => {
+    it('preserves _embedded when _fields restricts the response', async () => {
+      const post = await authClient.content('posts').item('test-post-001', {
+        embed: ['author'],
+        fields: ['id', 'title'],
+      });
+
+      expect(post).toBeDefined();
+      expect(post!.id).toBeTypeOf('number');
+
+      // _embedded should be preserved even with restricted _fields
+      const author = getEmbeddedAuthor(post);
+      expect(author).toBeDefined();
+      expect(author?.slug).toBe('admin');
+    });
+
+    it('sends _fields correctly without embed', async () => {
+      const post = await authClient.content('posts').item('test-post-001', {
+        fields: ['id', 'slug', 'title'],
+      });
+
+      expect(post).toBeDefined();
+      expect(post!.id).toBeTypeOf('number');
+      expect(post!.slug).toBe('test-post-001');
+      expect(post!._embedded).toBeUndefined();
+    });
+  });
+
+  describe('embed on list queries', () => {
+    it('returns plain array without _embedded when embed is not set', async () => {
+      const posts = await publicClient.content('posts').list({ perPage: 3 });
+
+      expect(Array.isArray(posts)).toBe(true);
+      expect(posts.length).toBe(3);
+      expect(posts[0]._embedded).toBeUndefined();
+    });
+
+    it('includes _embedded when embed: true is set', async () => {
+      const posts = await publicClient.content('posts').list({ perPage: 2, embed: true });
+
+      expect(posts.length).toBe(2);
+
+      for (const post of posts) {
+        expect(post._embedded).toBeDefined();
+        expect(getEmbeddedAuthor(post)).toBeDefined();
       }
     });
 
-    it('returns null parent relation for top-level pages', async () => {
-      // Top-level pages like 'about' should have parent=0 and null related.parent
-      const topLevelPage = await pagesClient(authClient).item('about').with('parent');
+    it('supports selective embed on list queries', async () => {
+      const posts = await publicClient.content('posts').list({ perPage: 2, embed: ['author'] });
 
-      expect(topLevelPage.parent).toBe(0);
-      expect(topLevelPage.related.parent).toBeNull();
+      expect(posts.length).toBe(2);
+
+      for (const post of posts) {
+        expect(post._embedded).toBeDefined();
+        const author = getEmbeddedAuthor(post);
+        expect(author).toBeDefined();
+      }
     });
+  });
 
-    it('hydrates parent with other relations together', async () => {
-      const childPage = await pagesClient(authClient)
-        .item('services-consulting')
-        .with('parent', 'author');
+  describe('relation discoverability via _links', () => {
+    it('discovers embeddable link keys from a post', async () => {
+      const post = await authClient.content('posts').item('test-post-001', { fields: ['id', '_links'] });
 
-      expect(childPage.slug).toBe('services-consulting');
-      expect(childPage.related.parent).toBeDefined();
-      expect(childPage.related.parent?.slug).toBe('services');
-      expectAuthorRelation(childPage.author, childPage.related.author);
+      expect(post).toBeDefined();
+
+      const embeddable = getEmbeddableLinkKeys(post);
+      expect(embeddable).toContain('author');
+      expect(embeddable).toContain('wp:term');
     });
   });
 });

@@ -1,6 +1,5 @@
 import type { WordPressAuthor } from '../schemas.js';
 import type {
-  PaginatedResponse,
   UsersResourceClient,
   WordPressRequestOverrides,
 } from '../types/resources.js';
@@ -8,20 +7,12 @@ import type { UsersFilter } from '../types/filters.js';
 import type { ExtensibleFilter } from '../types/resources.js';
 import type { UserDeleteOptions, UserWriteInput } from '../types/payloads.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
-import { authorSchema } from '../standard-schemas.js';
 import { BaseCrudResource } from '../core/resource-base.js';
 import { normalizeDeleteResult } from '../core/params.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { throwIfWordPressError } from '../core/errors.js';
 import type { WordPressRuntime } from '../core/transport.js';
-import type { WordPressStandardSchema } from '../core/validation.js';
-import { ResourceItemQueryBuilder } from '../builders/resource-item-relations.js';
-import type { PostRelationClient } from '../builders/relation-contracts.js';
-import {
-  createSchemaValidators,
-  createValidatedListMethods,
-  createCrudClientMethods,
-} from './schema-validation.js';
+import { describeUnavailable } from './describe.js';
 
 /**
  * WordPress users resource with CRUD support and `/me` access.
@@ -36,11 +27,7 @@ export class UsersResource extends BaseCrudResource<
    * Creates a users resource instance.
    */
   static create(runtime: WordPressRuntime): UsersResource {
-    return new UsersResource({
-      runtime,
-      endpoint: '/users',
-      defaultSchema: authorSchema,
-    });
+    return new UsersResource({ runtime, endpoint: '/users' });
   }
 
   /**
@@ -83,65 +70,30 @@ export class UsersResource extends BaseCrudResource<
 }
 
 /**
- * Creates a typed users client with optional read and mutation validation.
+ * Creates a typed users client.
  */
-export function createUsersClient<TResource extends WordPressAuthor = WordPressAuthor>(
+export function createUsersClient(
   resource: UsersResource,
-  relationClient: PostRelationClient,
-  responseSchema?: WordPressStandardSchema<TResource>,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
-): UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
-  const hasExplicitResponseSchema = responseSchema !== undefined;
-  const validators = createSchemaValidators(
-    (responseSchema ?? authorSchema) as WordPressStandardSchema<TResource>,
-    'User response validation failed',
-  );
-
-  /**
-   * Gets one user by numeric ID or slug.
-   */
-  const loadUser = async (
-    idOrSlug: number | string,
-    options?: WordPressRequestOverrides,
-  ) => {
-    const item = typeof idOrSlug === 'number'
-      ? await resource.getById(idOrSlug, options)
-      : await resource.getBySlug(idOrSlug, options);
-
-    if (item === undefined) {
-      return undefined;
-    }
-
-    return validators.validate(item as unknown);
-  };
-
+): UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
   const item = ((
     idOrSlug: number | string,
     options?: WordPressRequestOverrides,
-  ) => new ResourceItemQueryBuilder(
-    relationClient,
-    () => loadUser(idOrSlug, options),
-    new Set<string>(),
-    async () => ({}),
-  )) as UsersResourceClient<TResource, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>['item'];
-
-  const listMethods = createValidatedListMethods(
-    resource as unknown as Parameters<typeof createValidatedListMethods<TResource, ExtensibleFilter<UsersFilter>>>[0],
-    validators,
-    hasExplicitResponseSchema,
-  );
-  const { create, update } = createCrudClientMethods<TResource, UserWriteInput, UserWriteInput>(
-    resource as unknown as Parameters<typeof createCrudClientMethods<TResource, UserWriteInput, UserWriteInput>>[0],
-    responseSchema,
-  );
+  ): Promise<WordPressAuthor | undefined> => {
+    return typeof idOrSlug === 'number'
+      ? resource.getById(idOrSlug, options)
+      : resource.getBySlug(idOrSlug, options);
+  }) as UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>['item'];
 
   return {
-    ...listMethods,
-    create,
-    update,
-    delete: (id: number, options?: UserDeleteOptions & WordPressRequestOverrides) => resource.delete(id, options),
+    list: (filter = {}, options) => resource.list(filter, options),
+    listAll: (filter = {}, options, listOptions) => resource.listAll(filter, options, listOptions),
+    listPaginated: (filter = {}, options) => resource.listPaginated(filter, options),
+    create: (input, options) => resource.create(input, options),
+    update: (id, input, options) => resource.update(id, input, options),
+    delete: (id, options) => resource.delete(id, options),
     item,
-    me: async (options) => validators.validate(await resource.me(options) as unknown),
-    describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
+    me: (options) => resource.me(options),
+    describe: describeFn ?? describeUnavailable,
   };
 }

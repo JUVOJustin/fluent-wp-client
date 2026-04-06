@@ -76,4 +76,22 @@ npx fluent-wp-client schemas
 
 `schemas` produces normalized item schemas suitable for downstream validation and codegen.
 
+Typical flow:
+
+1. Generate schema files from the target site.
+2. Import the generated Zod validators into your app.
+3. Validate input or output locally.
+4. Call the normal `fluent-wp-client` method with the validated data.
+
+```ts title="Validate with one generated schema"
+import { postsCreateSchema } from './wp-schemas';
+
+const validatedInput = postsCreateSchema.parse({
+  title: 'CLI-validated post',
+  status: 'draft',
+});
+
+await wp.content('posts').create(validatedInput);
+```
+
 Use runtime discovery from [`schema-discovery.mdx`](./schema-discovery.mdx) when you want live schemas inside the app instead of build-time generated files.

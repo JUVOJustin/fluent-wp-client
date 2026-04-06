@@ -343,11 +343,11 @@ import {
 
 const post = await wp.content('posts').item('hello-world', { embed: true });
 
-getEmbeddedAuthor(post);              // WordPressUser | undefined
+getEmbeddedAuthor(post);              // WordPressAuthor | null
 getEmbeddedTerms(post, 'category');   // WordPressCategory[]
 getEmbeddedTerms(post, 'post_tag');   // WordPressTag[]
-getEmbeddedFeaturedMedia(post);       // WordPressMedia | undefined
-getEmbeddedParent(post);              // WordPressPost | undefined
+getEmbeddedFeaturedMedia(post);       // WordPressMedia | null
+getEmbeddedParent(post);              // WordPressPostLike | null
 
 // Discover embeddable keys
 const keys = getEmbeddableLinkKeys(post); // ['author', 'wp:term', ...]

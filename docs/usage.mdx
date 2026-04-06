@@ -181,11 +181,11 @@ import {
 
 const post = await wp.content('posts').item('hello-world', { embed: true });
 
-const author = getEmbeddedAuthor(post);           // WordPressUser | undefined
+const author = getEmbeddedAuthor(post);           // WordPressAuthor | null
 const categories = getEmbeddedTerms(post, 'category');  // WordPressCategory[]
 const tags = getEmbeddedTerms(post, 'post_tag');         // WordPressTag[]
-const media = getEmbeddedFeaturedMedia(post);      // WordPressMedia | undefined
-const parent = getEmbeddedParent(post);            // WordPressPost | undefined
+const media = getEmbeddedFeaturedMedia(post);      // WordPressMedia | null
+const parent = getEmbeddedParent(post);            // WordPressPostLike | null
 ```
 
 ### Discovering available embed keys
@@ -224,7 +224,7 @@ const post = await wp.content('posts').item('my-post', {
 });
 
 const relatedPosts = getAcfFieldPosts(post, 'acf_related_posts');   // WordPressPost[]
-const featuredPost = getAcfFieldPost(post, 'acf_featured_post');    // WordPressPost | undefined
+const featuredPost = getAcfFieldPost(post, 'acf_featured_post');    // WordPressPostLike | null
 const relatedTerms = getAcfFieldTerms(post, 'acf_related_genres');  // WordPressTerm[]
 ```
 
@@ -236,7 +236,7 @@ const relatedTerms = getAcfFieldTerms(post, 'acf_related_genres');  // WordPress
 | `wp:term` | Categories, tags, custom taxonomies | `getEmbeddedTerms()` |
 | `wp:featuredmedia` | Featured image | `getEmbeddedFeaturedMedia()` |
 | `up` | Parent post/page | `getEmbeddedParent()` |
-| `replies` | Comments | _(access via `_embedded`)_ |
+| `replies` | Comments | `getEmbeddedReplies()` |
 | `acf:post` | ACF post object / relationship fields | `getAcfFieldPosts()`, `getAcfFieldPost()` |
 | `acf:term` | ACF taxonomy fields | `getAcfFieldTerms()` |
 

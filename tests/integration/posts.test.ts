@@ -109,8 +109,6 @@ describe('Client: Posts', () => {
       expect(post).toBeUndefined();
     });
 
-
-
     it('content(\'posts\').listAll() returns all 150 seed posts', async () => {
       const all = await postsClient(publicClient).listAll();
 

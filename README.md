@@ -127,12 +127,9 @@ await wp.explore();
 const tools = {
   searchPosts: getContentCollectionTool(wp, {
     contentType: 'posts',
-    defaultArgs: { perPage: 5 },
-    fixedArgs: { status: 'publish' },
+    fixedArgs: { perPage: 5, status: 'publish' },
   }),
-  readContent: getContentTool(wp, {
-    defaultArgs: { includeContent: true },
-  }),
+  readContent: getContentTool(wp),
   draftPost: createContentTool(wp, {
     contentType: 'posts',
     fixedInput: { status: 'draft' },

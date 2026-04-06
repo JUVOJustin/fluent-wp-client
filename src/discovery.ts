@@ -10,6 +10,7 @@ import type {
   WordPressDiscoveryOptions,
   WordPressDiscoveryWarning,
   WordPressResourceDescription,
+  WordPressResourceCapabilities,
   WordPressAbilityDescription,
   WordPressTypesResponse,
   WordPressTaxonomiesResponse,
@@ -76,6 +77,41 @@ async function runWithConcurrency<T>(
   return results;
 }
 
+type DiscoverySuccess<T> = {
+  type: 'success';
+  key: string;
+  value: T;
+};
+
+type DiscoveryFailure = {
+  type: 'error';
+  key: string;
+  message: string;
+};
+
+async function collectDiscoveryResults<T>(
+  factories: Array<() => Promise<DiscoverySuccess<T> | DiscoveryFailure>>,
+  warningPrefix: string,
+): Promise<{ records: Record<string, T>; warnings: WordPressDiscoveryWarning[] }> {
+  const records: Record<string, T> = {};
+  const warnings: WordPressDiscoveryWarning[] = [];
+  const results = await runWithConcurrency(factories);
+
+  for (const result of results) {
+    if (result.type === 'success') {
+      records[result.key] = result.value;
+      continue;
+    }
+
+    warnings.push({
+      key: `${warningPrefix}:${result.key}`,
+      message: result.message,
+    });
+  }
+
+  return { records, warnings };
+}
+
 /**
  * Omits undefined properties so discovery DTOs survive JSON round-tripping.
  */
@@ -92,17 +128,51 @@ function compactOptionalProperties<T extends object>(value: T): T {
 }
 
 /**
- * Creates one resource schema set without undefined keys.
+ * Extracts query param names for the GET collection endpoint from OPTIONS data.
+ *
+ * WordPress OPTIONS responses include an `endpoints` array where each entry
+ * lists the HTTP methods it handles and its accepted args. The GET entry's
+ * args are the supported collection filter/query params.
+ * Falls back to the top-level `args` when no endpoint list is present.
  */
-function createResourceSchemaSet(value: WordPressResourceSchemaSet): WordPressResourceSchemaSet {
-  return compactOptionalProperties(value);
+function extractQueryParams(endpointSchema: WordPressEndpointSchema): string[] {
+  const endpoints = endpointSchema.endpoints as
+    | Array<{ methods?: string[]; args?: Record<string, unknown> }>
+    | undefined;
+
+  if (Array.isArray(endpoints)) {
+    const getEndpoint = endpoints.find(
+      (ep) => Array.isArray(ep.methods) && ep.methods.includes('GET'),
+    );
+
+    if (getEndpoint?.args) {
+      return Object.keys(getEndpoint.args);
+    }
+  }
+
+  return Object.keys(endpointSchema.args ?? {});
 }
 
 /**
- * Creates one ability schema set without undefined keys.
+ * Builds a normalized capability surface from the OPTIONS response and
+ * the already-derived schema set.
+ *
+ * All fields are plain string arrays so the result is serializable.
  */
-function createAbilitySchemaSet(value: WordPressAbilitySchemaSet): WordPressAbilitySchemaSet {
-  return compactOptionalProperties(value);
+function buildCapabilities(
+  endpointSchema: WordPressEndpointSchema,
+  schemas: WordPressResourceSchemaSet,
+): WordPressResourceCapabilities {
+  const itemProperties = (schemas.item?.properties ?? {}) as Record<string, unknown>;
+  const createProperties = (schemas.create?.properties ?? {}) as Record<string, unknown>;
+  const updateProperties = (schemas.update?.properties ?? {}) as Record<string, unknown>;
+
+  return {
+    queryParams: extractQueryParams(endpointSchema),
+    readFields: Object.keys(itemProperties),
+    createFields: Object.keys(createProperties),
+    updateFields: Object.keys(updateProperties),
+  };
 }
 
 /**
@@ -124,6 +194,13 @@ function createResourceDescription(config: {
   const createSchema = buildCreateSchema(config.endpointSchema);
   const updateSchema = buildUpdateSchema(createSchema);
 
+  const schemas = compactOptionalProperties({
+    item: itemSchema,
+    collection: collectionSchema,
+    create: createSchema,
+    update: updateSchema,
+  }) as WordPressResourceSchemaSet;
+
   return {
     kind: config.kind,
     resource: config.resource,
@@ -131,12 +208,8 @@ function createResourceDescription(config: {
     restBase: config.restBase,
     namespace: config.namespace,
     route: config.route,
-    schemas: createResourceSchemaSet({
-      item: itemSchema,
-      collection: collectionSchema,
-      create: createSchema,
-      update: updateSchema,
-    }),
+    schemas,
+    capabilities: buildCapabilities(config.endpointSchema, schemas),
     raw: config.endpointSchema,
   };
 }
@@ -249,17 +322,51 @@ function getRequiredFields(
 }
 
 /**
+ * Extracts mutation args from the OPTIONS response for the POST (create) endpoint.
+ *
+ * WordPress REST OPTIONS responses nest per-method args inside an `endpoints`
+ * array. The POST entry contains the actual create-body params. Falls back to
+ * the top-level `args` key for older or custom endpoint implementations.
+ */
+function extractCreateArgs(
+  endpointSchema: WordPressEndpointSchema,
+): Record<string, unknown> | undefined {
+  const endpoints = endpointSchema.endpoints as
+    | Array<{ methods?: string[]; args?: Record<string, unknown> }>
+    | undefined;
+
+  if (Array.isArray(endpoints)) {
+    const postEndpoint = endpoints.find(
+      (ep) =>
+        Array.isArray(ep.methods) &&
+        ep.methods.some((m) => m === 'POST' || m === 'PUT' || m === 'PATCH'),
+    );
+
+    if (postEndpoint?.args && typeof postEndpoint.args === 'object') {
+      return postEndpoint.args;
+    }
+  }
+
+  // Fall back to top-level args for older or custom endpoint implementations.
+  return endpointSchema.args && typeof endpointSchema.args === 'object'
+    ? (endpointSchema.args as Record<string, unknown>)
+    : undefined;
+}
+
+/**
  * Builds create schema from POST args in endpoint OPTIONS response.
  */
 function buildCreateSchema(
   endpointSchema: WordPressEndpointSchema,
 ): WordPressResourceSchemaSet['create'] {
-  if (!endpointSchema.args || typeof endpointSchema.args !== 'object') {
+  const args = extractCreateArgs(endpointSchema);
+
+  if (!args) {
     return undefined;
   }
 
-  const properties = argsToJsonSchemaProperties(endpointSchema.args);
-  const required = getRequiredFields(endpointSchema.args);
+  const properties = argsToJsonSchemaProperties(args);
+  const required = getRequiredFields(args);
 
   const schema: Record<string, unknown> = {
     type: 'object',
@@ -446,10 +553,10 @@ async function discoverAbility(
     kind: 'ability',
     name,
     route,
-    schemas: createAbilitySchemaSet({
+    schemas: compactOptionalProperties({
       input: ability.input_schema as WordPressAbilityDescription['schemas']['input'],
       output: ability.output_schema as WordPressAbilityDescription['schemas']['output'],
-    }),
+    }) as WordPressAbilitySchemaSet,
     annotations: ability.meta?.annotations || {},
     raw: ability,
   };
@@ -486,29 +593,23 @@ async function discoverAllContent(
             },
             options,
           );
-          return { type: 'success' as const, resource: info.rest_base!, description };
+          return {
+            type: 'success' as const,
+            key: info.rest_base!,
+            value: description,
+          };
         } catch (error) {
           return {
             type: 'error' as const,
-            resource: info.rest_base!,
+            key: info.rest_base!,
             message: error instanceof Error ? error.message : `Failed to discover content resource '${info.rest_base}'`,
           };
         }
       });
 
-    const results = await runWithConcurrency(discoveryFactories);
-
-    // Process results
-    for (const result of results) {
-      if (result.type === 'success') {
-        resources[result.resource] = result.description;
-      } else {
-        warnings.push({
-          key: `content:${result.resource}`,
-          message: result.message,
-        });
-      }
-    }
+    const collected = await collectDiscoveryResults(discoveryFactories, 'content');
+    Object.assign(resources, collected.records);
+    warnings.push(...collected.warnings);
   } catch (error) {
     warnings.push({
       key: 'content:types',
@@ -550,29 +651,23 @@ async function discoverAllTerms(
             },
             options,
           );
-          return { type: 'success' as const, resource: info.rest_base!, description };
+          return {
+            type: 'success' as const,
+            key: info.rest_base!,
+            value: description,
+          };
         } catch (error) {
           return {
             type: 'error' as const,
-            resource: info.rest_base!,
+            key: info.rest_base!,
             message: error instanceof Error ? error.message : `Failed to discover term resource '${info.rest_base}'`,
           };
         }
       });
 
-    const results = await runWithConcurrency(discoveryFactories);
-
-    // Process results
-    for (const result of results) {
-      if (result.type === 'success') {
-        resources[result.resource] = result.description;
-      } else {
-        warnings.push({
-          key: `terms:${result.resource}`,
-          message: result.message,
-        });
-      }
-    }
+    const collected = await collectDiscoveryResults(discoveryFactories, 'terms');
+    Object.assign(resources, collected.records);
+    warnings.push(...collected.warnings);
   } catch (error) {
     warnings.push({
       key: 'terms:taxonomies',
@@ -612,29 +707,23 @@ async function discoverFirstClassResources(
         restBase,
         options,
       );
-      return { type: 'success' as const, resource, description };
+      return {
+        type: 'success' as const,
+        key: resource,
+        value: description,
+      };
     } catch (error) {
       return {
         type: 'error' as const,
-        resource,
+        key: resource,
         message: error instanceof Error ? error.message : `Failed to discover resource '${resource}'`,
       };
     }
   });
 
-  const results = await runWithConcurrency(discoveryFactories);
-
-  // Process results
-  for (const result of results) {
-    if (result.type === 'success') {
-      resources[result.resource] = result.description;
-    } else {
-      warnings.push({
-        key: `resource:${result.resource}`,
-        message: result.message,
-      });
-    }
-  }
+  const collected = await collectDiscoveryResults(discoveryFactories, 'resource');
+  Object.assign(resources, collected.records);
+  warnings.push(...collected.warnings);
 
   return { resources, warnings };
 }
@@ -669,29 +758,23 @@ async function discoverAllAbilities(
           ability.name,
           options,
         );
-        return { type: 'success' as const, name: ability.name, description };
+        return {
+          type: 'success' as const,
+          key: ability.name,
+          value: description,
+        };
       } catch (error) {
         return {
           type: 'error' as const,
-          name: ability.name,
+          key: ability.name,
           message: error instanceof Error ? error.message : `Failed to discover ability '${ability.name}'`,
         };
       }
     });
 
-    const results = await runWithConcurrency(discoveryFactories);
-
-    // Process results
-    for (const result of results) {
-      if (result.type === 'success') {
-        abilities[result.name] = result.description;
-      } else {
-        warnings.push({
-          key: `ability:${result.name}`,
-          message: result.message,
-        });
-      }
-    }
+    const collected = await collectDiscoveryResults(discoveryFactories, 'ability');
+    Object.assign(abilities, collected.records);
+    warnings.push(...collected.warnings);
   } catch (error) {
     warnings.push({
       key: 'abilities:list',
@@ -707,6 +790,30 @@ async function discoverAllAbilities(
  */
 export function createDiscoveryMethods(runtime: WordPressRuntime) {
   const cache = createDiscoveryCache();
+
+  function getCatalogSnapshot(): WordPressDiscoveryCatalog | undefined {
+    if (cache.catalog) {
+      return cache.catalog;
+    }
+
+    const hasEntries =
+      cache.content.size > 0 ||
+      cache.terms.size > 0 ||
+      cache.resources.size > 0 ||
+      cache.abilities.size > 0;
+
+    if (!hasEntries) {
+      return undefined;
+    }
+
+    return {
+      content: Object.fromEntries(cache.content),
+      terms: Object.fromEntries(cache.terms),
+      resources: Object.fromEntries(cache.resources),
+      abilities: Object.fromEntries(cache.abilities),
+      warnings: undefined,
+    };
+  }
 
   function cacheDescriptions(catalog: {
     content?: Record<string, WordPressResourceDescription>;
@@ -917,6 +1024,37 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   }
 
   /**
+   * Seeds the internal discovery cache from an externally supplied catalog.
+   *
+   * Enables a "explore once, store anywhere, restore later" workflow:
+   *
+   * ```ts
+   * // Fetch once and persist
+   * const catalog = await wp.explore();
+   * await kv.set('wp:catalog', JSON.stringify(catalog));
+   *
+   * // On subsequent runs, restore from storage
+   * const stored = JSON.parse(await kv.get('wp:catalog'));
+   * wp.useCatalog(stored);
+   *
+   * // describe() now uses the seeded cache — no network round-trip needed
+   * const desc = await wp.content('pages').describe();
+   * ```
+   *
+   * Subsequent calls to `explore()` return the seeded catalog from the in-memory
+   * cache. Pass `refresh: true` to force a fresh network discovery.
+   */
+  function seedCatalog(catalog: WordPressDiscoveryCatalog): void {
+    cacheDescriptions({
+      content: catalog.content,
+      terms: catalog.terms,
+      resources: catalog.resources,
+      abilities: catalog.abilities,
+    });
+    cache.catalog = catalog;
+  }
+
+  /**
    * Clears the discovery cache.
    */
   function clearCache(): void {
@@ -933,6 +1071,8 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
     describeResource,
     describeAbility,
     explore,
+    getCatalogSnapshot,
+    seedCatalog,
     clearCache,
   };
 }

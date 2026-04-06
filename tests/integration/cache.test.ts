@@ -63,15 +63,15 @@ describe('Client: internal caching', () => {
       expect(count.value).toBeLessThanOrEqual(2); // edit context shared
     });
 
-    it('caches relation queries', async () => {
+    it('caches embedded item queries', async () => {
       const { client, count } = createCountingClient();
-      const query = client.content('posts').item('test-post-001').with('author', 'categories');
+      const query = client.content('posts').item('test-post-001', { embed: true });
       
       const result1 = await query;
       const result2 = await query;
       
       expect(result1).toBe(result2);
-      expect(result1?.related.author).toBe(result2?.related.author);
+      expect(result1?.id).toBe(result2?.id);
     });
   });
 

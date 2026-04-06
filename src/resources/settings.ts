@@ -8,6 +8,7 @@ import { compactPayload } from '../core/params.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { throwIfWordPressError } from '../core/errors.js';
 import type { WordPressRuntime } from '../core/transport.js';
+import { describeUnavailable } from './describe.js';
 
 /**
  * WordPress settings singleton resource.
@@ -81,6 +82,6 @@ export function createSettingsClient(
   return {
     get: (options) => resource.get(options),
     update: (input, options) => resource.update(input, options),
-    describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
+    describe: describeFn ?? describeUnavailable,
   };
 }

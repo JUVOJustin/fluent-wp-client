@@ -1,19 +1,8 @@
-import { PostRelationQueryBuilder } from '../builders/relations.js';
-import type {
-  AllPostRelations,
-  ContentItemResult,
-  PostRelationClient,
-} from '../builders/relations.js';
-import {
-  ListRelationQueryBuilder,
-  ListAllRelationQueryBuilder,
-  PaginatedListRelationQueryBuilder,
-} from '../builders/list-relations.js';
+import { ContentItemQuery } from '../builders/content-item-query.js';
 import {
   BasePostLikeResource,
   type PostLikeResourceContext,
 } from '../core/resource-base.js';
-import type { ListAllOptions } from '../core/pagination.js';
 import type { WordPressPostLike } from '../schemas.js';
 import type {
   ContentResourceClient,
@@ -24,13 +13,12 @@ import type {
 } from '../types/resources.js';
 import type { WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
+import { describeUnavailable } from './describe.js';
 
 /**
- * Ensures `_embedded` is present in the `_fields` list when embedding is active.
- * WordPress includes `_embedded` as a top-level response key alongside the main
- * object fields. Without it in `_fields`, the embedded relation data is stripped
- * from the response even when `_embed=true` is set, forcing per-relation
- * fallback sub-requests instead of using the already-fetched embedded data.
+ * Ensures `_embedded` and `_links` are present in the `_fields` list when
+ * embedding is active. Without them in `_fields`, WordPress strips the
+ * embedded relation data from field-restricted responses.
  */
 function mergeRequestFields(
   userFields: string[] | undefined,
@@ -42,6 +30,7 @@ function mergeRequestFields(
 
   const merged = new Set(userFields);
   merged.add('_embedded');
+  merged.add('_links');
   return Array.from(merged);
 }
 
@@ -72,55 +61,38 @@ export class GenericContentResource<
   TUpdate extends WordPressWritePayload = TCreate,
   // @ts-ignore - Type constraint complexity, safe at runtime
 > extends BasePostLikeResource<TContent, QueryParams & PaginationParams, TCreate, TUpdate> {
-  private readonly relationClient: PostRelationClient;
-
-  constructor(
-    context: PostLikeResourceContext & {
-      relationClient: PostRelationClient;
-    },
-  ) {
-    super(context as any);
-    this.relationClient = context.relationClient;
-  }
 
   /**
-   * Returns the relation client for building relation queries.
+   * Creates one awaitable single-item query.
+   *
+   * The `embed` option in `options` is forwarded to WordPress as `_embed`.
+   * When `_fields` are also provided, `_embedded` and `_links` are automatically
+   * added so WordPress does not strip the embedded data.
    */
-  getRelationClient(): PostRelationClient {
-    return this.relationClient;
-  }
-
-  /**
-   * Creates one awaitable single-item query with optional relation hydration.
-   * Extracts `embed` and `fields` from options before wiring closures so that
-   * `_fields` is correctly sent and `_embedded` is preserved when relation
-   * hydration enables embed on a field-restricted request.
-   */
-  itemQuery<TRelations extends readonly AllPostRelations[]>(
+  itemQuery(
     idOrSlug: number | string,
-    options: (WordPressRequestOverrides & { embed?: boolean; fields?: string[] }) | undefined,
-    relations: TRelations,
-  ): PostRelationQueryBuilder<TRelations, TContent> {
+    options: (WordPressRequestOverrides & { embed?: boolean | string[]; fields?: string[] }) | undefined,
+  ): ContentItemQuery<TContent> {
     const { embed, fields, ...requestOverrides } = options ?? {};
-    const userRequestedEmbed = embed === true;
+    const embedActive = embed === true || (Array.isArray(embed) && embed.length > 0);
 
-    return new PostRelationQueryBuilder<TRelations, TContent>(
-      this.relationClient,
+    return new ContentItemQuery<TContent>(
       typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
       (id, queryOptions) => {
-        const resolvedFields = mergeRequestFields(fields, queryOptions?.embed === true);
-        return this.fetchContentById(id, requestOverrides, undefined, queryOptions?.embed, resolvedFields);
+        const resolvedEmbed = queryOptions?.embed ?? embed;
+        const resolvedFields = mergeRequestFields(fields, resolvedEmbed === true || (Array.isArray(resolvedEmbed) && resolvedEmbed.length > 0));
+        return this.fetchContentById(id, requestOverrides, undefined, resolvedEmbed, resolvedFields);
       },
       (slug, queryOptions) => {
-        const resolvedFields = mergeRequestFields(fields, queryOptions?.embed === true);
-        return this.fetchContentBySlug(slug, requestOverrides, undefined, queryOptions?.embed, resolvedFields);
+        const resolvedEmbed = queryOptions?.embed ?? embed;
+        const resolvedFields = mergeRequestFields(fields, resolvedEmbed === true || (Array.isArray(resolvedEmbed) && resolvedEmbed.length > 0));
+        return this.fetchContentBySlug(slug, requestOverrides, undefined, resolvedEmbed, resolvedFields);
       },
-      relations,
+      embed,
       {
         getEditById: (id, editFields) => this.fetchContentById(id, requestOverrides, 'edit', false, editFields),
         getEditBySlug: (slug, editFields) => this.fetchContentBySlug(slug, requestOverrides, 'edit', false, editFields),
         missingRawMessage: this.missingRawMessage,
-        userRequestedEmbed,
       },
     );
   }
@@ -134,30 +106,13 @@ export function createContentClient<TResource extends WordPressPostLike>(
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
   return {
-    list: (filter = {}, options) => new ListRelationQueryBuilder(
-      resource.getRelationClient(),
-      filter as QueryParams & PaginationParams,
-      (f, opts) => resource.list(f, opts) as Promise<TResource[]>,
-      options,
-    ),
-    listAll: (filter = {}, options, listOptions) => new ListAllRelationQueryBuilder(
-      resource.getRelationClient(),
-      filter as Omit<QueryParams & PaginationParams, 'page'>,
-      (f, opts, lo) => resource.listAll(f, opts, lo) as Promise<TResource[]>,
-      options,
-      [],
-      listOptions,
-    ),
-    listPaginated: (filter = {}, options) => new PaginatedListRelationQueryBuilder(
-      resource.getRelationClient(),
-      filter as QueryParams & PaginationParams,
-      (f, opts) => resource.listPaginated(f, opts) as Promise<PaginatedResponse<TResource>>,
-      options,
-    ),
-    item: (idOrSlug, options) => resource.itemQuery(idOrSlug, options, []),
+    list: (filter = {}, options) => resource.list(filter, options) as Promise<TResource[]>,
+    listAll: (filter = {}, options, listOptions) => resource.listAll(filter, options, listOptions) as Promise<TResource[]>,
+    listPaginated: (filter = {}, options) => resource.listPaginated(filter, options) as Promise<PaginatedResponse<TResource>>,
+    item: (idOrSlug, options) => resource.itemQuery(idOrSlug, options),
     create: (input, options) => resource.create(input, options) as Promise<TResource>,
     update: (id, input, options) => resource.update(id, input, options) as Promise<TResource>,
     delete: (id, options) => resource.delete(id, options),
-    describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
+    describe: describeFn ?? describeUnavailable,
   };
 }

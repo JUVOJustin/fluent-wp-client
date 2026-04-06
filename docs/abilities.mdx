@@ -1,7 +1,7 @@
 ---
 title: Abilities
 short_title: Abilities
-description: Inspect and execute WordPress abilities with optional schema validation.
+description: Inspect and execute WordPress abilities, and fetch their live input and output schemas when you need custom validation.
 sidebar:
   order: 6
 ---
@@ -10,7 +10,7 @@ sidebar:
 
 `fluent-wp-client` supports the WordPress Abilities API exposed at `/wp-json/wp-abilities/v1`.
 
-Use it to inspect registered abilities, list categories, and execute ability `run` endpoints with optional local validation.
+Use it to inspect registered abilities, list categories, execute ability `run` endpoints, and fetch the live input/output schemas exposed by WordPress.
 
 ## Metadata
 
@@ -42,28 +42,15 @@ const deleted = await wp.executeDeleteAbility<{ deleted: boolean }>('test/delete
 
 ## Fluent execution
 
-Use `client.ability(name)` when you want reusable local input and output validation.
+Use `client.ability(name)` when you want a reusable ability handle.
 
-```ts title="Fluent ability execution with schemas"
-import { z } from 'zod';
-
+```ts title="Fluent ability execution"
 const processComplex = wp
   .ability<
     { name: string; settings: { theme: string } },
     { processed: boolean; echo: { name: string } }
   >('test/process-complex')
-  .inputSchema(z.object({
-    name: z.string(),
-    settings: z.object({
-      theme: z.string(),
-    }),
-  }))
-  .outputSchema(z.object({
-    processed: z.boolean(),
-    echo: z.object({
-      name: z.string(),
-    }),
-  }));
+;
 
 const result = await processComplex.run({
   name: 'demo',
@@ -73,12 +60,33 @@ const result = await processComplex.run({
 
 Builder methods:
 
-- `inputSchema(schema)`
-- `outputSchema(schema)`
 - `getDefinition()`
 - `get(input?)`
 - `run(input?)`
 - `delete(input?)`
+- `describe()`
+
+## Custom validation with `describe()`
+
+Ability execution does not run local validation. WordPress remains the source of truth.
+
+When you want app-level validation, fetch the live schema and validate the payload yourself before calling the ability:
+
+```ts title="Validate one ability input with the live schema"
+import { z } from 'zod';
+
+const desc = await wp.ability('test/process-complex').describe();
+const inputSchema = z.fromJSONSchema(desc.schemas.input!);
+const outputSchema = z.fromJSONSchema(desc.schemas.output!);
+
+const validatedInput = inputSchema.parse({
+  name: 'demo',
+  settings: { theme: 'dark' },
+});
+
+const result = await wp.ability('test/process-complex').run(validatedInput);
+const validatedResult = outputSchema.parse(result);
+```
 
 ## Schemas
 
@@ -110,7 +118,6 @@ All ability schemas use `.passthrough()` so plugin-added fields stay available.
 ## Validation model
 
 - Ability metadata helpers validate payloads with built-in ability schemas
-- Direct execution helpers validate the response only when you pass `responseSchema`
-- Fluent execution validates input before the request and output after the response when you configure schemas
+- Ability execution defers request validation to WordPress
+- Use `describe()` or `explore()` when you want local validation in your application
 - Failed REST responses throw `WordPressApiError`
-- Failed local validation throws `WordPressSchemaValidationError`

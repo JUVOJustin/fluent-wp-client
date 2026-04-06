@@ -83,6 +83,7 @@ export {
   pageSchema,
   mediaSchema,
   categorySchema,
+  tagSchema,
   embeddedMediaSchema,
   abilityAnnotationsSchema,
   abilitySchema,
@@ -141,14 +142,30 @@ export type {
   WordPressWritePayload,
 } from './types.js';
 
-export {
-  PostRelationQueryBuilder,
-  type ContentItemResult,
-  type PostRelation,
-  type SelectedPostRelations,
-} from './builders/relations.js';
-
+export { ContentItemQuery } from './builders/content-item-query.js';
 export { type WordPressRawContentResult } from './content-query.js';
+
+// Embedded data extraction helpers
+export {
+  getEmbeddedAuthor,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedParent,
+  getEmbeddedTerms,
+  getEmbeddedReplies,
+  getEmbeddedData,
+  getAcfEmbeddedPosts,
+  getAcfEmbeddedTerms,
+  getAcfFieldPosts,
+  getAcfFieldPost,
+  getAcfFieldTerms,
+  getAcfFieldIds,
+  getAcfFieldId,
+  getLinkEntries,
+  getEmbeddableLinkKeys,
+  ACF_POSTS_EMBED_KEY,
+  ACF_TERMS_EMBED_KEY,
+  type WordPressLinkEntry,
+} from './core/embedded.js';
 
 export {
   createWordPressPaginator,

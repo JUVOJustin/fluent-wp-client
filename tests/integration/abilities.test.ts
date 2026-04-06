@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { z } from 'zod';
 import {
   WordPressClient,
-  WordPressSchemaValidationError,
   createJwtAuthHeader,
 } from 'fluent-wp-client';
 import { createAuthClient, createJwtAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-client';
@@ -97,18 +95,6 @@ describe('Client: Abilities', () => {
       const result = await jwtClient.executeGetAbility<{ title: string }>('test/get-site-title');
 
       expect(typeof result.title).toBe('string');
-      expect(result.title.length).toBeGreaterThan(0);
-    });
-
-    it('validates one read-only ability response with a response schema', async () => {
-      const result = await authClient.executeGetAbility(
-        'test/get-site-title',
-        undefined,
-        z.object({
-          title: z.string().min(1),
-        }),
-      );
-
       expect(result.title.length).toBeGreaterThan(0);
     });
 
@@ -252,30 +238,6 @@ describe('Client: Abilities', () => {
       expect(result.echo.tags).toEqual([]);
     });
 
-    it('validates one complex execute-ability response with a response schema', async () => {
-      const result = await authClient.executeRunAbility(
-        'test/process-complex',
-        {
-          name: 'schema-validated',
-          settings: { theme: 'contrast' },
-        },
-        z.object({
-          processed: z.boolean(),
-          echo: z.object({
-            name: z.string(),
-            settings: z.object({
-              theme: z.string(),
-              font_size: z.number().optional(),
-            }),
-            tags: z.array(z.string()),
-          }),
-        }),
-      );
-
-      expect(result.echo.name).toBe('schema-validated');
-      expect(result.echo.tags).toEqual([]);
-    });
-
     it('throws when one complex execute ability is missing a required nested field', async () => {
       await expect(
         authClient.executeRunAbility('test/process-complex', {
@@ -299,31 +261,12 @@ describe('Client: Abilities', () => {
       });
     });
 
-    it('supports fluent ability execution with local input and output validation', async () => {
+    it('supports fluent ability execution without local validation hooks', async () => {
       const result = await authClient
         .ability<
           { name: string; settings: { theme: string; font_size?: number }; tags?: string[] },
           { processed: boolean; echo: { name: string; settings: { theme: string; font_size?: number }; tags: string[] } }
         >('test/process-complex')
-        .inputSchema(z.object({
-          name: z.string().min(1),
-          settings: z.object({
-            theme: z.string().min(1),
-            font_size: z.number().int().positive().optional(),
-          }),
-          tags: z.array(z.string()).optional(),
-        }))
-        .outputSchema(z.object({
-          processed: z.boolean(),
-          echo: z.object({
-            name: z.string(),
-            settings: z.object({
-              theme: z.string(),
-              font_size: z.number().optional(),
-            }),
-            tags: z.array(z.string()),
-          }),
-        }))
         .run({
           name: 'Alpha',
           settings: { theme: 'clean', font_size: 18 },
@@ -334,19 +277,6 @@ describe('Client: Abilities', () => {
       expect(result.echo.name).toBe('Alpha');
       expect(result.echo.settings.theme).toBe('clean');
       expect(result.echo.tags).toEqual(['featured', 'guide']);
-    });
-
-    it('validates fluent ability input before the request is sent', async () => {
-      await expect(
-        authClient
-          .ability<{ user_id: number }>('test/get-complex-data')
-          .inputSchema(z.object({
-            user_id: z.number().int().positive(),
-          }))
-          .get({ user_id: 0 }),
-      ).rejects.toMatchObject({
-        name: 'WordPressSchemaValidationError',
-      });
     });
   });
 
@@ -421,19 +351,20 @@ describe('Client: Abilities', () => {
       });
     });
 
-    it('explicit inputSchema() still validates before the request', async () => {
-      const strictInput = z.object({
-        key: z.string().min(1),
-        value: z.string().min(1),
-      });
+    it('run() continues to defer invalid input to WordPress even when catalog has schemas', async () => {
+      const catalog = await authClient.explore({ include: ['abilities'] });
 
-      // Invalid input should be caught locally by the explicit schema
+      expect(catalog.abilities['test/update-option']?.schemas.input).toBeDefined();
+
+      const seededClient = createAuthClient();
+      seededClient.useCatalog(catalog);
+
       await expect(
-        authClient
-          .ability('test/update-option')
-          .inputSchema(strictInput)
-          .run({ wrong_field: 'x' } as any),
-      ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
+        seededClient.ability('test/update-option').run({ wrong_field: 'x' } as any),
+      ).rejects.toMatchObject({
+        name: 'WordPressApiError',
+        status: 400,
+      });
     });
   });
 });

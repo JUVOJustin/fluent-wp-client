@@ -42,11 +42,7 @@ export function prepareCollectionArgs(
   modelArgs: Record<string, unknown>,
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ): Record<string, unknown> {
-  const merged = mergeToolArgs(
-    options?.defaultArgs ?? {},
-    modelArgs,
-    options?.fixedArgs,
-  );
+  const merged = mergeToolArgs(modelArgs, options?.fixedArgs);
   return normalizeFieldSelection(merged);
 }
 

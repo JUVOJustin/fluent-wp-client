@@ -64,7 +64,6 @@ import type {
   UsersResourceClient,
   WordPressRequestOverrides as _Overrides,
 } from './types/resources.js';
-import type { PostRelationClient } from './builders/relations.js';
 import type { TermWriteInput, UserWriteInput, WordPressWritePayload } from './types/payloads.js';
 
 /**
@@ -87,6 +86,10 @@ import type { TermWriteInput, UserWriteInput, WordPressWritePayload } from './ty
  * // Single-item queries are awaitable and expose raw content helpers
  * const post = await posts.item(123);
  * const content = await posts.item(123).getContent();
+ *
+ * // Embed related data with selective or full embed
+ * const postWithAuthor = await posts.item(123, { embed: ['author', 'wp:term'] });
+ * const postWithAll = await posts.item(123, { embed: true });
  *
  * // Custom post types use the same API surface
  * const books = client.content('books');
@@ -131,18 +134,8 @@ export class WordPressClient {
     this.commentsResource = CommentsResource.create(this.runtime);
     this.discoveryMethods = createDiscoveryMethods(this.runtime);
 
-    const relationClient: PostRelationClient = {
-      content: this.content.bind(this),
-      request: this.request.bind(this),
-      users: () => this.users(),
-      media: () => this.media(),
-      comments: () => this.comments(),
-      terms: this.terms.bind(this),
-    };
-
     this.genericResourcesRegistry = new GenericResourceRegistry({
       runtime: this.runtime,
-      relationClient,
       discoveryMethods: this.discoveryMethods,
     });
     this.abilityMethods = createAbilityMethods({
@@ -192,19 +185,19 @@ export class WordPressClient {
   // ============= FIRST-CLASS RESOURCE API =============
 
   media(): MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload> {
-    return createMediaClient(this.mediaResource, this as unknown as PostRelationClient, (options) =>
+    return createMediaClient(this.mediaResource, (options) =>
       this.discoveryMethods.describeResource('media', options),
     );
   }
 
   comments(): CommentsResourceClient<WordPressComment, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
-    return createCommentsClient(this.commentsResource, this as unknown as PostRelationClient, (options) =>
+    return createCommentsClient(this.commentsResource, (options) =>
       this.discoveryMethods.describeResource('comments', options),
     );
   }
 
   users(): UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
-    return createUsersClient(this.usersResource, this as unknown as PostRelationClient, (options) =>
+    return createUsersClient(this.usersResource, (options) =>
       this.discoveryMethods.describeResource('users', options),
     );
   }
@@ -266,7 +259,7 @@ export class WordPressClient {
   // ============= ABILITIES API =============
 
   /**
-   * Starts a fluent REST ability builder with optional input/output validation.
+   * Starts a fluent REST ability builder.
    */
   ability<TInput = unknown, TOutput = unknown>(name: string): WordPressAbilityBuilder<TInput, TOutput> {
     return this.abilityMethods.ability<TInput, TOutput>(name);
@@ -306,10 +299,9 @@ export class WordPressClient {
   async executeGetAbility<TOutput = unknown>(
     name: string,
     input?: unknown,
-    responseSchema?: import('./core/validation.js').WordPressStandardSchema<TOutput>,
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
-    return this.abilityMethods.executeGetAbility(name, input, responseSchema, options);
+    return this.abilityMethods.executeGetAbility(name, input, options);
   }
 
   /**
@@ -318,10 +310,9 @@ export class WordPressClient {
   async executeRunAbility<TOutput = unknown>(
     name: string,
     input?: unknown,
-    responseSchema?: import('./core/validation.js').WordPressStandardSchema<TOutput>,
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
-    return this.abilityMethods.executeRunAbility(name, input, responseSchema, options);
+    return this.abilityMethods.executeRunAbility(name, input, options);
   }
 
   /**
@@ -330,10 +321,9 @@ export class WordPressClient {
   async executeDeleteAbility<TOutput = unknown>(
     name: string,
     input?: unknown,
-    responseSchema?: import('./core/validation.js').WordPressStandardSchema<TOutput>,
     options?: WordPressRequestOverrides,
   ): Promise<TOutput> {
-    return this.abilityMethods.executeDeleteAbility(name, input, responseSchema, options);
+    return this.abilityMethods.executeDeleteAbility(name, input, options);
   }
 
   // ============= DISCOVERY API =============
@@ -363,6 +353,17 @@ export class WordPressClient {
   useCatalog(catalog: WordPressDiscoveryCatalog): this {
     this.discoveryMethods.seedCatalog(catalog);
     return this;
+  }
+
+  /**
+   * Returns the currently cached discovery catalog snapshot when available.
+   *
+   * This is synchronous and never performs network discovery. It returns the
+   * full cached catalog when one exists, or a partial snapshot assembled from
+   * previously described resources and abilities.
+   */
+  getCachedCatalog(): WordPressDiscoveryCatalog | undefined {
+    return this.discoveryMethods.getCatalogSnapshot();
   }
 
   /**
@@ -398,7 +399,7 @@ export class WordPressClient {
     credentials: JwtLoginCredentials,
     options?: WordPressRequestOverrides,
   ): Promise<JwtAuthTokenResponse> {
-    return this.transport.loginWithJwt(credentials);
+    return this.transport.loginWithJwt(credentials, options);
   }
 
   /**
@@ -408,6 +409,6 @@ export class WordPressClient {
     token?: string | JwtAuthCredentials,
     options?: WordPressRequestOverrides,
   ): Promise<JwtAuthValidationResponse> {
-    return this.transport.validateJwtToken(token);
+    return this.transport.validateJwtToken(token, options);
   }
 }

@@ -243,7 +243,7 @@ export abstract class BasePostLikeResource<
     id: number,
     options?: WordPressRequestOverrides,
     context?: 'edit',
-    embed = false,
+    embed: boolean | string[] = false,
     fields?: string[],
   ): Promise<TContent> {
     const params = filterToParams(
@@ -265,7 +265,7 @@ export abstract class BasePostLikeResource<
     slug: string,
     options?: WordPressRequestOverrides,
     context?: 'edit',
-    embed = false,
+    embed: boolean | string[] = false,
     fields?: string[],
   ): Promise<TContent | undefined> {
     const params = filterToParams(

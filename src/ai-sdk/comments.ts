@@ -42,7 +42,7 @@ export const getCommentTool = (
   needsApproval: options?.needsApproval,
   inputSchema: idOnlyGetInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     if (merged.id) return client.comments().item(merged.id as number);
     throw new Error('Comment ID must be provided.');
   }),
@@ -60,7 +60,7 @@ export const createCommentTool = (
   needsApproval: options?.needsApproval,
   inputSchema: commentCreateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.comments().create(withInput.input as Record<string, unknown>);
   }),
@@ -78,7 +78,7 @@ export const updateCommentTool = (
   needsApproval: options?.needsApproval,
   inputSchema: commentUpdateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.comments().update(withInput.id as number, withInput.input as Record<string, unknown>);
   }),
@@ -96,7 +96,7 @@ export const deleteCommentTool = (
   needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     return client.comments().delete(merged.id as number, { force: merged.force as boolean | undefined });
   }),
 });

@@ -18,80 +18,27 @@
 export type {
   ToolFactoryOptions,
   MutationToolFactoryOptions,
+  CatalogToolFactoryOptions,
+  CatalogMutationToolFactoryOptions,
+  ContentToolFactoryOptions,
+  ContentMutationToolFactoryOptions,
+  TermToolFactoryOptions,
+  TermMutationToolFactoryOptions,
+  AbilityToolFactoryOptions,
+  CreateAbilityToolsOptions,
   GenericResourceToolFactoryOptions,
   GenericMutationToolFactoryOptions,
 } from './types.js';
 
 export type { ContentItemResult, WordPressAIToolErrorResult } from './factories.js';
 
-// Posts
-export {
-  getPostsTool,
-  getPostTool,
-  createPostTool,
-  updatePostTool,
-  deletePostTool,
-} from './posts.js';
-
-// Pages
-export {
-  getPagesTool,
-  getPageTool,
-  createPageTool,
-  updatePageTool,
-  deletePageTool,
-} from './pages.js';
-
-// Media
-export {
-  getMediaTool,
-  getMediaItemTool,
-  deleteMediaTool,
-} from './media.js';
-
-// Categories
-export {
-  getCategoriesTool,
-  getCategoryTool,
-  createCategoryTool,
-  updateCategoryTool,
-  deleteCategoryTool,
-} from './categories.js';
-
-// Tags
-export {
-  getTagsTool,
-  getTagTool,
-  createTagTool,
-  updateTagTool,
-  deleteTagTool,
-} from './tags.js';
-
-// Users
-export {
-  getUsersTool,
-  getUserTool,
-  createUserTool,
-  updateUserTool,
-  deleteUserTool,
-} from './users.js';
-
-// Comments
-export {
-  getCommentsTool,
-  getCommentTool,
-  createCommentTool,
-  updateCommentTool,
-  deleteCommentTool,
-} from './comments.js';
-
-// Settings
+// Singleton settings
 export {
   getSettingsTool,
   updateSettingsTool,
 } from './settings.js';
 
-// Generic content (custom post types)
+// Generic content
 export {
   getContentCollectionTool,
   getContentTool,
@@ -100,7 +47,7 @@ export {
   deleteContentTool,
 } from './content.js';
 
-// Generic terms (custom taxonomies)
+// Generic taxonomies
 export {
   getTermCollectionTool,
   getTermTool,
@@ -109,6 +56,17 @@ export {
   deleteTermTool,
 } from './terms.js';
 
+// Generic first-class resources
+export {
+  getResourceCollectionTool,
+  getResourceTool,
+  createResourceTool,
+  updateResourceTool,
+  deleteResourceTool,
+  type ResourceToolFactoryOptions,
+  type ResourceMutationToolFactoryOptions,
+} from './resources.js';
+
 // Abilities
 export {
   getAbilitiesTool,
@@ -116,6 +74,7 @@ export {
   executeGetAbilityTool,
   executeRunAbilityTool,
   executeDeleteAbilityTool,
+  createAbilityTools,
 } from './abilities.js';
 
 // Gutenberg blocks — universal read/write for any post-like resource

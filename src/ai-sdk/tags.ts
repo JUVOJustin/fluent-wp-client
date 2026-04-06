@@ -42,7 +42,7 @@ export const getTagTool = (
   needsApproval: options?.needsApproval,
   inputSchema: simpleGetInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     if (merged.id) return client.terms('tags').item(merged.id as number);
     if (merged.slug) return client.terms('tags').item(merged.slug as string);
     throw new Error('Either id or slug must be provided.');
@@ -61,7 +61,7 @@ export const createTagTool = (
   needsApproval: options?.needsApproval,
   inputSchema: termCreateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.terms('tags').create(withInput.input as Record<string, unknown>);
   }),
@@ -79,7 +79,7 @@ export const updateTagTool = (
   needsApproval: options?.needsApproval,
   inputSchema: termUpdateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.terms('tags').update(withInput.id as number, withInput.input as Record<string, unknown>);
   }),
@@ -97,7 +97,7 @@ export const deleteTagTool = (
   needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     return client.terms('tags').delete(merged.id as number, { force: merged.force as boolean | undefined });
   }),
 });

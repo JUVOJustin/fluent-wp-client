@@ -1,4 +1,3 @@
-import type { PostRelationClient } from '../builders/relations.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import type { WordPressPostLike, WordPressCategory } from '../schemas.js';
 import type {
@@ -24,7 +23,6 @@ import {
  */
 export interface GenericResourceContext {
   runtime: WordPressRuntime;
-  relationClient: PostRelationClient;
   discoveryMethods?: DiscoveryMethods;
 }
 
@@ -55,7 +53,6 @@ export class GenericResourceRegistry {
       // @ts-ignore - Type constraint complexity, safe at runtime
       baseResource = new GenericContentResource<TResource>({
         runtime: this.context.runtime,
-        relationClient: this.context.relationClient,
         endpoint: `/${resource}`,
         missingRawMessage: defaults?.missingRawMessage
           ?? `Raw ${resource} content is unavailable. The current credentials may not have edit capabilities.`,

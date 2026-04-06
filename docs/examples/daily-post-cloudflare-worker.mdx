@@ -1,0 +1,66 @@
+---
+title: Daily post with Cloudflare Workers and AI SDK
+description: A Cloudflare Cron Trigger that generates and publishes a post every day using the Vercel AI SDK.
+---
+
+A [Cloudflare Cron Trigger](https://developers.cloudflare.com/workers/configuration/cron-triggers/) that generates and publishes a post every morning using the Vercel AI SDK. `fluent-wp-client` uses only web-standard APIs, so it runs in the Workers runtime without any extra configuration.
+
+:::tip[Validate the create payload before deploying]
+Run `wp.content('posts').describe()` once against your site to get the live create schema, then convert it with `z.fromJSONSchema()` and validate the payload before calling `create()`. Mismatches between the generated content and the expected payload surface at development time instead of silently failing in production.
+
+```ts
+import { z } from 'zod';
+
+const desc = await wp.content('posts').describe();
+const postSchema = z.fromJSONSchema(desc.schemas.create!);
+
+const validatedInput = postSchema.parse({ title, content, status: 'publish' });
+await wp.content('posts').create(validatedInput);
+```
+
+See [Schema discovery](../schema-discovery.mdx) for more.
+:::
+
+```toml title="wrangler.toml"
+[triggers]
+crons = ["0 8 * * *"]
+```
+
+```ts title="worker.ts"
+import { WordPressClient } from 'fluent-wp-client';
+import { generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+interface Env {
+  WP_URL: string;
+  WP_USER: string;
+  WP_APP_PASSWORD: string;
+  OPENAI_API_KEY: string;
+}
+
+export default {
+  async scheduled(_event: ScheduledEvent, env: Env) {
+    const wp = new WordPressClient({
+      baseUrl: env.WP_URL,
+      auth: { username: env.WP_USER, password: env.WP_APP_PASSWORD },
+    });
+
+    const today = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const { text } = await generateText({
+      model: openai('gpt-4o-mini'),
+      prompt: `Write a short web development tip for ${today}. Use clear HTML for paragraphs and headings.`,
+    });
+
+    await wp.content('posts').create({
+      title: `Daily tip — ${today}`,
+      content: text,
+      status: 'publish',
+    });
+  },
+};
+```

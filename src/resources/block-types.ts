@@ -12,6 +12,7 @@ import type {
   QueryParams,
   WordPressRequestOverrides,
 } from '../types/resources.js';
+import { describeUnavailable } from './describe.js';
 
 /**
  * Narrow error check used to turn 404s into `undefined` item lookups.
@@ -105,6 +106,6 @@ export function createBlocksClient(
       const blockTypes = await resource.list(filter, options);
       return createWordPressBlockJsonSchemas(blockTypes);
     },
-    describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
+    describe: describeFn ?? describeUnavailable,
   };
 }

@@ -1,11 +1,8 @@
 import type {
-  WordPressAuthor,
   WordPressMedia,
-  WordPressPostLike,
 } from '../schemas.js';
 import type { WordPressMediaUploadInput } from '../types/client.js';
 import type {
-  AllMediaRelations,
   MediaResourceClient,
   WordPressRequestOverrides,
 } from '../types/resources.js';
@@ -15,18 +12,8 @@ import type { WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
 import { BaseCrudResource } from '../core/resource-base.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
-import { throwIfWordPressError } from '../core/errors.js';
 import type { WordPressRuntime } from '../core/transport.js';
-import { ResourceItemQueryBuilder } from '../builders/resource-item-relations.js';
-import {
-  extractEmbeddedData,
-  type PostRelationClient,
-} from '../builders/relation-contracts.js';
-import {
-  extractEmbeddedAuthor,
-  extractEmbeddedPost,
-  resolveAuthorById,
-} from '../builders/item-relation-resolver.js';
+import { describeUnavailable } from './describe.js';
 
 /**
  * WordPress media resource with CRUD operations and binary uploads.
@@ -112,104 +99,16 @@ export class MediaResource extends BaseCrudResource<
  */
 export function createMediaClient(
   resource: MediaResource,
-  relationClient: PostRelationClient,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload> {
-  const builtInRelations = new Set<AllMediaRelations>(['author', 'post']);
-
-  const resolveAuthorRelation = async (media: WordPressMedia): Promise<WordPressAuthor | null> => {
-    const embeddedAuthor = extractEmbeddedAuthor(extractEmbeddedData(media, 'author'));
-
-    if (embeddedAuthor) {
-      return embeddedAuthor;
-    }
-
-    return resolveAuthorById(relationClient, (media as WordPressMedia).author);
-  };
-
-  const resolvePostRelation = async (media: WordPressMedia): Promise<WordPressPostLike | null> => {
-    const embeddedPost = extractEmbeddedPost(extractEmbeddedData(media, 'post'))
-      ?? extractEmbeddedPost(extractEmbeddedData(media, 'up'));
-
-    if (embeddedPost) {
-      return embeddedPost;
-    }
-
-    const links = (media as { _links?: Record<string, unknown> })._links;
-    const linkedPostGroups = [links?.post, links?.up] as Array<unknown>;
-    const linkedPostGroup = linkedPostGroups.find(Array.isArray) as Array<Record<string, unknown>> | undefined;
-    const linkedPost = linkedPostGroup?.[0];
-
-    if (linkedPost && relationClient.request && typeof linkedPost.href === 'string') {
-      try {
-        const { data, response } = await relationClient.request<WordPressPostLike>({
-          endpoint: linkedPost.href,
-          method: 'GET',
-        });
-
-        if (response.ok) {
-          return data;
-        }
-      } catch {
-        // Ignore link fetch failures and fall back to typed resource lookup when possible.
-      }
-    }
-
-    const postId = (media as WordPressMedia & { post?: number }).post;
-    const postType = typeof linkedPost?.post_type === 'string' ? linkedPost.post_type : undefined;
-
-    if (typeof postId === 'number' && postId > 0 && postType) {
-      try {
-        const post = await relationClient.content(postType).item(postId);
-        return post ?? null;
-      } catch {
-        return null;
-      }
-    }
-
-    if (typeof postId === 'number' && postId > 0) {
-      for (const resource of ['posts', 'pages']) {
-        try {
-          const post = await relationClient.content(resource).item(postId);
-
-          if (post) {
-            return post;
-          }
-        } catch {
-          continue;
-        }
-      }
-    }
-
-    return null;
-  };
-
   const item = ((
     idOrSlug: number | string,
     options?: WordPressRequestOverrides,
-  ) => new ResourceItemQueryBuilder(
-    relationClient,
-    async () => {
-      const loaded = typeof idOrSlug === 'number'
-        ? await resource.getById(idOrSlug, options)
-        : await resource.getBySlug(idOrSlug, options);
-      return loaded;
-    },
-    builtInRelations,
-    async (media, relationSet) => {
-      const related: Record<string, unknown> = {};
-
-      if (relationSet.has('author')) {
-        related.author = await resolveAuthorRelation(media);
-      }
-
-      if (relationSet.has('post')) {
-        related.post = await resolvePostRelation(media);
-      }
-
-      return related;
-    },
-  )) as MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload>['item'];
+  ): Promise<WordPressMedia | undefined> => {
+    return typeof idOrSlug === 'number'
+      ? resource.getById(idOrSlug, options)
+      : resource.getBySlug(idOrSlug, options);
+  }) as MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload>['item'];
 
   return {
     list: (filter = {}, options) => resource.list(filter, options),
@@ -221,6 +120,6 @@ export function createMediaClient(
     upload: (input, options) => resource.upload(input, options),
     delete: (id, options) => resource.delete(id, options),
     getImageUrl: (media, size) => resource.getImageUrl(media, size),
-    describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
+    describe: describeFn ?? describeUnavailable,
   };
 }

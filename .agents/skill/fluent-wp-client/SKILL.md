@@ -328,24 +328,32 @@ const parsed = await parseWordPressBlocks(content.raw);
 For custom parser configuration and CPT block parsing, read
 [references/gutenberg-content.mdx](references/gutenberg-content.mdx).
 
-## Post relations
+## Embed and extraction
 
-Hydrate related entities in a single fluent call.
+Request embedded data with `embed: true` or selective `embed: ['author', 'wp:term']`, then use typed extraction helpers.
 
 ```ts
-// Fluent chain
-const result = await wp
-  .content('posts').item('hello-world')
-  .with('author', 'categories', 'tags', 'featuredMedia', 'parent');
+import {
+  getEmbeddedAuthor,
+  getEmbeddedTerms,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedParent,
+  getEmbeddableLinkKeys,
+} from 'fluent-wp-client';
 
-result.related.author;        // WordPressAuthor | null
-result.related.categories;    // WordPressCategory[]
-result.related.tags;          // WordPressTag[]
-result.related.featuredMedia; // WordPressMedia | null
-result.related.parent;        // WordPressPostLike | null
+const post = await wp.content('posts').item('hello-world', { embed: true });
+
+getEmbeddedAuthor(post);              // WordPressUser | undefined
+getEmbeddedTerms(post, 'category');   // WordPressCategory[]
+getEmbeddedTerms(post, 'post_tag');   // WordPressTag[]
+getEmbeddedFeaturedMedia(post);       // WordPressMedia | undefined
+getEmbeddedParent(post);              // WordPressPost | undefined
+
+// Discover embeddable keys
+const keys = getEmbeddableLinkKeys(post); // ['author', 'wp:term', ...]
 ```
 
-Available relations: `author`, `categories`, `tags`, `terms`, `featuredMedia`, `parent`.
+Embed keys: `author`, `wp:term`, `wp:featuredmedia`, `up`, `replies`, `acf:post`, `acf:term`.
 
 ## Schema Discovery
 
@@ -571,8 +579,7 @@ All schemas use `.passthrough()` so custom fields (ACF, meta, plugin data) survi
 `ContentResourceClient<T, TCreate, TUpdate>`, `TermsResourceClient<T, TCreate, TUpdate>`
 
 ### Block types
-`WordPressParsedBlock`, `WordPressBlockParser`, `WordPressContentRecord<T>`,
-`PostRelationQueryBuilder<T>`
+`WordPressParsedBlock`, `WordPressBlockParser`, `WordPressContentRecord<T>`
 
 ## Reference docs
 

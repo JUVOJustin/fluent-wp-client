@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WordPressClient } from 'fluent-wp-client';
 import { z } from 'zod';
-import { createAuthClient } from '../helpers/wp-client';
+import { createAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-client';
 
 /**
  * Integration tests for JSON Schema discovery APIs.
@@ -214,6 +214,148 @@ describe('Discovery APIs', () => {
   });
 
   /**
+   * capabilities field: normalized DX surface derived from raw OPTIONS data.
+   */
+  describe('capabilities on describe()', () => {
+    it('content describe() includes capabilities with string arrays', async () => {
+      const desc = await authClient.content('posts').describe();
+
+      expect(desc.capabilities).toBeDefined();
+      expect(Array.isArray(desc.capabilities!.queryParams)).toBe(true);
+      expect(Array.isArray(desc.capabilities!.readFields)).toBe(true);
+      expect(Array.isArray(desc.capabilities!.createFields)).toBe(true);
+      expect(Array.isArray(desc.capabilities!.updateFields)).toBe(true);
+    });
+
+    it('content capabilities.readFields includes known post fields', async () => {
+      const desc = await authClient.content('posts').describe();
+
+      const { readFields } = desc.capabilities!;
+      expect(readFields).toContain('id');
+      expect(readFields).toContain('slug');
+      expect(readFields).toContain('title');
+      expect(readFields).toContain('content');
+    });
+
+    it('content capabilities.createFields includes known writable fields', async () => {
+      const desc = await authClient.content('posts').describe();
+
+      // Create schema is built from POST args — common fields should be present
+      expect(desc.capabilities!.createFields.length).toBeGreaterThan(0);
+    });
+
+    it('content capabilities.updateFields matches createFields (no required constraint)', async () => {
+      const desc = await authClient.content('posts').describe();
+
+      // update removes required; properties should be the same set
+      expect(desc.capabilities!.updateFields).toEqual(desc.capabilities!.createFields);
+    });
+
+    it('terms describe() includes capabilities', async () => {
+      const desc = await authClient.terms('categories').describe();
+
+      expect(desc.capabilities).toBeDefined();
+      expect(Array.isArray(desc.capabilities!.queryParams)).toBe(true);
+      expect(Array.isArray(desc.capabilities!.readFields)).toBe(true);
+    });
+
+    it('first-class resource describe() includes capabilities', async () => {
+      const desc = await authClient.media().describe();
+
+      expect(desc.capabilities).toBeDefined();
+      expect(Array.isArray(desc.capabilities!.readFields)).toBe(true);
+    });
+
+    it('capabilities survive JSON round-trip', async () => {
+      const desc = await authClient.content('posts').describe();
+      const roundTripped = JSON.parse(JSON.stringify(desc));
+
+      expect(roundTripped.capabilities).toEqual(desc.capabilities);
+    });
+
+    it('explore() catalog descriptions include capabilities', async () => {
+      const catalog = await authClient.explore({ include: ['content'] });
+
+      const postsDesc = catalog.content.posts;
+      expect(postsDesc.capabilities).toBeDefined();
+      expect(Array.isArray(postsDesc.capabilities!.readFields)).toBe(true);
+    });
+  });
+
+  /**
+   * wp.useCatalog(): lazily seed the internal discovery cache from external data.
+   */
+  describe('wp.useCatalog()', () => {
+    it('returns the client instance for chaining', async () => {
+      const catalog = await authClient.explore();
+      const client = createPublicClient();
+
+      const result = client.useCatalog(catalog);
+
+      expect(result).toBe(client);
+    });
+
+    it('seeded describe() returns the same data as the original catalog', async () => {
+      const catalog = await authClient.explore();
+
+      const freshClient = new WordPressClient({
+        baseUrl: getBaseUrl(),
+      });
+      freshClient.useCatalog(catalog);
+
+      const postsDesc = await freshClient.content('posts').describe();
+
+      expect(postsDesc.resource).toBe('posts');
+      expect(postsDesc.capabilities).toBeDefined();
+      expect(postsDesc.capabilities!.readFields).toEqual(
+        catalog.content.posts.capabilities!.readFields,
+      );
+    });
+
+    it('seeded explore() returns the catalog without a network round-trip', async () => {
+      const original = await authClient.explore();
+
+      // Public client cannot run explore() on its own without errors on some endpoints,
+      // but after useCatalog it should return the seeded data immediately.
+      const freshClient = new WordPressClient({ baseUrl: getBaseUrl() });
+      freshClient.useCatalog(original);
+
+      const catalog = await freshClient.explore();
+
+      expect(catalog.content.posts).toBeDefined();
+      expect(Object.keys(catalog.content)).toEqual(Object.keys(original.content));
+    });
+
+    it('seeded catalog survives JSON.stringify → useCatalog round-trip', async () => {
+      const original = await authClient.explore();
+
+      // Simulate storing and loading from a KV store
+      const stored = JSON.parse(JSON.stringify(original));
+
+      const freshClient = new WordPressClient({ baseUrl: getBaseUrl() });
+      freshClient.useCatalog(stored);
+
+      const postsDesc = await freshClient.content('posts').describe();
+      expect(postsDesc.capabilities).toBeDefined();
+      expect(postsDesc.capabilities!.readFields).toEqual(
+        original.content.posts.capabilities!.readFields,
+      );
+    });
+
+    it('useCatalog() does not prevent refresh via explore({ refresh: true })', async () => {
+      const original = await authClient.explore();
+
+      const freshClient = createAuthClient();
+      freshClient.useCatalog(original);
+
+      // Force a refresh — should not throw and should still return valid data
+      const refreshed = await freshClient.explore({ refresh: true });
+
+      expect(refreshed.content.posts).toBeDefined();
+    });
+  });
+
+  /**
    * Dogfooding tests: Verify discovered schemas can be used with Zod
    */
   describe('Dogfooding: Using discovered schemas', () => {
@@ -233,41 +375,31 @@ describe('Discovery APIs', () => {
       }
     });
 
-    it('uses discovered schemas for validation when available', async () => {
+    it('uses discovered schema as a Zod validator for a create mutation', async () => {
       const createdIds: number[] = [];
-      
+
       try {
-        // Get books schema (more likely to have create schema than posts)
         const description = await authClient.content('books').describe();
-        
-        if (description.schemas.create) {
-          // Convert to Zod and use for validation
-          const createSchema = z.fromJSONSchema(description.schemas.create);
-          
-          // Valid input should work
-          const book = await authClient.content('books').create(
-            {
-              title: 'Dogfooding Test Book',
-              content: 'Created with schema validation',
-              status: 'draft',
-            },
-            createSchema
-          ) as { id: number; type: string };
-          
-          expect(book).toBeDefined();
-          expect(book.type).toBe('book');
-          createdIds.push(book.id);
-          
-          // Invalid input should fail validation
-          await expect(
-            authClient.content('books').create(
-              { content: 'Missing title' } as any,
-              createSchema
-            )
-          ).rejects.toThrow();
-        }
+
+        // create schema is always present now that endpoint arg discovery is correct
+        expect(description.schemas.create).toBeDefined();
+
+        const createSchema = z.fromJSONSchema(description.schemas.create!);
+
+        // Valid create request should succeed
+        const book = await authClient.content('books').create(
+          {
+            title: 'Dogfooding Test Book',
+            content: 'Created with schema validation',
+            status: 'draft',
+          },
+          createSchema,
+        ) as { id: number; type: string };
+
+        expect(book).toBeDefined();
+        expect(book.type).toBe('book');
+        createdIds.push(book.id);
       } finally {
-        // Cleanup
         for (const id of createdIds) {
           await authClient.content('books').delete(id, { force: true }).catch(() => undefined);
         }

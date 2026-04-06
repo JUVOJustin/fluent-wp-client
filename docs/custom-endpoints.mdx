@@ -26,11 +26,11 @@ const list = await books.list({ perPage: 20 });
 const allBooks = await books.listAll();
 const paged = await books.listPaginated({ page: 2, perPage: 25 });
 const book = await books.item('my-book');
-const hydrated = await books.item('my-book').with('author', 'terms');
+const embedded = await books.item('my-book', { embed: true });
 ```
 
 :::note
-CPT clients follow the same rules as core content builders: plain DTO reads stay lean, and `.with()` opts into `_embed` automatically.
+CPT clients follow the same rules as core content builders: plain DTO reads stay lean, and `embed` opts into `_embed` on request.
 :::
 
 ### CRUD
@@ -75,11 +75,14 @@ const artifacts = wp.content('artifacts', postLikeWordPressSchema);
 Use `contentWordPressSchema` instead to fail fast when content fields are missing.
 :::
 
-### Relation hydration
+### Embed and extraction
 
-```ts
-const withTerms = await books.item('test-book-001').with('terms');
-// Custom taxonomies at: withTerms.related.terms.taxonomies.genre
+```ts title="Extract custom taxonomy terms from an embedded CPT"
+import { getEmbeddedTerms, getEmbeddedAuthor } from 'fluent-wp-client';
+
+const book = await books.item('test-book-001', { embed: ['author', 'wp:term'] });
+const author = getEmbeddedAuthor(book);
+const genres = getEmbeddedTerms(book, 'genre');
 ```
 
 ### Gutenberg blocks

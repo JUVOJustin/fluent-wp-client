@@ -42,7 +42,7 @@ export const getUserTool = (
   needsApproval: options?.needsApproval,
   inputSchema: simpleGetInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     if (merged.id) return client.users().item(merged.id as number);
     if (merged.slug) return client.users().item(merged.slug as string);
     throw new Error('Either id or slug must be provided.');
@@ -61,7 +61,7 @@ export const createUserTool = (
   needsApproval: options?.needsApproval,
   inputSchema: userCreateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.users().create(withInput.input as Record<string, unknown>);
   }),
@@ -79,7 +79,7 @@ export const updateUserTool = (
   needsApproval: options?.needsApproval,
   inputSchema: userUpdateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.users().update(withInput.id as number, withInput.input as Record<string, unknown>);
   }),
@@ -97,7 +97,7 @@ export const deleteUserTool = (
   needsApproval: options?.needsApproval,
   inputSchema: userDeleteInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     return client.users().delete(merged.id as number, {
       force: merged.force as boolean | undefined,
       reassign: merged.reassign as number | undefined,

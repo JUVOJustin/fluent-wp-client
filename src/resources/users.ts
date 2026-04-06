@@ -12,8 +12,7 @@ import { normalizeDeleteResult } from '../core/params.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
 import { throwIfWordPressError } from '../core/errors.js';
 import type { WordPressRuntime } from '../core/transport.js';
-import { ResourceItemQueryBuilder } from '../builders/resource-item-relations.js';
-import type { PostRelationClient } from '../builders/relation-contracts.js';
+import { describeUnavailable } from './describe.js';
 
 /**
  * WordPress users resource with CRUD support and `/me` access.
@@ -75,22 +74,16 @@ export class UsersResource extends BaseCrudResource<
  */
 export function createUsersClient(
   resource: UsersResource,
-  relationClient: PostRelationClient,
   describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
 ): UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
   const item = ((
     idOrSlug: number | string,
     options?: WordPressRequestOverrides,
-  ) => new ResourceItemQueryBuilder(
-    relationClient,
-    async () => {
-      return typeof idOrSlug === 'number'
-        ? resource.getById(idOrSlug, options)
-        : resource.getBySlug(idOrSlug, options);
-    },
-    new Set<string>(),
-    async () => ({}),
-  )) as UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>['item'];
+  ): Promise<WordPressAuthor | undefined> => {
+    return typeof idOrSlug === 'number'
+      ? resource.getById(idOrSlug, options)
+      : resource.getBySlug(idOrSlug, options);
+  }) as UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>['item'];
 
   return {
     list: (filter = {}, options) => resource.list(filter, options),
@@ -101,6 +94,6 @@ export function createUsersClient(
     delete: (id, options) => resource.delete(id, options),
     item,
     me: (options) => resource.me(options),
-    describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
+    describe: describeFn ?? describeUnavailable,
   };
 }

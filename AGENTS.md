@@ -22,13 +22,13 @@
 
 - All terminal read methods return plain serializable DTOs by default. Returned data must survive `structuredClone()`, `JSON.stringify()`, and cross-boundary transport (SSR, RSC, `postMessage`, cache).
 - No fetched DTO should contain functions, `then`, `PromiseLike`, or hidden closures. Never mutate API response objects with runtime helpers via `Object.assign` or similar.
-- Runtime query helpers (`PostRelationQueryBuilder`, `WordPressRequestBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
+- Runtime query helpers (`WordPressRequestBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
 - Standalone block utility functions (like `parseWordPressBlocks`, `serializeWordPressBlocks`, `validateWordPressBlocks`, and generated block JSON Schema helpers) belong to the `fluent-wp-client/blocks` subpath and handle stateless transforms on already-fetched DTOs.
 - Post-like collection methods (`content('posts').list()`, `content('pages').list()`, `content(resource).list()`) return plain DTO arrays.
-- Post-like DTO reads keep `_embed` disabled by default; opt into collection embedding with `embed: true`. Relation queries created through `content(resource).item(...).with(...)` automatically request `_embed`.
-- Single post-like item access goes through `content(resource).item(idOrSlug)`, which returns an awaitable `PostRelationQueryBuilder` with `.getContent()` and relation hydration. Block parse/write helpers are added only by the `fluent-wp-client/blocks` wrapper through `.content(resource).item(...).blocks()`.
-- First-class collection helpers (`media().list()`, `comments().list()`, `users().list()`) return plain DTO arrays. Single-item access goes through `.item(...)`, which is awaitable and may support `.with(...)` relation hydration, while `settings()` remains a singleton with `.get()` / `.update()` / `.describe()`.
-- When adding new resource helpers, follow the same contract: collections return plain arrays, and single-item post-like access returns explicit query wrappers only when raw-content helpers or relation hydration are needed in the root package.
+- Post-like DTO reads keep `_embed` disabled by default; opt into embedding with `embed: true` or selective `embed: ['author', 'wp:term']` on `.item()` and `.list()`. Typed extraction helpers (`getEmbeddedAuthor`, `getEmbeddedTerms`, etc.) pull related data from embedded responses.
+- Single post-like item access goes through `content(resource).item(idOrSlug)`, which returns an awaitable DTO. Pass `{ embed: true }` to include embedded data. `.getContent()` returns `{ raw, rendered, protected }` for edit context. Block parse/write helpers are added only by the `fluent-wp-client/blocks` wrapper through `.content(resource).item(...).blocks()`.
+- First-class collection helpers (`media().list()`, `comments().list()`, `users().list()`) return plain DTO arrays. Single-item access goes through `.item(...)`, which is awaitable, while `settings()` remains a singleton with `.get()` / `.update()` / `.describe()`.
+- When adding new resource helpers, follow the same contract: collections return plain arrays, and single-item access returns plain DTOs with optional `embed` support.
 
 ## File Structure
 
@@ -77,10 +77,7 @@ src/
     terms.ts                   # Generic term resource + client factory
     registry.ts                # Shared generic resource registry
   builders/                    # Fluent query/request builders
-    relations.ts               # PostRelationQueryBuilder
-    acf-relations.ts           # ACF relation factories built on shared contracts
-    relation-contracts.ts      # Relation registry contracts + parsing helpers
-    relation-definitions.ts    # Class-backed relation definition factories
+    content-item-query.ts      # ContentItemQuery builder
 ```
 
 When adding new files:
@@ -222,7 +219,7 @@ Reference integration suites:
 - `tests/integration/meta.test.ts` — registered REST meta coverage across posts, pages, and books.
 - `tests/integration/acf.test.ts` — ACF REST field coverage across seeded and mutated content.
 - `tests/integration/blocks.test.ts` — `blocks().get()`, `blocks().set()`, and raw content workflows through the block add-on.
-- `tests/integration/relations.test.ts` — fluent post relation hydration coverage.
+- `tests/integration/relations.test.ts` — embed extraction helper coverage.
 - `tests/integration/serialization.test.ts` — DTO serialization safety (`structuredClone`, `JSON.stringify`, no helper leakage).
 - `tests/integration/discovery.test.ts` — schema discovery, catalog exploration, and dogfooding coverage (converting discovered schemas to Zod for validation).
 

@@ -426,7 +426,7 @@ describe('Client: request-scoped mutation overrides', () => {
     const defaultBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001' });
     const embeddedBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001', embed: true });
     const plainItem = await client.content('posts').item('test-post-001');
-    const relatedItem = await client.content('posts').item('test-post-002').with('author');
+    const relatedItem = await client.content('posts').item('test-post-002', { embed: true });
 
     expect(defaultPosts).toHaveLength(1);
     expect(embeddedPosts).toHaveLength(1);

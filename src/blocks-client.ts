@@ -1,8 +1,4 @@
-import { PostRelationQueryBuilder } from './builders/relations.js';
-import type {
-  AllPostRelations,
-  ContentItemResult,
-} from './builders/relations.js';
+import { ContentItemQuery } from './builders/content-item-query.js';
 import { WordPressClient } from './client.js';
 import { type WordPressRawContentResult } from './content-query.js';
 import { ExecutableQuery } from './core/query-base.js';
@@ -57,33 +53,18 @@ function normalizeSetBlocksOptions(
  * Promise-like query that adds a dedicated `.blocks()` namespace on top of one content item query.
  */
 export class BlockContentItemQuery<
-  TRelations extends readonly AllPostRelations[] = [],
   TContent extends WordPressPostLike = WordPressPostLike,
   TFilter extends QueryParams & PaginationParams = QueryParams & PaginationParams,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
-> extends ExecutableQuery<ContentItemResult<TContent, TRelations> | undefined> {
+> extends ExecutableQuery<TContent | undefined> {
   constructor(
     private readonly resource: string,
     private readonly selector: number | string,
     private readonly contentClient: ContentResourceClient<TContent, TFilter, TCreate, TUpdate>,
-    private readonly baseQuery: PostRelationQueryBuilder<TRelations, TContent>,
+    private readonly baseQuery: ContentItemQuery<TContent>,
   ) {
     super();
-  }
-
-  /**
-   * Adds relation names to the underlying content query while preserving the block namespace.
-   */
-  with<TNext extends readonly AllPostRelations[]>(
-    ...relations: TNext
-  ): BlockContentItemQuery<[...TRelations, ...TNext], TContent, TFilter, TCreate, TUpdate> {
-    return new BlockContentItemQuery(
-      this.resource,
-      this.selector,
-      this.contentClient,
-      this.baseQuery.with(...relations),
-    );
   }
 
   /**
@@ -151,10 +132,10 @@ export class BlockContentItemQuery<
   }
 
   /**
-   * Delegates execution to the underlying relation query builder.
+   * Delegates execution to the underlying content item query.
    */
-  protected execute(): Promise<ContentItemResult<TContent, TRelations> | undefined> {
-    return Promise.resolve(this.baseQuery) as Promise<ContentItemResult<TContent, TRelations> | undefined>;
+  protected execute(): Promise<TContent | undefined> {
+    return Promise.resolve(this.baseQuery) as Promise<TContent | undefined>;
   }
 }
 
@@ -169,8 +150,8 @@ export type BlockAwareContentResourceClient<
 > = Omit<ContentResourceClient<TResource, TFilter, TCreate, TUpdate>, 'item'> & {
   item: (
     idOrSlug: number | string,
-    options?: WordPressRequestOverrides & { embed?: boolean; fields?: string[] },
-  ) => BlockContentItemQuery<[], TResource, TFilter, TCreate, TUpdate>;
+    options?: WordPressRequestOverrides & { embed?: boolean | string[]; fields?: string[] },
+  ) => BlockContentItemQuery<TResource, TFilter, TCreate, TUpdate>;
 };
 
 /**

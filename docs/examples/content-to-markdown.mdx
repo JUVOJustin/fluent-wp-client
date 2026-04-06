@@ -1,0 +1,41 @@
+---
+title: Convert all content to Markdown
+description: Fetch every published post and convert the rendered HTML in content.rendered to Markdown files.
+---
+
+Fetch every published post and convert `content.rendered` — the server-side rendered HTML WordPress returns by default — to individual Markdown files.
+
+:::tip[Adapting this for a custom post type]
+Not all CPTs expose `content`. Before running this against a custom post type, call `.describe()` to confirm the field is registered:
+
+```ts
+const desc = await wp.content('recipes').describe();
+// desc.schemas.item contains the full REST schema for the resource
+```
+
+If `content` is absent, the rendered value will be an empty string rather than an error. See [Custom endpoints](../custom-endpoints.mdx) for how sparse CPTs work.
+:::
+
+```bash title="Install Turndown"
+npm install turndown @types/turndown
+```
+
+```ts title="to-markdown.ts"
+import { WordPressClient } from 'fluent-wp-client';
+import TurndownService from 'turndown';
+import { writeFileSync, mkdirSync } from 'node:fs';
+
+const wp = new WordPressClient({ baseUrl: 'https://example.com' });
+const td = new TurndownService();
+
+const posts = await wp.content('posts').listAll({ status: 'publish' });
+
+mkdirSync('content', { recursive: true });
+
+for (const post of posts) {
+  const body = td.turndown(post.content.rendered);
+  writeFileSync(`content/${post.slug}.md`, `# ${post.title.rendered}\n\n${body}`);
+}
+
+console.log(`Converted ${posts.length} posts.`);
+```

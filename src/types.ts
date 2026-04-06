@@ -39,8 +39,6 @@ export type {
 } from './types/payloads.js';
 
 export type {
-  AllCommentRelations,
-  AllMediaRelations,
   CommentsResourceClient,
   ExtensibleFilter,
   QueryParamPrimitive,
@@ -53,14 +51,11 @@ export type {
   PaginationParams,
   PaginatedResponse,
   SettingsResourceClient,
-  UserRelation,
   UsersResourceClient,
   WordPressDeleteResult,
   ContentResourceClient,
   TermsResourceClient,
 } from './types/resources.js';
-
-export { ResourceItemQueryBuilder } from './builders/resource-item-relations.js';
 
 export type {
   WordPressAbilityDescription,

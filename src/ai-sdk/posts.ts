@@ -44,7 +44,7 @@ export const getPostTool = (
   needsApproval: options?.needsApproval,
   inputSchema: contentGetInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const contentOpts = merged as { includeContent?: boolean; includeBlocks?: boolean };
 
     if (merged.id) {
@@ -69,7 +69,7 @@ export const createPostTool = (
   needsApproval: options?.needsApproval,
   inputSchema: postCreateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content('posts').create(withInput.input as Record<string, unknown>);
   }),
@@ -87,7 +87,7 @@ export const updatePostTool = (
   needsApproval: options?.needsApproval,
   inputSchema: postUpdateInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
     return client.content('posts').update(withInput.id as number, withInput.input as Record<string, unknown>);
   }),
@@ -105,7 +105,7 @@ export const deletePostTool = (
   needsApproval: options?.needsApproval,
   inputSchema: deleteInputSchema,
   execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(options?.defaultArgs ?? {}, asToolArgs(args), options?.fixedArgs);
+    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     return client.content('posts').delete(merged.id as number, { force: merged.force as boolean | undefined });
   }),
 });

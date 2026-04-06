@@ -1,14 +1,19 @@
 ---
 title: AI SDK Integration
 short_title: AI SDK
-description: Expose WordPress capabilities as individually configurable AI SDK tools via the fluent-wp-client/ai-sdk entrypoint.
+description: Expose WordPress content, taxonomies, resources, abilities, and block workflows as generic AI SDK tools with optional catalog-aware schemas.
 sidebar:
   order: 8
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+The `fluent-wp-client/ai-sdk` entrypoint provides generic tool factories for [Vercel AI SDK](https://sdk.vercel.ai/). Instead of separate post, page, category, tag, and custom-type factories, the AI SDK surface is organized around resource families:
 
-The `fluent-wp-client/ai-sdk` entrypoint provides tool factories that turn WordPress client methods into [Vercel AI SDK](https://sdk.vercel.ai/) tools. Each tool is imported and registered manually, giving you full control over which capabilities your AI agent has access to.
+- `content` for posts, pages, and custom post types
+- `terms` for categories, tags, and custom taxonomies
+- `resources` for media, comments, and users
+- `abilities` for WordPress ability endpoints
+- `blocks` for Gutenberg read/write workflows
+- `settings` for the singleton site settings endpoint
 
 ## Install
 
@@ -16,30 +21,34 @@ The `fluent-wp-client/ai-sdk` entrypoint provides tool factories that turn WordP
 npm install fluent-wp-client ai
 ```
 
-`ai` is an optional peer dependency -- only required when importing from `fluent-wp-client/ai-sdk`.
+`ai` is only required when importing from `fluent-wp-client/ai-sdk`.
 
 ## Quick start
 
 ```typescript title="tools.ts"
 import { WordPressClient } from 'fluent-wp-client';
-import { getPostsTool, getPostTool, createPostTool } from 'fluent-wp-client/ai-sdk';
+import {
+  getContentCollectionTool,
+  getContentTool,
+  createContentTool,
+} from 'fluent-wp-client/ai-sdk';
 
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
   auth: { username: 'admin', password: 'xxxx xxxx xxxx xxxx' },
 });
 
+await wp.explore();
+
 const tools = {
-  searchPosts: getPostsTool(wp, {
+  searchPosts: getContentCollectionTool(wp, {
+    contentType: 'posts',
     description: 'Search published blog posts.',
-    defaultArgs: { perPage: 5 },
     fixedArgs: { status: 'publish', fields: ['id', 'slug', 'title', 'excerpt', 'link'] },
   }),
-  readPost: getPostTool(wp, {
-    defaultArgs: { includeContent: true },
-  }),
-  draftPost: createPostTool(wp, {
-    description: 'Create a new draft post for editorial review.',
+  readContent: getContentTool(wp),
+  draftPost: createContentTool(wp, {
+    contentType: 'posts',
     fixedInput: { status: 'draft' },
   }),
 };
@@ -54,371 +63,271 @@ import { openai } from '@ai-sdk/openai';
 const { text } = await generateText({
   model: openai('gpt-4o'),
   tools,
-  prompt: 'Find the latest 3 posts about TypeScript.',
+  prompt: 'Find the latest 3 posts about TypeScript and summarize them.',
 });
 ```
 
-## Design principles
-
-### Manual composition
-
-There is no `.toAiSDK()` magic or auto-registration helper. You import individual factories, configure each one, and add it to your `tools` object. This is intentional:
-
-- You control which operations the model can perform.
-- Different tools can use different client instances (e.g. public vs. admin).
-- Descriptions and defaults are tuned per tool, not globally.
-
-### Lean tool surface
-
-Each resource exposes just enough tools for a model to work effectively:
-
-| Pattern | Tool | What the model can do |
-|---|---|---|
-| **Collection** | `getPostsTool` | Search, filter, paginate, sort, select fields |
-| **Single item** | `getPostTool` | Fetch by ID or slug, optionally expand content/blocks |
-| **Create** | `createPostTool` | Create a new resource |
-| **Update** | `updatePostTool` | Update an existing resource |
-| **Delete** | `deletePostTool` | Delete a resource |
-
-A single `getPostsTool` replaces what would otherwise be separate search, list, and paginated tools. The model calls it with `{ search: "keyword" }`, `{ perPage: 5, page: 2 }`, or `{ categories: [3], orderby: "date" }` as needed.
-
-### Auth inheritance
-
-Every tool executes through the `WordPressClient` instance you pass to the factory. Auth headers, cookies, credentials, and custom `fetch` all carry through automatically. Tool input schemas intentionally exclude auth fields.
+## Generic tool families
 
 ```typescript
-const publicWp = new WordPressClient({ baseUrl });
-const adminWp = new WordPressClient({ baseUrl, auth: { username, password } });
-
-const tools = {
-  searchPosts: getPostsTool(publicWp, { fixedArgs: { status: 'publish' } }),
-  createPost: createPostTool(adminWp),
-};
+import {
+  getContentCollectionTool,
+  getContentTool,
+  createContentTool,
+  updateContentTool,
+  deleteContentTool,
+  getTermCollectionTool,
+  getTermTool,
+  createTermTool,
+  updateTermTool,
+  deleteTermTool,
+  getResourceCollectionTool,
+  getResourceTool,
+  createResourceTool,
+  updateResourceTool,
+  deleteResourceTool,
+  getAbilitiesTool,
+  getAbilityTool,
+  executeGetAbilityTool,
+  executeRunAbilityTool,
+  executeDeleteAbilityTool,
+  getBlocksTool,
+  setBlocksTool,
+  getSettingsTool,
+  updateSettingsTool,
+} from 'fluent-wp-client/ai-sdk';
 ```
+
+## Fixed vs dynamic selectors
+
+You can either pin a tool to one resource in the factory options or let the model choose at runtime.
+
+### Fixed resource
+
+```typescript
+const searchPosts = getContentCollectionTool(wp, {
+  contentType: 'posts',
+  fixedArgs: { status: 'publish' },
+});
+```
+
+The model does not see `contentType` in the tool input.
+
+### Dynamic resource
+
+```typescript
+const searchAnyContent = getContentCollectionTool(wp);
+
+// Model input
+// { contentType: 'books', search: 'API design' }
+```
+
+When the client has a cached catalog, `contentType`, `taxonomyType`, `resourceType`, and ability `name` become enums in the tool schema.
+
+## Catalog-aware schemas
+
+Populate the client cache with `wp.explore()` or `wp.useCatalog()` when you want the tool schema to reflect the connected WordPress instance.
+
+```typescript
+const catalog = await wp.explore();
+wp.useCatalog(catalog);
+
+const createBook = createContentTool(wp, {
+  contentType: 'books',
+});
+```
+
+With a cached catalog on the client:
+
+- selector fields become enums when they are model-facing
+- fixed-resource content and term mutations use the live discovered create/update schema when available
+- dynamic content and term mutations become discriminated unions keyed by `contentType` or `taxonomyType`
+- ability execution tools can expose real ability-name enums and discovered input schemas
+
+This is especially useful for custom post types, ACF fields, plugin taxonomies, and plugin-added ability endpoints.
+
+### Manual schemas without discovery
+
+If you do not want to run discovery, pass `inputSchema` directly to the tool factory.
+
+```typescript
+import { z } from 'zod';
+
+const createBook = createContentTool(wp, {
+  contentType: 'books',
+  inputSchema: z.object({
+    input: z.object({
+      title: z.string(),
+      isbn: z.string(),
+      publishNow: z.boolean().optional(),
+    }),
+  }),
+});
+```
+
+This overrides the generated AI-facing schema without changing tool execution.
 
 ## Configuration options
 
-Every tool factory accepts an options object with three configuration surfaces:
+All generic tool factories accept the existing configuration model:
 
-### `description`
+- `description` — Override the AI-facing tool description
+- `fixedArgs` — Lock arguments that always override model-provided input
+- `fixedInput` — Lock nested input fields for mutation tools
+- `strict` — Enable provider strict-mode tool calling
+- `needsApproval` — Require approval before executing this tool
+- `inputSchema` — Override the generated schema with custom Zod schema (supports `.default()`)
 
-Override the AI-facing tool description. Use this to give the model better context for when and how to call the tool.
+Example:
 
 ```typescript
-getPostsTool(wp, {
-  description: 'Search the company knowledge base for internal articles.',
+const publishPosts = updateContentTool(adminWp, {
+  contentType: 'posts',
+  description: 'Publish an existing draft blog post.',
+  fixedInput: { status: 'publish' },
 });
 ```
 
-### `defaultArgs`
+### Default values with Zod schemas
 
-Provide fallback values the model can override. Useful for sensible defaults that shouldn't require explicit model input every time.
-
-```typescript
-getPostsTool(wp, {
-  defaultArgs: { perPage: 5, status: 'publish' },
-});
-// Model calls with { search: "react" }
-// Executes as { search: "react", perPage: 5, status: "publish" }
-```
-
-### `fixedArgs`
-
-Lock values that always override model input. Use this to enforce constraints the model should not bypass.
+Instead of `defaultArgs`, use Zod's `.default()` method in a custom `inputSchema`:
 
 ```typescript
-getPostsTool(wp, {
-  fixedArgs: { status: 'publish', fields: ['id', 'slug', 'title', 'excerpt'] },
-});
-// Model calls with { status: "draft", perPage: 10 }
-// Executes as { status: "publish", perPage: 10, fields: [...] }
-```
+import { z } from 'zod';
 
-### Mutation tools: `defaultInput` and `fixedInput`
-
-Create and update tools wrap the write payload in an `input` object. `defaultInput` and `fixedInput` apply the same precedence logic to nested fields:
-
-```typescript
-createPostTool(adminWp, {
-  description: 'Draft a new post for review.',
-  fixedInput: { status: 'draft', author: 7 },
-});
-// Model provides: { input: { title: "New Article", content: "..." } }
-// Executes as:    { title: "New Article", content: "...", status: "draft", author: 7 }
-```
-
-```typescript
-updatePostTool(adminWp, {
-  defaultInput: { status: 'draft' },
-});
-// Model provides: { id: 42, input: { title: "Edited" } }
-// Executes as:    id=42, { title: "Edited", status: "draft" }
-// Model provides: { id: 42, input: { title: "Final", status: "publish" } }
-// Executes as:    id=42, { title: "Final", status: "publish" }  (model wins)
-```
-
-## Available tools
-
-### Core resources
-
-<Tabs>
-<TabItem label="Posts">
-```typescript
-import {
-  getPostsTool,     // Search, filter, paginate posts
-  getPostTool,      // Fetch by ID or slug (+ content/blocks)
-  createPostTool,   // Create a post
-  updatePostTool,   // Update a post
-  deletePostTool,   // Delete a post
-} from 'fluent-wp-client/ai-sdk';
-```
-</TabItem>
-<TabItem label="Pages">
-```typescript
-import {
-  getPagesTool,     // Search, filter, paginate pages
-  getPageTool,      // Fetch by ID or slug (+ content/blocks)
-  createPageTool,   // Create a page
-  updatePageTool,   // Update a page
-  deletePageTool,   // Delete a page
-} from 'fluent-wp-client/ai-sdk';
-```
-</TabItem>
-<TabItem label="Media">
-```typescript
-import {
-  getMediaTool,     // Search, filter media items
-  getMediaItemTool, // Fetch by ID or slug
-  deleteMediaTool,  // Delete a media item
-} from 'fluent-wp-client/ai-sdk';
-```
-</TabItem>
-<TabItem label="Categories">
-```typescript
-import {
-  getCategoriesTool,    // Search and filter categories
-  getCategoryTool,      // Fetch by ID or slug
-  createCategoryTool,   // Create a category
-  updateCategoryTool,   // Update a category
-  deleteCategoryTool,   // Delete a category
-} from 'fluent-wp-client/ai-sdk';
-```
-</TabItem>
-<TabItem label="Tags">
-```typescript
-import {
-  getTagsTool,     // Search and filter tags
-  getTagTool,      // Fetch by ID or slug
-  createTagTool,   // Create a tag
-  updateTagTool,   // Update a tag
-  deleteTagTool,   // Delete a tag
-} from 'fluent-wp-client/ai-sdk';
-```
-</TabItem>
-<TabItem label="Users">
-```typescript
-import {
-  getUsersTool,    // Search and filter users
-  getUserTool,     // Fetch by ID
-  createUserTool,  // Create a user
-  updateUserTool,  // Update a user
-  deleteUserTool,  // Delete a user
-} from 'fluent-wp-client/ai-sdk';
-```
-</TabItem>
-<TabItem label="Comments">
-```typescript
-import {
-  getCommentsTool,    // Search and filter comments
-  getCommentTool,     // Fetch by ID
-  createCommentTool,  // Create a comment
-  updateCommentTool,  // Update a comment
-  deleteCommentTool,  // Delete a comment
-} from 'fluent-wp-client/ai-sdk';
-```
-</TabItem>
-<TabItem label="Settings">
-```typescript
-import {
-  getSettingsTool,     // Read site settings
-  updateSettingsTool,  // Update site settings
-} from 'fluent-wp-client/ai-sdk';
-```
-</TabItem>
-</Tabs>
-
-### Generic resources (custom post types and taxonomies)
-
-```typescript
-import {
-  getContentCollectionTool,  // List CPT items
-  getContentTool,            // Fetch one CPT item by ID or slug
-  createContentTool,         // Create a CPT item
-  updateContentTool,         // Update a CPT item
-  deleteContentTool,         // Delete a CPT item
-  getTermCollectionTool,     // List taxonomy terms
-  getTermTool,               // Fetch one term by ID or slug
-  createTermTool,            // Create a term
-  updateTermTool,            // Update a term
-  deleteTermTool,            // Delete a term
-} from 'fluent-wp-client/ai-sdk';
-
-const tools = {
-  searchBooks: getContentCollectionTool(wp, 'books', {
-    description: 'Search the book catalog.',
-    fixedArgs: { status: 'publish' },
+const searchPosts = getContentCollectionTool(wp, {
+  contentType: 'posts',
+  inputSchema: z.object({
+    search: z.string().optional(),
+    perPage: z.number().default(5),
+    page: z.number().default(1),
   }),
-  getBook: getContentTool(wp, 'books'),
-  listGenres: getTermCollectionTool(wp, 'genre'),
+});
+```
+
+This approach:
+- Leverages Zod's built-in default handling during validation
+- Works with catalog-discovered schemas extended via `.extend()` and `.default()`
+- Is fully type-safe and self-documenting
+
+## Content tools
+
+Use `contentType` for posts, pages, and custom post types.
+
+```typescript
+const tools = {
+  searchContent: getContentCollectionTool(wp),
+  readContent: getContentTool(wp),
+  createContent: createContentTool(adminWp),
 };
 ```
 
-### WordPress abilities
+Model-facing examples:
 
 ```typescript
-import {
-  getAbilitiesTool,         // List all registered abilities
-  getAbilityTool,           // Get metadata for one ability
-  executeGetAbilityTool,    // Execute a read-only ability (GET)
-  executeRunAbilityTool,    // Execute an ability (POST)
-  executeDeleteAbilityTool, // Execute a destructive ability (DELETE)
-} from 'fluent-wp-client/ai-sdk';
+{ contentType: 'posts', search: 'release notes', perPage: 5 }
+{ contentType: 'pages', slug: 'about' }
+{ contentType: 'books', input: { title: 'New Book', status: 'draft' } }
 ```
 
-## Instance-aware Zod schemas for AI tools
-
-The built-in tool factories use generic input schemas that cover core WordPress fields. For tighter validation that reflects your actual WordPress instance — including custom post types, ACF fields, custom taxonomies, and plugin-registered query parameters — convert the discovered JSON Schema to Zod.
-
-<Tabs>
-<TabItem label="Runtime (dynamic)">
-
-Use runtime conversion when the WordPress instance is not known at build time — multi-tenant apps, user-provided sites, or agents that connect to different instances.
-
-```ts title="Discover and validate at runtime"
-import { generateObject } from 'ai';
-import { openai } from '@ai-sdk/openai';
-import { WordPressClient } from 'fluent-wp-client';
-import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
-
-const wp = new WordPressClient({
-  baseUrl: siteUrl,
-  auth: { username, password },
-});
-
-// Discover the actual schema for this instance
-const catalog = await wp.explore({ include: ['content'] });
-const postSchemas = zodSchemasFromDescription(catalog.content.posts);
-
-// The model gets the real create schema — including custom fields
-const { object } = await generateObject({
-  model: openai('gpt-4o-mini'),
-  schema: postSchemas.create!,
-  prompt: 'Draft a short release announcement post.',
-});
-
-await wp.content('posts').create(object);
-```
-
-For abilities:
-
-```ts title="Discover ability input schema at runtime"
-import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
-
-const catalog = await wp.explore({ include: ['abilities'] });
-const calcSchemas = zodSchemasFromDescription(catalog.abilities['acme/calculate']);
-
-// Use the discovered input schema as a tool's inputSchema
-const calculateTool = tool({
-  description: 'Run a calculation via the WordPress ability API.',
-  inputSchema: calcSchemas.input!,
-  execute: async (input) => wp.ability('acme/calculate').run(input),
-});
-```
-</TabItem>
-<TabItem label="CLI (static)">
-
-Use CLI-generated schemas when your app connects to a single known WordPress instance. The generated file gives you compile-time type safety and tree-shakeable validators.
-
-```bash title="Generate schema files"
-npx fluent-wp-client schemas \
-  --url https://example.com \
-  --username admin \
-  --password "xxxx xxxx xxxx xxxx" \
-  --format zod \
-  --zod-out src/lib/wp-schemas.ts
-```
-
-```ts title="Use generated schemas with AI SDK"
-import { generateObject } from 'ai';
-import { openai } from '@ai-sdk/openai';
-import { wpPostSchema } from './lib/wp-schemas';
-
-const { object } = await generateObject({
-  model: openai('gpt-4o-mini'),
-  schema: wpPostSchema,
-  prompt: 'Draft a short release announcement post.',
-});
-
-await adminWp.content('posts').create(object);
-```
-
-:::note
-Regenerate the schema file when your WordPress instance changes (new custom fields, plugins, etc.):
-```bash
-npx fluent-wp-client schemas --url https://example.com --format zod --zod-out src/lib/wp-schemas.ts
-```
-:::
-</TabItem>
-</Tabs>
-
-### When to use which
-
-| Scenario | Approach |
-|----------|----------|
-| Multi-tenant platform, user-provided WordPress URLs | **Runtime** — `explore()` + `zodSchemasFromDescription()` |
-| AI agent that adapts to the connected site | **Runtime** — schema reflects actual capabilities |
-| Single known WordPress instance | **CLI** — compile-time types, no runtime discovery |
-| CI validation or shared schema across services | **CLI** — checked-in schema file |
-
-## Single item getters
-
-Post-like getter tools (`getPostTool`, `getPageTool`) return a content envelope instead of the raw DTO:
+Single-item content reads return a content envelope:
 
 ```typescript
-const tool = getPostTool(wp, { defaultArgs: { includeContent: true } });
-
-// Model calls: { id: 42, includeContent: true, includeBlocks: true }
-// Returns:
-// {
-//   item: { id: 42, title: { rendered: "..." }, ... },
-//   content: { raw: "<!-- wp:paragraph -->...", rendered: "<p>...", protected: false },
-//   blocks: [{ blockName: "core/paragraph", ... }]
-// }
+{
+  item: { id: 42, slug: 'hello-world', ... },
+  content: { raw: '<!-- wp:paragraph -->...', rendered: '<p>...</p>', protected: false },
+  blocks: [{ blockName: 'core/paragraph', ... }]
+}
 ```
 
-Non-content resources (`getCategoryTool`, `getTagTool`, etc.) return the DTO directly.
+`content` and `blocks` are included when `includeContent` or `includeBlocks` is enabled.
 
-All single-item tools accept either `id` or `slug`:
+## Term tools
+
+Use `taxonomyType` for categories, tags, and custom taxonomies.
 
 ```typescript
-// By ID
-{ id: 42 }
+const listTerms = getTermCollectionTool(wp);
+const createGenre = createTermTool(adminWp, {
+  taxonomyType: 'genre',
+});
+```
 
-// By slug
-{ slug: 'hello-world' }
+## Resource tools
+
+Use `resourceType` for the first-class non-post-like resources:
+
+- `media`
+- `comments`
+- `users`
+
+```typescript
+const listUsers = getResourceCollectionTool(adminWp, {
+  resourceType: 'users',
+});
+
+const deleteComment = deleteResourceTool(adminWp, {
+  resourceType: 'comments',
+});
+```
+
+`createResourceTool` and `updateResourceTool` support `comments` and `users`.
+
+Media uploads are not wrapped by the generic AI SDK resource tool because they require file transport details. Use `client.media().upload()` directly when you need uploads.
+
+## Abilities
+
+Ability tools can stay dynamic or be pinned to one ability.
+
+```typescript
+const runAbility = executeRunAbilityTool(adminWp);
+
+const runCalculator = executeRunAbilityTool(adminWp, {
+  abilityName: 'acme/calculate',
+});
+```
+
+With a cached catalog, the generic execution tools can expose real ability-name enums and the discovered input schema for each ability.
+
+## Gutenberg blocks
+
+Block tools use the same `contentType` selector model as content tools.
+
+```typescript
+const getBlocks = getBlocksTool(adminWp, {
+  contentType: 'posts',
+});
+
+const setBlocks = setBlocksTool(adminWp, {
+  contentType: 'posts',
+});
+```
+
+When the tool is not pinned, the model supplies `contentType` at runtime.
+
+## Settings
+
+Settings remain a singleton endpoint:
+
+```typescript
+const tools = {
+  getSettings: getSettingsTool(adminWp),
+  updateSettings: updateSettingsTool(adminWp),
+};
 ```
 
 ## Field selection
 
-Collection tools and single-item tools support `fields` to limit the response payload. This reduces token usage in agent conversations:
+Collection tools and single-item tools support `fields` to reduce token usage:
 
 ```typescript
-getPostsTool(wp, {
+const searchPosts = getContentCollectionTool(wp, {
+  contentType: 'posts',
   fixedArgs: { fields: ['id', 'slug', 'title', 'excerpt', 'link'] },
 });
 ```
 
-The model can also request field selection at runtime. Both `fields` and `_fields` are accepted and normalized automatically.
+Both `fields` and `_fields` are accepted.
 
 ## Full example
 
@@ -427,11 +336,11 @@ import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { WordPressClient } from 'fluent-wp-client';
 import {
-  getPostsTool,
-  getPostTool,
-  getCategoriesTool,
-  createPostTool,
-  updatePostTool,
+  getContentCollectionTool,
+  getContentTool,
+  getTermCollectionTool,
+  createContentTool,
+  updateContentTool,
 } from 'fluent-wp-client/ai-sdk';
 
 const publicWp = new WordPressClient({
@@ -443,24 +352,29 @@ const adminWp = new WordPressClient({
   auth: { username: 'editor', password: 'xxxx xxxx xxxx xxxx' },
 });
 
+const catalog = await adminWp.explore();
+publicWp.useCatalog(catalog);
+
 const tools = {
-  searchPosts: getPostsTool(publicWp, {
+  searchPosts: getContentCollectionTool(publicWp, {
+    contentType: 'posts',
     description: 'Search published blog posts by keyword, category, or tag.',
-    defaultArgs: { perPage: 5 },
     fixedArgs: { status: 'publish', fields: ['id', 'slug', 'title', 'excerpt', 'link', 'categories'] },
   }),
-  readPost: getPostTool(publicWp, {
-    description: 'Read the full content of a blog post by ID or slug.',
-    defaultArgs: { includeContent: true },
+  readContent: getContentTool(publicWp, {
+    description: 'Read a post, page, or custom content item by ID or slug.',
   }),
-  listCategories: getCategoriesTool(publicWp, {
+  listCategories: getTermCollectionTool(publicWp, {
+    taxonomyType: 'categories',
     description: 'List all blog categories.',
   }),
-  draftPost: createPostTool(adminWp, {
+  draftPost: createContentTool(adminWp, {
+    contentType: 'posts',
     description: 'Create a new draft blog post for editorial review.',
     fixedInput: { status: 'draft' },
   }),
-  publishPost: updatePostTool(adminWp, {
+  publishPost: updateContentTool(adminWp, {
+    contentType: 'posts',
     description: 'Publish an existing draft post.',
     fixedInput: { status: 'publish' },
   }),

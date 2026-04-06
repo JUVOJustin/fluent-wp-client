@@ -55,6 +55,7 @@ export type {
 
 export type {
   BaseContentFilter,
+  EmbeddableContentFilter,
   CategoriesFilter,
   CommentsFilter,
   MediaFilter,
@@ -172,8 +173,6 @@ export {
 } from './core/params.js';
 
 export type {
-  AllCommentRelations,
-  AllMediaRelations,
   CommentsResourceClient,
   ContentResourceClient,
   DeleteOptions,
@@ -188,7 +187,6 @@ export type {
   SettingsResourceClient,
   TermsResourceClient,
   TermWriteInput,
-  UserRelation,
   UserDeleteOptions,
   UsersResourceClient,
   UserWriteInput,
@@ -196,66 +194,30 @@ export type {
   WordPressWritePayload,
 } from './types.js';
 
-export { ResourceItemQueryBuilder } from './types.js';
+// Content item query (replaces the old PostRelationQueryBuilder)
+export { ContentItemQuery } from './builders/content-item-query.js';
 
+// Embedded data extraction helpers
 export {
-  PostRelationQueryBuilder,
-  type ContentItemResult,
-  type PostRelation,
-  type SelectedPostRelations,
-  type AllPostRelations,
-  customRelationRegistry,
-  createArrayExtractor,
-  createSingleExtractor,
-  createIdCollectionRelation,
-  createIdSingleRelation,
-  createLinkedEmbeddedCollectionRelation,
-  createLinkedEmbeddedSingleRelation,
-  defaultParseLinkId,
-  defaultParseReferenceId,
-  extractEmbeddedData,
-  getEmbeddedRelationItems,
-  getLinkedRelationIds,
-  resolveContentReference,
-  resolveContentReferences,
-  resolvePostReference,
-  resolvePostReferences,
-  resolveTermReference,
-  resolveTermReferences,
-  toRelatedContentReference,
-  toRelatedPostReference,
-  toRelatedTermReference,
-  type CustomRelationConfig,
-  type CustomRelationRegistry,
-  type PostRelationClient,
-  type EmbeddedDataExtractor,
-  type RelationFallbackResolver,
-  type IdCollectionRelationOptions,
-  type IdSingleRelationOptions,
-  type LinkedEmbeddedCollectionRelationOptions,
-  type LinkedEmbeddedSingleRelationOptions,
-  type RelatedContentReference,
-  type RelatedPostReference,
-  type RelatedTermReference,
-} from './builders/relations.js';
-
-export {
-  createAcfRelationshipRelation,
-  createAcfPostObjectRelation,
-  getAcfLinkedPostIds,
+  getEmbeddedAuthor,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedParent,
+  getEmbeddedTerms,
+  getEmbeddedReplies,
+  getEmbeddedData,
   getAcfEmbeddedPosts,
-  getAcfLinkedTermIds,
   getAcfEmbeddedTerms,
-  createAcfTaxonomyRelation,
-  DEFAULT_ACF_POSTS_LINK_KEY,
-  DEFAULT_ACF_TERMS_LINK_KEY,
-  type AcfRelatedContent,
-  type AcfRelatedTerm,
-  type AcfRelationOptions,
-  type AcfContentRelationOptions,
-  type AcfPostObjectRelationOptions,
-  type AcfTaxonomyRelationOptions,
-} from './builders/acf-relations.js';
+  getAcfFieldPosts,
+  getAcfFieldPost,
+  getAcfFieldTerms,
+  getAcfFieldIds,
+  getAcfFieldId,
+  getLinkEntries,
+  getEmbeddableLinkKeys,
+  ACF_POSTS_EMBED_KEY,
+  ACF_TERMS_EMBED_KEY,
+  type WordPressLinkEntry,
+} from './core/embedded.js';
 
 export {
   type WordPressRawContentResult,

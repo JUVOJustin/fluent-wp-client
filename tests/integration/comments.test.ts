@@ -60,15 +60,6 @@ describe('Client: Comments', () => {
       expect(comment.content.rendered).toContain('Client Comments: seeded comment');
     });
 
-    it('comments().item().with hydrates author and post relations', async () => {
-      const comment = await authClient.comments().item(seedCommentId).with('author', 'post');
-
-      expect(comment?.related.author).toBeTruthy();
-      expect(comment?.related.author?.slug).toBe('admin');
-      expect(comment?.related.post).toBeTruthy();
-      expect(comment?.related.post?.slug).toBe('test-post-001');
-    });
-
     it('comments().listAll returns the seeded comment', async () => {
       const comments = await publicClient.comments().listAll();
 

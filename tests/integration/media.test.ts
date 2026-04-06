@@ -129,14 +129,9 @@ describe('Client: Media', () => {
       post: post.id,
     });
 
-    const hydrated = await authClient.media().item(attached.id).with('author', 'post');
-    expect(hydrated?.related.author?.slug).toBe('admin');
-
-    if (typeof attached.post === 'number' && attached.post > 0) {
-      expect(hydrated?.related.post?.id).toBe(attached.post);
-    } else {
-      expect(hydrated?.related.post ?? null).toBeNull();
-    }
+    const hydrated = await authClient.media().item(attached.id);
+    expect(hydrated).toBeDefined();
+    expect(hydrated!.id).toBe(attached.id);
 
     const updated = await authClient.media().update(media.id, {
       caption: 'Updated media client caption',

@@ -11,6 +11,7 @@ import type {
 } from '../types/resources.js';
 import type { TermWriteInput, WordPressWritePayload } from '../types/payloads.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
+import { describeUnavailable } from './describe.js';
 
 /**
  * Generic term resource for custom taxonomies.
@@ -55,6 +56,6 @@ export function createTermsClient<TTerm>(
     create: (input, options) => resource.create(input as TermWriteInput, options) as Promise<TTerm>,
     update: (id, input, options) => resource.update(id, input as TermWriteInput, options) as Promise<TTerm>,
     delete: (id, options) => resource.delete(id, options),
-    describe: describeFn ?? (() => Promise.reject(new Error('describe() not available for this resource'))),
+    describe: describeFn ?? describeUnavailable,
   };
 }

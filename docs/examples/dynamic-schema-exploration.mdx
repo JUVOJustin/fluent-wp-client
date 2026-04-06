@@ -165,20 +165,21 @@ async function validateAndCreate(
 }
 ```
 
-## Auto-discovering ACF relations
+## Discovering and extracting ACF relations
 
-`explore()` returns the full item schema for every post type, including ACF field shapes. You can inspect the schema once and register relations for all post types without hard-coding field names:
+`explore()` returns the full item schema for every post type, including ACF field shapes. Combined with embed extraction helpers, you can discover and extract ACF relation data without hard-coding field names.
 
 :::note[ACF setup requirement]
-ACF fields must have `show_in_rest: true` and `return_format: 'object'` for relation hydration to work.
+ACF fields must have `show_in_rest: true` for embed-based extraction to work.
 :::
 
-```ts
+```ts title="Discover embeddable relations from a post"
 import {
   WordPressClient,
-  customRelationRegistry,
-  createAcfRelationshipRelation,
-  createAcfPostObjectRelation,
+  getEmbeddableLinkKeys,
+  getAcfFieldPosts,
+  getAcfFieldPost,
+  getAcfFieldTerms,
 } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
@@ -193,46 +194,34 @@ if (stored) wp.useCatalog(stored);
 // Explore content types (uses cached catalog when available).
 const catalog = await wp.explore({ include: ['content'] });
 
-// Register ACF relation fields for every post type found.
-for (const desc of Object.values(catalog.content)) {
-  const acfProps =
-    (desc.schemas.item?.properties?.acf as { properties?: Record<string, unknown> })
-      ?.properties ?? {};
-
-  for (const [fieldName, schema] of Object.entries(acfProps)) {
-    if (customRelationRegistry.has(fieldName)) continue;
-
-    const s = schema as Record<string, unknown>;
-    const isArray = s.type === 'array';
-    const itemsHaveId =
-      typeof ((s.items as Record<string, unknown> | undefined)?.properties as any)?.id !== 'undefined';
-    const objectHasId =
-      s.type === 'object' &&
-      typeof (s.properties as Record<string, unknown> | undefined)?.id !== 'undefined';
-
-    if (isArray && itemsHaveId) {
-      customRelationRegistry.register(
-        createAcfRelationshipRelation({ relationName: fieldName, fieldName }),
-      );
-    } else if (objectHasId) {
-      customRelationRegistry.register(
-        createAcfPostObjectRelation({ relationName: fieldName, fieldName, multiple: false }),
-      );
-    }
-  }
-}
-
-// Fetch with all known relations — unknown relation names are silently skipped.
-const builtIn = ['author', 'categories', 'tags', 'terms', 'featuredMedia', 'parent'] as const;
-const allRelations = [...builtIn, ...customRelationRegistry.getAllNames()] as [string, ...string[]];
-
 for (const restBase of Object.keys(catalog.content)) {
-  const posts = await wp
-    .content(restBase)
-    .listAll({ status: 'publish' })
-    .with(...allRelations);
+  // Discover which embed keys this post type supports.
+  const sample = await wp.content(restBase).item(1, { fields: ['id', '_links'] }).catch(() => null);
+  if (!sample) continue;
 
-  console.log(restBase, posts.length);
+  const embeddable = getEmbeddableLinkKeys(sample);
+  console.log(restBase, 'embeddable keys:', embeddable);
+  // e.g. ['author', 'wp:term', 'wp:featuredmedia', 'acf:post', 'acf:term', ...]
+
+  // Fetch posts with all embeddable relations.
+  const posts = await wp.content(restBase).list({
+    status: 'publish',
+    perPage: 100,
+    embed: true,
+  });
+
+  for (const post of posts) {
+    // Extract ACF relations using typed helpers.
+    const relatedPosts = getAcfFieldPosts(post, 'acf_related_posts');
+    const featuredPost = getAcfFieldPost(post, 'acf_featured_post');
+    const relatedTerms = getAcfFieldTerms(post, 'acf_related_genres');
+
+    console.log(post.slug, {
+      relatedPosts: relatedPosts.length,
+      featuredPost: featuredPost?.id,
+      relatedTerms: relatedTerms.length,
+    });
+  }
 }
 ```
 

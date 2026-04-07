@@ -466,7 +466,7 @@ export function classifyFetchError(
   error: unknown,
   context?: WordPressErrorContext,
 ): WordPressTimeoutError | WordPressNetworkError {
-  if (error instanceof DOMException && error.name === 'AbortError') {
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError') {
     return createTimeoutError(error, context);
   }
 

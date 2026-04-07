@@ -136,9 +136,6 @@ export abstract class BaseCrudResource<
   }
 
   /**
-   * Executes a mutation request and returns the raw API response.
-   */
-  /**
    * Executes a mutation request and returns the parsed response data.
    * Transport-level error handling (non-2xx, network, parse) is automatic.
    */

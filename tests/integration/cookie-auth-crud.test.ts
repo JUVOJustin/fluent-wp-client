@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient, postSchema } from 'fluent-wp-client';
+import { WordPressClient } from 'fluent-wp-client';
 import {
   createAuthClient,
   createCookieAuthClient,
@@ -52,7 +52,6 @@ describe('Client: Auth CRUD', () => {
         content: `<p>Created with ${label} auth.</p>`,
         status: 'draft',
       },
-      postSchema,
     );
 
     createdPostIds.push(created.id);
@@ -68,7 +67,6 @@ describe('Client: Auth CRUD', () => {
         title: `Auth CRUD: ${label} update`,
         status: 'private',
       },
-      postSchema,
     );
 
     expect(updated.title.rendered).toBe(`Auth CRUD: ${label} update`);
@@ -101,7 +99,6 @@ describe('Client: Auth CRUD', () => {
           status: 'draft',
           categories: [1],
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);

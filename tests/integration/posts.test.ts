@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   WordPressClient,
   createJwtAuthHeader,
-  postSchema,
   type ContentResourceClient,
   type ExtensibleFilter,
   type PostsFilter,
@@ -304,7 +303,6 @@ describe('Client: Posts', () => {
           title: 'Client Posts: create',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);
@@ -318,7 +316,6 @@ describe('Client: Posts', () => {
           title: 'Client Posts: update',
           status: 'private',
         },
-        postSchema,
       );
 
       expect(updated.title.rendered).toBe('Client Posts: update');
@@ -336,7 +333,6 @@ describe('Client: Posts', () => {
           excerpt: 'Client excerpt',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);
@@ -352,7 +348,6 @@ describe('Client: Posts', () => {
           title: 'Client Posts: JWT create',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);
@@ -368,7 +363,6 @@ describe('Client: Posts', () => {
           title: 'Client Posts: request-aware create',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);
@@ -393,7 +387,7 @@ describe('Client: Posts', () => {
 
     it('throws for a non-existent post on update', async () => {
       await expect(
-        postsClient(authClient).update(999999, { title: 'Ghost Post' }, postSchema),
+        postsClient(authClient).update(999999, { title: 'Ghost Post' }),
       ).rejects.toMatchObject({
         name: 'WordPressHttpError',
         kind: 'WP_API_ERROR',
@@ -408,7 +402,6 @@ describe('Client: Posts', () => {
           title: 'Client Posts: trash',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);

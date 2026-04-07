@@ -47,7 +47,7 @@
     "dev": "tsc -p tsconfig.json --watch",
     "test": "npm run build && vitest run",
     "test:watch": "npm run build && vitest",
-    "wp:start": "wp-env start",
+    "wp:start": "wp-env start --update",
     "wp:stop": "wp-env stop",
     "wp:clean": "wp-env clean all",
     "wp:status": "wp-env status"

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient, pageSchema, type WordPressStandardSchema } from 'fluent-wp-client';
+import { WordPressClient } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
@@ -103,7 +103,6 @@ describe('Client: Pages', () => {
           status: 'draft',
           menu_order: 7,
         },
-        pageSchema,
       );
 
       createdPageIds.push(created.id);
@@ -117,7 +116,6 @@ describe('Client: Pages', () => {
           title: 'Client CRUD: Page update',
           menu_order: 12,
         },
-        pageSchema,
       );
 
       expect(updated.title.rendered).toBe('Client CRUD: Page update');
@@ -133,7 +131,6 @@ describe('Client: Pages', () => {
           title: 'Client CRUD: Page parent',
           status: 'draft',
         },
-        pageSchema,
       );
 
       createdPageIds.push(parent.id);
@@ -147,7 +144,6 @@ describe('Client: Pages', () => {
           menu_order: 5,
           status: 'draft',
         },
-        pageSchema,
       );
 
       createdPageIds.push(child.id);
@@ -164,7 +160,6 @@ describe('Client: Pages', () => {
           title: 'Client CRUD: Page update parent',
           status: 'draft',
         },
-        pageSchema,
       );
 
       createdPageIds.push(parent.id);
@@ -174,7 +169,6 @@ describe('Client: Pages', () => {
           title: 'Client CRUD: Page update child',
           status: 'draft',
         },
-        pageSchema,
       );
 
       createdPageIds.push(child.id);
@@ -185,7 +179,6 @@ describe('Client: Pages', () => {
           parent: parent.id,
           menu_order: 42,
         },
-        pageSchema,
       );
 
       expect(updated.parent).toBe(parent.id);
@@ -205,69 +198,11 @@ describe('Client: Pages', () => {
 
     it('throws for a non-existent page on update', async () => {
       await expect(
-        pagesClient(authClient).update(999999, { title: 'Ghost Page' }, pageSchema),
+        pagesClient(authClient).update(999999, { title: 'Ghost Page' }),
       ).rejects.toMatchObject({
         name: 'WordPressHttpError',
         status: 404,
       });
-    });
-
-    it('accepts custom Standard Schema validators for mutation responses', async () => {
-      const minimalPageSchema: WordPressStandardSchema<{ id: number; slug: string; status: string }> = {
-        '~standard': {
-          version: 1,
-          vendor: 'integration-test',
-          validate(value) {
-            if (typeof value !== 'object' || value === null) {
-              return {
-                issues: [{ message: 'Expected object response.' }],
-              };
-            }
-
-            const record = value as Record<string, unknown>;
-
-            if (typeof record.id !== 'number') {
-              return {
-                issues: [{ message: 'Expected numeric id.' }],
-              };
-            }
-
-            if (typeof record.slug !== 'string') {
-              return {
-                issues: [{ message: 'Expected string slug.' }],
-              };
-            }
-
-            if (typeof record.status !== 'string') {
-              return {
-                issues: [{ message: 'Expected string status.' }],
-              };
-            }
-
-            return {
-              value: {
-                id: record.id,
-                slug: record.slug,
-                status: record.status,
-              },
-            };
-          },
-        },
-      };
-
-      const created = await pagesClient(authClient).create(
-        {
-          title: 'Client CRUD: Standard Schema create',
-          status: 'draft',
-        },
-        minimalPageSchema,
-      );
-
-      createdPageIds.push(created.id);
-
-      expect(created.id).toBeGreaterThan(0);
-      expect(typeof created.slug).toBe('string');
-      expect(created.status).toBe('draft');
     });
   });
 });

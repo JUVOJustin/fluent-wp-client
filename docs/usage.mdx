@@ -144,9 +144,9 @@ To use different auth credentials, create a separate `WordPressClient` instance.
 
 ### Transport
 
-- `request(options)` / `fetchAPI(endpoint, params?)` / `fetchAPIPaginated(endpoint, params?)`
+- `request(options)` — low-level REST request with response metadata
 - `setHeaders(name, value)` / `hasAuth()`
-- `route(resource, namespace?)` / `namespace('my-plugin/v1').route('sync')`
+- `getRuntime()` — internal runtime access for add-ons and wrappers
 
 ## Embed and extraction helpers
 

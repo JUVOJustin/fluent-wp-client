@@ -145,7 +145,7 @@ Use the built-in CLI to discover WordPress REST schemas and generate code artifa
 
 ```bash
 npx fluent-wp-client schemas --url https://example.com
-npx fluent-wp-client types --url https://example.com
+npx fluent-wp-client schemas --url https://example.com --format both
 ```
 
 The `schemas` command can emit JSON Schema, Zod-ready TypeScript modules, or both.

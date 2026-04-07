@@ -395,41 +395,35 @@ const output = await sync.run({ mode: 'full' });
 For the complete abilities API surface, read
 [references/abilities.mdx](references/abilities.mdx).
 
-## WPAPI-compatible fluent builder
+## Unified resource builders
 
-Drop-in fluent chain syntax compatible with `node-wpapi`.
+The 3.0 API centers on `content(resource)`, `terms(resource)`, and first-class resource clients.
 
 ```ts
-// Read
-const posts = await wp.posts().perPage(10).page(1).embed().get();
-const post  = await wp.posts().slug('hello-world').get();
-const post2 = await wp.posts().id(42).get();
+// Posts and pages
+const posts = await wp.content('posts').list({ perPage: 10, page: 1 });
+const post = await wp.content('posts').item('hello-world');
 
-// Thenable shorthand (await calls .get() implicitly)
-const post3 = await wp.posts().slug('hello-world');
+const created = await wp.content('posts').create({ title: 'New', status: 'draft' });
+await wp.content('posts').update(created.id, { title: 'Updated' });
+await wp.content('posts').delete(created.id, { force: true });
 
-// CRUD
-const created = await wp.posts().create({ title: 'New', status: 'draft' });
-await wp.posts().id(created.id).update({ title: 'Updated' });
-await wp.posts().id(created.id).delete({ force: true });
+// Custom post types and taxonomies
+const books = await wp.content('books').list({ perPage: 5 });
+const genres = await wp.terms('genre').list({ perPage: 50 });
 
-// Custom namespace
-const books = await wp.namespace('wp/v2').route('books').perPage(5).get();
+// First-class resources
+const media = await wp.media().list({ perPage: 20 });
+const comments = await wp.comments().list({ post: 42 });
 
-// Route registration (node-wpapi compatible)
-const authorRoute = wp.registerRoute('my-plugin/v1', '/authors/(?P<id>)');
-const author = await authorRoute().id(7).get();
-
-// URL inspection
-const url = wp.posts().perPage(5).page(2).toString();
+// Custom/plugin endpoints
+const { data } = await wp.request<{ author: { id: number; name: string } }>({
+  endpoint: '/wp-json/my-plugin/v1/authors/7',
+  method: 'GET',
+});
 ```
 
-All chain starters: `posts()`, `pages()`, `media()`, `categories()`, `tags()`,
-`users()`, `comments()`, `settings()`, `types()`, `taxonomies()`, `statuses()`,
-`search()`, `blocks()`.
-
-For a full migration mapping from node-wpapi, read
-[references/migration-from-node-wpapi.mdx](references/migration-from-node-wpapi.mdx).
+Use `request()` whenever the endpoint lives outside the standard `wp/v2` resource families.
 
 ## Meta and ACF fields
 
@@ -466,15 +460,15 @@ All Zod schemas use `.passthrough()` so custom plugin fields pass through.
 
 ## Response validation
 
-Mutation helpers accept any Standard Schema-compatible validator (Zod, Valibot, ArkType).
+WordPress validates request payloads upstream. When local validation is needed, validate in application code with Zod or discovered JSON Schemas.
 
 ```ts
 import { z } from 'zod';
 
-// Validate mutation response
-const created = await wp.content('posts').create(
-  { title: 'Validated', status: 'draft' },
-  z.object({ id: z.number(), slug: z.string(), status: z.string() }),
+// Validate a mutation response in app code
+const postSchema = z.object({ id: z.number(), slug: z.string(), status: z.string() });
+const created = postSchema.parse(
+  await wp.content('posts').create({ title: 'Validated', status: 'draft' })
 );
 
 // Validate CPT responses
@@ -484,8 +478,8 @@ const bookSchema = z.object({
   type: z.literal('book'),
 });
 
-const books = wp.content('books', bookSchema);
-const book = await books.create({ title: 'Typed Book', status: 'draft' });
+const rawBook = await wp.content('books').item('typed-book');
+const book = bookSchema.parse(rawBook);
 ```
 
 ## Low-level transport
@@ -499,14 +493,9 @@ const { data, response } = await wp.request<{ synced: boolean }>({
   body: { mode: 'full' },
 });
 
-// Simple typed GET
-const info = await wp.fetchAPI<{ version: string }>('/wp-json/wp/v2');
-
-// GET with pagination metadata
-const result = await wp.fetchAPIPaginated<WordPressPost>('/wp-json/wp/v2/posts', {
-  per_page: '10',
-});
-// result.data, result.total, result.totalPages
+// High-level pagination stays on the resource clients
+const posts = await wp.content('posts').listPaginated({ perPage: 10, page: 1 });
+// posts.data, posts.total, posts.totalPages
 ```
 
 ## Pagination
@@ -595,7 +584,6 @@ Consult these when deeper guidance is needed for a specific topic:
 |---|---|
 | [references/usage.mdx](references/usage.mdx) | Full method reference, all API styles side by side, CRUD walkthrough, filter and pagination detail |
 | [references/gutenberg-content.mdx](references/gutenberg-content.mdx) | Rendered vs raw content, block parsing workflows, custom parser setup, CPT block parsing |
-| [references/custom-endpoints.mdx](references/custom-endpoints.mdx) | CPT/taxonomy patterns, namespace routing, registerRoute, low-level requests, per-request auth |
+| [references/custom-endpoints.mdx](references/custom-endpoints.mdx) | CPT/taxonomy patterns, low-level custom endpoint requests, and per-request headers |
 | [references/abilities.mdx](references/abilities.mdx) | Ability metadata, direct execution helpers, fluent builder with schemas, exported ability schemas |
 | [references/schema-discovery.mdx](references/schema-discovery.mdx) | `.describe()`, `explore()`, `z.fromJSONSchema()` integration and examples |
-| [references/migration-from-node-wpapi.mdx](references/migration-from-node-wpapi.mdx) | Side-by-side mapping from node-wpapi, auth migration, behavioral differences |

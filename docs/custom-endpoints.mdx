@@ -12,7 +12,7 @@ sidebar:
 | --- | --- |
 | Custom post type in `wp/v2` | `content('resource')` |
 | Custom taxonomy in `wp/v2` | `terms('resource')` |
-| Plugin/custom namespace | `namespace(...).route(...)` |
+| Plugin/custom namespace | `request({ endpoint: '/wp-json/...' })` |
 | Full transport control | `request(...)` |
 
 ## Custom post types
@@ -43,20 +43,20 @@ await books.delete(created.id, { force: true });
 
 ### Response validation
 
-Pass a schema to validate all reads and mutations on that resource client:
+Validate custom endpoint payloads in application code after the request resolves:
 
-```ts title="Validated CPT client"
+```ts title="Validate a CPT response in app code"
 import { z } from 'zod';
 
-const books = wp.content('books', z.object({
+const bookSchema = z.object({
   id: z.number(),
   slug: z.string(),
   status: z.string(),
   type: z.literal('book'),
-}));
+});
 
-const book = await books.item('my-book');       // validated
-const created = await books.create({ ... });    // validated
+const rawBook = await wp.content('books').item('my-book');
+const book = bookSchema.parse(rawBook);
 ```
 
 ### Sparse CPTs
@@ -65,10 +65,10 @@ Use `WordPressCustomPost<T>` or `postLikeWordPressSchema` when a CPT may omit `t
 
 ```ts
 import type { WordPressCustomPost } from 'fluent-wp-client';
-import { postLikeWordPressSchema } from 'fluent-wp-client';
+import { postLikeWordPressSchema } from 'fluent-wp-client/zod';
 
-// postLikeWordPressSchema tolerates absent content fields
-const artifacts = wp.content('artifacts', postLikeWordPressSchema);
+const rawArtifact = await wp.content('artifacts').item('test-artifact-001');
+const artifact = postLikeWordPressSchema.parse(rawArtifact);
 ```
 
 :::tip

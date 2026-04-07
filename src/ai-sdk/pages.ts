@@ -4,6 +4,7 @@ import type { PagesFilter } from '../types/filters.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
 import { prepareCollectionArgs, resolveContentQuery, type ContentQueryLike, asToolArgs, withToolErrorHandling } from './factories.js';
+import { createInvalidRequestError } from '../core/errors.js';
 import type { WordPressPage } from '../schemas.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
 import {
@@ -47,7 +48,7 @@ export const getPageTool = (
     const contentOpts = merged as { includeContent?: boolean; includeBlocks?: boolean };
     if (merged.id) return resolveContentQuery(client.content('pages').item(merged.id as number) as unknown as ContentQueryLike<WordPressPage | undefined>, contentOpts);
     if (merged.slug) return resolveContentQuery(client.content('pages').item(merged.slug as string) as unknown as ContentQueryLike<WordPressPage | undefined>, contentOpts);
-    throw new Error('Either id or slug must be provided.');
+    throw createInvalidRequestError('Either id or slug must be provided.');
   }),
 });
 

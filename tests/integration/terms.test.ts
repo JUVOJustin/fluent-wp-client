@@ -132,7 +132,7 @@ describe('Client: Terms', () => {
           name: 'Client CRUD Public Genre',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
       });
     });
 
@@ -142,7 +142,7 @@ describe('Client: Terms', () => {
       await expect(
         genres.update(999999, { name: 'Ghost Genre' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 404,
       });
     });

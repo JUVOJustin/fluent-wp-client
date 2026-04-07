@@ -102,8 +102,10 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeGetAbility('test/non-existent-ability'),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 404,
+        retryable: false,
       });
     });
 
@@ -111,8 +113,10 @@ describe('Client: Abilities', () => {
       await expect(
         publicClient.executeGetAbility('test/get-site-title'),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 401,
+        retryable: false,
       });
     });
 
@@ -157,8 +161,10 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeRunAbility('test/non-existent-ability', { value: 'x' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 404,
+        retryable: false,
       });
     });
 
@@ -166,8 +172,10 @@ describe('Client: Abilities', () => {
       await expect(
         publicClient.executeRunAbility('test/update-option', { value: 'x' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 401,
+        retryable: false,
       });
     });
 
@@ -175,8 +183,10 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { key: optionKey }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 400,
+        retryable: false,
       });
     });
 
@@ -184,8 +194,10 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { wrong_field: 'x' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 400,
+        retryable: false,
       });
     });
 
@@ -193,8 +205,10 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { value: 12345 }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 400,
+        retryable: false,
       });
     });
 
@@ -244,7 +258,7 @@ describe('Client: Abilities', () => {
           name: 'missing-settings',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 400,
       });
     });
@@ -256,7 +270,7 @@ describe('Client: Abilities', () => {
           settings: 'not-an-object',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 400,
       });
     });
@@ -303,7 +317,7 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeDeleteAbility('test/non-existent-ability'),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 404,
       });
     });
@@ -312,7 +326,7 @@ describe('Client: Abilities', () => {
       await expect(
         publicClient.executeDeleteAbility('test/delete-option', optionKey),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 401,
       });
     });
@@ -346,7 +360,7 @@ describe('Client: Abilities', () => {
       await expect(
         seededClient.executeRunAbility('test/update-option', { wrong_field: 'x' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 400,
       });
     });
@@ -362,7 +376,7 @@ describe('Client: Abilities', () => {
       await expect(
         seededClient.ability('test/update-option').run({ wrong_field: 'x' } as any),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 400,
       });
     });

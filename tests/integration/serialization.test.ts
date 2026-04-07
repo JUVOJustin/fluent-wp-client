@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient } from '../../dist/index.js';
+import { WordPressClient, WordPressHttpError, isWordPressClientError } from '../../dist/index.js';
 import type { WordPressBlocksClient } from '../../dist/blocks-entry.js';
 import { createAuthBlocksClient, createAuthClient, createPublicClient } from '../helpers/wp-client';
 
@@ -154,6 +154,34 @@ describe('Client: DTO serialization', () => {
 
       expect('getBlocks' in first).toBe(false);
       expect('getContent' in first).toBe(false);
+    });
+  });
+
+  describe('error serialization', () => {
+    it('WordPressHttpError.toJSON() returns a plain serializable object', async () => {
+      try {
+        await publicClient.content('posts').create({ title: 'Serialization: error test', status: 'draft' });
+        throw new Error('Expected request to fail with auth error.');
+      } catch (error) {
+        expect(isWordPressClientError(error)).toBe(true);
+        expect(error).toBeInstanceOf(WordPressHttpError);
+
+        const httpError = error as WordPressHttpError;
+        const serialized = httpError.toJSON();
+
+        expect(serialized.name).toBe('WordPressHttpError');
+        expect(serialized.kind).toBe('WP_API_ERROR');
+        expect(serialized.retryable).toBe(false);
+        expect(serialized.status).toBe(401);
+        expect(typeof serialized.statusText).toBe('string');
+        expect(typeof serialized.message).toBe('string');
+
+        const json = JSON.stringify(serialized);
+        const parsed = JSON.parse(json);
+
+        expect(parsed.kind).toBe('WP_API_ERROR');
+        expect(parsed.status).toBe(401);
+      }
     });
   });
 

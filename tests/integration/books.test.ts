@@ -180,7 +180,7 @@ describe('Client: Books', () => {
           status: 'draft',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
       });
     });
 
@@ -190,7 +190,7 @@ describe('Client: Books', () => {
       await expect(
         books.update(999999, { title: 'Ghost Book' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 404,
       });
     });

@@ -7,6 +7,7 @@ import type { CommentsFilter, MediaFilter, UsersFilter } from '../types/filters.
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
 import { prepareCollectionArgs, asToolArgs, withToolErrorHandling } from './factories.js';
+import { createInvalidRequestError } from '../core/errors.js';
 import type { CatalogMutationToolFactoryOptions, CatalogToolFactoryOptions, ToolFactoryOptions } from './types.js';
 import {
   commentCreateInputSchema,
@@ -55,7 +56,7 @@ function resolveResourceType(
     return resourceType;
   }
 
-  throw new Error('resourceType must be one of media, comments, or users.');
+  throw createInvalidRequestError('resourceType must be one of media, comments, or users.');
 }
 
 function stripResourceType(args: Record<string, unknown>): Record<string, unknown> {
@@ -175,7 +176,7 @@ async function getResource(
       : client.users().item(merged.slug as string);
   }
 
-  throw new Error('Either id or slug must be provided. Comments only support numeric IDs.');
+  throw createInvalidRequestError('Either id or slug must be provided. Comments only support numeric IDs.');
 }
 
 async function createResource(
@@ -184,7 +185,7 @@ async function createResource(
   input: Record<string, unknown>,
 ) {
   if (resourceType === 'media') {
-    throw new Error('Media upload is not supported by the generic AI SDK resource tool. Use client.media().upload().');
+    throw createInvalidRequestError('Media upload is not supported by the generic AI SDK resource tool. Use client.media().upload().');
   }
 
   return resourceType === 'comments'
@@ -199,7 +200,7 @@ async function updateResource(
   input: Record<string, unknown>,
 ) {
   if (resourceType === 'media') {
-    throw new Error('Media updates are not supported by the generic AI SDK resource tool.');
+    throw createInvalidRequestError('Media updates are not supported by the generic AI SDK resource tool.');
   }
 
   return resourceType === 'comments'

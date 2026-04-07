@@ -1,4 +1,5 @@
 import type { WordPressPostLike } from './schemas.js';
+import { createAuthError } from './core/errors.js';
 
 /**
  * Normalized raw content payload returned by content item queries.
@@ -21,7 +22,9 @@ export function resolveWordPressRawContent(
   }
 
   if (value.content.raw === undefined) {
-    throw new Error(missingRawMessage);
+    throw createAuthError(missingRawMessage, {
+      operation: 'content.getContent',
+    });
   }
 
   return {

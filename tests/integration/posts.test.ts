@@ -384,7 +384,10 @@ describe('Client: Posts', () => {
           status: 'draft',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
+        status: 401,
+        retryable: false,
       });
     });
 
@@ -392,8 +395,10 @@ describe('Client: Posts', () => {
       await expect(
         postsClient(authClient).update(999999, { title: 'Ghost Post' }, postSchema),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 404,
+        retryable: false,
       });
     });
 

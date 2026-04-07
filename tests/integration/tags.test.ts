@@ -123,7 +123,7 @@ describe('Client: Tags', () => {
           name: 'client-crud-public-tag',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
       });
     });
 
@@ -131,7 +131,7 @@ describe('Client: Tags', () => {
       await expect(
         tagsClient(authClient).update(999999, { name: 'Ghost Tag' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 404,
       });
     });

@@ -3,6 +3,7 @@ import type { WordPressClient } from '../client.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
 import { prepareCollectionArgs, asToolArgs, withToolErrorHandling } from './factories.js';
+import { createInvalidRequestError } from '../core/errors.js';
 import type { ToolFactoryOptions } from './types.js';
 import {
   createTermCollectionInputSchema,
@@ -19,7 +20,7 @@ function resolveTaxonomyType(
 ): string {
   const taxonomyType = options?.taxonomyType ?? (typeof merged.taxonomyType === 'string' ? merged.taxonomyType : undefined);
   if (!taxonomyType) {
-    throw new Error('taxonomyType must be provided either in the tool config or the tool input.');
+    throw createInvalidRequestError('taxonomyType must be provided either in the tool config or the tool input.');
   }
 
   return taxonomyType;
@@ -70,7 +71,7 @@ export const getTermTool = (
     const taxonomyType = resolveTaxonomyType(merged, options);
     if (merged.id) return client.terms(taxonomyType).item(merged.id as number);
     if (merged.slug) return client.terms(taxonomyType).item(merged.slug as string);
-    throw new Error('Either id or slug must be provided.');
+    throw createInvalidRequestError('Either id or slug must be provided.');
   }),
   });
 };

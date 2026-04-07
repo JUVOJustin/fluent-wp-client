@@ -1,5 +1,6 @@
 import type { WordPressRequestOptions } from '../types/client.js';
 import type { WordPressRequestOverrides } from '../types/resources.js';
+import { createInvalidRequestError } from './errors.js';
 
 /**
  * Merges per-request header overrides into one request options object.
@@ -19,8 +20,9 @@ export function applyRequestOverrides(
     key => key.toLowerCase() === 'authorization'
   );
   if (hasAuthHeader) {
-    throw new Error(
+    throw createInvalidRequestError(
       'auth header overrides are not supported. Use the auth configuration options instead.',
+      { endpoint: options.endpoint, method: options.method },
     );
   }
 

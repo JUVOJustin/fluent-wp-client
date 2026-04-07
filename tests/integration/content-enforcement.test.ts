@@ -215,7 +215,9 @@ describe('Client: Content field enforcement', () => {
       await expect(
         publicClient.content('posts').item('test-post-001').getContent(),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
+        retryable: false,
       });
     });
 
@@ -223,7 +225,9 @@ describe('Client: Content field enforcement', () => {
       await expect(
         publicBlocksClient.content('posts').item('test-post-001').blocks().get(),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
+        retryable: false,
       });
     });
   });

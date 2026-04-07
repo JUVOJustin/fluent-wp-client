@@ -6,7 +6,7 @@ import type {
 import type { WordPressResourceDescription } from '../types/discovery.js';
 import { compactPayload } from '../core/params.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
-import { throwIfWordPressError } from '../core/errors.js';
+import { createAuthError } from '../core/errors.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import { describeUnavailable } from './describe.js';
 
@@ -33,7 +33,10 @@ export class SettingsResource {
    */
   private assertAuthenticated(): void {
     if (!this.runtime.hasAuth()) {
-      throw new Error('Authentication required for /settings endpoint. Configure auth in client options.');
+      throw createAuthError(
+        'Authentication required for /settings endpoint. Configure auth in client options.',
+        { operation: 'settings', endpoint: '/settings' },
+      );
     }
   }
 
@@ -43,12 +46,11 @@ export class SettingsResource {
   async get(requestOptions?: WordPressRequestOverrides): Promise<WordPressSettings> {
     this.assertAuthenticated();
 
-    const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: this.endpoint,
       method: 'GET',
     }, requestOptions));
 
-    throwIfWordPressError(response, data);
     return data as WordPressSettings;
   }
 
@@ -61,13 +63,12 @@ export class SettingsResource {
   ): Promise<WordPressSettings> {
     this.assertAuthenticated();
 
-    const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: this.endpoint,
       method: 'POST',
       body: compactPayload(input),
     }, options));
 
-    throwIfWordPressError(response, data);
     return data as WordPressSettings;
   }
 }

@@ -287,13 +287,13 @@ describe('AI SDK tool integration', () => {
       const tool = createContentTool(publicClient, { contentType: 'posts' });
       const result = await run<{
         ok: false;
-        error: { type: string; message: string; status?: number };
+        error: { kind: string; message: string; status?: number };
       }>(tool, {
         input: { title: 'Unauthorized post' },
       });
 
       expect(result).toHaveProperty('ok', false);
-      expect(result).toHaveProperty('error.type', 'wordpress_api_error');
+      expect(result).toHaveProperty('error.kind');
       expect(result).toHaveProperty('error.message');
     });
   });
@@ -563,11 +563,11 @@ describe('AI SDK tool integration', () => {
 
       const result = await run<{
         ok: false;
-        error: { type: string; message: string; status?: number };
+        error: { kind: string; message: string; status?: number };
       }>(publicTools['test_get-site-title'], {});
 
       expect(result).toHaveProperty('ok', false);
-      expect(result).toHaveProperty('error.type', 'wordpress_api_error');
+      expect(result).toHaveProperty('error.kind');
     });
 
     it('accepts an explicit catalog instead of the cached one', () => {

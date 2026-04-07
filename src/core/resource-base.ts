@@ -16,7 +16,6 @@ import {
   resolveEmbedQueryParams,
 } from './params.js';
 import { applyRequestOverrides } from './request-overrides.js';
-import { throwIfWordPressError } from './errors.js';
 
 /**
  * Dependencies required for resource operations.
@@ -137,13 +136,13 @@ export abstract class BaseCrudResource<
   }
 
   /**
-   * Executes a mutation request and returns the raw API response.
+   * Executes a mutation request and returns the parsed response data.
+   * Transport-level error handling (non-2xx, network, parse) is automatic.
    */
   protected async executeMutation<T = TResource>(
     options: Parameters<WordPressRuntime['request']>[0],
   ): Promise<T> {
-    const { data, response } = await this.runtime.request<unknown>(options);
-    throwIfWordPressError(response, data);
+    const { data } = await this.runtime.request<unknown>(options);
     return data as T;
   }
 
@@ -190,13 +189,12 @@ export abstract class BaseCrudResource<
    */
   async delete(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
     const params = options.force ? { force: 'true' } : undefined;
-    const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: `${this.endpoint}/${id}`,
       method: 'DELETE',
       params,
     }, options));
 
-    throwIfWordPressError(response, data);
     return normalizeDeleteResult(id, data);
   }
 }

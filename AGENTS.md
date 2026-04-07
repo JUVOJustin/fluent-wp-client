@@ -53,7 +53,7 @@ src/
   types.ts                     # Re-export barrel for types/ subdirectory
 
   core/                        # Core infrastructure
-    errors.ts                  # WordPressApiError, throwIfWordPressError
+    errors.ts                  # WordPressClientError, error kinds, factory helpers
     pagination.ts              # createWordPressPaginator
     query-base.ts              # ExecutableQuery and immutable builder primitives
     validation.ts              # Standard Schema validation helpers

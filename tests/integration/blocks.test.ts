@@ -131,7 +131,7 @@ describe('Client: Gutenberg block parsing', () => {
     await expect(
       publicBlocksClient.content('posts').item('test-post-001').blocks().get(),
     ).rejects.toMatchObject({
-      name: 'WordPressApiError',
+        name: 'WordPressHttpError',
     });
   });
 
@@ -255,6 +255,8 @@ describe('Client: Gutenberg block parsing', () => {
       ], blockSchemas),
     ).rejects.toMatchObject({
       name: 'WordPressBlockValidationError',
+      kind: 'BLOCK_VALIDATION_ERROR',
+      retryable: false,
     });
   });
 
@@ -310,6 +312,8 @@ describe('Client: Gutenberg block parsing', () => {
       }),
     ).rejects.toMatchObject({
       name: 'WordPressBlockValidationError',
+      kind: 'BLOCK_VALIDATION_ERROR',
+      retryable: false,
     });
   });
 
@@ -455,6 +459,8 @@ describe('Client: Gutenberg block parsing', () => {
       ),
     ).rejects.toMatchObject({
       name: 'WordPressBlockValidationError',
+      kind: 'BLOCK_VALIDATION_ERROR',
+      retryable: false,
       issues: expect.arrayContaining([
         expect.objectContaining({ code: 'schema_validation', blockName: 'core/heading' }),
       ]),

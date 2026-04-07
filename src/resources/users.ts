@@ -10,7 +10,7 @@ import type { WordPressResourceDescription } from '../types/discovery.js';
 import { BaseCrudResource } from '../core/resource-base.js';
 import { normalizeDeleteResult } from '../core/params.js';
 import { applyRequestOverrides } from '../core/request-overrides.js';
-import { throwIfWordPressError } from '../core/errors.js';
+import { createAuthError } from '../core/errors.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import { describeUnavailable } from './describe.js';
 
@@ -35,7 +35,10 @@ export class UsersResource extends BaseCrudResource<
    */
   async me(requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor> {
     if (!this.runtime.hasAuth()) {
-      throw new Error('Authentication required for /users/me endpoint. Configure auth in client options.');
+      throw createAuthError(
+        'Authentication required for /users/me endpoint. Configure auth in client options.',
+        { operation: 'users.me', endpoint: '/users/me' },
+      );
     }
 
     return this.runtime.fetchAPI<WordPressAuthor>('/users/me', undefined, requestOptions);
@@ -58,13 +61,12 @@ export class UsersResource extends BaseCrudResource<
       params.reassign = String(options.reassign);
     }
 
-    const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: `${this.endpoint}/${id}`,
       method: 'DELETE',
       params: Object.keys(params).length > 0 ? params : undefined,
     }, options));
 
-    throwIfWordPressError(response, data);
     return normalizeDeleteResult(id, data);
   }
 }

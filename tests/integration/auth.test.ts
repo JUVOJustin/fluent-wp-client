@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  WordPressApiError,
+  WordPressHttpError,
   WordPressClient,
   jwtAuthErrorResponseSchema,
   jwtAuthTokenResponseSchema,
@@ -54,10 +54,10 @@ describe('Client: Auth', () => {
       });
       throw new Error('Expected JWT login to fail with invalid credentials.');
     } catch (error) {
-      expect(error).toBeInstanceOf(WordPressApiError);
+      expect(error).toBeInstanceOf(WordPressHttpError);
 
       const errorValidationResult = await jwtAuthErrorResponseSchema['~standard'].validate(
-        (error as WordPressApiError).responseBody,
+        (error as WordPressHttpError).responseBody,
       );
 
       if (errorValidationResult.issues) {

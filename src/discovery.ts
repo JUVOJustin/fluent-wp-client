@@ -20,7 +20,7 @@ import type {
   WordPressJsonSchema,
 } from './types/discovery.js';
 import type { WordPressAbility } from './schemas.js';
-import { throwIfWordPressError } from './core/errors.js';
+import { createDiscoveryError, type WordPressClientError } from './core/errors.js';
 import { applyRequestOverrides } from './core/request-overrides.js';
 import type { WordPressRuntime } from './core/transport.js';
 import type { WordPressRequestOverrides } from './types/resources.js';
@@ -248,6 +248,7 @@ function findTaxonomyInfo(
 
 /**
  * Fetches and parses OPTIONS response from a REST endpoint.
+ * Returns `undefined` when the endpoint is not available.
  */
 async function fetchEndpointSchema(
   runtime: WordPressRuntime,
@@ -260,10 +261,8 @@ async function fetchEndpointSchema(
       method: 'OPTIONS',
     }, options));
 
-    throwIfWordPressError(result.response, result.data);
-
     return result.data;
-  } catch (error) {
+  } catch {
     return undefined;
   }
 }
@@ -408,7 +407,10 @@ async function discoverContentResource(
   const typeInfo = findContentTypeInfo(types, resource);
 
   if (!typeInfo) {
-    throw new Error(`Content resource '${resource}' not found in WordPress types`);
+    throw createDiscoveryError(
+      `Content resource '${resource}' not found in WordPress types`,
+      { operation: 'discovery.describeResource', endpoint: '/wp-json/wp/v2/types' },
+    );
   }
 
   return discoverContentResourceFromTypeInfo(runtime, resource, typeInfo, options);
@@ -436,7 +438,10 @@ async function discoverContentResourceFromTypeInfo(
   );
 
   if (!endpointSchema) {
-    throw new Error(`Failed to fetch schema for content resource '${resource}'`);
+    throw createDiscoveryError(
+      `Failed to fetch schema for content resource '${resource}'`,
+      { operation: 'discovery.describeResource', endpoint: route },
+    );
   }
 
   return createResourceDescription({
@@ -462,7 +467,10 @@ async function discoverTermResource(
   const taxonomyInfo = findTaxonomyInfo(taxonomies, resource);
 
   if (!taxonomyInfo) {
-    throw new Error(`Term resource '${resource}' not found in WordPress taxonomies`);
+    throw createDiscoveryError(
+      `Term resource '${resource}' not found in WordPress taxonomies`,
+      { operation: 'discovery.describeResource', endpoint: '/wp-json/wp/v2/taxonomies' },
+    );
   }
 
   return discoverTermResourceFromTypeInfo(runtime, resource, taxonomyInfo, options);
@@ -490,7 +498,10 @@ async function discoverTermResourceFromTypeInfo(
   );
 
   if (!endpointSchema) {
-    throw new Error(`Failed to fetch schema for term resource '${resource}'`);
+    throw createDiscoveryError(
+      `Failed to fetch schema for term resource '${resource}'`,
+      { operation: 'discovery.describeResource', endpoint: route },
+    );
   }
 
   return createResourceDescription({
@@ -523,7 +534,10 @@ async function discoverFirstClassResource(
   );
 
   if (!endpointSchema) {
-    throw new Error(`Failed to fetch schema for resource '${resource}'`);
+    throw createDiscoveryError(
+      `Failed to fetch schema for resource '${resource}'`,
+      { operation: 'discovery.describeResource', endpoint: route },
+    );
   }
 
   return createResourceDescription({

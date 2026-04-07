@@ -527,19 +527,25 @@ console.log(`Page ${page.page} of ${page.totalPages} (${page.total} total)`);
 
 ## Error handling
 
+All runtime failures throw `WordPressClientError` (or a subclass). Use `instanceof` to narrow to specific error types:
+
 ```ts
-import { WordPressApiError, WordPressSchemaValidationError } from 'fluent-wp-client';
+import { WordPressClientError, WordPressHttpError } from 'fluent-wp-client';
 
 try {
   await wp.content('posts').item(999999);
 } catch (error) {
-  if (error instanceof WordPressApiError) {
-    console.log(error.status);       // HTTP status (e.g. 404)
-    console.log(error.code);         // WP error code (e.g. 'rest_post_invalid_id')
+  if (error instanceof WordPressHttpError) {
+    console.log(error.status);      // HTTP status (e.g. 404)
+    console.log(error.wpCode);      // WP error code (e.g. 'rest_post_invalid_id')
+    console.log(error.wpMessage);   // WP error message
     console.log(error.responseBody); // Raw response payload
   }
-  if (error instanceof WordPressSchemaValidationError) {
-    console.log(error.issues);       // [{ path: [...], message: '...' }]
+  
+  // Catch-all for any client error
+  if (error instanceof WordPressClientError) {
+    console.log(error.kind);        // e.g. 'WP_API_ERROR', 'AUTH_ERROR', 'NETWORK_ERROR'
+    console.log(error.retryable);   // Can the caller retry?
   }
 }
 ```

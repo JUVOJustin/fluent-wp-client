@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { WordPressBlockType, WordPressParsedBlock } from './schemas.js';
 import type { WordPressJsonSchema } from './types/discovery.js';
+import { WordPressClientError, createConfigError } from './core/errors.js';
 
 export type { WordPressBlockType, WordPressParsedBlock } from './schemas.js';
 
@@ -79,12 +80,12 @@ export interface WordPressSetBlocksOptions extends WordPressValidateBlocksOption
 /**
  * Error thrown when block content cannot be safely serialized.
  */
-export class WordPressBlockValidationError extends Error {
+export class WordPressBlockValidationError extends WordPressClientError {
+  override readonly name = 'WordPressBlockValidationError';
   readonly issues: WordPressBlockValidationIssue[];
 
   constructor(issues: WordPressBlockValidationIssue[]) {
-    super(formatBlockValidationMessage(issues));
-    this.name = 'WordPressBlockValidationError';
+    super(formatBlockValidationMessage(issues), 'BLOCK_VALIDATION_ERROR', { retryable: false });
     this.issues = issues;
   }
 }
@@ -115,7 +116,7 @@ async function loadDefaultParserModule(): Promise<RuntimeWordPressDefaultParserM
     const parserModule = await import('@wordpress/block-serialization-default-parser');
     return parserModule as unknown as RuntimeWordPressDefaultParserModule;
   } catch {
-    throw new Error(
+    throw createConfigError(
       'Block parsing requires the `@wordpress/block-serialization-default-parser` package. '
       + 'Install it with: npm install @wordpress/block-serialization-default-parser',
     );

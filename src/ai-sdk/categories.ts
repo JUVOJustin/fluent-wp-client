@@ -4,6 +4,7 @@ import type { CategoriesFilter } from '../types/filters.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
 import { prepareCollectionArgs, asToolArgs, withToolErrorHandling } from './factories.js';
+import { createInvalidRequestError } from '../core/errors.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
 import {
   categoriesCollectionInputSchema,
@@ -45,7 +46,7 @@ export const getCategoryTool = (
     const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     if (merged.id) return client.terms('categories').item(merged.id as number);
     if (merged.slug) return client.terms('categories').item(merged.slug as string);
-    throw new Error('Either id or slug must be provided.');
+    throw createInvalidRequestError('Either id or slug must be provided.');
   }),
 });
 

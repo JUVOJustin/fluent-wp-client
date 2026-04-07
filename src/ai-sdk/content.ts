@@ -3,6 +3,7 @@ import type { WordPressClient } from '../client.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
 import { prepareCollectionArgs, resolveContentQuery, type ContentQueryLike, asToolArgs, withToolErrorHandling } from './factories.js';
+import { createInvalidRequestError } from '../core/errors.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
 import type { WordPressPostLike } from '../schemas.js';
 import {
@@ -20,7 +21,7 @@ function resolveContentType(
 ): string {
   const contentType = options?.contentType ?? (typeof merged.contentType === 'string' ? merged.contentType : undefined);
   if (!contentType) {
-    throw new Error('contentType must be provided either in the tool config or the tool input.');
+    throw createInvalidRequestError('contentType must be provided either in the tool config or the tool input.');
   }
 
   return contentType;
@@ -82,7 +83,7 @@ export const getContentTool = (
         contentOpts,
       );
     }
-    throw new Error('Either id or slug must be provided.');
+    throw createInvalidRequestError('Either id or slug must be provided.');
   }),
   });
 };

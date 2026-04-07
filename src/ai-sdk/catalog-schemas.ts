@@ -1,4 +1,5 @@
 import { z, type ZodType } from 'zod';
+import { createInvalidRequestError } from '../core/errors.js';
 import type {
   WordPressAbilityDescription,
   WordPressDiscoveryCatalog,
@@ -84,7 +85,7 @@ function buildDiscriminatedUnion(
   variants: z.ZodObject<ZodShape>[],
 ): ZodType {
   if (variants.length === 0) {
-    throw new Error(`Cannot build discriminated union for '${discriminator}' without variants.`);
+    throw createInvalidRequestError(`Cannot build discriminated union for '${discriminator}' without variants.`);
   }
 
   if (variants.length === 1) {

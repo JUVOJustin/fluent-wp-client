@@ -331,5 +331,49 @@ Use `.listAll()` for complete datasets. Use `.listPaginated()` for totals and pa
 
 ## Error handling
 
-- `WordPressApiError` — REST API errors with status, code, and payload
-- Cross-origin absolute URLs are rejected before requests are sent
+All runtime failures thrown by the client use `WordPressClientError` (or a subclass). Use `instanceof` to narrow to specific error types, or check `error.kind` for serialization/logging:
+
+- `WordPressHttpError` — non-2xx HTTP responses (includes `status`, `statusText`, `wpCode`, `wpMessage`, `responseBody`)
+- `WordPressAuthError` — authentication precondition failures
+- `WordPressNetworkError` — fetch-level connectivity failures
+- `WordPressTimeoutError` — request timeouts
+- `WordPressParseError` — response body parsing failures
+- `WordPressConfigError` — missing or invalid client configuration
+- `WordPressDiscoveryError` — schema discovery failures
+- `WordPressInvalidRequestError` — malformed input or precondition violations
+- `WordPressBlockValidationError` — block tree validation failures (from `fluent-wp-client/blocks`)
+
+Local application-side schema validation stays in your validator of choice after `.describe()` or `.explore()`. Those validator-native errors are not wrapped by the client.
+
+```ts
+import { WordPressClientError, WordPressHttpError } from 'fluent-wp-client';
+
+try {
+  await wp.content('posts').create({ title: 'Hello' });
+} catch (error) {
+  if (error instanceof WordPressHttpError) {
+    console.log(error.status);     // e.g. 401
+    console.log(error.wpCode);     // e.g. 'rest_cannot_create'
+    console.log(error.wpMessage);  // e.g. 'Sorry, you are not allowed...'
+  }
+  
+  // Catch-all for any client error
+  if (error instanceof WordPressClientError) {
+    console.log(error.kind);       // e.g. 'WP_API_ERROR'
+    console.log(error.retryable);  // Can the caller retry?
+  }
+}
+```
+
+Every error supports `toJSON()` for structured logging and cross-boundary transport:
+
+```ts
+catch (error) {
+  if (error instanceof WordPressClientError) {
+    console.log(JSON.stringify(error));
+    // {"name":"WordPressHttpError","kind":"WP_API_ERROR","message":"...","retryable":false,"status":401,...}
+  }
+}
+```
+
+Cross-origin absolute URLs are rejected before requests are sent.

@@ -141,5 +141,7 @@ Use `.listAll()` for complete datasets.
 
 ## Error handling
 
-- `WordPressApiError` — REST failures with status, code, and payload
+- `WordPressClientError` — base class for all runtime failures with `kind`, `operation`, `endpoint`, `retryable`
+- `WordPressHttpError` — HTTP failures with `status`, `wpCode`, `wpMessage`, `responseBody`
+- Use `instanceof` to narrow, or `error.kind` for serialization
 - Prefer schema validation for writes so regressions fail fast

@@ -4,6 +4,7 @@ import type { CommentsFilter } from '../types/filters.js';
 import type { QueryParams } from '../types/resources.js';
 import { mergeToolArgs, mergeMutationInput } from './merge.js';
 import { prepareCollectionArgs, asToolArgs, withToolErrorHandling } from './factories.js';
+import { createInvalidRequestError } from '../core/errors.js';
 import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
 import {
   commentsCollectionInputSchema,
@@ -44,7 +45,7 @@ export const getCommentTool = (
   execute: withToolErrorHandling(async (args) => {
     const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
     if (merged.id) return client.comments().item(merged.id as number);
-    throw new Error('Comment ID must be provided.');
+    throw createInvalidRequestError('Comment ID must be provided.');
   }),
 });
 

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { WordPressRequestOptions, WordPressRequestResult } from './types/client.js';
 import type { WordPressRequestOverrides } from './types/resources.js';
 import type { WordPressAbilityDescription } from './types/discovery.js';
-import { throwIfWordPressError } from './core/errors.js';
+import { createInvalidRequestError } from './core/errors.js';
 import { applyRequestOverrides } from './core/request-overrides.js';
 import {
   type WordPressAbility,
@@ -57,11 +57,16 @@ function normalizeAbilityName(name: string): string {
   const normalizedName = name.trim().replace(/^\/+|\/+$/g, '');
 
   if (!normalizedName) {
-    throw new Error('WordPress ability name must not be empty.');
+    throw createInvalidRequestError('WordPress ability name must not be empty.', {
+      operation: 'ability',
+    });
   }
 
   if (!normalizedName.includes('/')) {
-    throw new Error(`WordPress ability '${name}' must use 'namespace/ability' format.`);
+    throw createInvalidRequestError(
+      `WordPress ability '${name}' must use 'namespace/ability' format.`,
+      { operation: 'ability' },
+    );
   }
 
   return normalizedName;
@@ -101,8 +106,9 @@ function createAbilityQueryParams(input: unknown): SerializedQueryParams | undef
     };
   }
 
-  throw new Error(
+  throw createInvalidRequestError(
     'WordPress GET and DELETE ability execution only supports primitive input values. Use POST-based run() for object or array input.',
+    { operation: 'ability' },
   );
 }
 
@@ -115,15 +121,6 @@ function createAbilityRequestBody(input: unknown): { input: unknown } | undefine
   }
 
   return { input };
-}
-
-/**
- * Parses one ability execution response.
- */
-async function parseAbilityResponse<TOutput>(response: Response, data: unknown): Promise<TOutput> {
-  throwIfWordPressError(response, data);
-
-  return data as TOutput;
 }
 
 /**
@@ -153,39 +150,39 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
    * Executes the configured ability through `GET /run`.
    */
   async get(input?: TInput, requestOptions?: WordPressRequestOverrides): Promise<TOutput> {
-    const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: createAbilityRunEndpoint(this.abilityName),
       method: 'GET',
       params: createAbilityQueryParams(input),
     }, requestOptions));
 
-    return parseAbilityResponse(response, data);
+    return data as TOutput;
   }
 
   /**
    * Executes the configured ability through `POST /run`.
    */
   async run(input?: TInput, requestOptions?: WordPressRequestOverrides): Promise<TOutput> {
-    const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: createAbilityRunEndpoint(this.abilityName),
       method: 'POST',
       body: createAbilityRequestBody(input),
     }, requestOptions));
 
-    return parseAbilityResponse(response, data);
+    return data as TOutput;
   }
 
   /**
    * Executes the configured ability through `DELETE /run`.
    */
   async delete(input?: TInput, requestOptions?: WordPressRequestOverrides): Promise<TOutput> {
-    const { data, response } = await this.runtime.request<unknown>(applyRequestOverrides({
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
       endpoint: createAbilityRunEndpoint(this.abilityName),
       method: 'DELETE',
       params: createAbilityQueryParams(input),
     }, requestOptions));
 
-    return parseAbilityResponse(response, data);
+    return data as TOutput;
   }
 
   /**

@@ -4,6 +4,7 @@ import {
   type WordPressBlockJsonSchema,
 } from '../blocks.js';
 import { filterToParams } from '../core/params.js';
+import { createInvalidRequestError, WordPressHttpError } from '../core/errors.js';
 import type { WordPressRuntime } from '../core/transport.js';
 import type { WordPressBlockType } from '../schemas.js';
 import type { WordPressResourceDescription } from '../types/discovery.js';
@@ -17,8 +18,12 @@ import { describeUnavailable } from './describe.js';
 /**
  * Narrow error check used to turn 404s into `undefined` item lookups.
  */
-function isNotFoundError(error: unknown): error is { status: number } {
-  return typeof error === 'object' && error !== null && 'status' in error && error.status === 404;
+function isNotFoundError(error: unknown): boolean {
+  if (error instanceof WordPressHttpError) {
+    return error.status === 404;
+  }
+
+  return false;
 }
 
 /**
@@ -34,12 +39,15 @@ function createBlockTypeItemEndpoint(name: string): string {
   const trimmed = name.trim();
 
   if (!trimmed) {
-    throw new Error('Block type name must not be empty.');
+    throw createInvalidRequestError('Block type name must not be empty.', {
+      operation: 'blocks.item',
+    });
   }
 
   if (!BLOCK_NAME_PATTERN.test(trimmed)) {
-    throw new Error(
+    throw createInvalidRequestError(
       `Invalid block type name "${trimmed}". Expected format: "namespace/block-name" (lowercase alphanumeric and hyphens).`,
+      { operation: 'blocks.item' },
     );
   }
 

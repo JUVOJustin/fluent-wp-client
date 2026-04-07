@@ -5,6 +5,7 @@ import type { WordPressDiscoveryCatalog } from '../types/discovery.js';
 import { assertValidWordPressBlocks, parseWordPressBlocks, serializeWordPressBlocks, type WordPressParsedBlock } from '../blocks.js';
 import { mergeToolArgs } from './merge.js';
 import { asToolArgs, withToolErrorHandling } from './factories.js';
+import { createInvalidRequestError } from '../core/errors.js';
 import type { ContentMutationToolFactoryOptions, ContentToolFactoryOptions } from './types.js';
 
 function createContentTypeSelector(catalog?: WordPressDiscoveryCatalog) {
@@ -113,7 +114,7 @@ function resolveContentType(
 ): string {
   const contentType = options?.contentType ?? (typeof merged.contentType === 'string' ? merged.contentType : undefined);
   if (!contentType) {
-    throw new Error('contentType must be provided either in the tool config or the tool input.');
+    throw createInvalidRequestError('contentType must be provided either in the tool config or the tool input.');
   }
 
   return contentType;
@@ -148,7 +149,7 @@ export const getBlocksTool = (
     const content = await client.content(contentType).item(id).getContent();
     const raw = content?.raw;
     if (!raw) {
-      throw new Error(
+      throw createInvalidRequestError(
         `Raw content unavailable for ${contentType}/${id}. ` +
         'Ensure the client is authenticated with edit capabilities for this item.',
       );

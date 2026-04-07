@@ -199,7 +199,7 @@ describe('Client: Pages', () => {
           status: 'draft',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
       });
     });
 
@@ -207,7 +207,7 @@ describe('Client: Pages', () => {
       await expect(
         pagesClient(authClient).update(999999, { title: 'Ghost Page' }, pageSchema),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 404,
       });
     });

@@ -162,4 +162,4 @@ const blockTree = z.array(parsedBlockSchema).parse(aiOutput);
 - `.item()` — `context=view`, public access
 - `.getContent()`, `.blocks().get()`, `.blocks().set()` — `context=edit`, requires edit capabilities
 - `wpBlocks.blocks()` — requires authenticated user with block type management access
-- Missing auth/capabilities throw `WordPressApiError`
+- Missing auth/capabilities throw `WordPressHttpError` or `WordPressAuthError`

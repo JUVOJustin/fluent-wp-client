@@ -126,7 +126,7 @@ describe('Client: Categories', () => {
           name: 'Client CRUD Public Category',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
       });
     });
 
@@ -134,7 +134,7 @@ describe('Client: Categories', () => {
       await expect(
         categoriesClient(authClient).update(999999, { name: 'Ghost Category' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 404,
       });
     });

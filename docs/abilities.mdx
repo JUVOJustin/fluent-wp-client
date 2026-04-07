@@ -120,4 +120,4 @@ All ability schemas use `.passthrough()` so plugin-added fields stay available.
 - Ability metadata helpers validate payloads with built-in ability schemas
 - Ability execution defers request validation to WordPress
 - Use `describe()` or `explore()` when you want local validation in your application
-- Failed REST responses throw `WordPressApiError`
+- Failed REST responses throw `WordPressHttpError` (subclass of `WordPressClientError`)

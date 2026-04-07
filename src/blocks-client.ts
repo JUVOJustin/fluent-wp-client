@@ -2,6 +2,7 @@ import { ContentItemQuery } from './builders/content-item-query.js';
 import { WordPressClient } from './client.js';
 import { type WordPressRawContentResult } from './content-query.js';
 import { ExecutableQuery } from './core/query-base.js';
+import { createInvalidRequestError } from './core/errors.js';
 import type { WordPressRuntime } from './core/transport.js';
 import { BlockTypesResource, createBlocksClient } from './resources/block-types.js';
 import type {
@@ -103,7 +104,10 @@ export class BlockContentItemQuery<
         const postId = await this.resolveSelectedPostId();
 
         if (postId === undefined) {
-          throw new Error('Cannot set blocks because the selected content item could not be found.');
+          throw createInvalidRequestError(
+            'Cannot set blocks because the selected content item could not be found.',
+            { operation: 'content.blocks.set' },
+          );
         }
 
         if (normalizedOptions.validate !== false) {

@@ -5,6 +5,7 @@ import type { WordPressAbilityDescription } from '../types/discovery.js';
 import { zodSchemasFromDescription } from '../zod-helpers.js';
 import { mergeToolArgs } from './merge.js';
 import { asToolArgs, withToolErrorHandling } from './factories.js';
+import { createInvalidRequestError } from '../core/errors.js';
 import type { AbilityToolFactoryOptions, CreateAbilityToolsOptions, ToolFactoryOptions } from './types.js';
 import {
   createAbilityDeleteInputSchema,
@@ -18,7 +19,7 @@ function resolveAbilityName(
 ): string {
   const abilityName = options?.abilityName ?? (typeof merged.name === 'string' ? merged.name : undefined);
   if (!abilityName) {
-    throw new Error('ability name must be provided either in the tool config or the tool input.');
+    throw createInvalidRequestError('ability name must be provided either in the tool config or the tool input.');
   }
 
   return abilityName;
@@ -265,7 +266,7 @@ export function createAbilityTools(
   const catalog = options?.catalog ?? client.getCachedCatalog();
 
   if (!catalog) {
-    throw new Error(
+    throw createInvalidRequestError(
       'createAbilityTools() requires a discovery catalog. Call wp.explore() or wp.useCatalog() before generating ability tools.',
     );
   }

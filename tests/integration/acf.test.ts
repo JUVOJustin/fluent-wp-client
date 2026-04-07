@@ -464,7 +464,7 @@ describe('Client: ACF fields', () => {
         },
       }),
     ).rejects.toMatchObject({
-      name: 'WordPressApiError',
+        name: 'WordPressHttpError',
     });
   });
 });

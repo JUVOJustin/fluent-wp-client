@@ -13,7 +13,14 @@ import {
 import type { WordPressRequestOptions, WordPressRequestResult, WordPressMediaUploadInput } from '../types/client.js';
 import type { WordPressRequestCallback } from '../types/client.js';
 import type { WordPressRequestOverrides, FetchResult } from '../types/resources.js';
-import { throwIfWordPressError } from './errors.js';
+import {
+  classifyFetchError,
+  createConfigError,
+  createInvalidRequestError,
+  createParseError,
+  normalizeToClientError,
+  throwIfHttpError,
+} from './errors.js';
 import { applyRequestOverrides } from './request-overrides.js';
 
 /**
@@ -34,13 +41,9 @@ export interface WordPressTransportConfig {
 
 /**
  * Transport layer for WordPress REST API requests.
- * 
- * Handles:
- * - URL construction
- * - Request header resolution
- * - Body serialization
- * - HTTP execution
- * - Error handling
+ *
+ * All HTTP, network, and parse failures are surfaced as `WordPressClientError`
+ * so callers never need to inspect raw `Response` status or catch platform errors.
  */
 export class WordPressTransport {
   private readonly baseUrl: string;
@@ -96,8 +99,9 @@ export class WordPressTransport {
     const url = new URL(endpoint);
 
     if (url.origin !== this.baseOrigin) {
-      throw new Error(
+      throw createInvalidRequestError(
         `Cross-origin absolute URLs are not allowed. Expected origin '${this.baseOrigin}' but received '${url.origin}'.`,
+        { endpoint, baseUrl: this.baseUrl },
       );
     }
 
@@ -142,7 +146,9 @@ export class WordPressTransport {
     const normalizedResource = resource.replace(/^\/+|\/+$/g, '');
 
     if (!normalizedResource) {
-      throw new Error('Resource path must not be empty.');
+      throw createInvalidRequestError('Resource path must not be empty.', {
+        baseUrl: this.baseUrl,
+      });
     }
 
     if (normalizedNamespace === 'wp/v2') {
@@ -256,23 +262,44 @@ export class WordPressTransport {
 
   /**
    * Parses one REST response payload based on returned content type.
+   * Wraps parse failures as `WordPressClientError` with `PARSE_ERROR` kind.
    */
-  private async parseResponseBody(response: Response): Promise<unknown> {
+  private async parseResponseBody(response: Response, diagnostics: { method: string; endpoint: string }): Promise<unknown> {
     const contentType = response.headers.get('Content-Type')?.toLowerCase() || '';
 
-    if (contentType.includes('application/json')) {
-      return response.json();
-    }
+    try {
+      if (contentType.includes('application/json')) {
+        return await response.json();
+      }
 
-    return response.text();
+      return await response.text();
+    } catch (error) {
+      throw createParseError(error, {
+        method: diagnostics.method,
+        endpoint: diagnostics.endpoint,
+        baseUrl: this.baseUrl,
+        status: response.status,
+        statusText: response.statusText,
+        contentType: contentType || undefined,
+      });
+    }
   }
 
   /**
-   * Executes one low-level WordPress request and returns payload + response metadata.
+   * Executes one WordPress request and returns payload + response metadata.
+   *
+   * Throws `WordPressClientError` for:
+   * - missing fetch implementation (`CONFIG_ERROR`)
+   * - network/timeout failures (`NETWORK_ERROR` / `TIMEOUT_ERROR`)
+   * - response parse failures (`PARSE_ERROR`)
+   * - non-2xx HTTP responses (`HTTP_ERROR` / `WP_API_ERROR`)
    */
   async request<T = unknown>(options: WordPressRequestOptions): Promise<WordPressRequestResult<T>> {
     const method = options.method ?? 'GET';
-    const url = this.createApiUrl(options.endpoint, options.params);
+    const endpoint = options.endpoint;
+    const diagnostics = { method, endpoint, baseUrl: this.baseUrl };
+
+    const url = this.createApiUrl(endpoint, options.params);
     const resolvedAuth = options.auth ?? this.auth;
     const serializedBody = this.serializeBody({
       body: options.body,
@@ -304,8 +331,9 @@ export class WordPressTransport {
     };
 
     if (typeof this.fetcher !== 'function' && typeof globalThis.fetch !== 'function') {
-      throw new TypeError(
+      throw createConfigError(
         'No fetch implementation found. Provide a custom `fetch` via WordPressClientConfig or ensure `globalThis.fetch` is available.',
+        diagnostics,
       );
     }
 
@@ -314,11 +342,20 @@ export class WordPressTransport {
       await this.onRequest(url.toString(), requestInit);
     }
 
-    const response = typeof this.fetcher === 'function'
-      ? await this.fetcher(url.toString(), requestInit)
-      : await globalThis.fetch(url.toString(), requestInit);
+    let response: Response;
 
-    const data = await this.parseResponseBody(response) as T;
+    try {
+      response = typeof this.fetcher === 'function'
+        ? await this.fetcher(url.toString(), requestInit)
+        : await globalThis.fetch(url.toString(), requestInit);
+    } catch (error) {
+      throw classifyFetchError(error, diagnostics);
+    }
+
+    const data = await this.parseResponseBody(response, diagnostics) as T;
+
+    // Throw on non-2xx so callers always receive successful data
+    throwIfHttpError(response, data, diagnostics);
 
     return {
       data,
@@ -352,8 +389,6 @@ export class WordPressTransport {
       params,
     }, requestOptions));
 
-    throwIfWordPressError(response, data);
-
     const total = Number.parseInt(response.headers.get('X-WP-Total') || '0', 10);
     const totalPages = Number.parseInt(response.headers.get('X-WP-TotalPages') || '0', 10);
 
@@ -367,13 +402,12 @@ export class WordPressTransport {
     credentials: JwtLoginCredentials,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TJwtResponse> {
-    const { data, response } = await this.request<unknown>(applyRequestOverrides({
+    const { data } = await this.request<unknown>(applyRequestOverrides({
       endpoint: '/wp-json/jwt-auth/v1/token',
       method: 'POST',
       body: credentials,
     }, requestOptions));
 
-    throwIfWordPressError(response, data);
     return data as TJwtResponse;
   }
 
@@ -388,13 +422,12 @@ export class WordPressTransport {
       ? createJwtAuthHeader(typeof token === 'string' ? token : token.token)
       : undefined;
 
-    const { data, response } = await this.request<unknown>(applyRequestOverrides({
+    const { data } = await this.request<unknown>(applyRequestOverrides({
       endpoint: '/wp-json/jwt-auth/v1/token/validate',
       method: 'POST',
       auth: authHeader,
     }, requestOptions));
 
-    throwIfWordPressError(response, data);
     return data as TJwtValidation;
   }
 }

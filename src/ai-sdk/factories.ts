@@ -2,7 +2,7 @@ import type { WordPressClient } from '../client.js';
 import type { WordPressPostLike } from '../schemas.js';
 import { parseWordPressBlocks, type WordPressParsedBlock } from '../blocks.js';
 import type { WordPressRawContentResult } from '../content-query.js';
-import { WordPressApiError } from '../core/errors.js';
+import { WordPressClientError, WordPressHttpError, type WordPressClientErrorKind } from '../core/errors.js';
 import { mergeToolArgs } from './merge.js';
 import type { ToolFactoryOptions } from './types.js';
 
@@ -56,9 +56,9 @@ export function prepareCollectionArgs(
 export interface WordPressAIToolErrorResult {
   ok: false;
   error: {
-    type: 'wordpress_api_error' | 'tool_error';
+    kind: WordPressClientErrorKind | 'tool_error';
     message: string;
-    code?: string | null;
+    code?: string;
     status?: number;
     statusText?: string;
     details?: unknown;
@@ -69,16 +69,26 @@ export interface WordPressAIToolErrorResult {
  * Converts thrown runtime errors into a stable, model-readable envelope.
  */
 export function toToolErrorResult(error: unknown): WordPressAIToolErrorResult {
-  if (error instanceof WordPressApiError) {
+  if (error instanceof WordPressHttpError) {
     return {
       ok: false,
       error: {
-        type: 'wordpress_api_error',
+        kind: error.kind,
         message: error.message,
-        code: error.code,
+        code: error.wpCode,
         status: error.status,
         statusText: error.statusText,
         details: error.responseBody,
+      },
+    };
+  }
+
+  if (error instanceof WordPressClientError) {
+    return {
+      ok: false,
+      error: {
+        kind: error.kind,
+        message: error.message,
       },
     };
   }
@@ -87,7 +97,7 @@ export function toToolErrorResult(error: unknown): WordPressAIToolErrorResult {
     return {
       ok: false,
       error: {
-        type: 'tool_error',
+        kind: 'tool_error',
         message: error.message,
       },
     };
@@ -96,7 +106,7 @@ export function toToolErrorResult(error: unknown): WordPressAIToolErrorResult {
   return {
     ok: false,
     error: {
-      type: 'tool_error',
+      kind: 'tool_error',
       message: 'Unknown tool execution error',
       details: error,
     },

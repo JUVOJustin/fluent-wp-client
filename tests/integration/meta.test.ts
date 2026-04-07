@@ -291,7 +291,7 @@ describe('Client: meta fields', () => {
         },
       }),
     ).rejects.toMatchObject({
-      name: 'WordPressApiError',
+        name: 'WordPressHttpError',
     });
   });
 
@@ -322,7 +322,7 @@ describe('Client: meta fields', () => {
         },
       }),
     ).rejects.toMatchObject({
-      name: 'WordPressApiError',
+        name: 'WordPressHttpError',
     });
   });
 });

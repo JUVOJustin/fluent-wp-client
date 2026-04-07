@@ -62,16 +62,36 @@ export {
 } from './auth.js';
 
 export {
-  WordPressSchemaValidationError,
   isStandardSchema,
   type WordPressSchemaIssue,
   type WordPressStandardSchema,
 } from './core/validation.js';
 
 export {
-  WordPressApiError,
-  createWordPressApiError,
-  throwIfWordPressError,
+  WordPressClientError,
+  WordPressConfigError,
+  WordPressNetworkError,
+  WordPressTimeoutError,
+  WordPressAuthError,
+  WordPressHttpError,
+  WordPressParseError,
+  WordPressDiscoveryError,
+  WordPressInvalidRequestError,
+  isWordPressClientError,
+  createConfigError,
+  createNetworkError,
+  createTimeoutError,
+  createAuthError,
+  createHttpError,
+  createParseError,
+  createDiscoveryError,
+  createInvalidRequestError,
+  normalizeToClientError,
+  throwIfHttpError,
+  classifyFetchError,
+  type WordPressClientErrorKind,
+  type WordPressErrorContext,
+  type SchemaValidationIssue,
   type WordPressErrorPayload,
 } from './core/errors.js';
 

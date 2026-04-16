@@ -22,6 +22,45 @@ function wpCli(command: string): string {
 }
 
 /**
+ * Resolves the base URL of the running wp-env development environment.
+ *
+ * When `WP_BASE_URL` is set explicitly (CI pipelines, custom runners), the
+ * override wins. Otherwise we ask wp-env for the active port so the test suite
+ * keeps working when `"autoPort": true` promotes the port from the default 8888
+ * to the next available one (8889, 8890, ...).
+ *
+ * Note: `wp-env status --json` reports the configured `urls.development` which
+ * always reflects the default port, not the actual bound port. The true port
+ * lives in `ports.development`, so we assemble the URL from that.
+ */
+function resolveBaseUrl(): string {
+  if (process.env.WP_BASE_URL) {
+    return process.env.WP_BASE_URL;
+  }
+
+  try {
+    const raw = execSync('npx wp-env status --json', {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    const parsed = JSON.parse(stripWpEnvOutput(raw)) as {
+      ports?: { development?: string | number | null };
+    };
+
+    const port = parsed.ports?.development;
+    if (port !== null && port !== undefined && String(port).length > 0) {
+      return `http://localhost:${port}`;
+    }
+  } catch {
+    // Fall through to the default when wp-env status is unavailable (older
+    // wp-env versions, status --json not supported, etc.).
+  }
+
+  return 'http://localhost:8888';
+}
+
+/**
  * Strips wp-env status/info lines (ℹ/✔) from command output, returning
  * only the actual command stdout
  */
@@ -202,8 +241,9 @@ async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
  * create app-password, JWT, and cookie+nonce auth credentials for integration tests.
  */
 export async function setup(): Promise<void> {
-  const baseUrl = process.env.WP_BASE_URL || 'http://localhost:8888';
+  const baseUrl = resolveBaseUrl();
 
+  console.log(`[global-setup] Using WordPress base URL: ${baseUrl}`);
   console.log('[global-setup] Waiting for WordPress API...');
   await waitForApi(baseUrl);
 

@@ -37,9 +37,9 @@ const wp = new WordPressClient({
 ### 3. Read content
 
 ```ts
-const posts = await wp.getPosts({ perPage: 10 });
-const post  = await wp.getPostBySlug('hello-world');
-const pages = await wp.getAllPages();
+const posts = await wp.content('posts').list({ perPage: 10 });
+const post  = await wp.content('posts').item('hello-world');
+const pages = await wp.content('pages').listAll();
 ```
 
 ### 4. Create content (requires auth)
@@ -50,7 +50,7 @@ const wp = new WordPressClient({
   auth: { username: 'admin', password: 'xxxx xxxx xxxx xxxx' },
 });
 
-const draft = await wp.createPost({
+const draft = await wp.content('posts').create({
   title: 'New post',
   content: '<p>Body content.</p>',
   status: 'draft',
@@ -118,7 +118,7 @@ const wp = new WordPressClient({
   },
 });
 
-const me = await wp.getCurrentUser();
+const me = await wp.users().me();
 ```
 
 ### Request-aware signing (HMAC / custom)
@@ -151,70 +151,73 @@ const { data } = await wp.request({
 
 ```ts
 // Read
-const posts     = await wp.getPosts({ categories: [3], perPage: 20 });
-const allPosts  = await wp.getAllPosts({ status: 'publish' });
-const paginated = await wp.getPostsPaginated({ page: 2, perPage: 10 });
-const post      = await wp.getPost(42);
-const bySlug    = await wp.getPostBySlug('hello-world');
+const posts     = await wp.content('posts').list({ categories: [3], perPage: 20 });
+const allPosts  = await wp.content('posts').listAll({ status: 'publish' });
+const paginated = await wp.content('posts').listPaginated({ page: 2, perPage: 10 });
+const post      = await wp.content('posts').item(42);
+const bySlug    = await wp.content('posts').item('hello-world');
 
 // Create, update, delete
-const created = await wp.createPost({ title: 'Title', status: 'draft' });
-const updated = await wp.updatePost(created.id, { status: 'publish' });
-await wp.deletePost(created.id, { force: true });
+const created = await wp.content('posts').create({ title: 'Title', status: 'draft' });
+const updated = await wp.content('posts').update(created.id, { status: 'publish' });
+await wp.content('posts').delete(created.id, { force: true });
 ```
 
 ### Pages
 
 ```ts
-const pages    = await wp.getPages({ perPage: 50 });
-const allPages = await wp.getAllPages();
-const page     = await wp.getPage(10);
-const bySlug   = await wp.getPageBySlug('about');
+const pages    = await wp.content('pages').list({ perPage: 50 });
+const allPages = await wp.content('pages').listAll();
+const page     = await wp.content('pages').item(10);
+const bySlug   = await wp.content('pages').item('about');
 
-const created = await wp.createPage({ title: 'About us', status: 'draft' });
-await wp.updatePage(created.id, { status: 'publish' });
-await wp.deletePage(created.id, { force: true });
+const created = await wp.content('pages').create({ title: 'About us', status: 'draft' });
+await wp.content('pages').update(created.id, { status: 'publish' });
+await wp.content('pages').delete(created.id, { force: true });
 ```
 
 ### Categories and tags
 
 ```ts
-const cats = await wp.getAllCategories();
-const cat  = await wp.getCategoryBySlug('technology');
+const categories = wp.terms('categories');
+const tags = wp.terms('tags');
 
-const created = await wp.createCategory({ name: 'News' });
-await wp.updateCategory(created.id, { description: 'Latest news' });
-await wp.deleteCategory(created.id, { force: true });
+const cats = await categories.listAll();
+const cat  = await categories.item('technology');
+
+const created = await categories.create({ name: 'News' });
+await categories.update(created.id, { description: 'Latest news' });
+await categories.delete(created.id, { force: true });
 
 // Tags follow the same pattern
-const tags = await wp.getAllTags();
-const tag  = await wp.createTag({ name: 'featured' });
+const allTags = await tags.listAll();
+const tag = await tags.create({ name: 'featured' });
 ```
 
 ### Comments
 
 ```ts
-const comments = await wp.getComments({ post: 42 });
+const comments = await wp.comments().list({ post: 42 });
 
-const comment = await wp.createComment({
+const comment = await wp.comments().create({
   post: 42,
   content: 'Great article!',
   status: 'approve',
 });
 
-await wp.updateComment(comment.id, { content: 'Updated comment.' });
-await wp.deleteComment(comment.id, { force: true });
+await wp.comments().update(comment.id, { content: 'Updated comment.' });
+await wp.comments().delete(comment.id, { force: true });
 ```
 
 ### Media
 
 ```ts
-const items = await wp.getMedia({ mediaType: 'image' });
-const item  = await wp.getMediaItem(55);
-const url   = wp.getImageUrl(item, 'medium');
+const items = await wp.media().list({ mediaType: 'image' });
+const item  = await wp.media().item(55);
+const url   = wp.media().getImageUrl(item, 'medium');
 
 // Binary upload
-const media = await wp.uploadMedia({
+const media = await wp.media().upload({
   file: imageBlob,
   filename: 'cover.jpg',
   mimeType: 'image/jpeg',
@@ -222,33 +225,33 @@ const media = await wp.uploadMedia({
   alt_text: 'A book cover',
 });
 
-await wp.updateMedia(media.id, { caption: 'New caption' });
-await wp.deleteMedia(media.id, { force: true });
+await wp.media().update(media.id, { caption: 'New caption' });
+await wp.media().delete(media.id, { force: true });
 ```
 
 ### Users
 
 ```ts
-const users = await wp.getUsers({ roles: ['author'] });
-const user  = await wp.getUser(1);
-const me    = await wp.getCurrentUser();
+const users = await wp.users().list({ roles: ['author'] });
+const user  = await wp.users().item(1);
+const me    = await wp.users().me();
 
-const created = await wp.createUser({
+const created = await wp.users().create({
   username: 'newauthor',
   email: 'author@example.com',
   password: 'securepass',
   roles: ['author'],
 });
 
-await wp.updateUser(created.id, { first_name: 'Jane' });
-await wp.deleteUser(created.id, { reassign: 1, force: true });
+await wp.users().update(created.id, { first_name: 'Jane' });
+await wp.users().delete(created.id, { reassign: 1, force: true });
 ```
 
 ### Settings
 
 ```ts
-const settings = await wp.getSettings();
-await wp.updateSettings({ title: 'New Site Title' });
+const settings = await wp.settings().get();
+await wp.settings().update({ title: 'New Site Title' });
 ```
 
 ## Custom post types and taxonomies
@@ -263,8 +266,8 @@ const books = wp.content('books');
 const list      = await books.list({ perPage: 20 });
 const allBooks  = await books.listAll();
 const paged     = await books.listPaginated({ page: 2, perPage: 10 });
-const book      = await books.getById(7);
-const bySlug    = await books.getBySlug('my-book');
+const book      = await books.item(7);
+const bySlug    = await books.item('my-book');
 const created   = await books.create({ title: 'New Book', status: 'draft' });
 await books.update(created.id, { status: 'publish' });
 await books.delete(created.id, { force: true });
@@ -276,7 +279,7 @@ const genres = wp.terms('genre');
 
 const list    = await genres.list({ perPage: 100 });
 const all     = await genres.listAll();
-const genre   = await genres.getBySlug('sci-fi');
+const genre   = await genres.item('sci-fi');
 const created = await genres.create({ name: 'Science Fiction' });
 await genres.update(created.id, { name: 'Sci-Fi' });
 await genres.delete(created.id, { force: true });
@@ -292,7 +295,7 @@ type Book = WordPressCustomPost<{
   acf?: { acf_subtitle?: string; acf_summary?: string };
 }>;
 
-const books = await wp.getContentCollection<Book>('books');
+const books = await wp.content<Book>('books').list();
 ```
 
 For full CPT/taxonomy patterns and namespace routing, read
@@ -304,15 +307,15 @@ Parse serialized block markup into structured block trees.
 
 ```ts
 // From a single post/page query
-const blocks = await wp.getPostBySlug('hello-world').getBlocks();
-const pageBlocks = await wp.getPageBySlug('about').getBlocks();
+const blocks = await wp.content('posts').item('hello-world').getBlocks();
+const pageBlocks = await wp.content('pages').item('about').getBlocks();
 
 // From list records
-const posts = await wp.getPosts({ perPage: 5 });
+const posts = await wp.content('posts').list({ perPage: 5 });
 const firstBlocks = await posts[0].getBlocks();
 
 // Raw + rendered content together
-const content = await wp.getPostBySlug('hello-world').getContent();
+const content = await wp.content('posts').item('hello-world').getContent();
 // content.raw, content.rendered, content.protected
 
 // Parse raw content directly
@@ -325,28 +328,43 @@ const parsed = await parseWordPressBlocks(content.raw);
 For custom parser configuration and CPT block parsing, read
 [references/gutenberg-content.mdx](references/gutenberg-content.mdx).
 
-## Post relations
+## Embed and extraction
 
-Hydrate related entities in a single fluent call.
+Request embedded data with `embed: true` or selective `embed: ['author', 'wp:term']`, then use typed extraction helpers.
 
 ```ts
-// Fluent chain
-const result = await wp
-  .post('hello-world')
-  .with('author', 'categories', 'tags', 'featuredMedia')
-  .get();
+import {
+  getEmbeddedAuthor,
+  getEmbeddedTerms,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedParent,
+  getEmbeddableLinkKeys,
+} from 'fluent-wp-client';
 
-result.related.author;        // WordPressAuthor | null
-result.related.categories;    // WordPressCategory[]
-result.related.tags;          // WordPressTag[]
-result.related.featuredMedia; // WordPressMedia | null
+const post = await wp.content('posts').item('hello-world', { embed: true });
 
-// Shorthand
-const post = await wp.getPostWithRelations(42, 'author', 'terms');
-post.related.terms; // { categories: [...], tags: [...] }
+getEmbeddedAuthor(post);              // WordPressAuthor | null
+getEmbeddedTerms(post, 'category');   // WordPressCategory[]
+getEmbeddedTerms(post, 'post_tag');   // WordPressTag[]
+getEmbeddedFeaturedMedia(post);       // WordPressMedia | null
+getEmbeddedParent(post);              // WordPressPostLike | null
+
+// Discover embeddable keys
+const keys = getEmbeddableLinkKeys(post); // ['author', 'wp:term', ...]
 ```
 
-Available relations: `author`, `categories`, `tags`, `terms`, `featuredMedia`.
+Embed keys: `author`, `wp:term`, `wp:featuredmedia`, `up`, `replies`, `acf:post`, `acf:term`.
+
+## Schema Discovery
+
+Before writing mutations against an unfamiliar resource or ability, call `.describe()` to fetch its live JSON Schema, then convert with `z.fromJSONSchema()` and pass to `create()`, `update()`, or `.inputSchema()`.
+
+- `wp.content(resource).describe()` — `create`, `update`, `item` schemas
+- `wp.terms(resource).describe()` — same for taxonomies
+- `wp.ability(name).describe()` — `input` and `output` schemas
+- `wp.explore()` — full catalog of all resources and abilities at once
+
+See `docs/schema-discovery.mdx` for examples.
 
 ## WordPress Abilities API
 
@@ -377,48 +395,42 @@ const output = await sync.run({ mode: 'full' });
 For the complete abilities API surface, read
 [references/abilities.mdx](references/abilities.mdx).
 
-## WPAPI-compatible fluent builder
+## Unified resource builders
 
-Drop-in fluent chain syntax compatible with `node-wpapi`.
+The 3.0 API centers on `content(resource)`, `terms(resource)`, and first-class resource clients.
 
 ```ts
-// Read
-const posts = await wp.posts().perPage(10).page(1).embed().get();
-const post  = await wp.posts().slug('hello-world').get();
-const post2 = await wp.posts().id(42).get();
+// Posts and pages
+const posts = await wp.content('posts').list({ perPage: 10, page: 1 });
+const post = await wp.content('posts').item('hello-world');
 
-// Thenable shorthand (await calls .get() implicitly)
-const post3 = await wp.posts().slug('hello-world');
+const created = await wp.content('posts').create({ title: 'New', status: 'draft' });
+await wp.content('posts').update(created.id, { title: 'Updated' });
+await wp.content('posts').delete(created.id, { force: true });
 
-// CRUD
-const created = await wp.posts().create({ title: 'New', status: 'draft' });
-await wp.posts().id(created.id).update({ title: 'Updated' });
-await wp.posts().id(created.id).delete({ force: true });
+// Custom post types and taxonomies
+const books = await wp.content('books').list({ perPage: 5 });
+const genres = await wp.terms('genre').list({ perPage: 50 });
 
-// Custom namespace
-const books = await wp.namespace('wp/v2').route('books').perPage(5).get();
+// First-class resources
+const media = await wp.media().list({ perPage: 20 });
+const comments = await wp.comments().list({ post: 42 });
 
-// Route registration (node-wpapi compatible)
-const authorRoute = wp.registerRoute('my-plugin/v1', '/authors/(?P<id>)');
-const author = await authorRoute().id(7).get();
-
-// URL inspection
-const url = wp.posts().perPage(5).page(2).toString();
+// Custom/plugin endpoints
+const { data } = await wp.request<{ author: { id: number; name: string } }>({
+  endpoint: '/wp-json/my-plugin/v1/authors/7',
+  method: 'GET',
+});
 ```
 
-All chain starters: `posts()`, `pages()`, `media()`, `categories()`, `tags()`,
-`users()`, `comments()`, `settings()`, `types()`, `taxonomies()`, `statuses()`,
-`search()`, `blocks()`.
-
-For a full migration mapping from node-wpapi, read
-[references/migration-from-node-wpapi.mdx](references/migration-from-node-wpapi.mdx).
+Use `request()` whenever the endpoint lives outside the standard `wp/v2` resource families.
 
 ## Meta and ACF fields
 
 ### Native WordPress meta
 
 ```ts
-const post = await wp.createPost({
+const post = await wp.content('posts').create({
   title: 'Post with meta',
   status: 'draft',
   meta: {
@@ -432,7 +444,7 @@ const post = await wp.createPost({
 ### ACF fields
 
 ```ts
-const post = await wp.createPost({
+const post = await wp.content('posts').create({
   title: 'Post with ACF',
   status: 'draft',
   acf: {
@@ -448,15 +460,15 @@ All Zod schemas use `.passthrough()` so custom plugin fields pass through.
 
 ## Response validation
 
-Mutation helpers accept any Standard Schema-compatible validator (Zod, Valibot, ArkType).
+WordPress validates request payloads upstream. When local validation is needed, validate in application code with Zod or discovered JSON Schemas.
 
 ```ts
 import { z } from 'zod';
 
-// Validate mutation response
-const created = await wp.createPost(
-  { title: 'Validated', status: 'draft' },
-  z.object({ id: z.number(), slug: z.string(), status: z.string() }),
+// Validate a mutation response in app code
+const postSchema = z.object({ id: z.number(), slug: z.string(), status: z.string() });
+const created = postSchema.parse(
+  await wp.content('posts').create({ title: 'Validated', status: 'draft' })
 );
 
 // Validate CPT responses
@@ -466,8 +478,8 @@ const bookSchema = z.object({
   type: z.literal('book'),
 });
 
-const books = wp.content('books', bookSchema);
-const book = await books.create({ title: 'Typed Book', status: 'draft' });
+const rawBook = await wp.content('books').item('typed-book');
+const book = bookSchema.parse(rawBook);
 ```
 
 ## Low-level transport
@@ -481,47 +493,48 @@ const { data, response } = await wp.request<{ synced: boolean }>({
   body: { mode: 'full' },
 });
 
-// Simple typed GET
-const info = await wp.fetchAPI<{ version: string }>('/wp-json/wp/v2');
-
-// GET with pagination metadata
-const result = await wp.fetchAPIPaginated<WordPressPost>('/wp-json/wp/v2/posts', {
-  per_page: '10',
-});
-// result.data, result.total, result.totalPages
+// High-level pagination stays on the resource clients
+const posts = await wp.content('posts').listPaginated({ perPage: 10, page: 1 });
+// posts.data, posts.total, posts.totalPages
 ```
 
 ## Pagination
 
 - WordPress caps `per_page` at 100.
-- `get*()` methods return one page of results.
-- `getAll*()` methods auto-paginate through every page internally.
-- `get*Paginated()` methods return `{ data, total, totalPages, page, perPage }`.
+- `.list()` methods return one page of results.
+- `.listAll()` methods auto-paginate through every page internally.
+- `.listPaginated()` methods return `{ data, total, totalPages, page, perPage }`.
 
 ```ts
 // All posts (auto-paginates internally)
-const all = await wp.getAllPosts();
+const all = await wp.content('posts').listAll();
 
 // One page with metadata
-const page = await wp.getPostsPaginated({ page: 3, perPage: 25 });
+const page = await wp.content('posts').listPaginated({ page: 3, perPage: 25 });
 console.log(`Page ${page.page} of ${page.totalPages} (${page.total} total)`);
 ```
 
 ## Error handling
 
+All runtime failures throw `WordPressClientError` (or a subclass). Use `instanceof` to narrow to specific error types:
+
 ```ts
-import { WordPressApiError, WordPressSchemaValidationError } from 'fluent-wp-client';
+import { WordPressClientError, WordPressHttpError } from 'fluent-wp-client';
 
 try {
-  await wp.getPost(999999);
+  await wp.content('posts').item(999999);
 } catch (error) {
-  if (error instanceof WordPressApiError) {
-    console.log(error.status);       // HTTP status (e.g. 404)
-    console.log(error.code);         // WP error code (e.g. 'rest_post_invalid_id')
+  if (error instanceof WordPressHttpError) {
+    console.log(error.status);      // HTTP status (e.g. 404)
+    console.log(error.wpCode);      // WP error code (e.g. 'rest_post_invalid_id')
+    console.log(error.wpMessage);   // WP error message
     console.log(error.responseBody); // Raw response payload
   }
-  if (error instanceof WordPressSchemaValidationError) {
-    console.log(error.issues);       // [{ path: [...], message: '...' }]
+  
+  // Catch-all for any client error
+  if (error instanceof WordPressClientError) {
+    console.log(error.kind);        // e.g. 'WP_API_ERROR', 'AUTH_ERROR', 'NETWORK_ERROR'
+    console.log(error.retryable);   // Can the caller retry?
   }
 }
 ```
@@ -561,8 +574,7 @@ All schemas use `.passthrough()` so custom fields (ACF, meta, plugin data) survi
 `ContentResourceClient<T, TCreate, TUpdate>`, `TermsResourceClient<T, TCreate, TUpdate>`
 
 ### Block types
-`WordPressParsedBlock`, `WordPressBlockParser`, `WordPressContentRecord<T>`,
-`WordPressContentQuery<T>`
+`WordPressParsedBlock`, `WordPressBlockParser`, `WordPressContentRecord<T>`
 
 ## Reference docs
 
@@ -572,6 +584,6 @@ Consult these when deeper guidance is needed for a specific topic:
 |---|---|
 | [references/usage.mdx](references/usage.mdx) | Full method reference, all API styles side by side, CRUD walkthrough, filter and pagination detail |
 | [references/gutenberg-content.mdx](references/gutenberg-content.mdx) | Rendered vs raw content, block parsing workflows, custom parser setup, CPT block parsing |
-| [references/custom-endpoints.mdx](references/custom-endpoints.mdx) | CPT/taxonomy patterns, namespace routing, registerRoute, low-level requests, per-request auth |
+| [references/custom-endpoints.mdx](references/custom-endpoints.mdx) | CPT/taxonomy patterns, low-level custom endpoint requests, and per-request headers |
 | [references/abilities.mdx](references/abilities.mdx) | Ability metadata, direct execution helpers, fluent builder with schemas, exported ability schemas |
-| [references/migration-from-node-wpapi.mdx](references/migration-from-node-wpapi.mdx) | Side-by-side mapping from node-wpapi, auth migration, behavioral differences |
+| [references/schema-discovery.mdx](references/schema-discovery.mdx) | `.describe()`, `explore()`, `z.fromJSONSchema()` integration and examples |

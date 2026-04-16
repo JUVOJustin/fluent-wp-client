@@ -1,23 +1,88 @@
 import type { WordPressSettings } from '../schemas.js';
-import type { WordPressRequestOverrides } from '../client-types.js';
+import type {
+  SettingsResourceClient,
+  WordPressRequestOverrides,
+} from '../types/resources.js';
+import type { WordPressResourceDescription } from '../types/discovery.js';
+import { compactPayload } from '../core/params.js';
+import { applyRequestOverrides } from '../core/request-overrides.js';
+import { createAuthError } from '../core/errors.js';
+import type { WordPressRuntime } from '../core/transport.js';
+import { describeUnavailable } from './describe.js';
 
 /**
- * Settings API methods factory for typed read operations.
+ * WordPress settings singleton resource.
  */
-export function createSettingsMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
-  hasAuth: () => boolean,
-) {
-  return {
-    /**
-     * Gets WordPress site settings.
-     */
-    async getSettings(requestOptions?: WordPressRequestOverrides): Promise<WordPressSettings> {
-      if (!hasAuth()) {
-        throw new Error('Authentication required for /settings endpoint. Configure auth in client options.');
-      }
+export class SettingsResource {
+  private readonly runtime: WordPressRuntime;
+  private readonly endpoint = '/settings';
 
-      return fetchAPI<WordPressSettings>('/settings', undefined, requestOptions);
-    },
+  constructor(runtime: WordPressRuntime) {
+    this.runtime = runtime;
+  }
+
+  /**
+   * Creates a settings resource instance.
+   */
+  static create(runtime: WordPressRuntime): SettingsResource {
+    return new SettingsResource(runtime);
+  }
+
+  /**
+   * Ensures settings reads and writes only run when authentication is configured.
+   */
+  private assertAuthenticated(): void {
+    if (!this.runtime.hasAuth()) {
+      throw createAuthError(
+        'Authentication required for /settings endpoint. Configure auth in client options.',
+        { operation: 'settings', endpoint: '/settings' },
+      );
+    }
+  }
+
+  /**
+   * Gets WordPress site settings.
+   */
+  async get(requestOptions?: WordPressRequestOverrides): Promise<WordPressSettings> {
+    this.assertAuthenticated();
+
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
+      endpoint: this.endpoint,
+      method: 'GET',
+    }, requestOptions));
+
+    return data as WordPressSettings;
+  }
+
+  /**
+   * Updates WordPress site settings.
+   */
+  async update(
+    input: Partial<WordPressSettings> & Record<string, unknown>,
+    options?: WordPressRequestOverrides,
+  ): Promise<WordPressSettings> {
+    this.assertAuthenticated();
+
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
+      endpoint: this.endpoint,
+      method: 'POST',
+      body: compactPayload(input),
+    }, options));
+
+    return data as WordPressSettings;
+  }
+}
+
+/**
+ * Creates a typed settings client.
+ */
+export function createSettingsClient(
+  resource: SettingsResource,
+  describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
+): SettingsResourceClient<WordPressSettings> {
+  return {
+    get: (options) => resource.get(options),
+    update: (input, options) => resource.update(input, options),
+    describe: describeFn ?? describeUnavailable,
   };
 }

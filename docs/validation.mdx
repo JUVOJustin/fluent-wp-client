@@ -1,128 +1,188 @@
 ---
 title: Validation
 short_title: Validation
-description: Validate fluent-wp-client responses with Standard Schema, native Zod, or custom validators like Valibot.
+description: Use WordPress discovery schemas with Zod or generated artifacts to add custom validation around fluent-wp-client calls.
 sidebar:
-  order: 7
+  order: 9
 ---
 
 ## Overview
 
-`fluent-wp-client` exports Standard Schema validators from the root package.
+`fluent-wp-client` keeps request validation aligned with WordPress itself. The client sends normal REST payloads, and WordPress remains the source of truth for what is valid.
 
-This keeps the core API validator-agnostic while still allowing runtime validation in consumers that use Zod, Valibot, ArkType, or any other Standard Schema-compatible validator.
+When you want local validation in your app, use one of these schema sources:
 
-Built-in schemas are authored in Zod internally, but root exports expose only the Standard Schema contract.
+| Need | Best tool |
+|---|---|
+| Validate one resource or ability at runtime | `.describe()` + `zodFromJsonSchema()` |
+| Validate many resources with one runtime fetch | `.explore()` + `zodSchemasFromDescription()` |
+| Check in schema files for Astro, CI, or shared app code | CLI `schemas` command |
 
-Core mutation helpers use built-in response validation by default. Pass your own schema to override those defaults.
+## Runtime validation with `zodFromJsonSchema`
 
-## Which path to use
+Convert any discovered JSON Schema to a Zod validator on the fly:
 
-| Use case | Recommended path | Quick how-to |
-|---|---|---|
-| Use Zod schema in your app | Import from `fluent-wp-client/zod` | Use `.parse()`, `.extend()`, `.shape`, then pass the schema to client methods |
-| Extend built-in schemas for custom fields or CPTs | Import from `fluent-wp-client/zod` | Start from `postSchema`/`postWriteBaseSchema`, extend, then pass as `responseSchema` |
-| Use custom validator library (Valibot, ArkType, etc.) | Import root package schemas or pass your own library schema | Call `schema['~standard'].validate(...)` directly, or pass the schema to `responseSchema` / `inputSchema` / `outputSchema` |
-| Use custom validator with custom post types and extended shapes | Prefer library-native schema composition | Build a schema for your CPT response shape in your library, then pass it to `content('books', schema)` / `createContent(..., schema)` |
+```ts
+import { zodFromJsonSchema } from 'fluent-wp-client/zod';
 
-## Quick hints
+const desc = await wp.content('posts').describe();
+const createSchema = zodFromJsonSchema(desc.schemas.create!);
 
-- Start with `/zod` when you need schema extension ergonomics.
-- Start with root exports when you want validator-agnostic app code.
-- Core mutation helpers auto-validate with built-in schemas.
-- Pass your own schema to `responseSchema`, `inputSchema`, or `outputSchema` whenever you need custom validation rules.
-- `schema['~standard'].validate(...)` is implemented by the schema's library (Zod, Valibot, ArkType, etc.).
-- For non-Zod extension workflows, model the final response shape in your validator library and pass that schema to the client.
-
-## Example: extend built-in schemas with Zod
-
-```ts title="Custom fields on top of the built-in post schema"
-import { z } from 'zod';
-import { WordPressClient } from 'fluent-wp-client';
-import { postSchema } from 'fluent-wp-client/zod';
-
-const wp = new WordPressClient({
-  baseUrl: 'https://example.com',
+const validated = createSchema!.parse({
+  title: { raw: 'Validated' },
+  status: 'draft',
 });
+
+const created = await wp.content('posts').create(validated);
+```
+
+## Bulk runtime validation with `zodSchemasFromDescription`
+
+Convert all operation schemas for a resource or ability at once:
+
+```ts
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+const catalog = await wp.explore();
+const postSchemas = zodSchemasFromDescription(catalog.content.posts);
+
+const validated = postSchemas.create!.parse({
+  title: { raw: 'From catalog' },
+  status: 'draft',
+});
+
+await wp.content('posts').create(validated);
+```
+
+For abilities:
+
+```ts
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+const catalog = await wp.explore();
+const schemas = zodSchemasFromDescription(catalog.abilities['acme/calculate']);
+
+const input = schemas.input!.parse({ amount: 100, currency: 'USD' });
+const result = await wp.ability('acme/calculate').run(input);
+```
+
+## Build-time validation with the CLI
+
+```bash title="Generate schema files"
+npx fluent-wp-client schemas \
+  --url https://example.com \
+  --format both \
+  --zod-out src/lib/wp-schemas.ts \
+  --json-out src/lib/wp-schemas.json
+```
+
+```ts title="Use the generated validator"
+import { postsCreateSchema } from '../lib/wp-schemas';
+
+const validatedInput = postsCreateSchema.parse({
+  title: { raw: 'From generated schema' },
+  status: 'draft',
+});
+
+await wp.content('posts').create(validatedInput);
+```
+
+## Extend with native Zod
+
+If you already know the shape ahead of time, you can use the native Zod entrypoint for static schemas:
+
+```ts
+import { z } from 'zod';
+import { postSchema } from 'fluent-wp-client/zod';
 
 const extendedPostSchema = postSchema.extend({
   acf: z.object({
     acf_subtitle: z.string().optional(),
-    acf_priority_score: z.number().optional(),
   }).optional(),
 });
 
-const created = await wp.createPost(
-  { title: 'Schema validated', status: 'draft' },
-  extendedPostSchema,
-);
+const post = extendedPostSchema.parse(await wp.content('posts').item('hello-world'));
 ```
 
-## Example: use Valibot as a custom validator
+## Custom validators
 
-```ts title="Mutation and CPT validation with Valibot"
+Any validator that can consume JSON Schema works:
+
+```ts
 import * as v from 'valibot';
+
+const postValidator = v.object({
+  id: v.number(),
+  slug: v.string(),
+  status: v.string(),
+});
+
+const post = v.parse(postValidator, await wp.content('posts').item('hello-world'));
+```
+
+## Astro Actions
+
+:::note
+Astro actions require native Zod input schemas at module scope. CLI-generated schema files are the easiest fit.
+:::
+
+```ts
+import { defineAction } from 'astro:actions';
 import { WordPressClient } from 'fluent-wp-client';
+import { postsCreateSchema } from '../lib/wp-schemas';
 
 const wp = new WordPressClient({
-  baseUrl: 'https://example.com',
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USER,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
 });
-
-const postResponseSchema = v.object({
-  id: v.number(),
-  slug: v.string(),
-  status: v.string(),
-});
-
-const created = await wp.createPost(
-  { title: 'Valibot validation', status: 'draft' },
-  postResponseSchema,
-);
-
-const bookSchema = v.object({
-  id: v.number(),
-  slug: v.string(),
-  status: v.string(),
-  title: v.object({ rendered: v.string() }),
-  acf: v.optional(v.object({
-    acf_subtitle: v.optional(v.string()),
-    acf_priority_score: v.optional(v.number()),
-  })),
-});
-
-const books = wp.content('books', bookSchema);
-const createdBook = await books.create({
-  title: 'Valibot Book',
-  status: 'draft',
-});
-```
-
-## Example: Astro `defineAction()` input
-
-Astro actions currently require native Zod input schemas.
-
-```ts title="Astro Action input with fluent-wp-client/zod"
-import { defineAction } from 'astro:actions';
-import { postWriteBaseSchema } from 'fluent-wp-client/zod';
 
 export const server = {
   createPost: defineAction({
-    input: postWriteBaseSchema,
-    handler: async (input) => input,
+    input: postsCreateSchema,
+    handler: async (input) => wp.content('posts').create(input),
   }),
 };
 ```
 
-## Example: manual validation with root Standard Schema exports
+## AI SDK
 
-```ts title="Manual Standard Schema validation"
+Use runtime discovery when the AI model should adapt to the connected WordPress instance:
+
+```ts
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { WordPressClient } from 'fluent-wp-client';
+import { zodFromJsonSchema } from 'fluent-wp-client/zod';
+
+const wp = new WordPressClient({
+  baseUrl: process.env.WP_URL!,
+  auth: {
+    username: process.env.WP_USER!,
+    password: process.env.WP_APP_PASSWORD!,
+  },
+});
+
+const desc = await wp.content('posts').describe();
+const createSchema = zodFromJsonSchema(desc.schemas.create!);
+
+const { object } = await generateObject({
+  model: openai('gpt-4o-mini'),
+  schema: createSchema!,
+  prompt: 'Draft a short changelog post.',
+});
+
+await wp.content('posts').create(object);
+```
+
+## Manual Standard Schema validation
+
+```ts
 import { postSchema } from 'fluent-wp-client';
 
 const result = await postSchema['~standard'].validate(payload);
-
-if (result.issues) {
-  throw new Error('Post payload validation failed');
-}
-
+if (result.issues) throw new Error('Validation failed');
 const post = result.value;
 ```

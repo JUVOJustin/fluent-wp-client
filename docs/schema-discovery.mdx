@@ -1,0 +1,275 @@
+---
+title: Schema Discovery
+short_title: Schema Discovery
+description: Fetch live JSON Schemas from WordPress at runtime, convert them to Zod on the fly, or generate static files with the CLI.
+sidebar:
+  order: 7
+---
+
+## Overview
+
+Schema discovery lets you fetch the JSON Schema WordPress exposes for any resource or ability, then use it as a validator, type source, or AI tool input schema — without hard-coding shapes upfront.
+
+Two paths serve different use cases:
+
+| Approach | Best for | Type safety | Requires rebuild? |
+|----------|----------|-------------|-------------------|
+| **Runtime** (`explore()` + `zodFromJsonSchema`) | Multi-site apps, dynamic clients, AI agents | Runtime only | No |
+| **CLI** (`fluent-wp-client schemas`) | Single-site apps, Astro, CI pipelines | Compile-time | Yes, on schema changes |
+
+## Describe a resource
+
+Call `.describe()` on any resource client to get its JSON Schemas:
+
+```ts
+const desc = await wp.content('books').describe();
+
+desc.schemas.item       // single item response shape
+desc.schemas.collection // collection response shape
+desc.schemas.create     // accepted fields for create
+desc.schemas.update     // accepted fields for update (no required fields)
+```
+
+Works the same for terms, first-class resources, and abilities:
+
+```ts
+await wp.terms('categories').describe();
+await wp.media().describe();
+await wp.users().describe();
+await wp.comments().describe();
+await wp.settings().describe();
+await wp.ability('my-plugin/send-notification').describe();
+```
+
+## Runtime schema conversion with `zodFromJsonSchema`
+
+The `fluent-wp-client/zod` subpackage exports helpers that convert discovered JSON Schemas to Zod validators at runtime. This is the primary path for apps that manage multiple WordPress instances or build client configuration dynamically.
+
+```ts title="Convert a single schema"
+import { zodFromJsonSchema } from 'fluent-wp-client/zod';
+
+const desc = await wp.content('books').describe();
+const createSchema = zodFromJsonSchema(desc.schemas.create!);
+
+const validated = createSchema!.parse({
+  title: { raw: 'My Book' },
+  status: 'publish',
+});
+
+const book = await wp.content('books').create(validated);
+```
+
+```ts title="Convert all schemas for a resource at once"
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+const catalog = await wp.explore();
+const bookSchemas = zodSchemasFromDescription(catalog.content.books);
+
+// bookSchemas.item     — validate a read response
+// bookSchemas.create   — validate a create payload
+// bookSchemas.update   — validate an update payload
+```
+
+```ts title="Convert ability schemas"
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+const catalog = await wp.explore();
+const calcSchemas = zodSchemasFromDescription(catalog.abilities['acme/calculate']);
+
+const input = calcSchemas.input!.parse({ amount: 100, currency: 'USD' });
+const result = await wp.ability('acme/calculate').run(input);
+```
+
+:::tip[When to use runtime conversion]
+Use `zodFromJsonSchema` when the WordPress instance is not known at build time — multi-tenant platforms, SaaS dashboards, AI agents that connect to user-provided sites.
+:::
+
+## Explore: full catalog
+
+`wp.explore()` returns schemas for all content types, taxonomies, first-class resources, and abilities in one call. The result is a plain serializable object — safe for `JSON.stringify`, `structuredClone`, and cache storage.
+
+```ts
+const catalog = await wp.explore();
+
+// catalog.content   — post types (posts, pages, books, …)
+// catalog.terms     — taxonomies (categories, tags, …)
+// catalog.resources — media, users, comments, settings
+// catalog.abilities — registered WordPress abilities
+```
+
+Limit the scope with `include`, or bust the in-memory cache with `refresh`:
+
+```ts
+await wp.explore({ include: ['content', 'terms'] });
+await wp.explore({ refresh: true });
+```
+
+Available kinds: `'content'`, `'terms'`, `'resources'`, `'abilities'`.
+
+## Cache and restore with `useCatalog()`
+
+The catalog is serializable — persist it to any KV store, file, or database and restore it later to skip the discovery round-trip:
+
+```ts title="Cache one schema catalog"
+const catalog = await wp.explore();
+await kv.set('wp:catalog', JSON.stringify(catalog));
+
+// Later — restore without network calls
+const restored = JSON.parse(await kv.get('wp:catalog') ?? 'null');
+if (restored) {
+  wp.useCatalog(restored);
+}
+
+// describe() now returns from cache
+const desc = await wp.content('posts').describe();
+```
+
+After `useCatalog()`, all `.describe()` calls (including ability descriptions) return cached data without a network round-trip.
+
+## Build-time schema generation with the CLI
+
+Use the CLI when your app talks to a single WordPress instance and you want checked-in schema files with compile-time type safety:
+
+```bash title="Generate Zod-ready schema artifacts"
+npx fluent-wp-client schemas \
+  --url https://example.com \
+  --format both \
+  --zod-out src/lib/wp-schemas.ts \
+  --json-out src/lib/wp-schemas.json
+```
+
+The generated TypeScript file contains JSON Schema literals, Zod schemas via `z.fromJSONSchema()`, and inferred types:
+
+```ts title="Use the generated schema file"
+import { wpBookSchema, type WPBook } from './lib/wp-schemas';
+
+const book = wpBookSchema.parse(rawData);
+```
+
+:::tip[When to use the CLI]
+Use `fluent-wp-client schemas` when your app connects to one known WordPress instance. The generated file gives you static types and tree-shakeable validators without any runtime discovery overhead.
+:::
+
+## Choosing runtime vs CLI
+
+**Runtime** (`explore()` → `zodFromJsonSchema()`):
+- WordPress instance determined at runtime (multi-site, user-provided URL)
+- AI tools that adapt to the connected site's capabilities
+- No rebuild needed when WordPress schema changes
+- No compile-time type inference (types are `unknown` at build time)
+
+**CLI** (`fluent-wp-client schemas`):
+- WordPress instance known at build time (single site)
+- Astro content collections, CI validation, shared app schemas
+- Full compile-time type safety via `z.infer`
+- Must regenerate when WordPress schema changes
+
+Both approaches produce the same Zod validators from the same JSON Schema source. The CLI uses the same `stripDateTimeFormats` normalization internally.
+
+## Astro example
+
+Astro actions require native Zod validators at module scope — CLI-generated schema files are the natural fit:
+
+```ts title="src/actions/index.ts"
+import { defineAction } from 'astro:actions';
+import { WordPressClient } from 'fluent-wp-client';
+import { postsCreateSchema } from '../lib/wp-schemas';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USER,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+});
+
+export const server = {
+  createPost: defineAction({
+    input: postsCreateSchema,
+    handler: async (input) => {
+      return wp.content('posts').create(input);
+    },
+  }),
+};
+```
+
+## AI SDK example
+
+Use runtime discovery when you want the model to adapt to the current site before sending a mutation:
+
+```ts title="Validate AI-generated input before a WordPress mutation"
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { zodFromJsonSchema } from 'fluent-wp-client/zod';
+
+const desc = await wp.content('posts').describe();
+const createSchema = zodFromJsonSchema(desc.schemas.create!);
+
+const { object } = await generateObject({
+  model: openai('gpt-4o-mini'),
+  schema: createSchema!,
+  prompt: 'Draft a short post announcing our April product update.',
+});
+
+await wp.content('posts').create(object);
+```
+
+## Multi-site example
+
+When your app manages multiple WordPress instances, runtime conversion lets each client adapt to its instance:
+
+```ts title="Dynamic schema per WordPress instance"
+import { WordPressClient } from 'fluent-wp-client';
+import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
+
+async function createPostOnSite(siteUrl: string, auth: { username: string; password: string }) {
+  const wp = new WordPressClient({ baseUrl: siteUrl, auth });
+  const catalog = await wp.explore({ include: ['content'] });
+  const schemas = zodSchemasFromDescription(catalog.content.posts);
+
+  const validated = schemas.create!.parse({
+    title: { raw: 'Cross-site post' },
+    status: 'draft',
+  });
+
+  return wp.content('posts').create(validated);
+}
+```
+
+## Authentication
+
+:::caution
+Use an authenticated client to get full schema coverage. Write schemas (`create`, `update`) are only available to users with appropriate capabilities.
+:::
+
+```ts
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: process.env.WP_APP_PASSWORD },
+});
+
+const usersSchema = await wp.users().describe();
+const settingsSchema = await wp.settings().describe();
+```
+
+## Exported types and helpers
+
+```ts title="From fluent-wp-client (root)"
+import type {
+  WordPressDiscoveryCatalog,
+  WordPressDiscoveryOptions,
+  WordPressJsonSchema,
+  WordPressResourceDescription,
+  WordPressAbilityDescription,
+} from 'fluent-wp-client';
+```
+
+```ts title="From fluent-wp-client/zod"
+import {
+  zodFromJsonSchema,
+  zodSchemasFromDescription,
+  stripDateTimeFormats,
+  type ResourceZodSchemas,
+  type AbilityZodSchemas,
+} from 'fluent-wp-client/zod';
+```

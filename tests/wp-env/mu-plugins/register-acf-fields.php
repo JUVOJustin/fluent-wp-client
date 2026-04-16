@@ -3,12 +3,14 @@
  * Registers ACF field groups for integration testing.
  *
  * Creates a single field group — "Test Content Fields" — applied to posts,
- * pages, and the book CPT. The group includes:
+ * pages, the book CPT, and the sparse artifact CPT. The group includes:
  *   - Scalar fields: text (subtitle), textarea (summary), number (priority_score), url (external_url)
  *   - Relationship field: acf_related_posts — returns post objects so the REST
  *     response includes ACF's _link property pointing to each post's REST endpoint.
  *   - Post object field: acf_featured_post — single post object; REST response
  *     similarly includes _link.
+ *   - Taxonomy field: acf_related_genres — multi-select custom taxonomy field;
+ *     REST response includes ACF term links for related genres.
  *
  * Only runs when ACF is active (guarded by the acf/init action and an
  * existence check on acf_add_local_field_group). show_in_rest exposes all
@@ -86,13 +88,29 @@ add_action( 'acf/init', function () {
 				'return_format' => 'object',
 				'allow_null'    => 1,
 			],
+
+			// ── Related Genres (taxonomy) ────────────────────────────────────────
+			// Multi-select taxonomy relation; REST response includes term links.
+			[
+				'key'           => 'field_acf_related_genres',
+				'name'          => 'acf_related_genres',
+				'label'         => 'Related Genres',
+				'type'          => 'taxonomy',
+				'taxonomy'      => 'genre',
+				'field_type'    => 'multi_select',
+				'return_format' => 'object',
+				'allow_null'    => 1,
+				'load_terms'    => 0,
+				'save_terms'    => 0,
+			],
 		],
 
-		// Applies to posts, pages, and the book CPT.
+		// Applies to posts, pages, the book CPT, and the sparse artifact CPT.
 		'location' => [
 			[ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'post' ] ],
 			[ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'page' ] ],
 			[ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'book' ] ],
+			[ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'artifact' ] ],
 		],
 
 		// Expose all fields in the `acf` key of WP REST API responses.

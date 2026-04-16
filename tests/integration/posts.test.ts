@@ -1,11 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient, createJwtAuthHeader, postSchema } from 'fluent-wp-client';
+import {
+  WordPressClient,
+  createJwtAuthHeader,
+  type ContentResourceClient,
+  type ExtensibleFilter,
+  type PostsFilter,
+  type WordPressPost,
+  type WordPressPostWriteBase,
+} from 'fluent-wp-client';
 import { createAuthClient, createJwtAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-client';
 
 /**
  * Seed data: 150 posts across 5 categories (30 each).
  * Slugs: test-post-001 through test-post-150.
- * WP REST API caps per_page at 100, so getAllPosts() must paginate.
+ * WP REST API caps per_page at 100, so `content('posts').listAll()` must paginate.
  */
 describe('Client: Posts', () => {
   let publicClient: WordPressClient;
@@ -41,6 +49,17 @@ describe('Client: Posts', () => {
     });
   }
 
+  function postsClient(
+    client: WordPressClient,
+  ): ContentResourceClient<
+    WordPressPost,
+    ExtensibleFilter<PostsFilter>,
+    WordPressPostWriteBase,
+    WordPressPostWriteBase
+  > {
+    return client.content('posts');
+  }
+
   beforeAll(() => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
@@ -49,20 +68,20 @@ describe('Client: Posts', () => {
 
   afterAll(async () => {
     for (const id of createdPostIds) {
-      await authClient.deletePost(id, { force: true }).catch(() => undefined);
+      await postsClient(authClient).delete(id, { force: true }).catch(() => undefined);
     }
   });
 
   describe('reads', () => {
-    it('getPosts returns an array of posts', async () => {
-      const posts = await publicClient.getPosts();
+    it('content(\'posts\').list() returns an array of posts', async () => {
+      const posts = await postsClient(publicClient).list();
 
       expect(Array.isArray(posts)).toBe(true);
       expect(posts.length).toBeGreaterThan(0);
     });
 
     it('every post has required fields', async () => {
-      const posts = await publicClient.getPosts();
+      const posts = await postsClient(publicClient).list();
 
       for (const post of posts) {
         expect(post).toHaveProperty('id');
@@ -75,28 +94,28 @@ describe('Client: Posts', () => {
       }
     });
 
-    it('getPostBySlug fetches a known seed post', async () => {
-      const post = await publicClient.getPostBySlug('test-post-001');
+    it('content(\'posts\').item() fetches a known seed post', async () => {
+      const post = await postsClient(publicClient).item('test-post-001');
 
       expect(post).toBeDefined();
       expect(post!.slug).toBe('test-post-001');
       expect(post!.title.rendered).toBe('Test Post 001');
     });
 
-    it('getPostBySlug returns undefined for non-existent slug', async () => {
-      const post = await publicClient.getPostBySlug('this-slug-does-not-exist-999');
+    it('content(\'posts\').item() returns undefined for non-existent slug', async () => {
+      const post = await postsClient(publicClient).item('this-slug-does-not-exist-999');
 
       expect(post).toBeUndefined();
     });
 
-    it('getAllPosts returns all 150 seed posts (multi-page fetch)', async () => {
-      const all = await publicClient.getAllPosts();
+    it('content(\'posts\').listAll() returns all 150 seed posts', async () => {
+      const all = await postsClient(publicClient).listAll();
 
       expect(all).toHaveLength(150);
     });
 
-    it('getPostsPaginated returns correct pagination metadata', async () => {
-      const result = await publicClient.getPostsPaginated({ perPage: 100, page: 1 });
+    it('content(\'posts\').listPaginated() returns correct pagination metadata', async () => {
+      const result = await postsClient(publicClient).listPaginated({ perPage: 100, page: 1 });
 
       expect(result.data).toHaveLength(100);
       expect(result.total).toBe(150);
@@ -105,8 +124,8 @@ describe('Client: Posts', () => {
       expect(result.perPage).toBe(100);
     });
 
-    it('getPostsPaginated page 2 returns remaining posts', async () => {
-      const result = await publicClient.getPostsPaginated({ perPage: 100, page: 2 });
+    it('content(\'posts\').listPaginated() page 2 returns remaining posts', async () => {
+      const result = await postsClient(publicClient).listPaginated({ perPage: 100, page: 2 });
 
       expect(result.data).toHaveLength(50);
       expect(result.total).toBe(150);
@@ -114,23 +133,154 @@ describe('Client: Posts', () => {
       expect(result.page).toBe(2);
     });
 
-    it('getPosts respects ordering', async () => {
-      const asc = await publicClient.getPosts({ orderby: 'title', order: 'asc' });
-      const desc = await publicClient.getPosts({ orderby: 'title', order: 'desc' });
+    it('content(\'posts\').list() respects ordering', async () => {
+      const asc = await postsClient(publicClient).list({ orderby: 'title', order: 'asc' });
+      const desc = await postsClient(publicClient).list({ orderby: 'title', order: 'desc' });
 
       expect(asc[0].title.rendered).not.toBe(desc[0].title.rendered);
     });
 
-    it('getPosts embeds featured media data', async () => {
-      const posts = await publicClient.getPosts();
+    it('content(\'posts\').list() omits embedded data by default', async () => {
+      const posts = await postsClient(publicClient).list();
+
+      for (const post of posts) {
+        expect(post).not.toHaveProperty('_embedded');
+      }
+    });
+
+    it('content(\'posts\').list() supports opt-in embedded data', async () => {
+      const posts = await postsClient(publicClient).list({ perPage: 5, embed: true });
+
+      expect(posts).toHaveLength(5);
 
       for (const post of posts) {
         expect(post).toHaveProperty('_embedded');
       }
     });
 
-    it('getPosts with fields filter returns only requested fields', async () => {
-      const posts = await publicClient.getPosts({ fields: ['id', 'slug', 'title'], perPage: 5 });
+    it('content(\'posts\').list() supports the search parameter', async () => {
+      const posts = await postsClient(publicClient).list({ search: 'Test Post 001' });
+
+      expect(Array.isArray(posts)).toBe(true);
+      expect(posts.length).toBeGreaterThan(0);
+      expect(posts[0]?.title.rendered).toContain('Test Post 001');
+    });
+
+    it('content(\'posts\').list() supports include arrays on collection endpoints', async () => {
+      const first = await postsClient(publicClient).item('test-post-001');
+      const second = await postsClient(publicClient).item('test-post-002');
+
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+
+      const posts = await postsClient(publicClient).list({
+        include: [first!.id, second!.id],
+        orderby: 'include',
+      });
+
+      expect(posts.map((post) => post.id)).toEqual([first!.id, second!.id]);
+    });
+
+    it('content(\'posts\').list() supports exclude arrays on collection endpoints', async () => {
+      const first = await postsClient(publicClient).item('test-post-001');
+      const second = await postsClient(publicClient).item('test-post-002');
+
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+
+      const posts = await postsClient(publicClient).list({
+        search: 'Test Post',
+        exclude: [first!.id, second!.id],
+      });
+
+      expect(posts.map((post) => post.id)).not.toContain(first!.id);
+      expect(posts.map((post) => post.id)).not.toContain(second!.id);
+    });
+
+    it('content(\'posts\').list() supports slug arrays on collection endpoints', async () => {
+      const posts = await postsClient(publicClient).list({
+        slug: ['test-post-001', 'test-post-002'],
+      });
+
+      expect(posts.map((post) => post.slug).sort()).toEqual(['test-post-001', 'test-post-002']);
+    });
+
+    it('content(\'posts\').list() supports offset on collection endpoints', async () => {
+      const firstPage = await postsClient(publicClient).list({
+        orderby: 'id',
+        order: 'asc',
+        perPage: 2,
+      });
+
+      const offsetPage = await postsClient(publicClient).list({
+        orderby: 'id',
+        order: 'asc',
+        perPage: 1,
+        offset: 1,
+      });
+
+      expect(firstPage).toHaveLength(2);
+      expect(offsetPage).toHaveLength(1);
+      expect(offsetPage[0]?.id).toBe(firstPage[1]?.id);
+    });
+
+    it('content(\'posts\').list() supports custom registered collection filters', async () => {
+      const posts = await postsClient(publicClient).list({
+        titleSearch: 'Test Post 001',
+      });
+
+      expect(posts.length).toBeGreaterThan(0);
+      expect(posts[0]?.title.rendered).toContain('Test Post 001');
+    });
+
+    it('content(\'posts\').listAll() supports the search parameter', async () => {
+      // There are 150 posts all matching 'test-post'; restricting via category
+      // keeps the count predictable (30 Technology posts).
+      const posts = await postsClient(publicClient).listAll({ search: 'Test Post 001' });
+
+      expect(Array.isArray(posts)).toBe(true);
+      expect(posts.length).toBeGreaterThan(0);
+      for (const post of posts) {
+        expect(post.title.rendered).toContain('Test Post 001');
+      }
+    });
+
+    it('content(\'posts\').listAll() preserves ordering with parallel pagination', async () => {
+      // Fetch all posts ordered by ID ascending
+      const postsAsc = await postsClient(publicClient).listAll({
+        orderby: 'id',
+        order: 'asc',
+      });
+
+      // Verify we got all 150 posts
+      expect(postsAsc).toHaveLength(150);
+
+      // Verify ascending order - each ID should be greater than the previous
+      for (let i = 1; i < postsAsc.length; i++) {
+        expect(postsAsc[i]!.id).toBeGreaterThan(postsAsc[i - 1]!.id);
+      }
+
+      // Fetch all posts ordered by ID descending
+      const postsDesc = await postsClient(publicClient).listAll({
+        orderby: 'id',
+        order: 'desc',
+      });
+
+      // Verify we got all 150 posts
+      expect(postsDesc).toHaveLength(150);
+
+      // Verify descending order - each ID should be less than the previous
+      for (let i = 1; i < postsDesc.length; i++) {
+        expect(postsDesc[i]!.id).toBeLessThan(postsDesc[i - 1]!.id);
+      }
+
+      // Verify that ascending and descending give us opposite orders
+      expect(postsAsc[0]!.id).toBeLessThan(postsDesc[0]!.id);
+      expect(postsAsc[postsAsc.length - 1]!.id).toBeGreaterThan(postsDesc[postsDesc.length - 1]!.id);
+    });
+
+    it('content(\'posts\').list() with fields filter returns only requested fields', async () => {
+      const posts = await postsClient(publicClient).list({ fields: ['id', 'slug', 'title'], perPage: 5 });
 
       expect(Array.isArray(posts)).toBe(true);
       expect(posts.length).toBeGreaterThan(0);
@@ -148,12 +298,11 @@ describe('Client: Posts', () => {
 
   describe('crud', () => {
     it('creates, updates, and deletes posts', async () => {
-      const created = await authClient.createPost(
+      const created = await postsClient(authClient).create(
         {
           title: 'Client Posts: create',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);
@@ -161,31 +310,29 @@ describe('Client: Posts', () => {
       expect(created.id).toBeGreaterThan(0);
       expect(created.status).toBe('draft');
 
-      const updated = await authClient.updatePost(
+      const updated = await postsClient(authClient).update(
         created.id,
         {
           title: 'Client Posts: update',
           status: 'private',
         },
-        postSchema,
       );
 
       expect(updated.title.rendered).toBe('Client Posts: update');
       expect(updated.status).toBe('private');
 
-      const deleted = await authClient.deletePost(created.id, { force: true });
+      const deleted = await postsClient(authClient).delete(created.id, { force: true });
       expect(deleted.deleted).toBe(true);
     });
 
     it('creates a post with content and excerpt', async () => {
-      const created = await authClient.createPost(
+      const created = await postsClient(authClient).create(
         {
           title: 'Client Posts: content create',
           content: '<p>Hello from client integration test.</p>',
           excerpt: 'Client excerpt',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);
@@ -196,12 +343,11 @@ describe('Client: Posts', () => {
     });
 
     it('creates a post with JWT auth', async () => {
-      const created = await jwtClient.createPost(
+      const created = await postsClient(jwtClient).create(
         {
           title: 'Client Posts: JWT create',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);
@@ -212,12 +358,11 @@ describe('Client: Posts', () => {
 
     it('creates a post with request-aware auth headers', async () => {
       const requestAwareClient = createRequestAwarePostClient();
-      const created = await requestAwareClient.createPost(
+      const created = await postsClient(requestAwareClient).create(
         {
           title: 'Client Posts: request-aware create',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);
@@ -228,46 +373,49 @@ describe('Client: Posts', () => {
 
     it('throws for unauthenticated post creation', async () => {
       await expect(
-        publicClient.createPost({
+        postsClient(publicClient).create({
           title: 'Client Posts: public create',
           status: 'draft',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
+        status: 401,
+        retryable: false,
       });
     });
 
     it('throws for a non-existent post on update', async () => {
       await expect(
-        authClient.updatePost(999999, { title: 'Ghost Post' }, postSchema),
+        postsClient(authClient).update(999999, { title: 'Ghost Post' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 404,
+        retryable: false,
       });
     });
 
     it('moves a post to trash when force is omitted', async () => {
-      const created = await authClient.createPost(
+      const created = await postsClient(authClient).create(
         {
           title: 'Client Posts: trash',
           status: 'draft',
         },
-        postSchema,
       );
 
       createdPostIds.push(created.id);
 
-      const deleted = await authClient.deletePost(created.id);
+      const deleted = await postsClient(authClient).delete(created.id);
 
       expect(deleted.id).toBe(created.id);
       expect(deleted.deleted).toBe(false);
     });
 
-    it('returns a non-deleted result for a non-existent post on delete', async () => {
-      const deleted = await authClient.deletePost(999999, { force: true });
-
-      expect(deleted.id).toBe(999999);
-      expect(deleted.deleted).toBe(false);
+    it('throws when attempting to delete a non-existent post', async () => {
+      await expect(
+        postsClient(authClient).delete(999999, { force: true })
+      ).rejects.toThrow(/Invalid post ID/);
     });
   });
 });

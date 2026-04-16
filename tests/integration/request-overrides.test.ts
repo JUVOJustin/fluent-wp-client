@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
+import { WordPressClient } from '../../dist/index.js';
+import { withBlocks } from '../../dist/blocks-entry.js';
 import { getBaseUrl } from '../helpers/wp-client';
 
 /**
@@ -54,7 +55,7 @@ describe('Client: request-scoped mutation overrides', () => {
 
     try {
       const client = new WordPressClient({ baseUrl: getBaseUrl() });
-      const posts = await client.getPosts({ perPage: 1 });
+      const posts = await client.content('posts').list({ perPage: 1 });
 
       expect(posts).toHaveLength(1);
       expect(observedThis).toBe(globalThis);
@@ -63,33 +64,7 @@ describe('Client: request-scoped mutation overrides', () => {
     }
   });
 
-  it('rejects auth header overrides on mutation helper options', async () => {
-    const client = createObservedAuthClient(() => undefined);
-
-    await expect(
-      client.createPost(
-        {
-          title: 'Request overrides: auth header should fail',
-          status: 'draft',
-        },
-        {
-          headers: {
-            Authorization: 'Bearer should-not-be-allowed',
-          },
-        },
-      ),
-    ).rejects.toThrow(/auth header overrides are not supported/i);
-  });
-
-  it('rejects auth-like header overrides on WPAPI chains', () => {
-    const client = createObservedAuthClient(() => undefined);
-
-    expect(() => client.posts().setHeaders('Authorization', 'Bearer blocked')).toThrow(
-      /auth header overrides are not supported/i,
-    );
-  });
-
-  it('forwards custom headers for post create/update/delete helpers', async () => {
+  it('forwards custom headers for content(\'posts\') create/update/delete helpers', async () => {
     const seen = {
       create: false,
       update: false,
@@ -110,7 +85,9 @@ describe('Client: request-scoped mutation overrides', () => {
       }
     });
 
-    const created = await client.createPost(
+    const posts = client.content('posts');
+
+    const created = await posts.create(
       {
         title: 'Request overrides: post create',
         status: 'draft',
@@ -122,7 +99,7 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const updated = await client.updatePost(
+    const updated = await posts.update(
       created.id,
       {
         title: 'Request overrides: post update',
@@ -135,7 +112,7 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const deleted = await client.deletePost(created.id, {
+    const deleted = await posts.delete(created.id, {
       force: true,
       headers: {
         'x-test-source': 'post-delete',
@@ -149,7 +126,7 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.delete).toBe(true);
   });
 
-  it('forwards custom headers for uploadMedia including metadata update', async () => {
+  it('forwards custom headers for media().upload including metadata update', async () => {
     const seen = {
       upload: false,
       metadataUpdate: false,
@@ -189,7 +166,7 @@ describe('Client: request-scoped mutation overrides', () => {
       0x42, 0x60, 0x82,
     ]);
 
-    const media = await client.uploadMedia(
+    const media = await client.media().upload(
       {
         file: png1x1,
         filename: 'request-overrides-1x1.png',
@@ -203,7 +180,7 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    await client.deleteMedia(media.id, { force: true });
+    await client.media().delete(media.id, { force: true });
 
     expect(seen.upload).toBe(true);
     expect(seen.metadataUpdate).toBe(true);
@@ -354,7 +331,7 @@ describe('Client: request-scoped mutation overrides', () => {
 
     });
 
-    const posts = await client.getPosts(
+    const posts = await client.content('posts').list(
       { perPage: 1 },
       {
         headers: {
@@ -363,14 +340,14 @@ describe('Client: request-scoped mutation overrides', () => {
       },
     );
 
-    const postQuery = client.getPost(posts[0].id, {
+    const postQuery = withBlocks(client).content('posts').item(posts[0].id, {
       headers: {
         'x-test-source': 'read-post-by-id',
       },
     });
 
-    await postQuery.get();
-    await postQuery.getBlocks();
+    await postQuery;
+    await postQuery.blocks().get();
 
     const books = await client.content('books').list(
       { perPage: 1 },
@@ -400,11 +377,76 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.genreList).toBe(true);
   });
 
+  it('only adds _embed when requested by filters or relation hydration', async () => {
+    const seen = {
+      postsListDefault: false,
+      postsListEmbedded: false,
+      booksListDefault: false,
+      booksListEmbedded: false,
+      itemDefault: false,
+      itemWithRelations: false,
+    };
+
+    const client = createObservedAuthClient((method, url) => {
+      if (method !== 'GET') {
+        return;
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('per_page') === '1') {
+        if (url.searchParams.get('search') === 'Test Post 001') {
+          if (url.searchParams.get('_embed') === 'true') {
+            seen.postsListEmbedded = true;
+          } else {
+            seen.postsListDefault = true;
+          }
+        }
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/books') && url.searchParams.get('per_page') === '1') {
+        if (url.searchParams.get('search') === 'Test Book 001') {
+          if (url.searchParams.get('_embed') === 'true') {
+            seen.booksListEmbedded = true;
+          } else {
+            seen.booksListDefault = true;
+          }
+        }
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('slug') === 'test-post-001') {
+        seen.itemDefault = !url.searchParams.has('_embed');
+      }
+
+      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('slug') === 'test-post-002') {
+        seen.itemWithRelations = url.searchParams.get('_embed') === 'true';
+      }
+    });
+
+    const defaultPosts = await client.content('posts').list({ perPage: 1, search: 'Test Post 001' });
+    const embeddedPosts = await client.content('posts').list({ perPage: 1, search: 'Test Post 001', embed: true });
+    const defaultBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001' });
+    const embeddedBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001', embed: true });
+    const plainItem = await client.content('posts').item('test-post-001');
+    const relatedItem = await client.content('posts').item('test-post-002', { embed: true });
+
+    expect(defaultPosts).toHaveLength(1);
+    expect(embeddedPosts).toHaveLength(1);
+    expect(defaultBooks).toHaveLength(1);
+    expect(embeddedBooks).toHaveLength(1);
+    expect(plainItem?.slug).toBe('test-post-001');
+    expect(relatedItem?.slug).toBe('test-post-002');
+    expect(seen.postsListDefault).toBe(true);
+    expect(seen.postsListEmbedded).toBe(true);
+    expect(seen.booksListDefault).toBe(true);
+    expect(seen.booksListEmbedded).toBe(true);
+    expect(seen.itemDefault).toBe(true);
+    expect(seen.itemWithRelations).toBe(true);
+  });
+
   it('rejects auth header overrides on read helpers', async () => {
     const client = createObservedAuthClient(() => undefined);
 
     await expect(
-      client.getPosts(
+      client.content('posts').list(
         { perPage: 1 },
         {
           headers: {
@@ -413,6 +455,27 @@ describe('Client: request-scoped mutation overrides', () => {
         },
       ),
     ).rejects.toThrow(/auth header overrides are not supported/i);
+  });
+
+  it('rejects auth header overrides case-insensitively', async () => {
+    const client = createObservedAuthClient(() => undefined);
+
+    // Test various case combinations
+    const authVariations: Record<string, string>[] = [
+      { authorization: 'Bearer blocked-lowercase' },
+      { AUTHORIZATION: 'Bearer blocked-uppercase' },
+      { AuthoriZation: 'Bearer blocked-mixed' },
+      { AuThOrIzAtIoN: 'Bearer blocked-mixed2' },
+    ];
+
+    for (const headers of authVariations) {
+      await expect(
+        client.content('posts').list(
+          { perPage: 1 },
+          { headers },
+        ),
+      ).rejects.toThrow(/auth header overrides are not supported/i);
+    }
   });
 
   it('ignores non-header override keys for mutation helpers even when passed as any', async () => {
@@ -433,7 +496,7 @@ describe('Client: request-scoped mutation overrides', () => {
       }
     });
 
-    const created = await client.createPost(
+    const created = await client.content('posts').create(
       {
         title: 'Request overrides: ignore non-header keys',
         status: 'draft',
@@ -448,7 +511,7 @@ describe('Client: request-scoped mutation overrides', () => {
       } as unknown as never,
     );
 
-    await client.deletePost(created.id, { force: true });
+    await client.content('posts').delete(created.id, { force: true });
 
     expect(created.id).toBeGreaterThan(0);
     expect(seen.usedPostsEndpoint).toBe(true);
@@ -473,7 +536,7 @@ describe('Client: request-scoped mutation overrides', () => {
       }
     });
 
-    const posts = await client.getPosts(
+    const posts = await client.content('posts').list(
       { perPage: 1 },
       {
         headers: {
@@ -488,4 +551,5 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.usedPostsEndpoint).toBe(true);
     expect(seen.usedInjectedSlugParam).toBe(false);
   });
+
 });

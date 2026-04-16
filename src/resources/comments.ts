@@ -1,37 +1,50 @@
-import type { WordPressComment } from '../schemas.js';
-import type { WordPressRequestOverrides } from '../client-types.js';
+import type {
+  WordPressComment,
+} from '../schemas.js';
+import type {
+  CommentsResourceClient,
+  WordPressRequestOverrides,
+} from '../types/resources.js';
 import type { CommentsFilter } from '../types/filters.js';
-import type { FetchResult, PaginatedResponse } from '../types/resources.js';
-import { createCollectionReadMethods } from '../core/collection-read-methods.js';
+import type { ExtensibleFilter } from '../types/resources.js';
+import type { WordPressWritePayload } from '../types/payloads.js';
+import type { WordPressResourceDescription } from '../types/discovery.js';
+import { BaseCrudResource } from '../core/resource-base.js';
+import type { WordPressRuntime } from '../core/transport.js';
+import { describeUnavailable } from './describe.js';
 
 /**
- * Comments API methods factory for typed read operations.
+ * WordPress comments resource with full CRUD support.
  */
-export function createCommentsMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
-) {
-  const core = createCollectionReadMethods<WordPressComment, CommentsFilter>({
-    endpoint: '/comments',
-    fetchAPI,
-    fetchAPIPaginated,
-  });
+export class CommentsResource extends BaseCrudResource<
+  WordPressComment,
+  ExtensibleFilter<CommentsFilter>,
+  WordPressWritePayload,
+  WordPressWritePayload
+> {
+  /**
+   * Creates a comments resource instance.
+   */
+  static create(runtime: WordPressRuntime): CommentsResource {
+    return new CommentsResource({ runtime, endpoint: '/comments' });
+  }
+}
 
+/**
+ * Creates a typed comments client.
+ */
+export function createCommentsClient(
+  resource: CommentsResource,
+  describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
+): CommentsResourceClient<WordPressComment, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
   return {
-    /** Gets comments with optional filtering. */
-    getComments: (filter?: CommentsFilter, options?: WordPressRequestOverrides): Promise<WordPressComment[]> =>
-      core.list(filter, options),
-
-    /** Gets all comments by paginating every page. */
-    getAllComments: (filter?: Omit<CommentsFilter, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressComment[]> =>
-      core.listAll(filter, options),
-
-    /** Gets comments with pagination metadata. */
-    getCommentsPaginated: (filter?: CommentsFilter, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressComment>> =>
-      core.listPaginated(filter, options),
-
-    /** Gets one comment by ID. */
-    getComment: (id: number, options?: WordPressRequestOverrides): Promise<WordPressComment> =>
-      core.getById(id, options),
+    list: (filter = {}, options) => resource.list(filter, options),
+    listAll: (filter = {}, options, listOptions) => resource.listAll(filter, options, listOptions),
+    listPaginated: (filter = {}, options) => resource.listPaginated(filter, options),
+    create: (input, options) => resource.create(input, options),
+    update: (id, input, options) => resource.update(id, input, options),
+    item: (id, options) => resource.getById(id, options),
+    delete: (id, options) => resource.delete(id, options),
+    describe: describeFn ?? describeUnavailable,
   };
 }

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient, contentWordPressSchema, createBasicAuthHeader } from 'fluent-wp-client';
+import { WordPressClient, createBasicAuthHeader } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-client';
 
 type ResourceName = 'posts' | 'pages' | 'books';
@@ -52,21 +52,21 @@ function getAcfRecord(entry: unknown): Record<string, unknown> {
 function createResourceHarness(client: WordPressClient, resource: ResourceName): ResourceHarness {
   if (resource === 'posts') {
     return {
-      create: (input) => client.createPost(input),
-      update: (id, input) => client.updatePost(id, input),
-      remove: (id) => client.deletePost(id, { force: true }),
+      create: (input) => client.content('posts').create(input),
+      update: (id, input) => client.content('posts').update(id, input),
+      remove: (id) => client.content('posts').delete(id, { force: true }),
     };
   }
 
   if (resource === 'pages') {
     return {
-      create: (input) => client.createPage(input),
-      update: (id, input) => client.updatePage(id, input),
-      remove: (id) => client.deletePage(id, { force: true }),
+      create: (input) => client.content('pages').create(input),
+      update: (id, input) => client.content('pages').update(id, input),
+      remove: (id) => client.content('pages').delete(id, { force: true }),
     };
   }
 
-  const books = client.content('books', contentWordPressSchema);
+  const books = client.content('books');
 
   return {
     create: (input) => books.create(input),
@@ -185,6 +185,45 @@ function getAcfEmbeddedPostIds(entry: Record<string, unknown>): number[] {
 }
 
 /**
+ * Extracts related term ids from `_links['acf:term']`.
+ */
+function getAcfLinkedTermIds(entry: Record<string, unknown>): number[] {
+  const links = (entry._links as Record<string, unknown> | undefined)?.['acf:term'];
+
+  if (!Array.isArray(links)) {
+    return [];
+  }
+
+  return links
+    .map((link) => {
+      const href = (link as { href?: string }).href;
+
+      if (!href) {
+        return null;
+      }
+
+      const id = Number(new URL(href).pathname.split('/').pop());
+      return Number.isInteger(id) ? id : null;
+    })
+    .filter((id): id is number => id !== null);
+}
+
+/**
+ * Extracts related term ids from `_embedded['acf:term']`.
+ */
+function getAcfEmbeddedTermIds(entry: Record<string, unknown>): number[] {
+  const embedded = (entry._embedded as Record<string, unknown> | undefined)?.['acf:term'];
+
+  if (!Array.isArray(embedded)) {
+    return [];
+  }
+
+  return embedded
+    .map((item) => (item as { id?: number }).id)
+    .filter((id): id is number => typeof id === 'number');
+}
+
+/**
  * Tracks created entries per resource so the suite can clean up after itself.
  */
 const createdIds: Record<ResourceName, number[]> = {
@@ -192,6 +231,7 @@ const createdIds: Record<ResourceName, number[]> = {
   pages: [],
   books: [],
 };
+const createdGenreIds: number[] = [];
 
 /**
  * Integration coverage for ACF REST fields through the standalone client package.
@@ -210,6 +250,10 @@ describe('Client: ACF fields', () => {
       for (const id of createdIds[resource]) {
         await harness.remove(id).catch(() => undefined);
       }
+    }
+
+    for (const id of createdGenreIds) {
+      await client.terms('genre').delete(id, { force: true }).catch(() => undefined);
     }
   });
 
@@ -316,6 +360,41 @@ describe('Client: ACF fields', () => {
     expect(getAcfEmbeddedPostIds(readBack)).toEqual(expect.arrayContaining([relatedId1, relatedId2, featuredId]));
   });
 
+  it('creates taxonomy ACF fields as numeric term ids with term links and embeds', async () => {
+    const [genre1, genre2] = await Promise.all([
+      client.terms('genre').create({
+        name: 'Client ACF Genre One',
+        slug: 'client-acf-genre-one',
+      }),
+      client.terms('genre').create({
+        name: 'Client ACF Genre Two',
+        slug: 'client-acf-genre-two',
+      }),
+    ]);
+
+    createdGenreIds.push(genre1.id, genre2.id);
+
+    const harness = createResourceHarness(client, 'posts');
+    const entry = await harness.create({
+      title: 'Client ACF Taxonomy Relations',
+      status: 'draft',
+      acf: {
+        acf_related_genres: [genre1.id, genre2.id],
+      },
+    });
+
+    const id = getEntryId(entry);
+    createdIds.posts.push(id);
+
+    const acf = getAcfRecord(entry);
+    expect(acf.acf_related_genres).toEqual(expect.arrayContaining([genre1.id, genre2.id]));
+
+    const readBack = await fetchResourceById('posts', id, true);
+    expect(getAcfRecord(readBack).acf_related_genres).toEqual(expect.arrayContaining([genre1.id, genre2.id]));
+    expect(getAcfLinkedTermIds(readBack)).toEqual(expect.arrayContaining([genre1.id, genre2.id]));
+    expect(getAcfEmbeddedTermIds(readBack)).toEqual(expect.arrayContaining([genre1.id, genre2.id]));
+  });
+
   it('updates scalar ACF fields without clobbering untouched values', async () => {
     const harness = createResourceHarness(client, 'posts');
     const entry = await harness.create({
@@ -377,7 +456,7 @@ describe('Client: ACF fields', () => {
     const publicClient = createPublicClient();
 
     await expect(
-      publicClient.createPost({
+      publicClient.content('posts').create({
         title: 'Client ACF Public Reject',
         status: 'draft',
         acf: {
@@ -385,7 +464,7 @@ describe('Client: ACF fields', () => {
         },
       }),
     ).rejects.toMatchObject({
-      name: 'WordPressApiError',
+        name: 'WordPressHttpError',
     });
   });
 });

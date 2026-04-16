@@ -1,3 +1,5 @@
+import { createConfigError } from './core/errors.js';
+
 /**
  * Basic authentication credentials for WordPress API calls.
  */
@@ -183,11 +185,11 @@ function normalizeAuthHeaders(headers: WordPressAuthHeaders): WordPressAuthHeade
     const headerName = rawHeaderName.trim();
 
     if (!headerName) {
-      throw new Error('Auth header name must not be empty.');
+      throw createConfigError('Auth header name must not be empty.');
     }
 
     if (typeof rawHeaderValue !== 'string') {
-      throw new Error(`Auth header '${headerName}' must be a string.`);
+      throw createConfigError(`Auth header '${headerName}' must be a string.`);
     }
 
     const headerValue = rawHeaderValue.trim();
@@ -219,7 +221,7 @@ export function createJwtAuthHeader(credentials: JwtAuthCredentials | string): s
     : normalizeJwtToken(credentials.token);
 
   if (!token) {
-    throw new Error('JWT token is required to build Authorization header.');
+    throw createConfigError('JWT token is required to build Authorization header.');
   }
 
   return `Bearer ${token}`;
@@ -233,7 +235,7 @@ export function createWordPressAuthHeader(auth: WordPressAuthorizationInput): st
     const header = auth.trim();
 
     if (!header) {
-      throw new Error('Authorization header must not be empty.');
+      throw createConfigError('Authorization header must not be empty.');
     }
 
     return header;
@@ -248,13 +250,13 @@ export function createWordPressAuthHeader(auth: WordPressAuthorizationInput): st
   }
 
   if (isCookieNonceAuthCredentials(auth)) {
-    throw new Error('Cookie nonce auth does not map to an Authorization header. Use resolveWordPressRequestHeaders instead.');
+    throw createConfigError('Cookie nonce auth does not map to an Authorization header. Use resolveWordPressRequestHeaders instead.');
   }
 
   const authorizationHeader = auth.authorization.trim();
 
   if (!authorizationHeader) {
-    throw new Error('Authorization header must not be empty.');
+    throw createConfigError('Authorization header must not be empty.');
   }
 
   return authorizationHeader;
@@ -299,7 +301,7 @@ export async function resolveWordPressRequestHeaders(config: {
       const nonce = config.auth.nonce.trim();
 
       if (!nonce) {
-        throw new Error('Cookie nonce auth requires a non-empty nonce value.');
+        throw createConfigError('Cookie nonce auth requires a non-empty nonce value.');
       }
 
       resolvedHeaders['X-WP-Nonce'] = nonce;

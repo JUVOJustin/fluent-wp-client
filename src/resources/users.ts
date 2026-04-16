@@ -1,47 +1,101 @@
 import type { WordPressAuthor } from '../schemas.js';
-import type { WordPressRequestOverrides } from '../client-types.js';
+import type {
+  UsersResourceClient,
+  WordPressRequestOverrides,
+} from '../types/resources.js';
 import type { UsersFilter } from '../types/filters.js';
-import type { FetchResult, PaginatedResponse } from '../types/resources.js';
-import { createCollectionReadMethods } from '../core/collection-read-methods.js';
+import type { ExtensibleFilter } from '../types/resources.js';
+import type { UserDeleteOptions, UserWriteInput } from '../types/payloads.js';
+import type { WordPressResourceDescription } from '../types/discovery.js';
+import { BaseCrudResource } from '../core/resource-base.js';
+import { normalizeDeleteResult } from '../core/params.js';
+import { applyRequestOverrides } from '../core/request-overrides.js';
+import { createAuthError } from '../core/errors.js';
+import type { WordPressRuntime } from '../core/transport.js';
+import { describeUnavailable } from './describe.js';
 
 /**
- * Users API methods factory for typed read operations.
+ * WordPress users resource with CRUD support and `/me` access.
  */
-export function createUsersMethods(
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<T>,
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>,
-  hasAuth: () => boolean,
-) {
-  const core = createCollectionReadMethods<WordPressAuthor, UsersFilter>({
-    endpoint: '/users',
-    fetchAPI,
-    fetchAPIPaginated,
-  });
+export class UsersResource extends BaseCrudResource<
+  WordPressAuthor,
+  ExtensibleFilter<UsersFilter>,
+  UserWriteInput,
+  UserWriteInput
+> {
+  /**
+   * Creates a users resource instance.
+   */
+  static create(runtime: WordPressRuntime): UsersResource {
+    return new UsersResource({ runtime, endpoint: '/users' });
+  }
+
+  /**
+   * Gets the current authenticated user.
+   */
+  async me(requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor> {
+    if (!this.runtime.hasAuth()) {
+      throw createAuthError(
+        'Authentication required for /users/me endpoint. Configure auth in client options.',
+        { operation: 'users.me', endpoint: '/users/me' },
+      );
+    }
+
+    return this.runtime.fetchAPI<WordPressAuthor>('/users/me', undefined, requestOptions);
+  }
+
+  /**
+   * Deletes a user with optional reassignment behavior.
+   */
+  override async delete(
+    id: number,
+    options: WordPressRequestOverrides & UserDeleteOptions = {},
+  ) {
+    const params: Record<string, string> = {};
+
+    if (options.force) {
+      params.force = 'true';
+    }
+
+    if (typeof options.reassign === 'number') {
+      params.reassign = String(options.reassign);
+    }
+
+    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
+      endpoint: `${this.endpoint}/${id}`,
+      method: 'DELETE',
+      params: Object.keys(params).length > 0 ? params : undefined,
+    }, options));
+
+    return normalizeDeleteResult(id, data);
+  }
+}
+
+/**
+ * Creates a typed users client.
+ */
+export function createUsersClient(
+  resource: UsersResource,
+  describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
+): UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
+  const item = ((
+    idOrSlug: number | string,
+    options?: WordPressRequestOverrides,
+  ): Promise<WordPressAuthor | undefined> => {
+    return typeof idOrSlug === 'number'
+      ? resource.getById(idOrSlug, options)
+      : resource.getBySlug(idOrSlug, options);
+  }) as UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput>['item'];
 
   return {
-    /** Gets users with optional filtering. */
-    getUsers: (filter?: UsersFilter, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> =>
-      core.list(filter, options),
-
-    /** Gets all users by paginating every page. */
-    getAllUsers: (filter?: Omit<UsersFilter, 'page'>, options?: WordPressRequestOverrides): Promise<WordPressAuthor[]> =>
-      core.listAll(filter, options),
-
-    /** Gets users with pagination metadata. */
-    getUsersPaginated: (filter?: UsersFilter, options?: WordPressRequestOverrides): Promise<PaginatedResponse<WordPressAuthor>> =>
-      core.listPaginated(filter, options),
-
-    /** Gets one user by ID. */
-    getUser: (id: number, options?: WordPressRequestOverrides): Promise<WordPressAuthor> =>
-      core.getById(id, options),
-
-    /** Gets the currently authenticated user. */
-    async getCurrentUser(requestOptions?: WordPressRequestOverrides): Promise<WordPressAuthor> {
-      if (!hasAuth()) {
-        throw new Error('Authentication required for /users/me endpoint. Configure auth in client options.');
-      }
-
-      return fetchAPI<WordPressAuthor>('/users/me', undefined, requestOptions);
-    },
+    list: (filter = {}, options) => resource.list(filter, options),
+    listAll: (filter = {}, options, listOptions) => resource.listAll(filter, options, listOptions),
+    listPaginated: (filter = {}, options) => resource.listPaginated(filter, options),
+    create: (input, options) => resource.create(input, options),
+    update: (id, input, options) => resource.update(id, input, options),
+    delete: (id, options) => resource.delete(id, options),
+    item,
+    me: (options) => resource.me(options),
+    describe: describeFn ?? describeUnavailable,
   };
 }

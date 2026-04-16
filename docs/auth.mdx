@@ -12,20 +12,13 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 `fluent-wp-client` supports static auth and request-aware auth.
 
-Use this guide to choose the right approach for your runtime, security model, and request lifecycle.
+:::tip[Start simple]
+Resolve auth in your app layer (middleware, request context), create a `WordPressClient` with that auth, and pass the client through your handlers.
+:::
 
-## Recommended default
-
-For most applications, do not start with resolver helpers.
-
-Resolve auth in your app integration layer (middleware, request context, service container), create a `WordPressClient` with that final auth, and pass the client through your handlers.
-
-This is usually easier to reason about, easier to test, and easier to debug than adding an extra resolver abstraction.
-
-```ts title="Default pattern: resolve auth in middleware, then create client"
+```ts title="Recommended default"
 export function createWordPressClientForRequest(request: Request): WordPressClient {
   const token = readUserJwtFromRequest(request);
-
   return new WordPressClient({
     baseUrl: process.env.WP_BASE_URL!,
     auth: token ? { token } : undefined,
@@ -35,32 +28,33 @@ export function createWordPressClientForRequest(request: Request): WordPressClie
 
 ## Which method should I use?
 
-| Use case | Best option | Why |
-| --- | --- | --- |
-| Public read-only content | No auth | No credentials required for public endpoints |
-| Backend jobs, admin scripts, server-side tools | Basic auth | Stable server-to-server access with WordPress application passwords |
-| SPA/mobile or external token flow | JWT auth | Stateless bearer token model |
-| Logged-in WordPress browser session | Cookie + nonce auth | Matches WordPress native browser auth (`X-WP-Nonce` + cookies) |
-| You already have a final `Authorization` value | `authHeader` or `auth.authorization` | Reuse existing header without re-building credentials |
-| Signature/custom HMAC/OAuth-like auth | `authHeaders` provider | Compute dynamic headers per request |
-| Request-scoped auth selection in your own wrapper | `RequestAuthResolver` and `createAuthResolver` | Keep resolver functions typed and reusable |
+| Use case | Best option |
+| --- | --- |
+| Public read-only content | No auth |
+| Backend jobs, admin scripts | Basic auth (application passwords) |
+| SPA/mobile, external token flow | JWT auth |
+| Logged-in WordPress browser session | Cookie + nonce |
+| Prebuilt `Authorization` value | `authHeader` or `auth.authorization` |
+| Signature/HMAC/OAuth-like | `authHeaders` provider |
+| Request-scoped auth selection | `createAuthResolver` |
 
-## Static auth patterns
+:::note[Field precedence]
+When multiple auth fields are supplied on `WordPressClientConfig`, precedence is `authHeader` > `auth` > `authHeaders`. `cookies` and `credentials` layer on top of these for cookie-based sessions.
+:::
+
+## Static auth
 
 <Tabs>
   <TabItem label="Public">
 
-```ts title="Public client"
-const wp = new WordPressClient({
-  baseUrl: 'https://example.com',
-});
+```ts
+const wp = new WordPressClient({ baseUrl: 'https://example.com' });
 ```
 
   </TabItem>
-
   <TabItem label="Basic">
 
-```ts title="Basic auth"
+```ts
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
   auth: { username: 'admin', password: 'app-password' },
@@ -68,37 +62,33 @@ const wp = new WordPressClient({
 ```
 
   </TabItem>
-
   <TabItem label="JWT">
 
-```ts title="JWT auth"
+```ts
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
   auth: { token: 'jwt-token' },
 });
 ```
 
+:::note
 Requires the [JWT Authentication for WP REST API](https://wordpress.org/plugins/jwt-authentication-for-wp-rest-api/) plugin.
+:::
 
   </TabItem>
-
   <TabItem label="Cookie + nonce">
 
-```ts title="Browser session auth"
+```ts
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
-  auth: {
-    nonce: window.wpApiSettings.nonce,
-    credentials: 'include',
-  },
+  auth: { nonce: window.wpApiSettings.nonce, credentials: 'include' },
 });
 ```
 
   </TabItem>
-
   <TabItem label="Auth header">
 
-```ts title="Prebuilt Authorization header"
+```ts
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
   authHeader: 'Bearer jwt-token',
@@ -110,7 +100,7 @@ const wp = new WordPressClient({
 
 ## Request-aware auth headers
 
-Use `authHeaders` when auth data must be computed for each request.
+Use `authHeaders` when auth must be computed per request (signatures, HMAC, rotating keys):
 
 ```ts title="Request signing"
 const wp = new WordPressClient({
@@ -121,135 +111,105 @@ const wp = new WordPressClient({
 });
 ```
 
-This is the right choice for timestamped signatures, HMAC headers, rotating API keys, and similar schemes.
-
 ## Resolver helpers
 
-`RequestAuthResolver` and `createAuthResolver` are selector helpers for your framework layer.
+`createAuthResolver` returns a typed function that selects an auth shape based on context. It does not authenticate — it only picks the right credentials.
 
-They do not perform authentication by themselves.
-They only return one auth shape (`{ token }`, `{ username, password }`, `{ nonce, credentials }`, header auth, or `null`) based on request context.
-
-Use this mental model:
-
-1. Your resolver decides which auth method applies for this request.
-2. You pass the resolved auth value into client calls.
-3. The client applies headers/credentials for that concrete auth value.
-
-- Use `RequestAuthResolver` when you want a named, reusable resolver function type.
-- Use `createAuthResolver` when you want an identity helper that preserves generic type inference for resolver context.
-
-```ts title="Typed resolver helper"
-type RequestContext = {
-  token?: string;
-  nonce?: string;
-  isBrowser: boolean;
-};
-
-const resolveRequestAuth = createAuthResolver<RequestContext>((context) => {
-  if (context.isBrowser && context.nonce) {
-    return { nonce: context.nonce, credentials: 'include' };
-  }
-
-  if (context.token) {
-    return { token: context.token };
-  }
-
+```ts title="Typed resolver"
+const resolveAuth = createAuthResolver<RequestContext>((ctx) => {
+  if (ctx.isBrowser && ctx.nonce) return { nonce: ctx.nonce, credentials: 'include' };
+  if (ctx.token) return { token: ctx.token };
   return null;
 });
+
+const auth = await resolveAuth(context);
+const post = await wp.request({ endpoint: '/posts/1', auth: auth ?? undefined });
 ```
 
-```ts title="Use resolver output per request"
-const resolvedAuth = await resolveRequestAuth(context);
+Use resolvers when auth depends on who is making the request, where it runs, or how credentials are stored.
 
-const post = await wp.request({
-  endpoint: '/posts/1',
-  auth: resolvedAuth ?? undefined,
-});
-```
+## Framework examples
 
-Choose these helpers when auth depends on who is making the request, where the request runs, or how your app stores credentials.
+### Express (no resolver needed)
 
-## Real-world examples
-
-### Example A: Typical app backend (recommended, no resolver)
-
-Use middleware auth once and create one request-scoped client.
-
-```ts title="Express-style request-scoped client"
+```ts title="Request-scoped client"
 app.use(async (req, _res, next) => {
-  const token = req.user?.wpJwt;
-
   req.wp = new WordPressClient({
     baseUrl: process.env.WP_BASE_URL!,
-    auth: token ? { token } : undefined,
+    auth: req.user?.wpJwt ? { token: req.user.wpJwt } : undefined,
   });
-
   next();
 });
 ```
 
-### Example B: Multi-runtime app gateway (resolver helps)
+### Generic SSR handler
 
-Use resolver helpers when one shared integration must select auth per request based on runtime and actor.
+```ts title="Auth from request cookies/headers"
+import { WordPressClient, createAuthResolver, resolveWordPressAuth, type RequestAuthResolver } from 'fluent-wp-client';
 
-```ts title="Shared auth selector for browser, user token, or service auth"
-type GatewayContext = {
-  isBrowser: boolean;
-  wpNonce?: string;
-  userJwt?: string;
-  isInternalServiceCall: boolean;
-};
+const requestAuth: RequestAuthResolver = createAuthResolver((request) => {
+  const jwt = request.headers.get('cookie')?.match(/wp_jwt=([^;]+)/)?.[1];
+  if (jwt) return { token: decodeURIComponent(jwt) };
+  if (process.env.WP_APP_PASSWORD) return { username: 'admin', password: process.env.WP_APP_PASSWORD };
+  return null;
+});
 
-const resolveAuth: RequestAuthResolver<GatewayContext> = createAuthResolver((context) => {
-  if (context.isBrowser && context.wpNonce) {
-    return { nonce: context.wpNonce, credentials: 'include' };
-  }
+export async function handleRequest(request: Request) {
+  const auth = await resolveWordPressAuth(requestAuth, request);
+  const wp = new WordPressClient({ baseUrl: 'https://example.com', auth });
+  return wp.users().me();
+}
+```
 
-  if (context.userJwt) {
-    return { token: context.userJwt };
-  }
+### Astro Actions
 
-  if (context.isInternalServiceCall) {
-    return {
-      username: process.env.WP_APP_USER!,
-      password: process.env.WP_APP_PASSWORD!,
-    };
-  }
+```ts title="Astro Actions"
+import type { ActionAPIContext } from 'astro:actions';
+import { createAuthResolver, resolveWordPressAuth } from 'fluent-wp-client';
 
+const actionAuth = createAuthResolver<ActionAPIContext>((ctx) => {
+  const jwt = ctx.cookies.get('wp_jwt')?.value;
+  if (jwt) return { token: jwt };
+  if (process.env.WP_APP_PASSWORD) return { username: 'admin', password: process.env.WP_APP_PASSWORD };
   return null;
 });
 ```
 
-### Example C: Signed plugin endpoint (use `authHeaders`, not resolver)
+### Next.js App Router
 
-Use `authHeaders` when every request needs computed signature headers.
+```ts title="Next.js route handler"
+import { WordPressClient, createAuthResolver, resolveWordPressAuth } from 'fluent-wp-client';
 
-```ts title="HMAC/timestamp signature per request"
+const nextAuth = createAuthResolver<{ request: Request; params: { slug: string } }>(({ request }) => {
+  const bearer = request.headers.get('authorization');
+  if (bearer) return bearer;
+  const jwt = request.headers.get('cookie')?.match(/wp_jwt=([^;]+)/)?.[1];
+  return jwt ? { token: decodeURIComponent(jwt) } : null;
+});
+
+export async function GET(request: Request, { params }: { params: { slug: string } }) {
+  const auth = await resolveWordPressAuth(nextAuth, { request, params });
+  const wp = new WordPressClient({ baseUrl: process.env.WORDPRESS_BASE_URL!, auth });
+  return Response.json(await wp.content('posts').item(params.slug));
+}
+```
+
+### HMAC/signature auth
+
+```ts title="Per-request signature"
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
-  authHeaders: ({ method, url, body }) => {
-    const timestamp = new Date().toISOString();
-
-    return {
-      Authorization: createSignedAuthHeader({ method, url: url.toString(), body, timestamp }),
-      'X-Signature-Timestamp': timestamp,
-    };
-  },
+  authHeaders: ({ method, url, body }) => ({
+    Authorization: createSignedAuthHeader({ method, url: url.toString(), body }),
+    'X-Signature-Timestamp': new Date().toISOString(),
+  }),
 });
 ```
 
-## Header utility helpers
-
-Use the exported helpers when you need to build auth headers outside client construction:
+## Utility helpers
 
 - `createBasicAuthHeader(credentials)`
 - `createJwtAuthHeader(credentialsOrToken)`
 - `createWordPressAuthHeader(authInput)`
-
-## JWT login lifecycle helpers
-
-Use these when your app obtains and verifies JWT tokens:
-
 - `loginWithJwt({ username, password })`
 - `validateJwtToken(token?)`

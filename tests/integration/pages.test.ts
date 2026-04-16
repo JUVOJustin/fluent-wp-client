@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient, pageSchema, type WordPressStandardSchema } from 'fluent-wp-client';
+import { WordPressClient } from 'fluent-wp-client';
 import { createAuthClient, createPublicClient } from '../helpers/wp-client';
 
 /**
@@ -28,22 +28,26 @@ describe('Client: Pages', () => {
     authClient = createAuthClient();
   });
 
+  function pagesClient(client: WordPressClient) {
+    return client.content('pages');
+  }
+
   afterAll(async () => {
     for (const id of createdPageIds) {
-      await authClient.deletePage(id, { force: true }).catch(() => undefined);
+      await pagesClient(authClient).delete(id, { force: true }).catch(() => undefined);
     }
   });
 
   describe('reads', () => {
-    it('getPages returns an array of pages', async () => {
-      const pages = await publicClient.getPages();
+    it('content(\'pages\').list() returns an array of pages', async () => {
+      const pages = await pagesClient(publicClient).list();
 
       expect(Array.isArray(pages)).toBe(true);
       expect(pages.length).toBeGreaterThan(0);
     });
 
     it('every page has required fields', async () => {
-      const pages = await publicClient.getPages();
+      const pages = await pagesClient(publicClient).list();
 
       for (const page of pages) {
         expect(page).toHaveProperty('id');
@@ -57,22 +61,22 @@ describe('Client: Pages', () => {
       }
     });
 
-    it('getPageBySlug fetches a known seed page', async () => {
-      const page = await publicClient.getPageBySlug('about');
+    it('content(\'pages\').item() fetches a known seed page', async () => {
+      const page = await pagesClient(publicClient).item('about');
 
       expect(page).toBeDefined();
       expect(page!.slug).toBe('about');
       expect(page!.title.rendered).toBe('About');
     });
 
-    it('getPageBySlug returns undefined for non-existent slug', async () => {
-      const page = await publicClient.getPageBySlug('non-existent-page-slug-999');
+    it('content(\'pages\').item() returns undefined for non-existent slug', async () => {
+      const page = await pagesClient(publicClient).item('non-existent-page-slug-999');
 
       expect(page).toBeUndefined();
     });
 
-    it('getAllPages includes every seeded page slug', async () => {
-      const all = await publicClient.getAllPages();
+    it('content(\'pages\').listAll() includes every seeded page slug', async () => {
+      const all = await pagesClient(publicClient).listAll();
       const slugs = new Set(all.map((page) => page.slug));
 
       for (const slug of seedPageSlugs) {
@@ -80,8 +84,8 @@ describe('Client: Pages', () => {
       }
     });
 
-    it('getPagesPaginated returns pagination metadata', async () => {
-      const result = await publicClient.getPagesPaginated({ perPage: 5, page: 1 });
+    it('content(\'pages\').listPaginated() returns pagination metadata', async () => {
+      const result = await pagesClient(publicClient).listPaginated({ perPage: 5, page: 1 });
 
       expect(result.data).toHaveLength(5);
       expect(result.total).toBeGreaterThanOrEqual(seedPageSlugs.length);
@@ -93,13 +97,12 @@ describe('Client: Pages', () => {
 
   describe('crud', () => {
     it('creates, updates, and deletes pages', async () => {
-      const created = await authClient.createPage(
+      const created = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page create',
           status: 'draft',
           menu_order: 7,
         },
-        pageSchema,
       );
 
       createdPageIds.push(created.id);
@@ -107,34 +110,32 @@ describe('Client: Pages', () => {
       expect(created.type).toBe('page');
       expect(created.menu_order).toBe(7);
 
-      const updated = await authClient.updatePage(
+      const updated = await pagesClient(authClient).update(
         created.id,
         {
           title: 'Client CRUD: Page update',
           menu_order: 12,
         },
-        pageSchema,
       );
 
       expect(updated.title.rendered).toBe('Client CRUD: Page update');
       expect(updated.menu_order).toBe(12);
 
-      const deleted = await authClient.deletePage(created.id, { force: true });
+      const deleted = await pagesClient(authClient).delete(created.id, { force: true });
       expect(deleted.deleted).toBe(true);
     });
 
     it('creates one hierarchical page with parent and content fields', async () => {
-      const parent = await authClient.createPage(
+      const parent = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page parent',
           status: 'draft',
         },
-        pageSchema,
       );
 
       createdPageIds.push(parent.id);
 
-      const child = await authClient.createPage(
+      const child = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page child',
           content: '<p>Child page content.</p>',
@@ -143,7 +144,6 @@ describe('Client: Pages', () => {
           menu_order: 5,
           status: 'draft',
         },
-        pageSchema,
       );
 
       createdPageIds.push(child.id);
@@ -155,33 +155,30 @@ describe('Client: Pages', () => {
     });
 
     it('updates page-specific hierarchical fields', async () => {
-      const parent = await authClient.createPage(
+      const parent = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page update parent',
           status: 'draft',
         },
-        pageSchema,
       );
 
       createdPageIds.push(parent.id);
 
-      const child = await authClient.createPage(
+      const child = await pagesClient(authClient).create(
         {
           title: 'Client CRUD: Page update child',
           status: 'draft',
         },
-        pageSchema,
       );
 
       createdPageIds.push(child.id);
 
-      const updated = await authClient.updatePage(
+      const updated = await pagesClient(authClient).update(
         child.id,
         {
           parent: parent.id,
           menu_order: 42,
         },
-        pageSchema,
       );
 
       expect(updated.parent).toBe(parent.id);
@@ -190,80 +187,22 @@ describe('Client: Pages', () => {
 
     it('throws for unauthenticated page creation', async () => {
       await expect(
-        publicClient.createPage({
+        pagesClient(publicClient).create({
           title: 'Client CRUD: Public page create',
           status: 'draft',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
       });
     });
 
     it('throws for a non-existent page on update', async () => {
       await expect(
-        authClient.updatePage(999999, { title: 'Ghost Page' }, pageSchema),
+        pagesClient(authClient).update(999999, { title: 'Ghost Page' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 404,
       });
-    });
-
-    it('accepts custom Standard Schema validators for mutation responses', async () => {
-      const minimalPageSchema: WordPressStandardSchema<{ id: number; slug: string; status: string }> = {
-        '~standard': {
-          version: 1,
-          vendor: 'integration-test',
-          validate(value) {
-            if (typeof value !== 'object' || value === null) {
-              return {
-                issues: [{ message: 'Expected object response.' }],
-              };
-            }
-
-            const record = value as Record<string, unknown>;
-
-            if (typeof record.id !== 'number') {
-              return {
-                issues: [{ message: 'Expected numeric id.' }],
-              };
-            }
-
-            if (typeof record.slug !== 'string') {
-              return {
-                issues: [{ message: 'Expected string slug.' }],
-              };
-            }
-
-            if (typeof record.status !== 'string') {
-              return {
-                issues: [{ message: 'Expected string status.' }],
-              };
-            }
-
-            return {
-              value: {
-                id: record.id,
-                slug: record.slug,
-                status: record.status,
-              },
-            };
-          },
-        },
-      };
-
-      const created = await authClient.createPage(
-        {
-          title: 'Client CRUD: Standard Schema create',
-          status: 'draft',
-        },
-        minimalPageSchema,
-      );
-
-      createdPageIds.push(created.id);
-
-      expect(created.id).toBeGreaterThan(0);
-      expect(typeof created.slug).toBe('string');
-      expect(created.status).toBe('draft');
     });
   });
 });

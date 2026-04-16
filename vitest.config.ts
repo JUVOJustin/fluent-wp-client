@@ -8,8 +8,11 @@ export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
   resolve: {
     alias: {
-      'fluent-wp-client': fileURLToPath(new URL('./dist/index.js', import.meta.url)),
+      'fluent-wp-client/ai-sdk': fileURLToPath(new URL('./dist/ai-sdk/index.js', import.meta.url)),
+      'fluent-wp-client/blocks': fileURLToPath(new URL('./dist/blocks-entry.js', import.meta.url)),
+      'fluent-wp-client/blocks/zod': fileURLToPath(new URL('./dist/blocks-zod.js', import.meta.url)),
       'fluent-wp-client/zod': fileURLToPath(new URL('./dist/zod.js', import.meta.url)),
+      'fluent-wp-client': fileURLToPath(new URL('./dist/index.js', import.meta.url)),
     },
   },
   test: {

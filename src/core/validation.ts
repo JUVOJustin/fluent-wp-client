@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { WordPressClientError } from './errors.js';
 
 /**
  * Shared schema type accepted by client mutation helpers.
@@ -9,19 +10,6 @@ export type WordPressStandardSchema<TOutput = unknown, TInput = unknown> = Stand
  * Validation issue shape returned by Standard Schema validators.
  */
 export type WordPressSchemaIssue = StandardSchemaV1.Issue;
-
-/**
- * Error thrown when one Standard Schema validator reports issues.
- */
-export class WordPressSchemaValidationError extends Error {
-  readonly issues: readonly WordPressSchemaIssue[];
-
-  constructor(message: string, issues: readonly WordPressSchemaIssue[]) {
-    super(message);
-    this.name = 'WordPressSchemaValidationError';
-    this.issues = issues;
-  }
-}
 
 /**
  * Checks whether one unknown value exposes the Standard Schema API.
@@ -70,6 +58,7 @@ function formatIssues(issues: readonly WordPressSchemaIssue[]): string {
 
 /**
  * Validates one unknown value against a Standard Schema validator.
+ * Throws `WordPressClientError` with `SCHEMA_VALIDATION_ERROR` kind on failure.
  */
 export async function validateWithStandardSchema<TOutput>(
   schema: WordPressStandardSchema<TOutput>,
@@ -83,9 +72,10 @@ export async function validateWithStandardSchema<TOutput>(
   }
 
   if (result.issues) {
-    throw new WordPressSchemaValidationError(
+    throw new WordPressClientError(
       `${context}: ${formatIssues(result.issues)}`,
-      result.issues,
+      'SCHEMA_VALIDATION_ERROR',
+      { retryable: false },
     );
   }
 

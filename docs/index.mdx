@@ -1,50 +1,76 @@
 ---
 title: fluent-wp-client
 short_title: Overview
-description: Runtime-agnostic TypeScript client for the WordPress REST API with typed CRUD, auth, Gutenberg block parsing, and abilities.
+description: Runtime-agnostic TypeScript client for the WordPress REST API with typed CRUD, auth, embed extraction, and an optional Gutenberg block add-on.
 sidebar:
   order: 1
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 
 `fluent-wp-client` is a runtime-agnostic TypeScript client for the WordPress REST API. It works on **Node.js**, **Deno**, **Bun**, and in the **browser** using only web-standard APIs (`fetch`, `URL`, `Blob`).
 
-## Install
-
-```bash
-npm install fluent-wp-client
-```
-
 ## Quick start
 
-```ts
-import { WordPressClient } from 'fluent-wp-client';
+<Steps>
+1. Install the package
 
-const wp = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-});
+   ```bash
+   npm install fluent-wp-client
+   ```
 
-// Read a list of posts
-const posts = await wp.getPosts({ perPage: 10 });
+2. Create a client
 
-// Read a single post and parse its Gutenberg blocks
-const blocks = await wp.getPostBySlug('hello-world').getBlocks();
+   ```ts
+   import { WordPressClient } from 'fluent-wp-client';
 
-// Create a draft post (requires auth)
-const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
-```
+   const wp = new WordPressClient({
+     baseUrl: 'https://your-wordpress-site.com',
+   });
+   ```
+
+3. Use it
+
+   ```ts
+   import { getEmbeddedAuthor, getEmbeddedTerms } from 'fluent-wp-client';
+
+   // List posts
+   const posts = await wp.content('posts').list({ perPage: 10 });
+
+   // Get a single item with embedded relations
+   const book = await wp.content('books').item('my-book', { embed: true });
+   const author = getEmbeddedAuthor(book);
+   const genres = getEmbeddedTerms(book, 'genre');
+
+   // Create (requires auth)
+   const draft = await wp.content('posts').create({ title: 'Hello', status: 'draft' });
+
+   // First-class resources
+   const comments = await wp.comments().list({ post: 42 });
+   const me = await wp.users().me();
+   ```
+</Steps>
+
+:::tip[What is a Resource Client?]
+`wp.content('posts')`, `wp.terms('categories')`, `wp.media()`, etc. each return a **resource client** — a dedicated helper for one type of content. The data returned is always a plain serializable **DTO**, safe for `structuredClone()`, `JSON.stringify()`, and cross-boundary transport.
+:::
 
 ## Features
 
-- **Typed helpers** for posts, pages, media, categories, tags, users, comments, and settings
-- **Generic CPT and taxonomy APIs** — `content('books')` and `terms('genre')` work for any registered resource
-- **Gutenberg block parsing** — single-post queries expose `.getBlocks()` and `.getContent()`
-- **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
-- **WPAPI-compatible fluent syntax** — migrate from `node-wpapi` with minimal changes
-- **WordPress Abilities API** — discover and execute registered abilities with optional schema validation
-- **Standard Schema validation** — validator-agnostic root exports; native Zod available from `fluent-wp-client/zod`
-- **Relation API** — `wp.post('slug').with('author', 'categories').get()`
+- **Unified content builders** — `content('posts')`, `content('books')`, `terms('genre')` share one API shape
+- **First-class resource clients** — `media()`, `comments()`, `users()`, `settings()`
+- **Cross-resource search** — `searchContent()` across posts, pages, and CPTs
+- **Embed and extraction helpers** — `embed: true` or selective `embed: ['author', 'wp:term']` plus typed extraction functions
+- **Lean payloads** — no `_embed` overhead by default
+- **Flexible CPT defaults** — tolerates post types that omit `title`, `content`, or `excerpt`
+- **Gutenberg block add-on** — `fluent-wp-client/blocks` for block discovery, parsing, validation, and writes
+- **AI SDK tools** — `fluent-wp-client/ai-sdk` for manually composed Vercel AI SDK tool factories
+- **Auth flexibility** — Basic, JWT, cookie+nonce, prebuilt headers, per-request signing
+- **Abilities API** — discover and execute registered WordPress abilities
+- **Schema discovery** — fetch live JSON Schemas, convert to Zod with `z.fromJSONSchema()`
+- **CLI code generation** — generate TypeScript, JSON Schema, and Zod-ready artifacts from live REST schemas
+- **Standard Schema validation** — validator-agnostic root exports; native Zod via `fluent-wp-client/zod`
+- **ACF extraction helpers** — `getAcfFieldPosts()`, `getAcfFieldPost()`, `getAcfFieldTerms()` for ACF relation fields
 
 ## Guides
 
@@ -52,36 +78,50 @@ const draft = await wp.createPost({ title: 'Hello', status: 'draft' });
   <LinkCard
     title="Usage guide"
     href="./usage"
-    description="All client methods, CRUD patterns, pagination, and error handling."
+    description="API styles, method reference, embed extraction, CRUD, pagination, and errors."
   />
   <LinkCard
     title="Authentication"
     href="./auth"
-    description="Choose the right auth strategy for your runtime and security model."
+    description="Choose the right auth strategy for your runtime."
   />
   <LinkCard
     title="Gutenberg content"
     href="./gutenberg-content"
-    description="Render HTML or parse raw Gutenberg blocks from posts and pages."
+    description="Block type discovery, parsing, validation, and writes."
   />
   <LinkCard
     title="Custom endpoints"
     href="./custom-endpoints"
-    description="Work with custom post types, taxonomies, and plugin REST namespaces."
+    description="Custom post types, taxonomies, and plugin REST namespaces."
+  />
+  <LinkCard
+    title="AI SDK"
+    href="./ai-sdk"
+    description="Compose WordPress tools for the Vercel AI SDK."
   />
   <LinkCard
     title="Abilities"
     href="./abilities"
-    description="Discover and execute WordPress abilities with typed schemas."
+    description="Discover and execute WordPress abilities."
+  />
+  <LinkCard
+    title="Schema discovery"
+    href="./schema-discovery"
+    description="Fetch live JSON Schemas for runtime validation."
   />
   <LinkCard
     title="Validation"
     href="./validation"
-    description="Validate responses with Standard Schema, Zod, Valibot, or ArkType."
+    description="Standard Schema, Zod, Valibot, or ArkType."
   />
   <LinkCard
-    title="Migrate from node-wpapi"
-    href="./migration-from-node-wpapi"
-    description="Map familiar node-wpapi chains to fluent-wp-client methods."
+    title="Embed extraction"
+    href="./usage#embed-and-extraction-helpers"
+    description="Embed parameters, extraction helpers, and ACF relation extraction."
   />
 </CardGrid>
+
+## Development notes
+
+Contributor-facing transport, mutation helpers, query primitives, and base resource classes live in `src/core/`. Query builders live in `src/builders/`. The public API is re-exported from `src/index.ts`.

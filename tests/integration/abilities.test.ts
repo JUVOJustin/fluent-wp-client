@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { z } from 'zod';
-import { WordPressClient, createJwtAuthHeader } from 'fluent-wp-client';
+import {
+  WordPressClient,
+  createJwtAuthHeader,
+} from 'fluent-wp-client';
 import { createAuthClient, createJwtAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-client';
 
 /**
@@ -96,24 +98,14 @@ describe('Client: Abilities', () => {
       expect(result.title.length).toBeGreaterThan(0);
     });
 
-    it('validates one read-only ability response with a response schema', async () => {
-      const result = await authClient.executeGetAbility(
-        'test/get-site-title',
-        undefined,
-        z.object({
-          title: z.string().min(1),
-        }),
-      );
-
-      expect(result.title.length).toBeGreaterThan(0);
-    });
-
     it('throws for one missing read-only ability', async () => {
       await expect(
         authClient.executeGetAbility('test/non-existent-ability'),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 404,
+        retryable: false,
       });
     });
 
@@ -121,8 +113,10 @@ describe('Client: Abilities', () => {
       await expect(
         publicClient.executeGetAbility('test/get-site-title'),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 401,
+        retryable: false,
       });
     });
 
@@ -167,8 +161,10 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeRunAbility('test/non-existent-ability', { value: 'x' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 404,
+        retryable: false,
       });
     });
 
@@ -176,8 +172,10 @@ describe('Client: Abilities', () => {
       await expect(
         publicClient.executeRunAbility('test/update-option', { value: 'x' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 401,
+        retryable: false,
       });
     });
 
@@ -185,8 +183,10 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { key: optionKey }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 400,
+        retryable: false,
       });
     });
 
@@ -194,8 +194,10 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { wrong_field: 'x' }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 400,
+        retryable: false,
       });
     });
 
@@ -203,8 +205,10 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeRunAbility('test/update-option', { value: 12345 }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
+        kind: 'WP_API_ERROR',
         status: 400,
+        retryable: false,
       });
     });
 
@@ -248,37 +252,13 @@ describe('Client: Abilities', () => {
       expect(result.echo.tags).toEqual([]);
     });
 
-    it('validates one complex execute-ability response with a response schema', async () => {
-      const result = await authClient.executeRunAbility(
-        'test/process-complex',
-        {
-          name: 'schema-validated',
-          settings: { theme: 'contrast' },
-        },
-        z.object({
-          processed: z.boolean(),
-          echo: z.object({
-            name: z.string(),
-            settings: z.object({
-              theme: z.string(),
-              font_size: z.number().optional(),
-            }),
-            tags: z.array(z.string()),
-          }),
-        }),
-      );
-
-      expect(result.echo.name).toBe('schema-validated');
-      expect(result.echo.tags).toEqual([]);
-    });
-
     it('throws when one complex execute ability is missing a required nested field', async () => {
       await expect(
         authClient.executeRunAbility('test/process-complex', {
           name: 'missing-settings',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 400,
       });
     });
@@ -290,36 +270,17 @@ describe('Client: Abilities', () => {
           settings: 'not-an-object',
         }),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 400,
       });
     });
 
-    it('supports fluent ability execution with local input and output validation', async () => {
+    it('supports fluent ability execution without local validation hooks', async () => {
       const result = await authClient
         .ability<
           { name: string; settings: { theme: string; font_size?: number }; tags?: string[] },
           { processed: boolean; echo: { name: string; settings: { theme: string; font_size?: number }; tags: string[] } }
         >('test/process-complex')
-        .inputSchema(z.object({
-          name: z.string().min(1),
-          settings: z.object({
-            theme: z.string().min(1),
-            font_size: z.number().int().positive().optional(),
-          }),
-          tags: z.array(z.string()).optional(),
-        }))
-        .outputSchema(z.object({
-          processed: z.boolean(),
-          echo: z.object({
-            name: z.string(),
-            settings: z.object({
-              theme: z.string(),
-              font_size: z.number().optional(),
-            }),
-            tags: z.array(z.string()),
-          }),
-        }))
         .run({
           name: 'Alpha',
           settings: { theme: 'clean', font_size: 18 },
@@ -330,19 +291,6 @@ describe('Client: Abilities', () => {
       expect(result.echo.name).toBe('Alpha');
       expect(result.echo.settings.theme).toBe('clean');
       expect(result.echo.tags).toEqual(['featured', 'guide']);
-    });
-
-    it('validates fluent ability input before the request is sent', async () => {
-      await expect(
-        authClient
-          .ability<{ user_id: number }>('test/get-complex-data')
-          .inputSchema(z.object({
-            user_id: z.number().int().positive(),
-          }))
-          .get({ user_id: 0 }),
-      ).rejects.toMatchObject({
-        name: 'WordPressSchemaValidationError',
-      });
     });
   });
 
@@ -369,7 +317,7 @@ describe('Client: Abilities', () => {
       await expect(
         authClient.executeDeleteAbility('test/non-existent-ability'),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 404,
       });
     });
@@ -378,8 +326,58 @@ describe('Client: Abilities', () => {
       await expect(
         publicClient.executeDeleteAbility('test/delete-option', optionKey),
       ).rejects.toMatchObject({
-        name: 'WordPressApiError',
+        name: 'WordPressHttpError',
         status: 401,
+      });
+    });
+  });
+
+  describe('catalog-aware describe()', () => {
+    it('describe() returns from cache when catalog is seeded via useCatalog()', async () => {
+      const catalog = await authClient.explore({ include: ['abilities'] });
+      const freshClient = createAuthClient();
+      freshClient.useCatalog(catalog);
+
+      // Should resolve from cache without a network round-trip
+      const desc = await freshClient.ability('test/process-complex').describe();
+
+      expect(desc.kind).toBe('ability');
+      expect(desc.name).toBe('test/process-complex');
+      expect(desc.schemas.input).toBeDefined();
+      expect(desc.schemas.output).toBeDefined();
+    });
+
+    it('run() does not validate input even when catalog has schemas', async () => {
+      const catalog = await authClient.explore({ include: ['abilities'] });
+
+      // Confirm the catalog carries an input schema for the ability
+      expect(catalog.abilities['test/update-option']?.schemas.input).toBeDefined();
+
+      const seededClient = createAuthClient();
+      seededClient.useCatalog(catalog);
+
+      // Send invalid input — should pass through to WordPress (no local validation)
+      await expect(
+        seededClient.executeRunAbility('test/update-option', { wrong_field: 'x' }),
+      ).rejects.toMatchObject({
+        name: 'WordPressHttpError',
+        status: 400,
+      });
+    });
+
+    it('run() continues to defer invalid input to WordPress even when catalog has schemas', async () => {
+      const catalog = await authClient.explore({ include: ['abilities'] });
+
+      expect(catalog.abilities['test/update-option']?.schemas.input).toBeDefined();
+
+      const seededClient = createAuthClient();
+      seededClient.useCatalog(catalog);
+
+      await expect(
+        seededClient.ability('test/update-option').run({ wrong_field: 'x' } as any),
+      ).rejects.toMatchObject({
+        name: 'WordPressHttpError',
+        status: 400,
       });
     });
   });

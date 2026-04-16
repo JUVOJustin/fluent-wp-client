@@ -3,20 +3,68 @@
  */
 export {
   WordPressClient,
-  type WordPressClientConfig,
-  type WordPressRequestOptions,
-  type WordPressRequestOverrides,
-  type WordPressRequestResult,
-  type WordPressMediaUploadInput,
-  type WordPressNamespaceClient,
-  type CategoriesFilter,
-  type CommentsFilter,
-  type MediaFilter,
-  type PagesFilter,
-  type PostsFilter,
-  type TagsFilter,
-  type UsersFilter,
 } from './client.js';
+
+export {
+  createDiscoveryMethods,
+  type DiscoveryMethods,
+} from './discovery.js';
+
+export { MediaResource } from './resources/media.js';
+export { UsersResource } from './resources/users.js';
+export { CommentsResource } from './resources/comments.js';
+export { SettingsResource } from './resources/settings.js';
+
+export {
+  GenericResourceRegistry,
+  type GenericResourceContext,
+} from './resources/registry.js';
+
+// Export core base classes
+export {
+  BaseCollectionResource,
+  BaseCrudResource,
+  BasePostLikeResource,
+  type CrudResourceContext,
+  type ResourceContext,
+  type PostLikeResourceContext,
+} from './core/resource-base.js';
+
+export {
+  WordPressTransport,
+  createRuntime,
+  type WordPressRuntime,
+  type WordPressTransportConfig,
+} from './core/transport.js';
+
+export {
+  ExecutableQuery,
+  ImmutableBuilder,
+  createExecutableBuilder,
+  type WordPressQueryState,
+  type BuilderReturnType,
+} from './core/query-base.js';
+
+export type {
+  WordPressClientConfig,
+  WordPressRequestOptions,
+  WordPressRequestOverrides,
+  WordPressRequestResult,
+  WordPressMediaUploadInput,
+} from './types.js';
+
+export type {
+  BaseContentFilter,
+  EmbeddableContentFilter,
+  CategoriesFilter,
+  CommentsFilter,
+  MediaFilter,
+  PagesFilter,
+  PostsFilter,
+  SearchFilter,
+  TagsFilter,
+  UsersFilter,
+} from './types/filters.js';
 
 export {
   WordPressAbilityBuilder,
@@ -25,11 +73,6 @@ export {
   type RunAbilityInput,
   type DeleteAbilityInput,
 } from './abilities.js';
-
-export {
-  WordPressRequestBuilder,
-  type WordPressRequestDeleteOptions,
-} from './builders/wpapi-request.js';
 
 export {
   createBasicAuthHeader,
@@ -58,16 +101,36 @@ export {
 } from './auth.js';
 
 export {
-  WordPressSchemaValidationError,
   isStandardSchema,
   type WordPressSchemaIssue,
   type WordPressStandardSchema,
 } from './core/validation.js';
 
 export {
-  WordPressApiError,
-  createWordPressApiError,
-  throwIfWordPressError,
+  WordPressClientError,
+  WordPressConfigError,
+  WordPressNetworkError,
+  WordPressTimeoutError,
+  WordPressAuthError,
+  WordPressHttpError,
+  WordPressParseError,
+  WordPressDiscoveryError,
+  WordPressInvalidRequestError,
+  isWordPressClientError,
+  createConfigError,
+  createNetworkError,
+  createTimeoutError,
+  createAuthError,
+  createHttpError,
+  createParseError,
+  createDiscoveryError,
+  createInvalidRequestError,
+  normalizeToClientError,
+  throwIfHttpError,
+  classifyFetchError,
+  type WordPressClientErrorKind,
+  type WordPressErrorContext,
+  type SchemaValidationIssue,
   type WordPressErrorPayload,
 } from './core/errors.js';
 
@@ -76,11 +139,13 @@ export {
   runAbilityInputSchema,
   deleteAbilityInputSchema,
   baseWordPressSchema,
+  postLikeWordPressSchema,
   contentWordPressSchema,
   postSchema,
   pageSchema,
   mediaSchema,
   categorySchema,
+  tagSchema,
   embeddedMediaSchema,
   abilityAnnotationsSchema,
   abilitySchema,
@@ -94,6 +159,7 @@ export {
   jwtAuthValidationResponseSchema,
   wordPressErrorSchema,
   settingsSchema,
+  searchResultSchema,
 } from './standard-schemas.js';
 
 export type {
@@ -110,10 +176,12 @@ export type {
   WordPressAbilityCategory,
   WordPressMedia,
   WordPressPage,
+  WordPressPostLike,
   WordPressPostBase,
   WordPressPost,
   WordPressPostWriteBase,
   WordPressPostWriteFields,
+  WordPressSearchResult,
   WordPressSettings,
   WordPressTag,
 } from './schemas.js';
@@ -125,41 +193,69 @@ export {
 } from './core/params.js';
 
 export type {
+  CommentsResourceClient,
   ContentResourceClient,
   DeleteOptions,
+  ExtensibleFilter,
   FetchResult,
+  MediaResourceClient,
   PaginatedResponse,
   PaginationParams,
   QueryParamPrimitive,
   QueryParams,
+  SerializedQueryParams,
+  SettingsResourceClient,
   TermsResourceClient,
   TermWriteInput,
   UserDeleteOptions,
+  UsersResourceClient,
   UserWriteInput,
   WordPressDeleteResult,
   WordPressWritePayload,
 } from './types.js';
 
+// Content item query builder for awaitable single-item access
+export { ContentItemQuery } from './builders/content-item-query.js';
+
+// Embedded data extraction helpers
 export {
-  PostRelationQueryBuilder,
-  type PostRelation,
-  type SelectedPostRelations,
-} from './builders/relations.js';
+  getEmbeddedAuthor,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedParent,
+  getEmbeddedTerms,
+  getEmbeddedReplies,
+  getEmbeddedData,
+  getAcfEmbeddedPosts,
+  getAcfEmbeddedTerms,
+  getAcfFieldPosts,
+  getAcfFieldPost,
+  getAcfFieldTerms,
+  getAcfFieldIds,
+  getAcfFieldId,
+  getLinkEntries,
+  getEmbeddableLinkKeys,
+  ACF_POSTS_EMBED_KEY,
+  ACF_TERMS_EMBED_KEY,
+  type WordPressLinkEntry,
+} from './core/embedded.js';
 
 export {
-  WordPressContentQuery,
-  type WordPressGetBlocksOptions,
   type WordPressRawContentResult,
 } from './content-query.js';
-
-export {
-  loadDefaultWordPressBlockParser,
-  parseWordPressBlocks,
-  type WordPressBlockParser,
-  type WordPressParsedBlock,
-} from './blocks.js';
 
 export {
   createWordPressPaginator,
   type WordPressPaginatorOptions,
 } from './core/pagination.js';
+
+export type {
+  WordPressAbilityDescription,
+  WordPressDiscoveryCatalog,
+  WordPressDiscoveryOptions,
+  WordPressDiscoveryWarning,
+  WordPressJsonSchema,
+  WordPressResourceCapabilities,
+  WordPressResourceDescription,
+  WordPressResourceSchemaSet,
+  WordPressAbilitySchemaSet,
+} from './types/discovery.js';

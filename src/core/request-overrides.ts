@@ -1,49 +1,36 @@
-import type { WordPressRequestOptions, WordPressRequestOverrides } from '../client-types.js';
-
-const AUTH_OVERRIDE_HEADER_NAMES = new Set([
-  'authorization',
-  'cookie',
-  'x-wp-nonce',
-  'proxy-authorization',
-]);
+import type { WordPressRequestOptions } from '../types/client.js';
+import type { WordPressRequestOverrides } from '../types/resources.js';
+import { createInvalidRequestError } from './errors.js';
 
 /**
- * Throws when header overrides include auth-related headers.
- */
-export function assertNoAuthHeaderOverrides(
-  headers: Record<string, string> | undefined,
-  context = 'Request options',
-): void {
-  if (!headers) {
-    return;
-  }
-
-  for (const headerName of Object.keys(headers)) {
-    if (AUTH_OVERRIDE_HEADER_NAMES.has(headerName.toLowerCase())) {
-      throw new Error(`${context}: auth header overrides are not supported ('${headerName}'). Create a new WordPressClient with the desired auth settings.`);
-    }
-  }
-}
-
-/**
- * Merges per-request non-auth header overrides into one request options object.
+ * Merges per-request header overrides into one request options object.
+ * Rejects Authorization header overrides to prevent auth conflicts.
  */
 export function applyRequestOverrides(
   options: WordPressRequestOptions,
   overrides?: WordPressRequestOverrides,
-  context = 'Request options',
 ): WordPressRequestOptions {
   if (!overrides?.headers) {
     return options;
   }
 
-  assertNoAuthHeaderOverrides(overrides.headers, context);
+  const headers = overrides.headers;
+  // Check for Authorization header case-insensitively
+  const hasAuthHeader = Object.keys(headers).some(
+    key => key.toLowerCase() === 'authorization'
+  );
+  if (hasAuthHeader) {
+    throw createInvalidRequestError(
+      'auth header overrides are not supported. Use the auth configuration options instead.',
+      { endpoint: options.endpoint, method: options.method },
+    );
+  }
 
   return {
     ...options,
     headers: {
       ...(options.headers ?? {}),
-      ...(overrides.headers ?? {}),
+      ...headers,
     },
   };
 }

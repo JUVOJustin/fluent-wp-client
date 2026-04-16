@@ -3,20 +3,26 @@
  */
 export {
   WordPressClient,
-  type WordPressClientConfig,
-  type WordPressRequestOptions,
-  type WordPressRequestOverrides,
-  type WordPressRequestResult,
-  type WordPressMediaUploadInput,
-  type WordPressNamespaceClient,
-  type CategoriesFilter,
-  type CommentsFilter,
-  type MediaFilter,
-  type PagesFilter,
-  type PostsFilter,
-  type TagsFilter,
-  type UsersFilter,
 } from './client.js';
+
+export type {
+  WordPressClientConfig,
+  WordPressRequestOptions,
+  WordPressRequestOverrides,
+  WordPressRequestResult,
+  WordPressMediaUploadInput,
+} from './types.js';
+
+export type {
+  CategoriesFilter,
+  CommentsFilter,
+  MediaFilter,
+  PagesFilter,
+  PostsFilter,
+  SearchFilter,
+  TagsFilter,
+  UsersFilter,
+} from './types/filters.js';
 
 export {
   WordPressAbilityBuilder,
@@ -28,11 +34,6 @@ export {
   type RunAbilityInput,
   type DeleteAbilityInput,
 } from './abilities.js';
-
-export {
-  WordPressRequestBuilder,
-  type WordPressRequestDeleteOptions,
-} from './builders/wpapi-request.js';
 
 export {
   createBasicAuthHeader,
@@ -61,26 +62,48 @@ export {
 } from './auth.js';
 
 export {
-  WordPressSchemaValidationError,
   isStandardSchema,
   type WordPressSchemaIssue,
   type WordPressStandardSchema,
 } from './core/validation.js';
 
 export {
-  WordPressApiError,
-  createWordPressApiError,
-  throwIfWordPressError,
+  WordPressClientError,
+  WordPressConfigError,
+  WordPressNetworkError,
+  WordPressTimeoutError,
+  WordPressAuthError,
+  WordPressHttpError,
+  WordPressParseError,
+  WordPressDiscoveryError,
+  WordPressInvalidRequestError,
+  isWordPressClientError,
+  createConfigError,
+  createNetworkError,
+  createTimeoutError,
+  createAuthError,
+  createHttpError,
+  createParseError,
+  createDiscoveryError,
+  createInvalidRequestError,
+  normalizeToClientError,
+  throwIfHttpError,
+  classifyFetchError,
+  type WordPressClientErrorKind,
+  type WordPressErrorContext,
+  type SchemaValidationIssue,
   type WordPressErrorPayload,
 } from './core/errors.js';
 
 export {
   baseWordPressSchema,
+  postLikeWordPressSchema,
   contentWordPressSchema,
   postSchema,
   pageSchema,
   mediaSchema,
   categorySchema,
+  tagSchema,
   embeddedMediaSchema,
   abilityAnnotationsSchema,
   abilitySchema,
@@ -94,6 +117,7 @@ export {
   jwtAuthValidationResponseSchema,
   wordPressErrorSchema,
   settingsSchema,
+  searchResultSchema,
   type WordPressAuthor,
   type WordPressBase,
   type WordPressCategory,
@@ -107,10 +131,12 @@ export {
   type WordPressAbilityCategory,
   type WordPressMedia,
   type WordPressPage,
+  type WordPressPostLike,
   type WordPressPostBase,
   type WordPressPost,
   type WordPressPostWriteBase,
   type WordPressPostWriteFields,
+  type WordPressSearchResult,
   type WordPressSettings,
   type WordPressTag,
 } from './schemas.js';
@@ -136,26 +162,40 @@ export type {
   WordPressWritePayload,
 } from './types.js';
 
-export {
-  PostRelationQueryBuilder,
-  type PostRelation,
-  type SelectedPostRelations,
-} from './builders/relations.js';
+export { ContentItemQuery } from './builders/content-item-query.js';
+export { type WordPressRawContentResult } from './content-query.js';
 
+// Embedded data extraction helpers
 export {
-  WordPressContentQuery,
-  type WordPressGetBlocksOptions,
-  type WordPressRawContentResult,
-} from './content-query.js';
-
-export {
-  loadDefaultWordPressBlockParser,
-  parseWordPressBlocks,
-  type WordPressBlockParser,
-  type WordPressParsedBlock,
-} from './blocks.js';
+  getEmbeddedAuthor,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedParent,
+  getEmbeddedTerms,
+  getEmbeddedReplies,
+  getEmbeddedData,
+  getAcfEmbeddedPosts,
+  getAcfEmbeddedTerms,
+  getAcfFieldPosts,
+  getAcfFieldPost,
+  getAcfFieldTerms,
+  getAcfFieldIds,
+  getAcfFieldId,
+  getLinkEntries,
+  getEmbeddableLinkKeys,
+  ACF_POSTS_EMBED_KEY,
+  ACF_TERMS_EMBED_KEY,
+  type WordPressLinkEntry,
+} from './core/embedded.js';
 
 export {
   createWordPressPaginator,
   type WordPressPaginatorOptions,
 } from './core/pagination.js';
+
+export {
+  zodFromJsonSchema,
+  zodSchemasFromDescription,
+  stripDateTimeFormats,
+  type ResourceZodSchemas,
+  type AbilityZodSchemas,
+} from './zod-helpers.js';

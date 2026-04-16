@@ -1,0 +1,26 @@
+---
+title: Export all posts to CSV
+description: Paginate through every published post with listAll() and write the result to a CSV file.
+---
+
+Use `.listAll()` to paginate through every published post automatically, then write the result to a CSV file.
+
+```ts title="export-posts.ts"
+import { WordPressClient } from 'fluent-wp-client';
+import { writeFileSync } from 'node:fs';
+
+const wp = new WordPressClient({ baseUrl: 'https://example.com' });
+
+const posts = await wp.content('posts').listAll({ status: 'publish' });
+
+const header = ['id', 'slug', 'title', 'date', 'link'].join(',');
+
+const rows = posts.map((p) =>
+  [p.id, p.slug, `"${p.title.rendered.replace(/"/g, '""')}"`, p.date, p.link].join(',')
+);
+
+writeFileSync('posts.csv', [header, ...rows].join('\n'));
+console.log(`Exported ${posts.length} posts.`);
+```
+
+`.listAll()` handles the REST API's 100-per-page cap automatically — no manual page loops needed.

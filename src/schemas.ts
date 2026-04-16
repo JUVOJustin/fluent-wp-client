@@ -1,48 +1,124 @@
 import { z } from 'zod';
 
 /**
+ * Shared rendered-text field used by many REST resource payloads.
+ */
+const renderedTextSchema = z.object({
+  rendered: z.string(),
+});
+
+/**
+ * Rendered-text field that may also expose raw edit-context data.
+ */
+const editableRenderedTextSchema = renderedTextSchema.extend({
+  raw: z.string().optional(),
+});
+
+/**
+ * Content-like field that may expose raw data and protection state.
+ */
+const protectedRenderedTextSchema = editableRenderedTextSchema.extend({
+  protected: z.boolean(),
+});
+
+/**
+ * Flexible schema used by WordPress for meta and ACF payloads.
+ */
+const recordOrArraySchema = z.union([
+  z.record(z.string(), z.any()),
+  z.array(z.any()),
+]);
+
+/**
+ * Flexible object schema used for open-ended REST metadata payloads.
+ */
+const recordSchema = z.record(z.string(), z.any());
+
+/**
+ * Shared image size schema used inside media details payloads.
+ */
+const mediaSizeSchema = z.object({
+  file: z.string(),
+  width: z.number(),
+  height: z.number(),
+  filesize: z.number().optional(),
+  mime_type: z.string(),
+  source_url: z.string(),
+});
+
+/**
+ * Shared media details schema used by media and embedded media responses.
+ */
+const mediaDetailsSchema = z.object({
+  width: z.number(),
+  height: z.number(),
+  file: z.string(),
+  filesize: z.number().optional(),
+  sizes: z.record(z.string(), mediaSizeSchema),
+  image_meta: z.any(),
+});
+
+/**
  * Base schema shared by all WordPress content response types.
  */
 export const baseWordPressSchema = z.object({
   id: z.number(),
   date: z.string(),
   date_gmt: z.string(),
-  guid: z.object({
-    rendered: z.string(),
-  }),
+  guid: renderedTextSchema,
   modified: z.string(),
   modified_gmt: z.string(),
   slug: z.string(),
   status: z.string(),
   type: z.string(),
   link: z.string().url(),
-  title: z.object({
-    rendered: z.string(),
-  }),
+  title: renderedTextSchema,
   author: z.number(),
-  meta: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+  meta: recordOrArraySchema.optional(),
   _links: z.any(),
 }).passthrough();
+
+/**
+ * Flexible schema for generic post-like resources whose supports may disable
+ * title, content, excerpt, author, and other post fields.
+ */
+export const postLikeWordPressSchema = baseWordPressSchema
+  .omit({
+    author: true,
+    title: true,
+  })
+  .extend({
+    title: editableRenderedTextSchema.optional(),
+    author: z.number().optional(),
+    content: protectedRenderedTextSchema.optional(),
+    excerpt: protectedRenderedTextSchema.optional(),
+    featured_media: z.number().optional(),
+    comment_status: z.string().optional(),
+    ping_status: z.string().optional(),
+    template: z.string().optional(),
+    sticky: z.boolean().optional(),
+    format: z.string().optional(),
+    categories: z.array(z.number()).optional(),
+    tags: z.array(z.number()).optional(),
+    parent: z.number().optional(),
+    menu_order: z.number().optional(),
+    class_list: z.array(z.string()).optional(),
+    acf: recordOrArraySchema.optional(),
+    _embedded: z.any().optional(),
+  })
+  .passthrough();
 
 /**
  * Schema for content types (posts and pages).
  */
 export const contentWordPressSchema = baseWordPressSchema.extend({
-  content: z.object({
-    rendered: z.string(),
-    raw: z.string().optional(),
-    protected: z.boolean(),
-  }),
-  excerpt: z.object({
-    rendered: z.string(),
-    raw: z.string().optional(),
-    protected: z.boolean(),
-  }),
+  content: protectedRenderedTextSchema,
+  excerpt: protectedRenderedTextSchema,
   featured_media: z.number().optional(),
   comment_status: z.string(),
   ping_status: z.string(),
   template: z.string(),
-  acf: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+  acf: recordOrArraySchema.optional(),
   _embedded: z.any().optional(),
 });
 
@@ -72,29 +148,12 @@ export const mediaSchema = baseWordPressSchema.extend({
   comment_status: z.string(),
   ping_status: z.string(),
   alt_text: z.string(),
-  caption: z.object({
-    rendered: z.string(),
-  }),
-  description: z.object({
-    rendered: z.string(),
-  }),
+  caption: renderedTextSchema,
+  description: renderedTextSchema,
   media_type: z.string(),
   mime_type: z.string(),
-  media_details: z.object({
-    width: z.number(),
-    height: z.number(),
-    file: z.string(),
-    filesize: z.number().optional(),
-    sizes: z.record(z.string(), z.object({
-      file: z.string(),
-      width: z.number(),
-      height: z.number(),
-      filesize: z.number().optional(),
-      mime_type: z.string(),
-      source_url: z.string(),
-    })),
-    image_meta: z.any(),
-  }),
+  media_details: mediaDetailsSchema,
+  post: z.number().nullable().optional(),
   source_url: z.string(),
 });
 
@@ -110,11 +169,16 @@ export const categorySchema = z.object({
   slug: z.string(),
   taxonomy: z.string(),
   parent: z.number().default(0),
-  meta: z.array(z.any()).or(z.record(z.string(), z.any())),
-  acf: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+  meta: recordOrArraySchema,
+  acf: recordOrArraySchema.optional(),
   _embedded: z.any().optional(),
   _links: z.any(),
 }).passthrough();
+
+/**
+ * Schema for WordPress tags (same structure as categories, different semantics).
+ */
+export const tagSchema = categorySchema;
 
 /**
  * Schema for WordPress embedded media in `_embedded` responses.
@@ -125,30 +189,14 @@ export const embeddedMediaSchema = z.object({
   slug: z.string(),
   type: z.string(),
   link: z.string(),
-  title: z.object({
-    rendered: z.string(),
-  }),
+  title: renderedTextSchema,
   author: z.number(),
   featured_media: z.number(),
-  caption: z.object({
-    rendered: z.string(),
-  }),
+  caption: renderedTextSchema,
   alt_text: z.string(),
   media_type: z.string(),
   mime_type: z.string(),
-  media_details: z.object({
-    width: z.number(),
-    height: z.number(),
-    file: z.string(),
-    filesize: z.number().optional(),
-    sizes: z.record(z.string(), z.object({
-      file: z.string(),
-      width: z.number(),
-      height: z.number(),
-      filesize: z.number().optional(),
-      mime_type: z.string(),
-      source_url: z.string(),
-    })),
+  media_details: mediaDetailsSchema.extend({
     image_meta: z.any().optional(),
   }),
   source_url: z.string(),
@@ -193,6 +241,77 @@ export const abilityCategorySchema = z.object({
 }).passthrough();
 
 /**
+ * Schema for one block attribute definition returned by `/wp/v2/block-types`.
+ */
+const blockAttributeDefinitionSchema = z.object({
+  type: z.union([z.string(), z.array(z.string())]).optional(),
+  default: z.any().optional(),
+  enum: z.array(z.any()).optional(),
+  source: z.string().optional(),
+  selector: z.string().optional(),
+  attribute: z.string().optional(),
+  meta: z.string().optional(),
+  query: z.record(z.string(), z.any()).optional(),
+  role: z.string().optional(),
+  items: z.any().optional(),
+  properties: recordSchema.optional(),
+}).passthrough();
+
+/**
+ * Schema for block type records exposed by `/wp/v2/block-types`.
+ */
+export const blockTypeSchema = z.object({
+  api_version: z.number().optional(),
+  title: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  icon: z.string().nullable().optional(),
+  attributes: z.record(z.string(), blockAttributeDefinitionSchema).nullable().optional(),
+  provides_context: recordOrArraySchema.optional(),
+  uses_context: z.array(z.string()).optional(),
+  selectors: recordOrArraySchema.optional(),
+  supports: recordOrArraySchema.optional(),
+  category: z.string().nullable().optional(),
+  is_dynamic: z.boolean().optional(),
+  editor_script_handles: z.array(z.string()).optional(),
+  script_handles: z.array(z.string()).optional(),
+  view_script_handles: z.array(z.string()).optional(),
+  editor_style_handles: z.array(z.string()).optional(),
+  style_handles: z.array(z.string()).optional(),
+  styles: z.array(z.any()).optional(),
+  variations: z.array(z.any()).optional(),
+  textdomain: z.string().nullable().optional(),
+  parent: z.array(z.string()).nullable().optional(),
+  ancestor: z.array(z.string()).nullable().optional(),
+  keywords: z.array(z.string()).optional(),
+  example: z.any().nullable().optional(),
+  editor_script: z.string().nullable().optional(),
+  script: z.string().nullable().optional(),
+  view_script: z.string().nullable().optional(),
+  editor_style: z.string().nullable().optional(),
+  style: z.string().nullable().optional(),
+}).passthrough();
+
+export interface WordPressParsedBlock {
+  blockName: string | null;
+  attrs: Record<string, unknown> | null;
+  innerBlocks: WordPressParsedBlock[];
+  innerHTML: string;
+  innerContent: Array<string | null>;
+}
+
+/**
+ * Schema for the raw parsed block tree used by the client parse/set helpers.
+ */
+export const parsedBlockSchema: z.ZodType<WordPressParsedBlock> = z.lazy(() => z.object({
+  blockName: z.string().nullable(),
+  attrs: recordSchema.nullable(),
+  innerBlocks: z.array(parsedBlockSchema),
+  innerHTML: z.string(),
+  innerContent: z.array(z.union([z.string(), z.null()])),
+}));
+
+/**
  * Schema for WordPress users/authors.
  */
 export const authorSchema = z.object({
@@ -203,7 +322,7 @@ export const authorSchema = z.object({
   link: z.string(),
   slug: z.string(),
   avatar_urls: z.record(z.string(), z.string()),
-  meta: z.array(z.any()).or(z.record(z.string(), z.any())).optional().default([]),
+  meta: recordOrArraySchema.optional().default([]),
   _links: z.any(),
 }).passthrough();
 
@@ -219,13 +338,11 @@ export const commentSchema = z.object({
   author_url: z.string().optional(),
   date: z.string(),
   date_gmt: z.string(),
-  content: z.object({
-    rendered: z.string(),
-  }),
+  content: renderedTextSchema,
   link: z.string(),
   status: z.string(),
   type: z.string(),
-  meta: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
+  meta: recordOrArraySchema.optional(),
   _links: z.any(),
 }).passthrough();
 
@@ -340,18 +457,20 @@ export const settingsSchema = z.object({
 });
 
 export type WordPressBase = z.infer<typeof baseWordPressSchema>;
+export type WordPressPostLike = z.infer<typeof postLikeWordPressSchema>;
 export type WordPressContent = z.infer<typeof contentWordPressSchema>;
 
 /**
- * Core post-shaped content type used as the base for pages and custom post types.
+ * Core content-bearing post type used as the base for posts, pages, and
+ * content-aware post-like workflows.
  */
 export type WordPressPostBase = WordPressContent;
 
 /**
- * Generic custom post type shape that extends the shared post base fields.
+ * Generic custom post type shape that defaults to the flexible post-like schema.
  */
 export type WordPressCustomPost<TExtra extends Record<string, unknown> = Record<string, never>> =
-  WordPressPostBase & TExtra;
+  WordPressPostLike & TExtra;
 
 export type WordPressPost = z.infer<typeof postSchema>;
 export type WordPressPage = z.infer<typeof pageSchema>;
@@ -361,6 +480,7 @@ export type WordPressEmbeddedMedia = z.infer<typeof embeddedMediaSchema>;
 export type WordPressAbilityAnnotations = z.infer<typeof abilityAnnotationsSchema>;
 export type WordPressAbility = z.infer<typeof abilitySchema>;
 export type WordPressAbilityCategory = z.infer<typeof abilityCategorySchema>;
+export type WordPressBlockType = z.infer<typeof blockTypeSchema>;
 export type WordPressAuthor = z.infer<typeof authorSchema>;
 export type WordPressComment = z.infer<typeof commentSchema>;
 export type WordPressPostWriteFields = z.infer<typeof updatePostFieldsSchema>;
@@ -372,3 +492,16 @@ export type WordPressSettings = z.infer<typeof settingsSchema>;
  * WordPress tag type aliases category response shape.
  */
 export type WordPressTag = WordPressCategory;
+
+/**
+ * Schema for a single WordPress cross-resource search result from `/wp/v2/search`.
+ */
+export const searchResultSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  url: z.string(),
+  type: z.string(),
+  subtype: z.string(),
+}).passthrough();
+
+export type WordPressSearchResult = z.infer<typeof searchResultSchema>;

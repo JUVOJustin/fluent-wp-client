@@ -1,8 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  WordPressApiError,
+  WordPressHttpError,
   WordPressClient,
-  WordPressSchemaValidationError,
   jwtAuthErrorResponseSchema,
   jwtAuthTokenResponseSchema,
   jwtAuthValidationResponseSchema,
@@ -55,10 +54,10 @@ describe('Client: Auth', () => {
       });
       throw new Error('Expected JWT login to fail with invalid credentials.');
     } catch (error) {
-      expect(error).toBeInstanceOf(WordPressApiError);
+      expect(error).toBeInstanceOf(WordPressHttpError);
 
       const errorValidationResult = await jwtAuthErrorResponseSchema['~standard'].validate(
-        (error as WordPressApiError).responseBody,
+        (error as WordPressHttpError).responseBody,
       );
 
       if (errorValidationResult.issues) {
@@ -73,7 +72,7 @@ describe('Client: Auth', () => {
 
   it('supports cookie nonce auth for authenticated REST endpoints', async () => {
     const cookieClient = createCookieAuthClient();
-    const me = await cookieClient.getCurrentUser();
+    const me = await cookieClient.users().me();
 
     expect(me.slug).toBe('admin');
   });
@@ -106,7 +105,7 @@ describe('Client: Auth', () => {
       },
     });
 
-    const me = await browserClient.getCurrentUser();
+    const me = await browserClient.users().me();
     expect(me.slug).toBe('admin');
   });
 
@@ -125,100 +124,33 @@ describe('Client: Auth', () => {
       },
     });
 
-    const posts = await browserPublicClient.getPosts({ perPage: 5 });
+    const posts = await browserPublicClient.content('posts').list({ perPage: 5 });
 
     expect(Array.isArray(posts)).toBe(true);
     expect(posts.length).toBeGreaterThan(0);
   });
 
-  it('loginWithJwt accepts custom responseSchema override and returns narrowed type', async () => {
-    const minimalTokenSchema = {
-      '~standard': {
-        validate: (value: unknown) => {
-          const obj = value as Record<string, unknown>;
-          if (typeof obj?.token !== 'string') {
-            return { issues: [{ message: 'token must be a string', path: ['token'] }] };
-          }
-          return { value: { token: obj.token } };
-        },
-      },
-    };
-
-    const result = await publicClient.loginWithJwt(
-      { username: 'admin', password: 'password' },
-      minimalTokenSchema as any,
-    );
+  it('loginWithJwt returns JWT token response', async () => {
+    const result = await publicClient.loginWithJwt({
+      username: 'admin',
+      password: 'password',
+    });
 
     expect(typeof result.token).toBe('string');
     expect(result.token.length).toBeGreaterThan(20);
-    expect((result as any).user_email).toBeUndefined();
+    expect(result.user_email).toBe('wordpress@example.com');
   });
 
-  it('validateJwtToken accepts custom responseSchema override and returns narrowed type', async () => {
+  it('validateJwtToken validates a token successfully', async () => {
     const tokenResponse = await publicClient.loginWithJwt({
       username: 'admin',
       password: 'password',
     });
 
-    const minimalValidationSchema = {
-      '~standard': {
-        validate: (value: unknown) => {
-          const obj = value as Record<string, unknown>;
-          if (obj?.code !== 'jwt_auth_valid_token') {
-            return { issues: [{ message: 'code must be jwt_auth_valid_token', path: ['code'] }] };
-          }
-          return { value: { code: obj.code } };
-        },
-      },
-    };
-
-    const result = await publicClient.validateJwtToken(
-      tokenResponse.token,
-      minimalValidationSchema as any,
-    );
+    const result = await publicClient.validateJwtToken(tokenResponse.token);
 
     expect(result.code).toBe('jwt_auth_valid_token');
-    expect((result as any).data).toBeUndefined();
+    expect(result.data).toBeDefined();
   });
 
-  it('updateSettings accepts custom responseSchema override and returns narrowed type', async () => {
-    const authClient = createAuthClient();
-
-    const minimalSettingsSchema = {
-      '~standard': {
-        validate: (value: unknown) => {
-          const obj = value as Record<string, unknown>;
-          if (typeof obj?.title !== 'string') {
-            return { issues: [{ message: 'title must be a string', path: ['title'] }] };
-          }
-          return { value: { title: obj.title } };
-        },
-      },
-    };
-
-    const result = await authClient.updateSettings(
-      { title: 'Test Site Title Override' },
-      minimalSettingsSchema as any,
-    );
-
-    expect(typeof result.title).toBe('string');
-    expect((result as any).description).toBeUndefined();
-  });
-
-  it('rejects invalid payloads when custom schema is stricter than default', async () => {
-    const strictSchema = {
-      '~standard': {
-        validate: () => ({
-          issues: [{ message: 'Custom validation error', path: [] }],
-        }),
-      },
-    };
-
-    await expect(
-      publicClient.loginWithJwt(
-        { username: 'admin', password: 'password' },
-        strictSchema as any,
-      ),
-    ).rejects.toBeInstanceOf(WordPressSchemaValidationError);
-  });
 });

@@ -259,6 +259,7 @@ The `.wp-env.json` file configures:
 - The WP REST API caps `per_page` at 100. Use `.listAll()` helpers for full pagination instead of setting very high `perPage` values.
 - WordPress creates a default `Privacy Policy` page in draft status. The seed script detects this and publishes it to ensure 10 pages are available.
 - The `afterStart` lifecycle script runs on the host, not inside the container. It uses `npx wp-env run cli -- wp ...` to execute WP-CLI commands inside the container.
+- `.wp-env.json` enables `"autoPort": true`, so starting the environment while another wp-env instance already holds port 8888 promotes this project to the next free port (8889, 8890, ...). The test harness reads the actual URL from `wp-env status --json`, so tests keep working regardless of the chosen port. In CI, wp-env disables automatic port selection when the `CI` environment variable is set, so ports stay deterministic. Override explicitly with `WP_BASE_URL` or the `WP_ENV_PORT` variable when needed.
 
 ## Schema Discovery
 

@@ -2,6 +2,7 @@
 	"core": null,
 	"phpVersion": "8.2",
 	"testsEnvironment": false,
+	"autoPort": true,
 	"plugins": [],
 	"config": {
 		"WP_ENVIRONMENT_TYPE": "development",

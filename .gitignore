@@ -28,3 +28,7 @@ pnpm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+
+# Release notes (ephemeral, used for gh release create)
+.release-notes-*.md

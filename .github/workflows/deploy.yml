@@ -28,7 +28,21 @@ jobs:
 
       - name: Extract tag version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          RAW="${GITHUB_REF#refs/tags/}"
+          # Strip optional leading "v" so npm version accepts the value.
+          CLEAN="${RAW#v}"
+          echo "RAW=$RAW" >> $GITHUB_OUTPUT
+          echo "VERSION=$CLEAN" >> $GITHUB_OUTPUT
+          # Detect prereleases by SemVer convention (e.g. 3.0.0-rc.1, 1.2.3-beta)
+          # or by a leading "v" on an otherwise matching prerelease marker.
+          if [[ "$CLEAN" =~ -[A-Za-z0-9]+ ]]; then
+            echo "NPM_TAG=next" >> $GITHUB_OUTPUT
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "NPM_TAG=latest" >> $GITHUB_OUTPUT
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
 
 
       - name: Update package.json version
@@ -49,4 +63,5 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
 
-      - run: npm publish
+      - name: Publish to npm
+        run: npm publish --tag ${{ steps.version.outputs.NPM_TAG }}

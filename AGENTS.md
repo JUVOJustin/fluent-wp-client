@@ -22,7 +22,7 @@
 
 - All terminal read methods return plain serializable DTOs by default. Returned data must survive `structuredClone()`, `JSON.stringify()`, and cross-boundary transport (SSR, RSC, `postMessage`, cache).
 - No fetched DTO should contain functions, `then`, `PromiseLike`, or hidden closures. Never mutate API response objects with runtime helpers via `Object.assign` or similar.
-- Runtime query helpers (`WordPressRequestBuilder`) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
+- Runtime query helpers (`ContentItemQuery` and the shared `ExecutableQuery` base) are explicit fluent wrappers. They are not data — they are builders that resolve to data when awaited.
 - Standalone block utility functions (like `parseWordPressBlocks`, `serializeWordPressBlocks`, `validateWordPressBlocks`, and generated block JSON Schema helpers) belong to the `fluent-wp-client/blocks` subpath and handle stateless transforms on already-fetched DTOs.
 - Post-like collection methods (`content('posts').list()`, `content('pages').list()`, `content(resource).list()`) return plain DTO arrays.
 - Post-like DTO reads keep `_embed` disabled by default; opt into embedding with `embed: true` or selective `embed: ['author', 'wp:term']` on `.item()` and `.list()`. Typed extraction helpers (`getEmbeddedAuthor`, `getEmbeddedTerms`, etc.) pull related data from embedded responses.
@@ -52,8 +52,11 @@ src/
   zod-helpers.ts               # Runtime JSON Schema → Zod conversion helpers (used by /zod and CLI)
   types.ts                     # Re-export barrel for types/ subdirectory
 
+  discovery.ts                 # Schema discovery cache, describeResource/Ability, explore()
+
   core/                        # Core infrastructure
     errors.ts                  # WordPressClientError, error kinds, factory helpers
+    embedded.ts                # Embed extraction helpers (getEmbeddedAuthor, ACF helpers, etc.)
     pagination.ts              # createWordPressPaginator
     query-base.ts              # ExecutableQuery and immutable builder primitives
     validation.ts              # Standard Schema validation helpers
@@ -63,6 +66,8 @@ src/
     transport.ts               # Runtime transport layer
 
   types/                       # Pure type definitions (no runtime)
+    client.ts                  # WordPressClientConfig, WordPressRequestOptions, etc.
+    discovery.ts               # WordPressDiscoveryCatalog, JSON Schema types
     filters.ts                 # PostsFilter, PagesFilter, MediaFilter, etc.
     payloads.ts                # WordPressWritePayload, TermWriteInput, DeleteOptions, etc.
     resources.ts               # ContentResourceClient, PaginatedResponse, FetchResult, etc.
@@ -76,6 +81,7 @@ src/
     content.ts                 # Generic post-like resource + client factory
     terms.ts                   # Generic term resource + client factory
     registry.ts                # Shared generic resource registry
+    describe.ts                # Shared describe() fallback helper
   builders/                    # Fluent query/request builders
     content-item-query.ts      # ContentItemQuery builder
 ```
@@ -174,6 +180,7 @@ The registered ACF field group includes scalar fields plus these relational fiel
 - The test environment also installs `jwt-authentication-for-wp-rest-api` during `wp-env start` and sets `JWT_AUTH_SECRET_KEY` in `.wp-env.json` for JWT endpoint tests.
 - WordPress ability integration tests rely on the core `wp_register_ability()` API being available in the local WordPress version. Test abilities are registered by `tests/wp-env/mu-plugins/register-test-abilities.php` and are skipped automatically when the function does not exist.
 - Integration tests for extensible collection filters rely on `tests/wp-env/mu-plugins/register-test-collection-filters.php`, which registers a custom `title_search` REST collection param for posts and books.
+- Custom taxonomy integration coverage uses the `genre` taxonomy registered by `tests/wp-env/mu-plugins/register-genre-taxonomy.php` (attached to posts and books, `rest_base: genre`).
 - No license key is required.
 
 ### Running tests
@@ -222,6 +229,13 @@ Reference integration suites:
 - `tests/integration/relations.test.ts` — embed extraction helper coverage.
 - `tests/integration/serialization.test.ts` — DTO serialization safety (`structuredClone`, `JSON.stringify`, no helper leakage).
 - `tests/integration/discovery.test.ts` — schema discovery, catalog exploration, and dogfooding coverage (converting discovered schemas to Zod for validation).
+- `tests/integration/search.test.ts` — `searchContent()` cross-resource search coverage.
+- `tests/integration/ai-sdk.test.ts` — generic AI SDK tool factory coverage for content, terms, resources, abilities, and blocks.
+- `tests/integration/cli.test.ts` — CLI `schemas` command and discovery filter coverage.
+- `tests/integration/cache.test.ts` — discovery cache, catalog seeding via `useCatalog()`, and query memoization coverage.
+- `tests/integration/request-overrides.test.ts` — per-request header overrides, `onRequest` hooks, and rate-limiting coverage.
+- `tests/integration/content-enforcement.test.ts` — `getContent()` and `getBlocks()` edit-context and field-enforcement coverage.
+- `tests/integration/zod-helpers.test.ts` — `zodFromJsonSchema()` and `zodSchemasFromDescription()` runtime conversion coverage.
 
 ### What to test when adding new features
 

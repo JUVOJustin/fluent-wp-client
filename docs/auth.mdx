@@ -38,6 +38,10 @@ export function createWordPressClientForRequest(request: Request): WordPressClie
 | Signature/HMAC/OAuth-like | `authHeaders` provider |
 | Request-scoped auth selection | `createAuthResolver` |
 
+:::note[Field precedence]
+When multiple auth fields are supplied on `WordPressClientConfig`, precedence is `authHeader` > `auth` > `authHeaders`. `cookies` and `credentials` layer on top of these for cookie-based sessions.
+:::
+
 ## Static auth
 
 <Tabs>

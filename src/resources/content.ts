@@ -59,7 +59,7 @@ export class GenericContentResource<
   TContent extends WordPressPostLike = WordPressPostLike,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
-  // @ts-ignore - Type constraint complexity, safe at runtime
+  // @ts-expect-error - Type constraint complexity, safe at runtime
 > extends BasePostLikeResource<TContent, QueryParams & PaginationParams, TCreate, TUpdate> {
 
   /**

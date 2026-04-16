@@ -214,7 +214,7 @@ export type {
   WordPressWritePayload,
 } from './types.js';
 
-// Content item query (replaces the old PostRelationQueryBuilder)
+// Content item query builder for awaitable single-item access
 export { ContentItemQuery } from './builders/content-item-query.js';
 
 // Embedded data extraction helpers

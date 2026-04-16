@@ -32,11 +32,21 @@ export type WordPressRequestCallback = (url: string, init: RequestInit) => void 
 
 /**
  * WordPress client configuration.
+ *
+ * When multiple auth fields are supplied the precedence is:
+ *   1. `authHeader` — raw `Authorization` header string, highest priority
+ *   2. `auth` — structured credentials (basic, JWT, cookie+nonce, resolver)
+ *   3. `authHeaders` — prebuilt header map or async provider, merged onto the request
+ *
+ * `cookies` and `credentials` layer on top of these for cookie-based sessions.
  */
 export interface WordPressClientConfig {
   baseUrl: string;
+  /** Structured credentials. See {@link WordPressAuthConfig}. */
   auth?: WordPressAuthConfig;
+  /** Raw `Authorization` header. Wins over `auth` when both are present. */
   authHeader?: string;
+  /** Prebuilt header map or async provider merged onto every request. */
   authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
   cookies?: string;
   credentials?: RequestCredentials;

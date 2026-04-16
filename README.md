@@ -34,6 +34,14 @@ const post = await posts.item('hello-world');
 const draft = await posts.create({ title: 'Hello', status: 'draft' });
 ```
 
+## Design principles
+
+- **WordPress is the source of truth for validation.** Request and mutation helpers defer validation to the REST API. When you want local validation, use `.describe()`, `.explore()`, or CLI-generated artifacts in application code.
+- **Schemas are discoverable at runtime.** Every resource and ability exposes its live JSON Schema through `.describe()` and `wp.explore()`, making the client adaptive to custom post types, taxonomies, plugin endpoints, and ACF fields.
+- **Strict defaults for built-ins, flexible defaults for everything else.** Native posts and pages get strict typing; generic CPTs default to a post-like shape that tolerates WordPress `supports` removing fields like `title`, `content`, or `author`.
+- **Extension by composition, not hard-coding.** `content(resource)`, `terms(resource)`, ACF relation extraction, and ability builders stay generic so projects can layer in custom fields, meta, relations, and plugin data without fighting the client.
+- **Runtime-agnostic and serialization-safe.** Terminal reads return plain DTOs that survive `structuredClone()`, `JSON.stringify()`, and cross-boundary transport (SSR, RSC, `postMessage`).
+
 ## Features
 
 - **Unified typed content builders** — `content('posts')`, `content('pages')`, `content('books')`, and `terms('genre')` share one API shape, with stricter typing for built-in resources
@@ -265,6 +273,9 @@ Full documentation lives in the [`docs/`](./docs/) folder:
 - [Abilities](./docs/abilities.mdx) — WordPress Abilities API
 - [Validation](./docs/validation.mdx) — Standard Schema, Zod, and custom validators
 - [Embed extraction](./docs/usage.mdx#embed-and-extraction-helpers) — embed parameters, typed extraction helpers, and ACF relation extraction
+- [Schema discovery](./docs/schema-discovery.mdx) — `.describe()`, `.explore()`, and runtime Zod conversion
+- [CLI](./docs/cli.mdx) — generate JSON Schema and Zod artifacts from live WordPress instances
+- [AI SDK integration](./docs/ai-sdk.mdx) — compose WordPress tools for the Vercel AI SDK
 
 ## Development
 
@@ -285,4 +296,4 @@ Tests run against a real WordPress Docker container managed by [`@wordpress/env`
 
 ## License
 
-MIT
+GPL-2.0-or-later

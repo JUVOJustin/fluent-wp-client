@@ -50,7 +50,6 @@ export class GenericResourceRegistry {
     if (!baseResource) {
       const defaults = knownContentDefaults[resource as keyof typeof knownContentDefaults];
 
-      // @ts-ignore - Type constraint complexity, safe at runtime
       baseResource = new GenericContentResource<TResource>({
         runtime: this.context.runtime,
         endpoint: `/${resource}`,

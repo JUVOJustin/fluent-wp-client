@@ -50,7 +50,7 @@ export const getContentCollectionTool = (
     const contentType = resolveContentType(merged, options);
     const filter = prepareCollectionArgs(stripContentType(merged), options as ToolFactoryOptions<Record<string, unknown>>);
     if (options?.readAdapter?.listContent) {
-      return options.readAdapter.listContent({ client, contentType, filter });
+      return options.readAdapter.listContent({ client, contentType, filter: filter as QueryParams });
     }
 
     return client.content(contentType).list(filter as QueryParams);

@@ -248,7 +248,7 @@ export const getResourceCollectionTool = (
     const resourceType = resolveResourceType(merged, options);
     const filter = prepareCollectionArgs(stripResourceType(merged), options as ToolFactoryOptions<Record<string, unknown>>);
     if (options?.readAdapter?.listResource) {
-      return options.readAdapter.listResource({ client, resourceType, filter });
+      return options.readAdapter.listResource({ client, resourceType, filter: filter as QueryParams });
     }
 
     return listResource(client, resourceType, filter);

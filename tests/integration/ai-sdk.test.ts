@@ -125,6 +125,20 @@ describe('AI SDK tool integration', () => {
 
       expect(result).toEqual([{ id: 998, taxonomyType: 'categories', filter: { perPage: 4 } }]);
     });
+
+    it('getResourceCollectionTool can use a read adapter for cached reads', async () => {
+      const readAdapter: WordPressAIReadAdapter = {
+        listResource: async ({ resourceType, filter }) => [{ id: 997, resourceType, filter }],
+      };
+
+      const tool = getResourceCollectionTool(authClient, {
+        resourceType: 'users',
+        readAdapter,
+      });
+      const result = await run<Array<{ id: number; resourceType: string; filter: Record<string, unknown> }>>(tool, { perPage: 5 });
+
+      expect(result).toEqual([{ id: 997, resourceType: 'users', filter: { perPage: 5 } }]);
+    });
   });
 
   describe('generic single-item tools', () => {

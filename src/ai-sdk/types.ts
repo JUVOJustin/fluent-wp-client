@@ -1,4 +1,5 @@
 import type { WordPressClient } from '../client.js';
+import type { QueryParams } from '../types/resources.js';
 import type { WordPressAbilityDescription, WordPressDiscoveryCatalog } from '../types/discovery.js';
 import type { WordPressParsedBlock } from '../blocks.js';
 import type { ZodType } from 'zod';
@@ -13,7 +14,7 @@ export interface WordPressAIReadAdapter {
   listContent?: (input: {
     client: WordPressClient;
     contentType: string;
-    filter: Record<string, unknown>;
+    filter: QueryParams;
   }) => Promise<unknown>;
   getContent?: (input: {
     client: WordPressClient;
@@ -26,7 +27,7 @@ export interface WordPressAIReadAdapter {
   listTerms?: (input: {
     client: WordPressClient;
     taxonomyType: string;
-    filter: Record<string, unknown>;
+    filter: QueryParams;
   }) => Promise<unknown>;
   getTerm?: (input: {
     client: WordPressClient;
@@ -37,7 +38,7 @@ export interface WordPressAIReadAdapter {
   listResource?: (input: {
     client: WordPressClient;
     resourceType: 'media' | 'comments' | 'users';
-    filter: Record<string, unknown>;
+    filter: QueryParams;
   }) => Promise<unknown>;
   getResource?: (input: {
     client: WordPressClient;

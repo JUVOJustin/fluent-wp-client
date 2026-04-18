@@ -49,7 +49,7 @@ export const getTermCollectionTool = (
     const taxonomyType = resolveTaxonomyType(merged, options);
     const filter = prepareCollectionArgs(stripTaxonomyType(merged), options as ToolFactoryOptions<Record<string, unknown>>);
     if (options?.readAdapter?.listTerms) {
-      return options.readAdapter.listTerms({ client, taxonomyType, filter });
+      return options.readAdapter.listTerms({ client, taxonomyType, filter: filter as QueryParams });
     }
 
     return client.terms(taxonomyType).list(filter as QueryParams);

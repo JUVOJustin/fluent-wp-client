@@ -207,7 +207,11 @@ const readPost = getContentTool(wp, {
   contentType: 'posts',
   readAdapter: {
     async getContent({ slug, includeContent }) {
-      return cachedLiveLoaderItem(slug!, { includeContent });
+      if (!slug) {
+        throw new Error('This read adapter requires a slug.');
+      }
+
+      return cachedLiveLoaderItem(slug, { includeContent });
     },
   },
 });

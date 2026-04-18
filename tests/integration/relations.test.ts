@@ -28,8 +28,8 @@ describe("Client: embed and relation extraction", () => {
         .item("test-post-001", { embed: true });
 
       expect(post).toBeDefined();
-      expect(post!.slug).toBe("test-post-001");
-      expect(post!._embedded).toBeDefined();
+      expect(post?.slug).toBe("test-post-001");
+      expect(post?._embedded).toBeDefined();
       expect(getEmbeddedAuthor(post)).toBeDefined();
     });
 
@@ -39,8 +39,8 @@ describe("Client: embed and relation extraction", () => {
         .item("test-post-001", { embed: ["author"] });
 
       expect(post).toBeDefined();
-      expect(post!.slug).toBe("test-post-001");
-      expect(post!._embedded).toBeDefined();
+      expect(post?.slug).toBe("test-post-001");
+      expect(post?._embedded).toBeDefined();
 
       const author = getEmbeddedAuthor(post);
       expect(author).toBeDefined();
@@ -75,7 +75,7 @@ describe("Client: embed and relation extraction", () => {
 
       expect(post).toBeDefined();
       // WordPress does not include _embedded when _embed is absent
-      expect(post!._embedded).toBeUndefined();
+      expect(post?._embedded).toBeUndefined();
     });
   });
 
@@ -147,12 +147,12 @@ describe("Client: embed and relation extraction", () => {
         .item("services-web-development", { embed: ["up"] });
 
       expect(child).toBeDefined();
-      expect(child!.parent).toBeGreaterThan(0);
+      expect(child?.parent).toBeGreaterThan(0);
 
       const parent = getEmbeddedParent(child);
       expect(parent).toBeDefined();
       expect(parent?.slug).toBe("services");
-      expect(parent?.id).toBe(child!.parent);
+      expect(parent?.id).toBe(child?.parent);
     });
 
     it("returns null parent for top-level pages", async () => {
@@ -161,7 +161,7 @@ describe("Client: embed and relation extraction", () => {
         .item("about", { embed: ["up"] });
 
       expect(page).toBeDefined();
-      expect(page!.parent).toBe(0);
+      expect(page?.parent).toBe(0);
 
       const parent = getEmbeddedParent(page);
       expect(parent).toBeNull();
@@ -176,7 +176,7 @@ describe("Client: embed and relation extraction", () => {
       });
 
       expect(post).toBeDefined();
-      expect(post!.id).toBeTypeOf("number");
+      expect(post?.id).toBeTypeOf("number");
 
       // _embedded should be preserved even with restricted _fields
       const author = getEmbeddedAuthor(post);
@@ -190,9 +190,9 @@ describe("Client: embed and relation extraction", () => {
       });
 
       expect(post).toBeDefined();
-      expect(post!.id).toBeTypeOf("number");
-      expect(post!.slug).toBe("test-post-001");
-      expect(post!._embedded).toBeUndefined();
+      expect(post?.id).toBeTypeOf("number");
+      expect(post?.slug).toBe("test-post-001");
+      expect(post?._embedded).toBeUndefined();
     });
   });
 

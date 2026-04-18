@@ -68,8 +68,8 @@ describe("Client: Artifacts", () => {
 
       const updated = await authClient
         .content("artifacts")
-        .update(artifact!.id, { status: "publish" });
-      expect(updated.id).toBe(artifact!.id);
+        .update(artifact?.id, { status: "publish" });
+      expect(updated.id).toBe(artifact?.id);
     });
   });
 });

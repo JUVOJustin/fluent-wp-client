@@ -6,11 +6,7 @@ import {
   WordPressHttpError,
 } from "fluent-wp-client";
 import { beforeAll, describe, expect, it } from "vitest";
-import {
-  createAuthClient,
-  createCookieAuthClient,
-  getBaseUrl,
-} from "../helpers/wp-client";
+import { createCookieAuthClient, getBaseUrl } from "../helpers/wp-client";
 
 /**
  * Integration coverage for auth helpers and authenticated request transport.

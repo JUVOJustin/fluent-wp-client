@@ -64,7 +64,6 @@ import type {
   WordPressWritePayload,
 } from "./types/payloads.js";
 import type {
-  WordPressRequestOverrides as _Overrides,
   CommentsResourceClient,
   ContentResourceClient,
   ExtensibleFilter,

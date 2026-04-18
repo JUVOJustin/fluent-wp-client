@@ -71,9 +71,9 @@ describe("Client: Tags", () => {
       const tag = await tagsClient(publicClient).item("featured");
 
       expect(tag).toBeDefined();
-      expect(tag!.slug).toBe("featured");
-      expect(tag!.name).toBe("Featured");
-      expect(tag!.count).toBe(60);
+      expect(tag?.slug).toBe("featured");
+      expect(tag?.name).toBe("Featured");
+      expect(tag?.count).toBe(60);
     });
 
     it("terms('tags').item() returns undefined for non-existent slug", async () => {

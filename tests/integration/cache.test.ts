@@ -27,10 +27,10 @@ function createCountingClient(): {
 }
 
 describe("Client: internal caching", () => {
-  let authClient: WordPressClient;
+  let _authClient: WordPressClient;
 
   beforeAll(() => {
-    authClient = createAuthClient();
+    _authClient = createAuthClient();
   });
 
   describe("query builder memoization", () => {

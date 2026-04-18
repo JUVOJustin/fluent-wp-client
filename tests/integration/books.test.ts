@@ -101,11 +101,11 @@ describe("Client: Books", () => {
       expect(second).toBeDefined();
 
       const books = await publicClient.content("books").list({
-        include: [first!.id, second!.id],
+        include: [first?.id, second?.id],
       });
 
       expect(books.map((book) => book.id).sort((a, b) => a - b)).toEqual(
-        [first!.id, second!.id].sort((a, b) => a - b),
+        [first?.id, second?.id].sort((a, b) => a - b),
       );
     });
 

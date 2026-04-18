@@ -70,9 +70,9 @@ describe("Client: Categories", () => {
       const category = await categoriesClient(publicClient).item("technology");
 
       expect(category).toBeDefined();
-      expect(category!.slug).toBe("technology");
-      expect(category!.name).toBe("Technology");
-      expect(category!.count).toBe(30);
+      expect(category?.slug).toBe("technology");
+      expect(category?.name).toBe("Technology");
+      expect(category?.count).toBe(30);
     });
 
     it("terms('categories').item() returns undefined for non-existent slug", async () => {

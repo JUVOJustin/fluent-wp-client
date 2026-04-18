@@ -58,7 +58,7 @@ export const getAbilityTool = (
   client: WordPressClient,
   options?: AbilityToolFactoryOptions<Record<string, unknown>>,
 ) => {
-  const resolvedOptions = {
+  const _resolvedOptions = {
     ...options,
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };

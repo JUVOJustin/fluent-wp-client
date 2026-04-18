@@ -62,7 +62,7 @@ export class BlockContentItemQuery<
   TUpdate extends WordPressWritePayload = TCreate,
 > extends ExecutableQuery<TContent | undefined> {
   constructor(
-    private readonly resource: string,
+    readonly _resource: string,
     private readonly selector: number | string,
     private readonly contentClient: ContentResourceClient<
       TContent,

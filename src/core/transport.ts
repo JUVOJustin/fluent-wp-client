@@ -11,7 +11,6 @@ import {
   type WordPressAuthInput,
 } from "../auth.js";
 import type {
-  WordPressMediaUploadInput,
   WordPressRequestCallback,
   WordPressRequestOptions,
   WordPressRequestResult,
@@ -25,7 +24,6 @@ import {
   createConfigError,
   createInvalidRequestError,
   createParseError,
-  normalizeToClientError,
   throwIfHttpError,
 } from "./errors.js";
 import { applyRequestOverrides } from "./request-overrides.js";

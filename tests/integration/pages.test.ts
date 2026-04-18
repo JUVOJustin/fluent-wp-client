@@ -67,8 +67,8 @@ describe("Client: Pages", () => {
       const page = await pagesClient(publicClient).item("about");
 
       expect(page).toBeDefined();
-      expect(page!.slug).toBe("about");
-      expect(page!.title.rendered).toBe("About");
+      expect(page?.slug).toBe("about");
+      expect(page?.title.rendered).toBe("About");
     });
 
     it("content('pages').item() returns undefined for non-existent slug", async () => {

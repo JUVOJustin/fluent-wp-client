@@ -1,5 +1,4 @@
 import { parseWordPressBlocks, type WordPressParsedBlock } from "../blocks.js";
-import type { WordPressClient } from "../client.js";
 import type { WordPressRawContentResult } from "../content-query.js";
 import {
   WordPressClientError,

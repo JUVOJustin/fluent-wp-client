@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync } from "node:fs";
 
 /**
  * Loads env vars written by global-setup into each Vitest worker process.

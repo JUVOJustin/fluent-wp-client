@@ -1,7 +1,7 @@
-import { execSync } from "child_process";
-import { unlinkSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { execSync } from "node:child_process";
+import { unlinkSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /** Temp file used to pass env vars from globalSetup to test workers */
 const ENV_FILE = resolve(

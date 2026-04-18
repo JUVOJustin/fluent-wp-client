@@ -1,8 +1,6 @@
 import type {
-  WordPressAbilityDescription,
   WordPressClient,
   WordPressDiscoveryCatalog,
-  WordPressResourceDescription,
 } from "fluent-wp-client";
 import {
   type AbilityZodSchemas,
@@ -35,7 +33,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(schema).toBeDefined();
 
       // Validate a known post structure passes
-      const result = schema!.safeParse({
+      const result = schema?.safeParse({
         id: 1,
         slug: "hello-world",
         status: "publish",
@@ -51,7 +49,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(schema).toBeDefined();
 
       // WordPress create schemas expect title as { raw: string } not a plain string
-      const result = schema!.safeParse({
+      const result = schema?.safeParse({
         status: "draft",
         title: { raw: "Test Post" },
       });
@@ -69,7 +67,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(schema).toBeDefined();
 
       // Valid input should pass
-      const valid = schema!.safeParse({
+      const valid = schema?.safeParse({
         name: "test-config",
         settings: { font_size: 16, theme: "dark" },
       });
@@ -83,7 +81,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(schema).toBeDefined();
 
       // Missing required 'title' for post creation
-      const result = schema!.safeParse({
+      const result = schema?.safeParse({
         status: 42, // wrong type — status should be a string
       });
 
@@ -114,7 +112,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(schema).toBeDefined();
 
       // Validate a book structure — includes CPT-specific fields
-      const result = schema!.safeParse({
+      const result = schema?.safeParse({
         id: 1,
         slug: "test-book-001",
         status: "publish",
@@ -130,7 +128,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
 
       // WordPress returns dates without trailing Z (e.g. "2025-01-01T12:00:00").
       // Without date-time format stripping this would fail Zod's strict ISO 8601.
-      const result = schema!.safeParse({
+      const result = schema?.safeParse({
         content: { protected: false, rendered: "" },
         date: "2025-01-01T12:00:00",
         date_gmt: "2025-01-01T12:00:00",
@@ -161,9 +159,9 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(schemas.update).toBeDefined();
 
       // Verify they are actual Zod schemas with safeParse
-      expect(typeof schemas.item!.safeParse).toBe("function");
-      expect(typeof schemas.create!.safeParse).toBe("function");
-      expect(typeof schemas.update!.safeParse).toBe("function");
+      expect(typeof schemas.item?.safeParse).toBe("function");
+      expect(typeof schemas.create?.safeParse).toBe("function");
+      expect(typeof schemas.update?.safeParse).toBe("function");
     });
 
     it("converts all operation schemas for a custom post type", () => {
@@ -199,7 +197,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(schemas.create).toBeDefined();
 
       // WordPress create schemas expect rendered-content objects, not plain strings
-      const result = schemas.create!.safeParse({
+      const result = schemas.create?.safeParse({
         content: { raw: "Testing runtime schema conversion." },
         status: "draft",
         title: { raw: "Zod Helper Test Post" },
@@ -220,8 +218,8 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
 
       expect(schemas.input).toBeDefined();
       expect(schemas.output).toBeDefined();
-      expect(typeof schemas.input!.safeParse).toBe("function");
-      expect(typeof schemas.output!.safeParse).toBe("function");
+      expect(typeof schemas.input?.safeParse).toBe("function");
+      expect(typeof schemas.output?.safeParse).toBe("function");
     });
 
     it("input schema validates correct ability input", () => {
@@ -229,7 +227,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
         catalog.abilities["test/process-complex"],
       ) as AbilityZodSchemas;
 
-      const result = schemas.input!.safeParse({
+      const result = schemas.input?.safeParse({
         name: "test-config",
         settings: { theme: "dark" },
       });
@@ -242,7 +240,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
         catalog.abilities["test/process-complex"],
       ) as AbilityZodSchemas;
 
-      const result = schemas.input!.safeParse({
+      const result = schemas.input?.safeParse({
         name: "missing-settings",
         // settings is required but missing
       });
@@ -273,7 +271,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       const schema = zodFromJsonSchema(restored.content.posts.schemas.item);
 
       expect(schema).toBeDefined();
-      expect(typeof schema!.safeParse).toBe("function");
+      expect(typeof schema?.safeParse).toBe("function");
     });
 
     it("works after useCatalog() restores a cached catalog", async () => {
@@ -289,7 +287,7 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
 
       expect(schema).toBeDefined();
 
-      const result = schema!.safeParse({
+      const result = schema?.safeParse({
         id: 1,
         slug: "test",
         status: "publish",

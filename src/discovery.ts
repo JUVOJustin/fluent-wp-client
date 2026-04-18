@@ -5,10 +5,7 @@
  * generation, and schema-aware integrations.
  */
 
-import {
-  createDiscoveryError,
-  type WordPressClientError,
-} from "./core/errors.js";
+import { createDiscoveryError } from "./core/errors.js";
 import { applyRequestOverrides } from "./core/request-overrides.js";
 import type { WordPressRuntime } from "./core/transport.js";
 import type { WordPressAbility } from "./schemas.js";
@@ -19,7 +16,6 @@ import type {
   WordPressDiscoveryOptions,
   WordPressDiscoveryWarning,
   WordPressEndpointSchema,
-  WordPressJsonSchema,
   WordPressResourceCapabilities,
   WordPressResourceDescription,
   WordPressResourceSchemaSet,
@@ -71,7 +67,7 @@ async function runWithConcurrency<T>(
   async function worker(): Promise<void> {
     while (nextIndex < factories.length) {
       const index = nextIndex++;
-      results[index] = await factories[index]!();
+      results[index] = await factories[index]?.();
     }
   }
 
@@ -1077,7 +1073,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
             requestOptions,
           );
           catalog.content = resources;
-          catalog.warnings!.push(...warnings);
+          catalog.warnings?.push(...warnings);
           cacheDescriptions({ content: resources });
         })(),
       );
@@ -1092,7 +1088,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
             requestOptions,
           );
           catalog.terms = resources;
-          catalog.warnings!.push(...warnings);
+          catalog.warnings?.push(...warnings);
           cacheDescriptions({ terms: resources });
         })(),
       );
@@ -1107,7 +1103,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
             requestOptions,
           );
           catalog.resources = resources;
-          catalog.warnings!.push(...warnings);
+          catalog.warnings?.push(...warnings);
           cacheDescriptions({ resources });
         })(),
       );
@@ -1122,7 +1118,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
             requestOptions,
           );
           catalog.abilities = abilities;
-          catalog.warnings!.push(...warnings);
+          catalog.warnings?.push(...warnings);
           cacheDescriptions({ abilities });
         })(),
       );

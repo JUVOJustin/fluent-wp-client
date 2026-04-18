@@ -1,8 +1,5 @@
 import { ContentItemQuery } from "../builders/content-item-query.js";
-import {
-  BasePostLikeResource,
-  type PostLikeResourceContext,
-} from "../core/resource-base.js";
+import { BasePostLikeResource } from "../core/resource-base.js";
 import type { WordPressPostLike } from "../schemas.js";
 import type { WordPressResourceDescription } from "../types/discovery.js";
 import type { WordPressWritePayload } from "../types/payloads.js";
@@ -83,7 +80,7 @@ export class GenericContentResource<
       | undefined,
   ): ContentItemQuery<TContent> {
     const { embed, fields, ...requestOverrides } = options ?? {};
-    const embedActive =
+    const _embedActive =
       embed === true || (Array.isArray(embed) && embed.length > 0);
 
     return new ContentItemQuery<TContent>(

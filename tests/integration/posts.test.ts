@@ -107,8 +107,8 @@ describe("Client: Posts", () => {
       const post = await postsClient(publicClient).item("test-post-001");
 
       expect(post).toBeDefined();
-      expect(post!.slug).toBe("test-post-001");
-      expect(post!.title.rendered).toBe("Test Post 001");
+      expect(post?.slug).toBe("test-post-001");
+      expect(post?.title.rendered).toBe("Test Post 001");
     });
 
     it("content('posts').item() returns undefined for non-existent slug", async () => {
@@ -202,11 +202,11 @@ describe("Client: Posts", () => {
       expect(second).toBeDefined();
 
       const posts = await postsClient(publicClient).list({
-        include: [first!.id, second!.id],
+        include: [first?.id, second?.id],
         orderby: "include",
       });
 
-      expect(posts.map((post) => post.id)).toEqual([first!.id, second!.id]);
+      expect(posts.map((post) => post.id)).toEqual([first?.id, second?.id]);
     });
 
     it("content('posts').list() supports exclude arrays on collection endpoints", async () => {
@@ -217,12 +217,12 @@ describe("Client: Posts", () => {
       expect(second).toBeDefined();
 
       const posts = await postsClient(publicClient).list({
-        exclude: [first!.id, second!.id],
+        exclude: [first?.id, second?.id],
         search: "Test Post",
       });
 
-      expect(posts.map((post) => post.id)).not.toContain(first!.id);
-      expect(posts.map((post) => post.id)).not.toContain(second!.id);
+      expect(posts.map((post) => post.id)).not.toContain(first?.id);
+      expect(posts.map((post) => post.id)).not.toContain(second?.id);
     });
 
     it("content('posts').list() supports slug arrays on collection endpoints", async () => {
@@ -290,7 +290,7 @@ describe("Client: Posts", () => {
 
       // Verify ascending order - each ID should be greater than the previous
       for (let i = 1; i < postsAsc.length; i++) {
-        expect(postsAsc[i]!.id).toBeGreaterThan(postsAsc[i - 1]!.id);
+        expect(postsAsc[i]?.id).toBeGreaterThan(postsAsc[i - 1]?.id);
       }
 
       // Fetch all posts ordered by ID descending
@@ -304,13 +304,13 @@ describe("Client: Posts", () => {
 
       // Verify descending order - each ID should be less than the previous
       for (let i = 1; i < postsDesc.length; i++) {
-        expect(postsDesc[i]!.id).toBeLessThan(postsDesc[i - 1]!.id);
+        expect(postsDesc[i]?.id).toBeLessThan(postsDesc[i - 1]?.id);
       }
 
       // Verify that ascending and descending give us opposite orders
-      expect(postsAsc[0]!.id).toBeLessThan(postsDesc[0]!.id);
-      expect(postsAsc[postsAsc.length - 1]!.id).toBeGreaterThan(
-        postsDesc[postsDesc.length - 1]!.id,
+      expect(postsAsc[0]?.id).toBeLessThan(postsDesc[0]?.id);
+      expect(postsAsc[postsAsc.length - 1]?.id).toBeGreaterThan(
+        postsDesc[postsDesc.length - 1]?.id,
       );
     });
 

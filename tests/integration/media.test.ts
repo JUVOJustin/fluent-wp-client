@@ -127,7 +127,7 @@ describe("Client: Media", () => {
 
     const hydrated = await authClient.media().item(attached.id);
     expect(hydrated).toBeDefined();
-    expect(hydrated!.id).toBe(attached.id);
+    expect(hydrated?.id).toBe(attached.id);
 
     const updated = await authClient.media().update(media.id, {
       caption: "Updated media client caption",

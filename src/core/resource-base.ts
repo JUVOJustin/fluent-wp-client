@@ -160,10 +160,6 @@ export abstract class BaseCrudResource<
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > extends BaseCollectionResource<TResource, TFilter> {
-  constructor(context: CrudResourceContext) {
-    super(context);
-  }
-
   /**
    * Executes a mutation request and returns the parsed response data.
    * Transport-level error handling (non-2xx, network, parse) is automatic.
@@ -243,7 +239,7 @@ export abstract class BaseCrudResource<
  * Configuration for post-like resources.
  */
 export interface PostLikeResourceContext<
-  TContent extends WordPressPostBase = WordPressPostBase,
+  _TContent extends WordPressPostBase = WordPressPostBase,
 > extends CrudResourceContext {
   missingRawMessage: string;
 }

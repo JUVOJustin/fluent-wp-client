@@ -125,14 +125,14 @@ describe("Client: DTO serialization", () => {
 
       expect(lookup).toBeDefined();
 
-      const post = await postsClient(publicClient).item(lookup!.id);
+      const post = await postsClient(publicClient).item(lookup?.id);
 
       expect(post).toBeDefined();
 
       const cloned = structuredClone(post);
 
-      expect(cloned!.id).toBe(post!.id);
-      expect(cloned!.slug).toBe(post!.slug);
+      expect(cloned?.id).toBe(post?.id);
+      expect(cloned?.slug).toBe(post?.slug);
     });
 
     it("content('posts').item() resolves to a plain DTO without helpers", async () => {

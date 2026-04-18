@@ -1,7 +1,5 @@
-import type { ListAllOptions } from "../core/pagination.js";
 import { BaseCrudResource } from "../core/resource-base.js";
-import type { WordPressRuntime } from "../core/transport.js";
-import type { WordPressCategory, WordPressTag } from "../schemas.js";
+import type { WordPressCategory } from "../schemas.js";
 import type { WordPressResourceDescription } from "../types/discovery.js";
 import type {
   TermWriteInput,
@@ -29,13 +27,6 @@ export class GenericTermResource<
   TCreate,
   TUpdate
 > {
-  constructor(context: {
-    runtime: WordPressRuntime;
-    endpoint: string;
-  }) {
-    super(context);
-  }
-
   /**
    * Gets one term by ID or slug.
    */

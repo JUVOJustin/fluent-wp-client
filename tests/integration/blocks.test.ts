@@ -178,14 +178,14 @@ describe("Client: Gutenberg block parsing", () => {
     expect(match).toBeDefined();
 
     const blocks = await postsClient(authBlocksClient)
-      .item(match!.id)
+      .item(match?.id)
       .blocks()
       .get();
 
     expect(blocks).toBeDefined();
-    expect(blocks!.length).toBeGreaterThan(0);
-    expect(blocks![0].blockName).toBe("core/paragraph");
-    expect(blocks![0].innerHTML).toContain("<p>List-to-query block body.</p>");
+    expect(blocks?.length).toBeGreaterThan(0);
+    expect(blocks?.[0].blockName).toBe("core/paragraph");
+    expect(blocks?.[0].innerHTML).toContain("<p>List-to-query block body.</p>");
   });
 
   it("retrieves blocks from page list items via single-item query", async () => {
@@ -208,13 +208,13 @@ describe("Client: Gutenberg block parsing", () => {
     expect(match).toBeDefined();
 
     const blocks = await pagesClient(authBlocksClient)
-      .item(match!.id)
+      .item(match?.id)
       .blocks()
       .get();
 
     expect(blocks).toBeDefined();
-    expect(blocks!.length).toBeGreaterThan(0);
-    expect(blocks![0].innerHTML).toContain("<p>Page list block body.</p>");
+    expect(blocks?.length).toBeGreaterThan(0);
+    expect(blocks?.[0].innerHTML).toContain("<p>Page list block body.</p>");
   });
 
   it("round-trips parsed post blocks through setBlocks()", async () => {
@@ -244,7 +244,7 @@ describe("Client: Gutenberg block parsing", () => {
         innerHTML: "<h2>Updated heading body.</h2>",
       },
       {
-        ...blocks![0],
+        ...blocks?.[0],
         innerContent: ["<p>Updated block body.</p>"],
         innerHTML: "<p>Updated block body.</p>",
       },
@@ -384,9 +384,9 @@ describe("Client: Gutenberg block parsing", () => {
       .get();
 
     expect(blocks).toBeDefined();
-    expect(blocks!.length).toBeGreaterThan(0);
-    expect(blocks![0].blockName).toBe("core/paragraph");
-    expect(blocks![0].innerHTML).toContain(
+    expect(blocks?.length).toBeGreaterThan(0);
+    expect(blocks?.[0].blockName).toBe("core/paragraph");
+    expect(blocks?.[0].innerHTML).toContain(
       "Content for test post 001 in category technology",
     );
   });
@@ -399,9 +399,9 @@ describe("Client: Gutenberg block parsing", () => {
       .get();
 
     expect(blocks).toBeDefined();
-    expect(blocks!.length).toBeGreaterThan(0);
-    expect(blocks![0].blockName).toBe("core/paragraph");
-    expect(blocks![0].innerHTML).toContain(
+    expect(blocks?.length).toBeGreaterThan(0);
+    expect(blocks?.[0].blockName).toBe("core/paragraph");
+    expect(blocks?.[0].innerHTML).toContain(
       "Learn more about our organization and mission.",
     );
   });
@@ -427,11 +427,11 @@ describe("Client: Gutenberg block parsing", () => {
 
     expect(blocks).toBeDefined();
     expect(blocks).toHaveLength(1);
-    expect(blocks![0].blockName).toBe("core/heading");
-    expect(blocks![0].attrs).toMatchObject({ level: 2 });
+    expect(blocks?.[0].blockName).toBe("core/heading");
+    expect(blocks?.[0].attrs).toMatchObject({ level: 2 });
 
     // change only the level attribute, keep everything else intact
-    const updatedBlocks = [{ ...blocks![0], attrs: { level: 3 } }];
+    const updatedBlocks = [{ ...blocks?.[0], attrs: { level: 3 } }];
 
     await query.blocks().set(updatedBlocks);
 
@@ -441,12 +441,12 @@ describe("Client: Gutenberg block parsing", () => {
       .get();
 
     expect(persisted).toHaveLength(1);
-    expect(persisted![0].blockName).toBe("core/heading");
+    expect(persisted?.[0].blockName).toBe("core/heading");
     // The block attribute is persisted via the Gutenberg comment delimiter
-    expect(persisted![0].attrs).toMatchObject({ level: 3 });
+    expect(persisted?.[0].attrs).toMatchObject({ level: 3 });
     // WordPress does not re-render innerHTML when only attrs change via REST;
     // the heading text content is preserved from the original write
-    expect(persisted![0].innerHTML).toContain("Original heading.");
+    expect(persisted?.[0].innerHTML).toContain("Original heading.");
   });
 
   // ---------------------------------------------------------------------------
@@ -459,9 +459,9 @@ describe("Client: Gutenberg block parsing", () => {
       .schema("core/paragraph");
 
     expect(paragraphSchema).toBeDefined();
-    expect(paragraphSchema!["x-wordpress-block-name"]).toBe("core/paragraph");
+    expect(paragraphSchema?.["x-wordpress-block-name"]).toBe("core/paragraph");
     // attrs is an anyOf [ null, object ] — ensure the object branch has properties
-    const attrsDef = paragraphSchema!.properties.attrs as {
+    const attrsDef = paragraphSchema?.properties.attrs as {
       anyOf: Array<{ type: string; properties?: Record<string, unknown> }>;
     };
     expect(Array.isArray(attrsDef.anyOf)).toBe(true);
@@ -469,7 +469,7 @@ describe("Client: Gutenberg block parsing", () => {
       (branch) => branch.type === "object",
     );
     expect(objectBranch).toBeDefined();
-    expect(objectBranch!.properties).toBeDefined();
+    expect(objectBranch?.properties).toBeDefined();
   });
 
   it("validates core/heading schema exposes a level attribute definition", async () => {
@@ -478,14 +478,14 @@ describe("Client: Gutenberg block parsing", () => {
       .schema("core/heading");
 
     expect(headingSchema).toBeDefined();
-    const attrsDef = headingSchema!.properties.attrs as {
+    const attrsDef = headingSchema?.properties.attrs as {
       anyOf: Array<{ type: string; properties?: Record<string, unknown> }>;
     };
     const objectBranch = attrsDef.anyOf.find(
       (branch) => branch.type === "object",
     );
     expect(objectBranch?.properties).toBeDefined();
-    expect(objectBranch!.properties!["level"]).toBeDefined();
+    expect(objectBranch?.properties?.level).toBeDefined();
   });
 
   it("validates core/image schema exposes a url attribute definition", async () => {
@@ -504,7 +504,7 @@ describe("Client: Gutenberg block parsing", () => {
       (branch) => branch.type === "object",
     );
     expect(objectBranch?.properties).toBeDefined();
-    expect(objectBranch!.properties!["url"]).toBeDefined();
+    expect(objectBranch?.properties?.url).toBeDefined();
   });
 
   // ---------------------------------------------------------------------------
@@ -624,12 +624,12 @@ describe("Client: Gutenberg block parsing", () => {
 
     expect(blocks).toBeDefined();
     expect(blocks).toHaveLength(3);
-    expect(blocks![0].blockName).toBe("core/heading");
-    expect(blocks![0].attrs).toMatchObject({ level: 1 });
-    expect(blocks![1].blockName).toBe("core/paragraph");
-    expect(blocks![1].innerHTML).toContain("First paragraph.");
-    expect(blocks![2].blockName).toBe("core/paragraph");
-    expect(blocks![2].attrs).toMatchObject({ dropCap: true });
+    expect(blocks?.[0].blockName).toBe("core/heading");
+    expect(blocks?.[0].attrs).toMatchObject({ level: 1 });
+    expect(blocks?.[1].blockName).toBe("core/paragraph");
+    expect(blocks?.[1].innerHTML).toContain("First paragraph.");
+    expect(blocks?.[2].blockName).toBe("core/paragraph");
+    expect(blocks?.[2].attrs).toMatchObject({ dropCap: true });
   });
 
   it("writes a fresh page with multiple block types and reads them back", async () => {
@@ -655,10 +655,10 @@ describe("Client: Gutenberg block parsing", () => {
 
     expect(blocks).toBeDefined();
     expect(blocks).toHaveLength(2);
-    expect(blocks![0].blockName).toBe("core/heading");
-    expect(blocks![0].attrs).toMatchObject({ level: 2 });
-    expect(blocks![1].blockName).toBe("core/paragraph");
-    expect(blocks![1].innerHTML).toContain("Page body paragraph.");
+    expect(blocks?.[0].blockName).toBe("core/heading");
+    expect(blocks?.[0].attrs).toMatchObject({ level: 2 });
+    expect(blocks?.[1].blockName).toBe("core/paragraph");
+    expect(blocks?.[1].innerHTML).toContain("Page body paragraph.");
   });
 
   // ---------------------------------------------------------------------------
@@ -701,14 +701,15 @@ describe("Client: Gutenberg block parsing", () => {
 
     expect(blocks).toBeDefined();
     expect(blocks).toHaveLength(1);
-    expect(blocks![0].blockName).toBe("core/columns");
-    expect(blocks![0].innerBlocks.length).toBeGreaterThanOrEqual(2);
+    expect(blocks?.[0].blockName).toBe("core/columns");
+    expect(blocks?.[0].innerBlocks.length).toBeGreaterThanOrEqual(2);
 
-    const firstColumn = blocks![0].innerBlocks[0]!;
-    expect(firstColumn.blockName).toBe("core/column");
-    expect(firstColumn.innerBlocks).toHaveLength(1);
-    expect(firstColumn.innerBlocks[0]!.blockName).toBe("core/paragraph");
-    expect(firstColumn.innerBlocks[0]!.innerHTML).toContain("Column one.");
+    const firstColumn = blocks?.[0].innerBlocks[0];
+    expect(firstColumn).toBeDefined();
+    expect(firstColumn?.blockName).toBe("core/column");
+    expect(firstColumn?.innerBlocks).toHaveLength(1);
+    expect(firstColumn?.innerBlocks[0]?.blockName).toBe("core/paragraph");
+    expect(firstColumn?.innerBlocks[0]?.innerHTML).toContain("Column one.");
   });
 
   // ---------------------------------------------------------------------------
@@ -724,9 +725,9 @@ describe("Client: Gutenberg block parsing", () => {
       .get();
 
     expect(blocks).toBeDefined();
-    expect(blocks!.length).toBeGreaterThan(0);
-    expect(blocks![0].blockName).toBe("core/paragraph");
-    expect(blocks![0].innerHTML).toContain("Content for test book 001");
+    expect(blocks?.length).toBeGreaterThan(0);
+    expect(blocks?.[0].blockName).toBe("core/paragraph");
+    expect(blocks?.[0].innerHTML).toContain("Content for test book 001");
   });
 
   // ---------------------------------------------------------------------------
@@ -749,9 +750,9 @@ describe("Client: Gutenberg block parsing", () => {
 
     expect(blocks).toBeDefined();
     expect(blocks).toHaveLength(1);
-    expect(blocks![0].blockName).toBe("core/separator");
-    expect(blocks![0].innerContent).toHaveLength(0);
-    expect(blocks![0].innerBlocks).toHaveLength(0);
+    expect(blocks?.[0].blockName).toBe("core/separator");
+    expect(blocks?.[0].innerContent).toHaveLength(0);
+    expect(blocks?.[0].innerBlocks).toHaveLength(0);
 
     // Round-trip: write back and re-read
     await query.blocks().set(blocks!);
@@ -761,8 +762,8 @@ describe("Client: Gutenberg block parsing", () => {
       .get();
 
     expect(persisted).toHaveLength(1);
-    expect(persisted![0].blockName).toBe("core/separator");
-    expect(persisted![0].attrs).toMatchObject({ className: "is-style-wide" });
+    expect(persisted?.[0].blockName).toBe("core/separator");
+    expect(persisted?.[0].attrs).toMatchObject({ className: "is-style-wide" });
   });
 
   it("preserves intentional whitespace in pre blocks through set/get round-trip", async () => {
@@ -783,7 +784,7 @@ describe("Client: Gutenberg block parsing", () => {
 
     expect(blocks).toBeDefined();
     expect(blocks).toHaveLength(1);
-    expect(blocks![0].blockName).toBe("core/code");
+    expect(blocks?.[0].blockName).toBe("core/code");
 
     // Write back the same blocks and re-read
     await query.blocks().set(blocks!);
@@ -793,11 +794,11 @@ describe("Client: Gutenberg block parsing", () => {
       .get();
 
     expect(persisted).toHaveLength(1);
-    expect(persisted![0].blockName).toBe("core/code");
+    expect(persisted?.[0].blockName).toBe("core/code");
     // The indentation and newlines within the pre block must survive
-    expect(persisted![0].innerHTML).toContain("  line one");
-    expect(persisted![0].innerHTML).toContain("    indented");
-    expect(persisted![0].innerHTML).toContain("  line three");
+    expect(persisted?.[0].innerHTML).toContain("  line one");
+    expect(persisted?.[0].innerHTML).toContain("    indented");
+    expect(persisted?.[0].innerHTML).toContain("  line three");
   });
 
   it("serializes attributes with HTML-comment-unsafe characters correctly", async () => {
@@ -834,8 +835,8 @@ describe("Client: Gutenberg block parsing", () => {
       .get();
 
     expect(persisted).toHaveLength(1);
-    expect(persisted![0].blockName).toBe("core/paragraph");
-    expect(persisted![0].attrs).toMatchObject({
+    expect(persisted?.[0].blockName).toBe("core/paragraph");
+    expect(persisted?.[0].attrs).toMatchObject({
       anchor: "id<with>angle&brackets",
       className: "test--class",
     });
@@ -894,8 +895,8 @@ describe("Client: Gutenberg block parsing", () => {
       .get();
 
     expect(persisted).toHaveLength(1);
-    expect(persisted![0].blockName).toBe("core/paragraph");
-    expect(persisted![0].innerHTML).toContain("Null attrs block.");
+    expect(persisted?.[0].blockName).toBe("core/paragraph");
+    expect(persisted?.[0].innerHTML).toContain("Null attrs block.");
   });
 
   it("rejects block type names with path traversal patterns", async () => {

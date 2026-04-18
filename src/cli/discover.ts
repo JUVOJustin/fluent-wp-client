@@ -135,8 +135,7 @@ function shouldDiscoverResource(
   }
 
   if (
-    filters?.exclude &&
-    filters.exclude.some((token) => matchesResourceToken(resource, token))
+    filters?.exclude?.some((token) => matchesResourceToken(resource, token))
   ) {
     return false;
   }

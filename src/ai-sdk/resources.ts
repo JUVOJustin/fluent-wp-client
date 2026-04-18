@@ -42,7 +42,7 @@ type SupportedResourceType = "media" | "comments" | "users";
 
 const SUPPORTED_RESOURCE_TYPES = ["media", "comments", "users"] as const;
 
-function createResourceTypeSchema(catalog?: WordPressDiscoveryCatalog) {
+function _createResourceTypeSchema(catalog?: WordPressDiscoveryCatalog) {
   const values = SUPPORTED_RESOURCE_TYPES.filter(
     (value) => !catalog?.resources || value in catalog.resources,
   );

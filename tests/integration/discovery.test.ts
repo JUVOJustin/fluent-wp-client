@@ -1,5 +1,5 @@
 import { WordPressClient } from "fluent-wp-client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   createAuthClient,
@@ -233,10 +233,10 @@ describe("Discovery APIs", () => {
       const desc = await authClient.content("posts").describe();
 
       expect(desc.capabilities).toBeDefined();
-      expect(Array.isArray(desc.capabilities!.queryParams)).toBe(true);
-      expect(Array.isArray(desc.capabilities!.readFields)).toBe(true);
-      expect(Array.isArray(desc.capabilities!.createFields)).toBe(true);
-      expect(Array.isArray(desc.capabilities!.updateFields)).toBe(true);
+      expect(Array.isArray(desc.capabilities?.queryParams)).toBe(true);
+      expect(Array.isArray(desc.capabilities?.readFields)).toBe(true);
+      expect(Array.isArray(desc.capabilities?.createFields)).toBe(true);
+      expect(Array.isArray(desc.capabilities?.updateFields)).toBe(true);
     });
 
     it("content capabilities.readFields includes known post fields", async () => {
@@ -253,15 +253,15 @@ describe("Discovery APIs", () => {
       const desc = await authClient.content("posts").describe();
 
       // Create schema is built from POST args — common fields should be present
-      expect(desc.capabilities!.createFields.length).toBeGreaterThan(0);
+      expect(desc.capabilities?.createFields.length).toBeGreaterThan(0);
     });
 
     it("content capabilities.updateFields matches createFields (no required constraint)", async () => {
       const desc = await authClient.content("posts").describe();
 
       // update removes required; properties should be the same set
-      expect(desc.capabilities!.updateFields).toEqual(
-        desc.capabilities!.createFields,
+      expect(desc.capabilities?.updateFields).toEqual(
+        desc.capabilities?.createFields,
       );
     });
 
@@ -269,15 +269,15 @@ describe("Discovery APIs", () => {
       const desc = await authClient.terms("categories").describe();
 
       expect(desc.capabilities).toBeDefined();
-      expect(Array.isArray(desc.capabilities!.queryParams)).toBe(true);
-      expect(Array.isArray(desc.capabilities!.readFields)).toBe(true);
+      expect(Array.isArray(desc.capabilities?.queryParams)).toBe(true);
+      expect(Array.isArray(desc.capabilities?.readFields)).toBe(true);
     });
 
     it("first-class resource describe() includes capabilities", async () => {
       const desc = await authClient.media().describe();
 
       expect(desc.capabilities).toBeDefined();
-      expect(Array.isArray(desc.capabilities!.readFields)).toBe(true);
+      expect(Array.isArray(desc.capabilities?.readFields)).toBe(true);
     });
 
     it("capabilities survive JSON round-trip", async () => {
@@ -292,7 +292,7 @@ describe("Discovery APIs", () => {
 
       const postsDesc = catalog.content.posts;
       expect(postsDesc.capabilities).toBeDefined();
-      expect(Array.isArray(postsDesc.capabilities!.readFields)).toBe(true);
+      expect(Array.isArray(postsDesc.capabilities?.readFields)).toBe(true);
     });
   });
 
@@ -321,8 +321,8 @@ describe("Discovery APIs", () => {
 
       expect(postsDesc.resource).toBe("posts");
       expect(postsDesc.capabilities).toBeDefined();
-      expect(postsDesc.capabilities!.readFields).toEqual(
-        catalog.content.posts.capabilities!.readFields,
+      expect(postsDesc.capabilities?.readFields).toEqual(
+        catalog.content.posts.capabilities?.readFields,
       );
     });
 
@@ -353,8 +353,8 @@ describe("Discovery APIs", () => {
 
       const postsDesc = await freshClient.content("posts").describe();
       expect(postsDesc.capabilities).toBeDefined();
-      expect(postsDesc.capabilities!.readFields).toEqual(
-        original.content.posts.capabilities!.readFields,
+      expect(postsDesc.capabilities?.readFields).toEqual(
+        original.content.posts.capabilities?.readFields,
       );
     });
 

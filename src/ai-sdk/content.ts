@@ -21,7 +21,6 @@ import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import type {
   ContentMutationToolFactoryOptions,
   ContentToolFactoryOptions,
-  MutationToolFactoryOptions,
   ToolFactoryOptions,
 } from "./types.js";
 

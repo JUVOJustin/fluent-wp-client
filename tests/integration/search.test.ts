@@ -133,7 +133,7 @@ describe("Client: Search", () => {
       // First fetch without exclusion to get a real ID.
       const all = await publicClient.searchContent("001");
       expect(all.length).toBeGreaterThan(0);
-      const firstId = all[0]!.id;
+      const firstId = all[0]?.id;
 
       // Now exclude that ID and verify it is absent from the results.
       const filtered = await publicClient.searchContent("001", {
@@ -148,7 +148,7 @@ describe("Client: Search", () => {
       // First fetch to obtain a real ID.
       const all = await publicClient.searchContent("001");
       expect(all.length).toBeGreaterThan(0);
-      const firstId = all[0]!.id;
+      const firstId = all[0]?.id;
 
       const included = await publicClient.searchContent("001", {
         include: [firstId],

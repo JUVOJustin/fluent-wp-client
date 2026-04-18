@@ -6,7 +6,6 @@ import {
   createAbilityTools,
   createContentTool,
   createResourceTool,
-  createTermTool,
   deleteContentTool,
   deleteResourceTool,
   executeRunAbilityTool,
@@ -30,7 +29,7 @@ async function run<T>(
   tool: { execute?: Function },
   args: Record<string, unknown>,
 ): Promise<T> {
-  const result = await tool.execute!(args, {
+  const result = await tool.execute?.(args, {
     messages: [],
     toolCallId: "test",
   });

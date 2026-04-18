@@ -645,10 +645,11 @@ async function discoverAllContent(
     const discoveryFactories = Object.entries(types)
       .filter(([, info]) => info.rest_base)
       .map(([, info]) => async () => {
+        const restBase = info.rest_base as string;
         try {
           const description = await discoverContentResourceFromTypeInfo(
             runtime,
-            info.rest_base!,
+            restBase,
             {
               rest_base: info.rest_base,
               rest_namespace: info.rest_namespace,
@@ -657,17 +658,17 @@ async function discoverAllContent(
             options,
           );
           return {
-            key: info.rest_base!,
+            key: restBase,
             type: "success" as const,
             value: description,
           };
         } catch (error) {
           return {
-            key: info.rest_base!,
+            key: restBase,
             message:
               error instanceof Error
                 ? error.message
-                : `Failed to discover content resource '${info.rest_base}'`,
+                : `Failed to discover content resource '${restBase}'`,
             type: "error" as const,
           };
         }
@@ -716,10 +717,11 @@ async function discoverAllTerms(
     const discoveryFactories = Object.entries(taxonomies)
       .filter(([, info]) => info.rest_base)
       .map(([, info]) => async () => {
+        const restBase = info.rest_base as string;
         try {
           const description = await discoverTermResourceFromTypeInfo(
             runtime,
-            info.rest_base!,
+            restBase,
             {
               rest_base: info.rest_base,
               rest_namespace: info.rest_namespace,
@@ -728,13 +730,13 @@ async function discoverAllTerms(
             options,
           );
           return {
-            key: info.rest_base!,
+            key: restBase,
             type: "success" as const,
             value: description,
           };
         } catch (error) {
           return {
-            key: info.rest_base!,
+            key: restBase,
             message:
               error instanceof Error
                 ? error.message
@@ -952,8 +954,9 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   ): Promise<WordPressResourceDescription> {
     const cacheKey = resource;
 
-    if (cache.content.has(cacheKey)) {
-      return cache.content.get(cacheKey)!;
+    const cached = cache.content.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     const description = await discoverContentResource(
@@ -975,8 +978,9 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   ): Promise<WordPressResourceDescription> {
     const cacheKey = resource;
 
-    if (cache.terms.has(cacheKey)) {
-      return cache.terms.get(cacheKey)!;
+    const cached = cache.terms.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     const description = await discoverTermResource(runtime, resource, options);
@@ -994,8 +998,9 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   ): Promise<WordPressResourceDescription> {
     const cacheKey = resource;
 
-    if (cache.resources.has(cacheKey)) {
-      return cache.resources.get(cacheKey)!;
+    const cached = cache.resources.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     const description = await discoverFirstClassResource(
@@ -1018,8 +1023,9 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   ): Promise<WordPressAbilityDescription> {
     const cacheKey = name;
 
-    if (cache.abilities.has(cacheKey)) {
-      return cache.abilities.get(cacheKey)!;
+    const cached = cache.abilities.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     const description = await discoverAbility(runtime, name, options);

@@ -53,6 +53,7 @@ export {
 // Singleton settings
 export {
   getSettingsTool,
+  type SettingsReadToolFactoryOptions,
   updateSettingsTool,
 } from "./settings.js";
 // Generic taxonomies
@@ -74,6 +75,8 @@ export type {
   GenericMutationToolFactoryOptions,
   GenericResourceToolFactoryOptions,
   MutationToolFactoryOptions,
+  ReadAdapterOptions,
+  ResourceReadToolFactoryOptions,
   TermMutationToolFactoryOptions,
   TermToolFactoryOptions,
   ToolFactoryOptions,

@@ -1,64 +1,98 @@
 import type { ZodType } from "zod";
 import type { WordPressParsedBlock } from "../blocks.js";
 import type { WordPressClient } from "../client.js";
+import type { WordPressPostLike } from "../schemas.js";
 import type {
   WordPressAbilityDescription,
   WordPressDiscoveryCatalog,
 } from "../types/discovery.js";
 import type { QueryParams } from "../types/resources.js";
+import type { ContentItemResult } from "./factories.js";
 
 /**
- * Optional read hooks for AI SDK tools.
+ * Optional read hooks that AI SDK read tools can delegate to instead of calling
+ * the WordPress client directly.
  *
- * This is useful in environments where reads may already be cached or routed
- * through another abstraction, such as Astro live loaders.
+ * Use this to route reads through a cached integration layer such as Astro live
+ * loaders, SWR, or a CDN-backed edge cache without changing write paths.
+ *
+ * Each hook receives only the resolved, normalized arguments the tool already
+ * computed. The client instance is intentionally excluded — if the adapter
+ * needs the client, it is not replacing the read path, it is wrapping it.
  */
 export interface WordPressAIReadAdapter {
-  getBlocks?: (input: {
-    client: WordPressClient;
-    contentType: string;
-    id: number;
-  }) => Promise<{
+  /**
+   * Replaces the default `getBlocksTool` read.
+   * Must return `{ id, contentType, blocks }`.
+   */
+  getBlocks?: (input: { contentType: string; id: number }) => Promise<{
     id: number;
     contentType: string;
     blocks: WordPressParsedBlock[];
   }>;
+
+  /**
+   * Replaces the default `getContentTool` read.
+   * Must return a `ContentItemResult`-compatible shape.
+   */
   getContent?: (input: {
-    client: WordPressClient;
     contentType: string;
     id?: number;
     slug?: string;
     includeContent?: boolean;
     includeBlocks?: boolean;
-  }) => Promise<unknown>;
+  }) => Promise<ContentItemResult<WordPressPostLike | undefined> | undefined>;
+
+  /**
+   * Replaces the default `getResourceTool` read for media, comments, or users.
+   * `resourceType` matches the REST base string (e.g. `"media"`, `"users"`).
+   */
   getResource?: (input: {
-    client: WordPressClient;
-    resourceType: "media" | "comments" | "users";
+    resourceType: string;
     id?: number;
     slug?: string;
-  }) => Promise<unknown>;
-  getSettings?: (input: { client: WordPressClient }) => Promise<unknown>;
+  }) => Promise<Record<string, unknown>>;
+
+  /**
+   * Replaces the default `getSettingsTool` read.
+   */
+  getSettings?: () => Promise<Record<string, unknown>>;
+
+  /**
+   * Replaces the default `getTermTool` read.
+   */
   getTerm?: (input: {
-    client: WordPressClient;
     taxonomyType: string;
     id?: number;
     slug?: string;
-  }) => Promise<unknown>;
+  }) => Promise<Record<string, unknown>>;
+
+  /**
+   * Replaces the default `getContentCollectionTool` read.
+   * Must return an array of post-like DTOs.
+   */
   listContent?: (input: {
-    client: WordPressClient;
     contentType: string;
     filter: QueryParams;
-  }) => Promise<unknown>;
+  }) => Promise<WordPressPostLike[]>;
+
+  /**
+   * Replaces the default `getResourceCollectionTool` read.
+   * `resourceType` matches the REST base string (e.g. `"media"`, `"users"`).
+   */
   listResource?: (input: {
-    client: WordPressClient;
-    resourceType: "media" | "comments" | "users";
+    resourceType: string;
     filter: QueryParams;
-  }) => Promise<unknown>;
+  }) => Promise<Record<string, unknown>[]>;
+
+  /**
+   * Replaces the default `getTermCollectionTool` read.
+   * Must return an array of term DTOs.
+   */
   listTerms?: (input: {
-    client: WordPressClient;
     taxonomyType: string;
     filter: QueryParams;
-  }) => Promise<unknown>;
+  }) => Promise<Record<string, unknown>[]>;
 }
 
 /**
@@ -77,10 +111,19 @@ export interface ToolFactoryOptions<TArgs extends Record<string, unknown>> {
   inputSchema?: ZodType;
   /** Require approval before executing this tool. */
   needsApproval?: boolean | ((input: TArgs) => boolean | Promise<boolean>);
-  /** Optional read adapter for cached or framework-managed reads. */
-  readAdapter?: WordPressAIReadAdapter;
   /** Enable provider strict-mode tool calling when supported. */
   strict?: boolean;
+}
+
+/**
+ * Mixin that adds an optional read adapter to read-only tool factory options.
+ *
+ * Only applied to read tool options — mutation tools do not accept a
+ * `readAdapter` because it has no effect on their execution path.
+ */
+export interface ReadAdapterOptions {
+  /** Route reads through a cached or framework-managed integration instead of the client. */
+  readAdapter?: WordPressAIReadAdapter;
 }
 
 /**
@@ -119,7 +162,7 @@ export interface CatalogMutationToolFactoryOptions<
 }
 
 /**
- * Generic content tool options.
+ * Generic content tool options for read operations.
  *
  * `contentType` pins the tool to one resource and removes the selector field
  * from the model-facing input. Omit it to expose one tool across all content
@@ -127,7 +170,8 @@ export interface CatalogMutationToolFactoryOptions<
  */
 export interface ContentToolFactoryOptions<
   TArgs extends Record<string, unknown>,
-> extends CatalogToolFactoryOptions<TArgs> {
+> extends CatalogToolFactoryOptions<TArgs>,
+    ReadAdapterOptions {
   /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
   contentType?: string;
 }
@@ -143,10 +187,11 @@ export interface ContentMutationToolFactoryOptions<
 }
 
 /**
- * Generic taxonomy tool options.
+ * Generic taxonomy tool options for read operations.
  */
 export interface TermToolFactoryOptions<TArgs extends Record<string, unknown>>
-  extends CatalogToolFactoryOptions<TArgs> {
+  extends CatalogToolFactoryOptions<TArgs>,
+    ReadAdapterOptions {
   /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
   taxonomyType?: string;
 }
@@ -254,6 +299,16 @@ export interface GenericMutationToolFactoryOptions<
 > extends MutationToolFactoryOptions<TArgs> {
   /** REST base for the custom resource. */
   resource: string;
+}
+
+/**
+ * Read-only resource tool options.
+ */
+export interface ResourceReadToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogToolFactoryOptions<TArgs>,
+    ReadAdapterOptions {
+  resourceType?: "media" | "comments" | "users";
 }
 
 /**

@@ -19,6 +19,7 @@ import type {
   TermMutationToolFactoryOptions,
   TermToolFactoryOptions,
   ToolFactoryOptions,
+  WordPressAIReadAdapter,
 } from "./types.js";
 
 function resolveTaxonomyType(
@@ -45,6 +46,45 @@ function stripTaxonomyType(
 }
 
 /**
+ * Resolves a term collection read through the adapter when one is provided,
+ * otherwise falls through to the client.
+ */
+async function executeListTerms(
+  client: WordPressClient,
+  readAdapter: WordPressAIReadAdapter | undefined,
+  taxonomyType: string,
+  filter: QueryParams,
+): Promise<unknown> {
+  if (readAdapter?.listTerms) {
+    return readAdapter.listTerms({ filter, taxonomyType });
+  }
+
+  return client.terms(taxonomyType).list(filter);
+}
+
+/**
+ * Resolves a single term read through the adapter when one is provided,
+ * otherwise falls through to the client.
+ */
+async function executeGetTerm(
+  client: WordPressClient,
+  readAdapter: WordPressAIReadAdapter | undefined,
+  taxonomyType: string,
+  merged: Record<string, unknown>,
+): Promise<unknown> {
+  const id = typeof merged.id === "number" ? merged.id : undefined;
+  const slug = typeof merged.slug === "string" ? merged.slug : undefined;
+
+  if (readAdapter?.getTerm) {
+    return readAdapter.getTerm({ id, slug, taxonomyType });
+  }
+
+  if (id !== undefined) return client.terms(taxonomyType).item(id);
+  if (slug !== undefined) return client.terms(taxonomyType).item(slug);
+  throw createInvalidRequestError("Either id or slug must be provided.");
+}
+
+/**
  * AI SDK tool that lists items from a custom taxonomy.
  */
 export const getTermCollectionTool = (
@@ -67,14 +107,12 @@ export const getTermCollectionTool = (
         stripTaxonomyType(merged),
         options as ToolFactoryOptions<Record<string, unknown>>,
       );
-      if (options?.readAdapter?.listTerms) {
-        return options.readAdapter.listTerms({
-          client,
-          filter: filter as QueryParams,
-          taxonomyType,
-        });
-      }
-      return client.terms(taxonomyType).list(filter as QueryParams);
+      return executeListTerms(
+        client,
+        options?.readAdapter,
+        taxonomyType,
+        filter as QueryParams,
+      );
     }),
     inputSchema: (options?.inputSchema ??
       createTermCollectionInputSchema(resolvedOptions)) as never,
@@ -103,19 +141,7 @@ export const getTermTool = (
         options?.fixedArgs,
       );
       const taxonomyType = resolveTaxonomyType(merged, options);
-      if (options?.readAdapter?.getTerm) {
-        return options.readAdapter.getTerm({
-          client,
-          id: typeof merged.id === "number" ? merged.id : undefined,
-          slug: typeof merged.slug === "string" ? merged.slug : undefined,
-          taxonomyType,
-        });
-      }
-      if (merged.id)
-        return client.terms(taxonomyType).item(merged.id as number);
-      if (merged.slug)
-        return client.terms(taxonomyType).item(merged.slug as string);
-      throw createInvalidRequestError("Either id or slug must be provided.");
+      return executeGetTerm(client, options?.readAdapter, taxonomyType, merged);
     }),
     inputSchema: (options?.inputSchema ??
       createTermGetInputSchema(resolvedOptions)) as never,
@@ -202,7 +228,7 @@ export const updateTermTool = (
  */
 export const deleteTermTool = (
   client: WordPressClient,
-  options?: TermToolFactoryOptions<Record<string, unknown>>,
+  options?: TermMutationToolFactoryOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,

@@ -191,7 +191,9 @@ const publishPosts = updateContentTool(adminWp, {
 
 ### Read adapters
 
-Read-only AI SDK tools can delegate to a custom `readAdapter` instead of calling the client resource directly. This is useful when your runtime already has a cached read path, such as Astro live loaders.
+Read-only AI SDK tools accept an optional `readAdapter` to delegate reads to a cached or framework-managed integration instead of calling the WordPress client directly. This is useful when your runtime already has a cached read path, such as Astro live loaders.
+
+The adapter receives only the resolved, normalized arguments the tool already computed — not the client instance. Write paths (create, update, delete, ability execution) always use the normal `WordPressClient` request flow and do not accept a `readAdapter`.
 
 ```typescript
 const searchPosts = getContentCollectionTool(wp, {
@@ -206,18 +208,18 @@ const searchPosts = getContentCollectionTool(wp, {
 const readPost = getContentTool(wp, {
   contentType: 'posts',
   readAdapter: {
-    async getContent({ slug, includeContent }) {
+    async getContent({ contentType, slug, includeContent }) {
       if (!slug) {
         throw new Error('This read adapter requires a slug.');
       }
 
-      return cachedLiveLoaderItem(slug, { includeContent });
+      return cachedLiveLoaderItem(contentType, slug, { includeContent });
     },
   },
 });
 ```
 
-Supported read hooks cover content, terms, resources, settings, and block reads. Mutation and ability execution tools continue to use the normal `WordPressClient` request flow.
+Supported read hooks: `listContent`, `getContent`, `listTerms`, `getTerm`, `listResource`, `getResource`, `getSettings`, `getBlocks`. The full interface is exported as `WordPressAIReadAdapter` from `fluent-wp-client/ai-sdk`.
 
 ### Default values with Zod schemas
 

@@ -6,22 +6,31 @@ import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import { settingsUpdateInputSchema } from "./schemas.js";
 import type {
   MutationToolFactoryOptions,
+  ReadAdapterOptions,
   ToolFactoryOptions,
 } from "./types.js";
+
+/**
+ * Read-only options for the settings tool, including an optional read adapter.
+ */
+export interface SettingsReadToolFactoryOptions
+  extends ToolFactoryOptions<Record<string, unknown>>,
+    ReadAdapterOptions {}
 
 /**
  * AI SDK tool that fetches WordPress site settings.
  */
 export const getSettingsTool = (
   client: WordPressClient,
-  options?: ToolFactoryOptions<Record<string, unknown>>,
+  options?: SettingsReadToolFactoryOptions,
 ) =>
   tool({
     description: options?.description ?? "Get WordPress site settings",
     execute: withToolErrorHandling(async () => {
       if (options?.readAdapter?.getSettings) {
-        return options.readAdapter.getSettings({ client });
+        return options.readAdapter.getSettings();
       }
+
       return client.settings().get();
     }),
     inputSchema: z.object({}).describe("No input required"),

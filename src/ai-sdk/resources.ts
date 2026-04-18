@@ -34,8 +34,9 @@ import {
 } from "./schemas.js";
 import type {
   CatalogMutationToolFactoryOptions,
-  CatalogToolFactoryOptions,
+  ResourceReadToolFactoryOptions,
   ToolFactoryOptions,
+  WordPressAIReadAdapter,
 } from "./types.js";
 
 type SupportedResourceType = "media" | "comments" | "users";
@@ -321,11 +322,15 @@ async function deleteResource(
       });
 }
 
-export interface ResourceToolFactoryOptions<
-  TArgs extends Record<string, unknown>,
-> extends CatalogToolFactoryOptions<TArgs> {
-  resourceType?: SupportedResourceType;
-}
+/**
+ * Read-only options for resource collection and single-item tools.
+ * Extends the base catalog options with an optional read adapter.
+ *
+ * @deprecated Use `ResourceReadToolFactoryOptions` from `./types.js` instead.
+ * Kept here as a re-export for backwards compatibility with existing imports.
+ */
+export type ResourceToolFactoryOptions<TArgs extends Record<string, unknown>> =
+  ResourceReadToolFactoryOptions<TArgs>;
 
 export interface ResourceMutationToolFactoryOptions<
   TArgs extends Record<string, unknown>,
@@ -333,9 +338,49 @@ export interface ResourceMutationToolFactoryOptions<
   resourceType?: SupportedResourceType;
 }
 
+/**
+ * Resolves a resource collection read through the adapter when one is
+ * provided, otherwise falls through to the client.
+ */
+async function executeListResource(
+  client: WordPressClient,
+  readAdapter: WordPressAIReadAdapter | undefined,
+  resourceType: SupportedResourceType,
+  filter: Record<string, unknown>,
+): Promise<unknown> {
+  if (readAdapter?.listResource) {
+    return readAdapter.listResource({
+      filter: filter as QueryParams,
+      resourceType,
+    });
+  }
+
+  return listResource(client, resourceType, filter);
+}
+
+/**
+ * Resolves a single resource read through the adapter when one is provided,
+ * otherwise falls through to the client.
+ */
+async function executeGetResource(
+  client: WordPressClient,
+  readAdapter: WordPressAIReadAdapter | undefined,
+  resourceType: SupportedResourceType,
+  merged: Record<string, unknown>,
+): Promise<unknown> {
+  const id = typeof merged.id === "number" ? merged.id : undefined;
+  const slug = typeof merged.slug === "string" ? merged.slug : undefined;
+
+  if (readAdapter?.getResource) {
+    return readAdapter.getResource({ id, resourceType, slug });
+  }
+
+  return getResource(client, resourceType, merged);
+}
+
 export const getResourceCollectionTool = (
   client: WordPressClient,
-  options?: ResourceToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceReadToolFactoryOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -355,14 +400,12 @@ export const getResourceCollectionTool = (
         stripResourceType(merged),
         options as ToolFactoryOptions<Record<string, unknown>>,
       );
-      if (options?.readAdapter?.listResource) {
-        return options.readAdapter.listResource({
-          client,
-          filter: filter as QueryParams,
-          resourceType,
-        });
-      }
-      return listResource(client, resourceType, filter);
+      return executeListResource(
+        client,
+        options?.readAdapter,
+        resourceType,
+        filter,
+      );
     }),
     inputSchema: (options?.inputSchema ??
       createCollectionInputSchema(resolvedOptions)) as never,
@@ -373,7 +416,7 @@ export const getResourceCollectionTool = (
 
 export const getResourceTool = (
   client: WordPressClient,
-  options?: ResourceToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceReadToolFactoryOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -389,15 +432,12 @@ export const getResourceTool = (
         options?.fixedArgs,
       );
       const resourceType = resolveResourceType(merged, options);
-      if (options?.readAdapter?.getResource) {
-        return options.readAdapter.getResource({
-          client,
-          id: typeof merged.id === "number" ? merged.id : undefined,
-          resourceType,
-          slug: typeof merged.slug === "string" ? merged.slug : undefined,
-        });
-      }
-      return getResource(client, resourceType, merged);
+      return executeGetResource(
+        client,
+        options?.readAdapter,
+        resourceType,
+        merged,
+      );
     }),
     inputSchema: (options?.inputSchema ??
       createGetInputSchema(resolvedOptions)) as never,

@@ -22,6 +22,7 @@ import type {
   ContentMutationToolFactoryOptions,
   ContentToolFactoryOptions,
   ToolFactoryOptions,
+  WordPressAIReadAdapter,
 } from "./types.js";
 
 function resolveContentType(
@@ -48,6 +49,71 @@ function stripContentType(
 }
 
 /**
+ * Resolves a content collection read through the adapter when one is provided,
+ * otherwise falls through to the client.
+ */
+async function executeListContent(
+  client: WordPressClient,
+  readAdapter: WordPressAIReadAdapter | undefined,
+  contentType: string,
+  filter: QueryParams,
+): Promise<unknown> {
+  if (readAdapter?.listContent) {
+    return readAdapter.listContent({ contentType, filter });
+  }
+
+  return client.content(contentType).list(filter);
+}
+
+/**
+ * Resolves a single content item read through the adapter when one is
+ * provided, otherwise falls through to the client query path.
+ */
+async function executeGetContent(
+  client: WordPressClient,
+  readAdapter: WordPressAIReadAdapter | undefined,
+  contentType: string,
+  merged: Record<string, unknown>,
+): Promise<unknown> {
+  const contentOpts = merged as {
+    includeContent?: boolean;
+    includeBlocks?: boolean;
+  };
+  const id = typeof merged.id === "number" ? merged.id : undefined;
+  const slug = typeof merged.slug === "string" ? merged.slug : undefined;
+
+  if (readAdapter?.getContent) {
+    return readAdapter.getContent({
+      contentType,
+      id,
+      includeBlocks: contentOpts.includeBlocks,
+      includeContent: contentOpts.includeContent,
+      slug,
+    });
+  }
+
+  if (id !== undefined) {
+    return resolveContentQuery(
+      client.content(contentType).item(id) as unknown as ContentQueryLike<
+        WordPressPostLike | undefined
+      >,
+      contentOpts,
+    );
+  }
+
+  if (slug !== undefined) {
+    return resolveContentQuery(
+      client.content(contentType).item(slug) as unknown as ContentQueryLike<
+        WordPressPostLike | undefined
+      >,
+      contentOpts,
+    );
+  }
+
+  throw createInvalidRequestError("Either id or slug must be provided.");
+}
+
+/**
  * AI SDK tool that lists items from a custom content resource.
  */
 export const getContentCollectionTool = (
@@ -70,14 +136,12 @@ export const getContentCollectionTool = (
         stripContentType(merged),
         options as ToolFactoryOptions<Record<string, unknown>>,
       );
-      if (options?.readAdapter?.listContent) {
-        return options.readAdapter.listContent({
-          client,
-          contentType,
-          filter: filter as QueryParams,
-        });
-      }
-      return client.content(contentType).list(filter as QueryParams);
+      return executeListContent(
+        client,
+        options?.readAdapter,
+        contentType,
+        filter as QueryParams,
+      );
     }),
     inputSchema: (options?.inputSchema ??
       createContentCollectionInputSchema(resolvedOptions)) as never,
@@ -107,41 +171,12 @@ export const getContentTool = (
         options?.fixedArgs,
       );
       const contentType = resolveContentType(merged, options);
-      const contentOpts = merged as {
-        includeContent?: boolean;
-        includeBlocks?: boolean;
-      };
-      if (options?.readAdapter?.getContent) {
-        return options.readAdapter.getContent({
-          client,
-          contentType,
-          id: typeof merged.id === "number" ? merged.id : undefined,
-          includeBlocks: contentOpts.includeBlocks,
-          includeContent: contentOpts.includeContent,
-          slug: typeof merged.slug === "string" ? merged.slug : undefined,
-        });
-      }
-      if (merged.id) {
-        return resolveContentQuery(
-          client
-            .content(contentType)
-            .item(merged.id as number) as unknown as ContentQueryLike<
-            WordPressPostLike | undefined
-          >,
-          contentOpts,
-        );
-      }
-      if (merged.slug) {
-        return resolveContentQuery(
-          client
-            .content(contentType)
-            .item(merged.slug as string) as unknown as ContentQueryLike<
-            WordPressPostLike | undefined
-          >,
-          contentOpts,
-        );
-      }
-      throw createInvalidRequestError("Either id or slug must be provided.");
+      return executeGetContent(
+        client,
+        options?.readAdapter,
+        contentType,
+        merged,
+      );
     }),
     inputSchema: (options?.inputSchema ??
       createContentGetInputSchema(resolvedOptions)) as never,
@@ -229,7 +264,7 @@ export const updateContentTool = (
  */
 export const deleteContentTool = (
   client: WordPressClient,
-  options?: ContentToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentMutationToolFactoryOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,

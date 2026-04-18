@@ -4,12 +4,12 @@
  * These live in the `fluent-wp-client/zod` entrypoint so the Zod dependency
  * is only pulled in when the consumer explicitly imports from that subpath.
  */
-import { z, type ZodType } from 'zod';
+import { type ZodType, z } from "zod";
 import type {
-  WordPressJsonSchema,
-  WordPressResourceDescription,
-  WordPressAbilityDescription,
-} from './types/discovery.js';
+	WordPressAbilityDescription,
+	WordPressJsonSchema,
+	WordPressResourceDescription,
+} from "./types/discovery.js";
 
 // ---------------------------------------------------------------------------
 // Normalization
@@ -23,28 +23,30 @@ import type {
  * which fails Zod v4's strict ISO 8601 datetime validation. Stripping the format
  * makes these fields validate as plain strings while preserving every other constraint.
  */
-export function stripDateTimeFormats(schema: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
+export function stripDateTimeFormats(
+	schema: Record<string, unknown>,
+): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(schema)) {
-    if (key === 'format' && value === 'date-time') {
-      continue;
-    }
+	for (const [key, value] of Object.entries(schema)) {
+		if (key === "format" && value === "date-time") {
+			continue;
+		}
 
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      out[key] = stripDateTimeFormats(value as Record<string, unknown>);
-    } else if (Array.isArray(value)) {
-      out[key] = value.map((item) =>
-        typeof item === 'object' && item !== null
-          ? stripDateTimeFormats(item as Record<string, unknown>)
-          : item,
-      );
-    } else {
-      out[key] = value;
-    }
-  }
+		if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+			out[key] = stripDateTimeFormats(value as Record<string, unknown>);
+		} else if (Array.isArray(value)) {
+			out[key] = value.map((item) =>
+				typeof item === "object" && item !== null
+					? stripDateTimeFormats(item as Record<string, unknown>)
+					: item,
+			);
+		} else {
+			out[key] = value;
+		}
+	}
 
-  return out;
+	return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,17 +71,21 @@ export function stripDateTimeFormats(schema: Record<string, unknown>): Record<st
  *
  * @returns A Zod schema, or `undefined` when the input is falsy or conversion fails.
  */
-export function zodFromJsonSchema(schema: WordPressJsonSchema | undefined | null): ZodType | undefined {
-  if (!schema || typeof schema !== 'object') {
-    return undefined;
-  }
+export function zodFromJsonSchema(
+	schema: WordPressJsonSchema | undefined | null,
+): ZodType | undefined {
+	if (!schema || typeof schema !== "object") {
+		return undefined;
+	}
 
-  try {
-    const normalized = stripDateTimeFormats(schema as Record<string, unknown>);
-    return z.fromJSONSchema(normalized as Parameters<typeof z.fromJSONSchema>[0]);
-  } catch {
-    return undefined;
-  }
+	try {
+		const normalized = stripDateTimeFormats(schema as Record<string, unknown>);
+		return z.fromJSONSchema(
+			normalized as Parameters<typeof z.fromJSONSchema>[0],
+		);
+	} catch {
+		return undefined;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -90,18 +96,18 @@ export function zodFromJsonSchema(schema: WordPressJsonSchema | undefined | null
  * Zod schemas for a resource description, keyed by operation.
  */
 export interface ResourceZodSchemas {
-  item?: ZodType;
-  collection?: ZodType;
-  create?: ZodType;
-  update?: ZodType;
+	item?: ZodType;
+	collection?: ZodType;
+	create?: ZodType;
+	update?: ZodType;
 }
 
 /**
  * Zod schemas for an ability description, keyed by direction.
  */
 export interface AbilityZodSchemas {
-  input?: ZodType;
-  output?: ZodType;
+	input?: ZodType;
+	output?: ZodType;
 }
 
 /**
@@ -116,22 +122,26 @@ export interface AbilityZodSchemas {
  * const validBook = bookSchemas.create?.parse({ title: 'New Book', status: 'draft' });
  * ```
  */
-export function zodSchemasFromDescription(description: WordPressResourceDescription): ResourceZodSchemas;
-export function zodSchemasFromDescription(description: WordPressAbilityDescription): AbilityZodSchemas;
 export function zodSchemasFromDescription(
-  description: WordPressResourceDescription | WordPressAbilityDescription,
+	description: WordPressResourceDescription,
+): ResourceZodSchemas;
+export function zodSchemasFromDescription(
+	description: WordPressAbilityDescription,
+): AbilityZodSchemas;
+export function zodSchemasFromDescription(
+	description: WordPressResourceDescription | WordPressAbilityDescription,
 ): ResourceZodSchemas | AbilityZodSchemas {
-  if (description.kind === 'ability') {
-    return {
-      input: zodFromJsonSchema(description.schemas.input),
-      output: zodFromJsonSchema(description.schemas.output),
-    };
-  }
+	if (description.kind === "ability") {
+		return {
+			input: zodFromJsonSchema(description.schemas.input),
+			output: zodFromJsonSchema(description.schemas.output),
+		};
+	}
 
-  return {
-    item: zodFromJsonSchema(description.schemas.item),
-    collection: zodFromJsonSchema(description.schemas.collection),
-    create: zodFromJsonSchema(description.schemas.create),
-    update: zodFromJsonSchema(description.schemas.update),
-  };
+	return {
+		item: zodFromJsonSchema(description.schemas.item),
+		collection: zodFromJsonSchema(description.schemas.collection),
+		create: zodFromJsonSchema(description.schemas.create),
+		update: zodFromJsonSchema(description.schemas.update),
+	};
 }

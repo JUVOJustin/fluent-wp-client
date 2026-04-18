@@ -1,4 +1,4 @@
-import type { IncludeExcludeParam, PaginationParams } from './resources.js';
+import type { IncludeExcludeParam, PaginationParams } from "./resources.js";
 
 /**
  * Common filter fields shared by the posts, pages, and media collection endpoints.
@@ -7,132 +7,169 @@ import type { IncludeExcludeParam, PaginationParams } from './resources.js';
  * content-like filter type.
  */
 export interface BaseContentFilter extends PaginationParams {
-  context?: 'view' | 'embed' | 'edit';
-  author?: number;
-  authorExclude?: IncludeExcludeParam;
-  include?: IncludeExcludeParam;
-  exclude?: IncludeExcludeParam;
-  slug?: string[];
-  searchColumns?: string[];
-  search?: string;
-  after?: string;
-  modifiedAfter?: string;
-  before?: string;
-  modifiedBefore?: string;
-  offset?: number;
-  order?: 'asc' | 'desc';
-  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
-  fields?: string[];
+	context?: "view" | "embed" | "edit";
+	author?: number;
+	authorExclude?: IncludeExcludeParam;
+	include?: IncludeExcludeParam;
+	exclude?: IncludeExcludeParam;
+	slug?: string[];
+	searchColumns?: string[];
+	search?: string;
+	after?: string;
+	modifiedAfter?: string;
+	before?: string;
+	modifiedBefore?: string;
+	offset?: number;
+	order?: "asc" | "desc";
+	/** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+	fields?: string[];
 }
 
 /**
  * Shared content filter fields for endpoints that support WordPress `_embed`.
  */
 export interface EmbeddableContentFilter extends BaseContentFilter {
-  /**
-   * Controls WordPress `_embed` for content reads. Disabled by default.
-   *
-   * - `true` embeds all linked resources.
-   * - A string array selects specific link relation types, e.g. `['author', 'wp:term']`.
-   *
-   * @see https://developer.wordpress.org/rest-api/using-the-rest-api/global-parameters/#_embed
-   */
-  embed?: boolean | string[];
+	/**
+	 * Controls WordPress `_embed` for content reads. Disabled by default.
+	 *
+	 * - `true` embeds all linked resources.
+	 * - A string array selects specific link relation types, e.g. `['author', 'wp:term']`.
+	 *
+	 * @see https://developer.wordpress.org/rest-api/using-the-rest-api/global-parameters/#_embed
+	 */
+	embed?: boolean | string[];
 }
 
 /**
  * Filter options for posts.
  */
 export interface PostsFilter extends EmbeddableContentFilter {
-  status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
-  categories?: IncludeExcludeParam;
-  categoriesExclude?: IncludeExcludeParam;
-  tags?: IncludeExcludeParam;
-  tagsExclude?: IncludeExcludeParam;
-  sticky?: boolean;
-  taxRelation?: 'AND' | 'OR';
-  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'parent' | 'include_slugs';
+	status?: "publish" | "draft" | "pending" | "private" | "future" | "trash";
+	categories?: IncludeExcludeParam;
+	categoriesExclude?: IncludeExcludeParam;
+	tags?: IncludeExcludeParam;
+	tagsExclude?: IncludeExcludeParam;
+	sticky?: boolean;
+	taxRelation?: "AND" | "OR";
+	orderby?:
+		| "date"
+		| "id"
+		| "title"
+		| "slug"
+		| "modified"
+		| "relevance"
+		| "author"
+		| "include"
+		| "parent"
+		| "include_slugs";
 }
 
 /**
  * Filter options for pages.
  */
 export interface PagesFilter extends EmbeddableContentFilter {
-  status?: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
-  parent?: number;
-  parentExclude?: IncludeExcludeParam;
-  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'menu_order' | 'include_slugs';
+	status?: "publish" | "draft" | "pending" | "private" | "future" | "trash";
+	parent?: number;
+	parentExclude?: IncludeExcludeParam;
+	orderby?:
+		| "date"
+		| "id"
+		| "title"
+		| "slug"
+		| "modified"
+		| "relevance"
+		| "author"
+		| "include"
+		| "menu_order"
+		| "include_slugs";
 }
 
 /**
  * Filter options for media.
  */
 export interface MediaFilter extends BaseContentFilter {
-  mediaType?: 'image' | 'video' | 'audio' | 'application';
-  mimeType?: string;
-  parent?: number;
-  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance' | 'author' | 'include' | 'parent' | 'include_slugs';
+	mediaType?: "image" | "video" | "audio" | "application";
+	mimeType?: string;
+	parent?: number;
+	orderby?:
+		| "date"
+		| "id"
+		| "title"
+		| "slug"
+		| "modified"
+		| "relevance"
+		| "author"
+		| "include"
+		| "parent"
+		| "include_slugs";
 }
 
 /**
  * Filter options for categories.
  */
 export interface CategoriesFilter extends PaginationParams {
-  hideEmpty?: boolean;
-  parent?: number;
-  exclude?: IncludeExcludeParam;
-  include?: IncludeExcludeParam;
-  search?: string;
-  orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group' | 'include';
-  order?: 'asc' | 'desc';
-  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
-  fields?: string[];
+	hideEmpty?: boolean;
+	parent?: number;
+	exclude?: IncludeExcludeParam;
+	include?: IncludeExcludeParam;
+	search?: string;
+	orderby?: "id" | "name" | "slug" | "count" | "term_group" | "include";
+	order?: "asc" | "desc";
+	/** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+	fields?: string[];
 }
 
 /**
  * Filter options for tags.
  */
 export interface TagsFilter extends PaginationParams {
-  hideEmpty?: boolean;
-  exclude?: IncludeExcludeParam;
-  include?: IncludeExcludeParam;
-  search?: string;
-  orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group' | 'include';
-  order?: 'asc' | 'desc';
-  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
-  fields?: string[];
+	hideEmpty?: boolean;
+	exclude?: IncludeExcludeParam;
+	include?: IncludeExcludeParam;
+	search?: string;
+	orderby?: "id" | "name" | "slug" | "count" | "term_group" | "include";
+	order?: "asc" | "desc";
+	/** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+	fields?: string[];
 }
 
 /**
  * Filter options for users.
  */
 export interface UsersFilter extends PaginationParams {
-  roles?: string[];
-  exclude?: IncludeExcludeParam;
-  include?: IncludeExcludeParam;
-  search?: string;
-  orderby?: 'id' | 'name' | 'slug' | 'email' | 'url' | 'registered_date' | 'include';
-  order?: 'asc' | 'desc';
-  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
-  fields?: string[];
+	roles?: string[];
+	exclude?: IncludeExcludeParam;
+	include?: IncludeExcludeParam;
+	search?: string;
+	orderby?:
+		| "id"
+		| "name"
+		| "slug"
+		| "email"
+		| "url"
+		| "registered_date"
+		| "include";
+	order?: "asc" | "desc";
+	/** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+	fields?: string[];
 }
 
 /**
  * Filter options for comments.
  */
 export interface CommentsFilter extends PaginationParams {
-  post?: number;
-  parent?: number;
-  author?: number;
-  authorExclude?: IncludeExcludeParam;
-  include?: IncludeExcludeParam;
-  exclude?: IncludeExcludeParam;
-  search?: string;
-  status?: 'hold' | 'approve' | 'spam' | 'trash';
-  orderby?: 'date' | 'date_gmt' | 'id' | 'include' | 'post' | 'parent' | 'type';
-  order?: 'asc' | 'desc';
-  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
-  fields?: string[];
+	post?: number;
+	parent?: number;
+	author?: number;
+	authorExclude?: IncludeExcludeParam;
+	include?: IncludeExcludeParam;
+	exclude?: IncludeExcludeParam;
+	search?: string;
+	status?: "hold" | "approve" | "spam" | "trash";
+	orderby?: "date" | "date_gmt" | "id" | "include" | "post" | "parent" | "type";
+	order?: "asc" | "desc";
+	/** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+	fields?: string[];
 }
 
 /**
@@ -147,20 +184,20 @@ export interface CommentsFilter extends PaginationParams {
  * in a single request.
  */
 export interface SearchFilter extends PaginationParams {
-  search: string;
-  type?: 'post' | 'term' | 'post-format';
-  subtype?: string | string[];
-  context?: 'view' | 'embed';
-  include?: IncludeExcludeParam;
-  exclude?: IncludeExcludeParam;
+	search: string;
+	type?: "post" | "term" | "post-format";
+	subtype?: string | string[];
+	context?: "view" | "embed";
+	include?: IncludeExcludeParam;
+	exclude?: IncludeExcludeParam;
 }
 
 /**
  * Filter options for `/wp/v2/block-types`.
  */
 export interface BlockTypesFilter {
-  context?: 'view' | 'embed' | 'edit';
-  namespace?: string;
-  /** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
-  fields?: string[];
+	context?: "view" | "embed" | "edit";
+	namespace?: string;
+	/** Restrict the response to a subset of fields. Maps to the `_fields` REST API parameter. */
+	fields?: string[];
 }

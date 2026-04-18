@@ -14,71 +14,67 @@
  * - **Mutation tools** (create, update, delete) map 1:1 to write operations.
  */
 
-// Types
-export type {
-  ToolFactoryOptions,
-  MutationToolFactoryOptions,
-  CatalogToolFactoryOptions,
-  CatalogMutationToolFactoryOptions,
-  ContentToolFactoryOptions,
-  ContentMutationToolFactoryOptions,
-  TermToolFactoryOptions,
-  TermMutationToolFactoryOptions,
-  AbilityToolFactoryOptions,
-  CreateAbilityToolsOptions,
-  GenericResourceToolFactoryOptions,
-  GenericMutationToolFactoryOptions,
-} from './types.js';
-
-export type { ContentItemResult, WordPressAIToolErrorResult } from './factories.js';
-
-// Singleton settings
-export {
-  getSettingsTool,
-  updateSettingsTool,
-} from './settings.js';
-
-// Generic content
-export {
-  getContentCollectionTool,
-  getContentTool,
-  createContentTool,
-  updateContentTool,
-  deleteContentTool,
-} from './content.js';
-
-// Generic taxonomies
-export {
-  getTermCollectionTool,
-  getTermTool,
-  createTermTool,
-  updateTermTool,
-  deleteTermTool,
-} from './terms.js';
-
-// Generic first-class resources
-export {
-  getResourceCollectionTool,
-  getResourceTool,
-  createResourceTool,
-  updateResourceTool,
-  deleteResourceTool,
-  type ResourceToolFactoryOptions,
-  type ResourceMutationToolFactoryOptions,
-} from './resources.js';
-
 // Abilities
 export {
-  getAbilitiesTool,
-  getAbilityTool,
-  executeGetAbilityTool,
-  executeRunAbilityTool,
-  executeDeleteAbilityTool,
-  createAbilityTools,
-} from './abilities.js';
-
+	createAbilityTools,
+	executeDeleteAbilityTool,
+	executeGetAbilityTool,
+	executeRunAbilityTool,
+	getAbilitiesTool,
+	getAbilityTool,
+} from "./abilities.js";
 // Gutenberg blocks — universal read/write for any post-like resource
 export {
-  getBlocksTool,
-  setBlocksTool,
-} from './blocks.js';
+	getBlocksTool,
+	setBlocksTool,
+} from "./blocks.js";
+// Generic content
+export {
+	createContentTool,
+	deleteContentTool,
+	getContentCollectionTool,
+	getContentTool,
+	updateContentTool,
+} from "./content.js";
+export type {
+	ContentItemResult,
+	WordPressAIToolErrorResult,
+} from "./factories.js";
+// Generic first-class resources
+export {
+	createResourceTool,
+	deleteResourceTool,
+	getResourceCollectionTool,
+	getResourceTool,
+	type ResourceMutationToolFactoryOptions,
+	type ResourceToolFactoryOptions,
+	updateResourceTool,
+} from "./resources.js";
+// Singleton settings
+export {
+	getSettingsTool,
+	updateSettingsTool,
+} from "./settings.js";
+// Generic taxonomies
+export {
+	createTermTool,
+	deleteTermTool,
+	getTermCollectionTool,
+	getTermTool,
+	updateTermTool,
+} from "./terms.js";
+// Types
+export type {
+	AbilityToolFactoryOptions,
+	CatalogMutationToolFactoryOptions,
+	CatalogToolFactoryOptions,
+	ContentMutationToolFactoryOptions,
+	ContentToolFactoryOptions,
+	CreateAbilityToolsOptions,
+	GenericMutationToolFactoryOptions,
+	GenericResourceToolFactoryOptions,
+	MutationToolFactoryOptions,
+	TermMutationToolFactoryOptions,
+	TermToolFactoryOptions,
+	ToolFactoryOptions,
+} from "./types.js";

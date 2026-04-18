@@ -1,13 +1,13 @@
-import type { WordPressPostLike } from './schemas.js';
-import { createAuthError } from './core/errors.js';
+import { createAuthError } from "./core/errors.js";
+import type { WordPressPostLike } from "./schemas.js";
 
 /**
  * Normalized raw content payload returned by content item queries.
  */
 export interface WordPressRawContentResult {
+  protected: boolean;
   raw: string;
   rendered: string;
-  protected: boolean;
 }
 
 /**
@@ -23,13 +23,13 @@ export function resolveWordPressRawContent(
 
   if (value.content.raw === undefined) {
     throw createAuthError(missingRawMessage, {
-      operation: 'content.getContent',
+      operation: "content.getContent",
     });
   }
 
   return {
+    protected: value.content.protected,
     raw: value.content.raw,
     rendered: value.content.rendered,
-    protected: value.content.protected,
   };
 }

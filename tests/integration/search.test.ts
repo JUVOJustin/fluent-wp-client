@@ -1,6 +1,6 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient } from 'fluent-wp-client';
-import { createPublicClient } from '../helpers/wp-client';
+import type { WordPressClient } from "fluent-wp-client";
+import { beforeAll, describe, expect, it } from "vitest";
+import { createPublicClient } from "../helpers/wp-client";
 
 /**
  * Integration coverage for the cross-resource `/wp/v2/search` endpoint.
@@ -8,133 +8,135 @@ import { createPublicClient } from '../helpers/wp-client';
  * Seed data: 150 posts (test-post-001 through test-post-150),
  * 10 pages (about, contact, services, etc.), and 10 books (test-book-001 through test-book-010).
  */
-describe('Client: Search', () => {
+describe("Client: Search", () => {
   let publicClient: WordPressClient;
 
   beforeAll(() => {
     publicClient = createPublicClient();
   });
 
-  describe('searchContent()', () => {
-    it('returns an array of search results', async () => {
+  describe("searchContent()", () => {
+    it("returns an array of search results", async () => {
       // Search for "Test Post" (with space) to match post titles
-      const results = await publicClient.searchContent('Test Post');
+      const results = await publicClient.searchContent("Test Post");
 
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBeGreaterThan(0);
     });
 
-    it('returns results with expected shape', async () => {
-      const results = await publicClient.searchContent('001');
+    it("returns results with expected shape", async () => {
+      const results = await publicClient.searchContent("001");
 
       expect(results.length).toBeGreaterThan(0);
 
       const first = results[0];
-      expect(typeof first?.id).toBe('number');
-      expect(typeof first?.title).toBe('string');
-      expect(typeof first?.url).toBe('string');
-      expect(typeof first?.type).toBe('string');
-      expect(typeof first?.subtype).toBe('string');
+      expect(typeof first?.id).toBe("number");
+      expect(typeof first?.title).toBe("string");
+      expect(typeof first?.url).toBe("string");
+      expect(typeof first?.type).toBe("string");
+      expect(typeof first?.subtype).toBe("string");
     });
 
-    it('finds the expected post by title keyword', async () => {
-      const results = await publicClient.searchContent('001');
+    it("finds the expected post by title keyword", async () => {
+      const results = await publicClient.searchContent("001");
 
-      const match = results.find((r) => r.title === 'Test Post 001');
+      const match = results.find((r) => r.title === "Test Post 001");
       expect(match).toBeDefined();
-      expect(match?.type).toBe('post');
-      expect(match?.subtype).toBe('post');
+      expect(match?.type).toBe("post");
+      expect(match?.subtype).toBe("post");
     });
 
-    it('finds pages when filtering by type and subtype', async () => {
-      const results = await publicClient.searchContent('about', {
-        type: 'post',
-        subtype: 'page',
+    it("finds pages when filtering by type and subtype", async () => {
+      const results = await publicClient.searchContent("about", {
+        subtype: "page",
+        type: "post",
       });
 
       expect(results.length).toBeGreaterThan(0);
       for (const result of results) {
-        expect(result.type).toBe('post');
-        expect(result.subtype).toBe('page');
+        expect(result.type).toBe("post");
+        expect(result.subtype).toBe("page");
       }
     });
 
-    it('filters by type=post', async () => {
+    it("filters by type=post", async () => {
       // Search for "Test Post" (with space) to match post titles
-      const results = await publicClient.searchContent('Test Post', {
-        type: 'post',
+      const results = await publicClient.searchContent("Test Post", {
+        type: "post",
       });
 
       expect(results.length).toBeGreaterThan(0);
       for (const result of results) {
-        expect(result.type).toBe('post');
+        expect(result.type).toBe("post");
       }
     });
 
-    it('respects perPage pagination option', async () => {
+    it("respects perPage pagination option", async () => {
       // Search for "Test Post" (with space) to match post titles
-      const results = await publicClient.searchContent('Test Post', {
+      const results = await publicClient.searchContent("Test Post", {
         perPage: 3,
       });
 
       expect(results).toHaveLength(3);
     });
 
-    it('returns an empty array when no results match', async () => {
-      const results = await publicClient.searchContent('xyzzy-no-match-fluent-wp-client-test');
+    it("returns an empty array when no results match", async () => {
+      const results = await publicClient.searchContent(
+        "xyzzy-no-match-fluent-wp-client-test",
+      );
 
       expect(Array.isArray(results)).toBe(true);
       expect(results).toHaveLength(0);
     });
 
-    it('filters by multiple subtypes using an array (bracket notation)', async () => {
+    it("filters by multiple subtypes using an array (bracket notation)", async () => {
       // 'about' matches the seeded About page; supplying both post and page
       // subtypes ensures the bracket-notation serialization is exercised.
-      const results = await publicClient.searchContent('about', {
-        type: 'post',
-        subtype: ['post', 'page'],
+      const results = await publicClient.searchContent("about", {
+        subtype: ["post", "page"],
+        type: "post",
       });
 
       expect(results.length).toBeGreaterThan(0);
       for (const result of results) {
-        expect(result.type).toBe('post');
-        expect(['post', 'page']).toContain(result.subtype);
+        expect(result.type).toBe("post");
+        expect(["post", "page"]).toContain(result.subtype);
       }
     });
 
-    it('supports searching across posts, pages, and books with array subtype', async () => {
+    it("supports searching across posts, pages, and books with array subtype", async () => {
       // Reproduces the exact example from the issue:
       // /wp/v2/search?search=test&type=post&subtype[]=post&subtype[]=page&subtype[]=book
-      const results = await publicClient.searchContent('test', {
-        type: 'post',
-        subtype: ['post', 'page', 'book'],
+      const results = await publicClient.searchContent("test", {
         perPage: 10,
+        subtype: ["post", "page", "book"],
+        type: "post",
       });
 
       expect(results.length).toBeGreaterThan(0);
       for (const result of results) {
-        expect(result.type).toBe('post');
-        expect(['post', 'page', 'book']).toContain(result.subtype);
+        expect(result.type).toBe("post");
+        expect(["post", "page", "book"]).toContain(result.subtype);
       }
     });
 
-    it('respects the context param', async () => {
-      const results = await publicClient.searchContent('001', {
-        context: 'embed',
+    it("respects the context param", async () => {
+      const results = await publicClient.searchContent("001", {
+        context: "embed",
       });
 
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBeGreaterThan(0);
     });
 
-    it('respects the exclude param to omit specific IDs', async () => {
+    it("respects the exclude param to omit specific IDs", async () => {
       // First fetch without exclusion to get a real ID.
-      const all = await publicClient.searchContent('001');
+      const all = await publicClient.searchContent("001");
       expect(all.length).toBeGreaterThan(0);
-      const firstId = all[0]!.id;
+      const firstId = all[0]?.id;
 
       // Now exclude that ID and verify it is absent from the results.
-      const filtered = await publicClient.searchContent('001', {
+      const filtered = await publicClient.searchContent("001", {
         exclude: [firstId],
       });
 
@@ -142,13 +144,13 @@ describe('Client: Search', () => {
       expect(ids).not.toContain(firstId);
     });
 
-    it('respects the include param to fetch specific IDs', async () => {
+    it("respects the include param to fetch specific IDs", async () => {
       // First fetch to obtain a real ID.
-      const all = await publicClient.searchContent('001');
+      const all = await publicClient.searchContent("001");
       expect(all.length).toBeGreaterThan(0);
-      const firstId = all[0]!.id;
+      const firstId = all[0]?.id;
 
-      const included = await publicClient.searchContent('001', {
+      const included = await publicClient.searchContent("001", {
         include: [firstId],
       });
 
@@ -156,24 +158,26 @@ describe('Client: Search', () => {
       expect(included.map((r) => r.id)).toContain(firstId);
     });
 
-    it('supports multi-value include arrays without normalization', async () => {
-      const all = await publicClient.searchContent('001');
+    it("supports multi-value include arrays without normalization", async () => {
+      const all = await publicClient.searchContent("001");
       expect(all.length).toBeGreaterThan(1);
       const ids = all.slice(0, 2).map((result) => result.id);
 
-      const included = await publicClient.searchContent('001', {
+      const included = await publicClient.searchContent("001", {
         include: ids,
       });
 
-      expect(included.map((result) => result.id).sort((a, b) => a - b)).toEqual([...ids].sort((a, b) => a - b));
+      expect(included.map((result) => result.id).sort((a, b) => a - b)).toEqual(
+        [...ids].sort((a, b) => a - b),
+      );
     });
 
-    it('supports multi-value exclude arrays without normalization', async () => {
-      const all = await publicClient.searchContent('001');
+    it("supports multi-value exclude arrays without normalization", async () => {
+      const all = await publicClient.searchContent("001");
       expect(all.length).toBeGreaterThan(1);
       const ids = all.slice(0, 2).map((result) => result.id);
 
-      const filtered = await publicClient.searchContent('001', {
+      const filtered = await publicClient.searchContent("001", {
         exclude: ids,
       });
 

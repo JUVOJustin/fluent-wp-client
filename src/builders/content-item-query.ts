@@ -1,9 +1,9 @@
-import type { WordPressPost, WordPressPostLike } from '../schemas.js';
-import { ExecutableQuery } from '../core/query-base.js';
 import {
   resolveWordPressRawContent,
   type WordPressRawContentResult,
-} from '../content-query.js';
+} from "../content-query.js";
+import { ExecutableQuery } from "../core/query-base.js";
+import type { WordPressPost, WordPressPostLike } from "../schemas.js";
 
 /**
  * Options controlling how one content item is loaded.
@@ -42,18 +42,28 @@ export class ContentItemQuery<
 
   constructor(
     private readonly selector: { id?: number; slug?: string },
-    private readonly getById: (id: number, options?: ContentItemLoadOptions) => PromiseLike<TContent>,
-    private readonly getBySlug: (slug: string, options?: ContentItemLoadOptions) => PromiseLike<TContent | undefined>,
+    private readonly getById: (
+      id: number,
+      options?: ContentItemLoadOptions,
+    ) => PromiseLike<TContent>,
+    private readonly getBySlug: (
+      slug: string,
+      options?: ContentItemLoadOptions,
+    ) => PromiseLike<TContent | undefined>,
     private readonly embedOption: boolean | string[] | undefined,
     private readonly editOptions?: {
       getEditById?: (id: number, fields?: string[]) => PromiseLike<TContent>;
-      getEditBySlug?: (slug: string, fields?: string[]) => PromiseLike<TContent | undefined>;
+      getEditBySlug?: (
+        slug: string,
+        fields?: string[],
+      ) => PromiseLike<TContent | undefined>;
       missingRawMessage?: string;
     },
   ) {
     super();
-    this.missingRawMessage = editOptions?.missingRawMessage
-      ?? 'Raw content is unavailable. The current credentials may not have edit capabilities for this content item.';
+    this.missingRawMessage =
+      editOptions?.missingRawMessage ??
+      "Raw content is unavailable. The current credentials may not have edit capabilities for this content item.";
   }
 
   // ---------------------------------------------------------------------------
@@ -64,11 +74,11 @@ export class ContentItemQuery<
     const opts: ContentItemLoadOptions | undefined =
       this.embedOption !== undefined ? { embed: this.embedOption } : undefined;
 
-    if (typeof this.selector.id === 'number') {
+    if (typeof this.selector.id === "number") {
       return this.getById(this.selector.id, opts);
     }
 
-    if (typeof this.selector.slug === 'string') {
+    if (typeof this.selector.slug === "string") {
       return this.getBySlug(this.selector.slug, opts);
     }
 
@@ -88,12 +98,18 @@ export class ContentItemQuery<
   // ---------------------------------------------------------------------------
 
   private async loadEditableItemOnce(): Promise<TContent | undefined> {
-    if (typeof this.selector.id === 'number' && this.editOptions?.getEditById) {
-      return this.editOptions.getEditById(this.selector.id, ['id', 'content']);
+    if (typeof this.selector.id === "number" && this.editOptions?.getEditById) {
+      return this.editOptions.getEditById(this.selector.id, ["id", "content"]);
     }
 
-    if (typeof this.selector.slug === 'string' && this.editOptions?.getEditBySlug) {
-      return this.editOptions.getEditBySlug(this.selector.slug, ['id', 'content']);
+    if (
+      typeof this.selector.slug === "string" &&
+      this.editOptions?.getEditBySlug
+    ) {
+      return this.editOptions.getEditBySlug(this.selector.slug, [
+        "id",
+        "content",
+      ]);
     }
 
     return undefined;
@@ -124,7 +140,10 @@ export class ContentItemQuery<
       return undefined;
     }
 
-    return resolveWordPressRawContent(post as WordPressPostLike, this.missingRawMessage);
+    return resolveWordPressRawContent(
+      post as WordPressPostLike,
+      this.missingRawMessage,
+    );
   }
 
   /**

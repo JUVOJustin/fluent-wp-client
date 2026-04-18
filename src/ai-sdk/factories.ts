@@ -1,10 +1,13 @@
-import type { WordPressClient } from '../client.js';
-import type { WordPressPostLike } from '../schemas.js';
-import { parseWordPressBlocks, type WordPressParsedBlock } from '../blocks.js';
-import type { WordPressRawContentResult } from '../content-query.js';
-import { WordPressClientError, WordPressHttpError, type WordPressClientErrorKind } from '../core/errors.js';
-import { mergeToolArgs } from './merge.js';
-import type { ToolFactoryOptions } from './types.js';
+import { parseWordPressBlocks, type WordPressParsedBlock } from "../blocks.js";
+import type { WordPressRawContentResult } from "../content-query.js";
+import {
+  WordPressClientError,
+  type WordPressClientErrorKind,
+  WordPressHttpError,
+} from "../core/errors.js";
+import type { WordPressPostLike } from "../schemas.js";
+import { mergeToolArgs } from "./merge.js";
+import type { ToolFactoryOptions } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Type assertions
@@ -14,7 +17,9 @@ import type { ToolFactoryOptions } from './types.js';
  * Type assertion helper to convert AI SDK tool args to a generic record.
  * Use this instead of double-casting through `unknown` for consistency.
  */
-export function asToolArgs<T extends Record<string, unknown>>(args: T): Record<string, unknown> {
+export function asToolArgs<T extends Record<string, unknown>>(
+  args: T,
+): Record<string, unknown> {
   return args as Record<string, unknown>;
 }
 
@@ -26,7 +31,9 @@ export function asToolArgs<T extends Record<string, unknown>>(args: T): Record<s
  * Normalizes `_fields` alias to `fields` so the client's `filterToParams`
  * maps it correctly to the WordPress `_fields` query parameter.
  */
-export function normalizeFieldSelection(args: Record<string, unknown>): Record<string, unknown> {
+export function normalizeFieldSelection(
+  args: Record<string, unknown>,
+): Record<string, unknown> {
   const result = { ...args };
   if (result._fields && !result.fields) {
     result.fields = result._fields;
@@ -54,15 +61,15 @@ export function prepareCollectionArgs(
  * Serializable error shape returned by AI SDK tools when execution fails.
  */
 export interface WordPressAIToolErrorResult {
-  ok: false;
   error: {
-    kind: WordPressClientErrorKind | 'tool_error';
+    kind: WordPressClientErrorKind | "tool_error";
     message: string;
     code?: string;
     status?: number;
     statusText?: string;
     details?: unknown;
   };
+  ok: false;
 }
 
 /**
@@ -71,45 +78,45 @@ export interface WordPressAIToolErrorResult {
 export function toToolErrorResult(error: unknown): WordPressAIToolErrorResult {
   if (error instanceof WordPressHttpError) {
     return {
-      ok: false,
       error: {
+        code: error.wpCode,
+        details: error.responseBody,
         kind: error.kind,
         message: error.message,
-        code: error.wpCode,
         status: error.status,
         statusText: error.statusText,
-        details: error.responseBody,
       },
+      ok: false,
     };
   }
 
   if (error instanceof WordPressClientError) {
     return {
-      ok: false,
       error: {
         kind: error.kind,
         message: error.message,
       },
+      ok: false,
     };
   }
 
   if (error instanceof Error) {
     return {
-      ok: false,
       error: {
-        kind: 'tool_error',
+        kind: "tool_error",
         message: error.message,
       },
+      ok: false,
     };
   }
 
   return {
-    ok: false,
     error: {
-      kind: 'tool_error',
-      message: 'Unknown tool execution error',
       details: error,
+      kind: "tool_error",
+      message: "Unknown tool execution error",
     },
+    ok: false,
   };
 }
 
@@ -136,26 +143,32 @@ export function withToolErrorHandling<TArgs, TResult>(
  * Envelope returned by post-like single getter tools.
  */
 export interface ContentItemResult<T> {
-  item: T;
-  content?: WordPressRawContentResult;
   blocks?: WordPressParsedBlock[];
+  content?: WordPressRawContentResult;
+  item: T;
 }
 
 /**
  * Resolves a WordPressContentQuery into a plain serializable envelope.
  */
-export interface ContentQueryLike<TContent extends WordPressPostLike | undefined> {
+export interface ContentQueryLike<
+  TContent extends WordPressPostLike | undefined,
+> {
+  getContent(): Promise<WordPressRawContentResult | undefined>;
   then<TResult1 = TContent, TResult2 = never>(
-    onfulfilled?: ((value: TContent) => TResult1 | PromiseLike<TResult1>) | null,
+    onfulfilled?:
+      | ((value: TContent) => TResult1 | PromiseLike<TResult1>)
+      | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): Promise<TResult1 | TResult2>;
-  getContent(): Promise<WordPressRawContentResult | undefined>;
 }
 
 /**
  * Resolves a post-like item query into a plain serializable envelope.
  */
-export async function resolveContentQuery<TContent extends WordPressPostLike | undefined>(
+export async function resolveContentQuery<
+  TContent extends WordPressPostLike | undefined,
+>(
   query: ContentQueryLike<TContent>,
   args: { includeContent?: boolean; includeBlocks?: boolean },
 ): Promise<ContentItemResult<TContent> | undefined> {
@@ -164,7 +177,7 @@ export async function resolveContentQuery<TContent extends WordPressPostLike | u
 
   let content: WordPressRawContentResult | undefined;
   if (args.includeContent || args.includeBlocks) {
-    content = await query.getContent() ?? undefined;
+    content = (await query.getContent()) ?? undefined;
   }
 
   let blocks: WordPressParsedBlock[] | undefined;
@@ -172,7 +185,7 @@ export async function resolveContentQuery<TContent extends WordPressPostLike | u
     blocks = content?.raw ? await parseWordPressBlocks(content.raw) : undefined;
   }
 
-  return { item, content, blocks };
+  return { blocks, content, item };
 }
 
 // ---------------------------------------------------------------------------

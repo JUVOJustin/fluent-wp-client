@@ -1,19 +1,17 @@
+import { applyRequestOverrides } from "../core/request-overrides.js";
+import { BaseCrudResource } from "../core/resource-base.js";
+import type { WordPressRuntime } from "../core/transport.js";
+import type { WordPressMedia } from "../schemas.js";
+import type { WordPressMediaUploadInput } from "../types/client.js";
+import type { WordPressResourceDescription } from "../types/discovery.js";
+import type { MediaFilter } from "../types/filters.js";
+import type { WordPressWritePayload } from "../types/payloads.js";
 import type {
-  WordPressMedia,
-} from '../schemas.js';
-import type { WordPressMediaUploadInput } from '../types/client.js';
-import type {
+  ExtensibleFilter,
   MediaResourceClient,
   WordPressRequestOverrides,
-} from '../types/resources.js';
-import type { MediaFilter } from '../types/filters.js';
-import type { ExtensibleFilter } from '../types/resources.js';
-import type { WordPressWritePayload } from '../types/payloads.js';
-import type { WordPressResourceDescription } from '../types/discovery.js';
-import { BaseCrudResource } from '../core/resource-base.js';
-import { applyRequestOverrides } from '../core/request-overrides.js';
-import type { WordPressRuntime } from '../core/transport.js';
-import { describeUnavailable } from './describe.js';
+} from "../types/resources.js";
+import { describeUnavailable } from "./describe.js";
 
 /**
  * WordPress media resource with CRUD operations and binary uploads.
@@ -28,16 +26,16 @@ export class MediaResource extends BaseCrudResource<
    * Creates a media resource instance.
    */
   static create(runtime: WordPressRuntime): MediaResource {
-    return new MediaResource({ runtime, endpoint: '/media' });
+    return new MediaResource({ endpoint: "/media", runtime });
   }
 
   /**
    * Gets the URL for a specific image size.
    */
-  getImageUrl(media: WordPressMedia, size: string = 'full'): string {
+  getImageUrl(media: WordPressMedia, size: string = "full"): string {
     const sizedMedia = media.media_details?.sizes?.[size];
 
-    if (size === 'full' || !sizedMedia) {
+    if (size === "full" || !sizedMedia) {
       return media.source_url;
     }
 
@@ -51,31 +49,39 @@ export class MediaResource extends BaseCrudResource<
     input: WordPressMediaUploadInput,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<WordPressMedia> {
-    const fileBody = input.file instanceof Blob
-      ? input.file
-      : input.file instanceof Uint8Array
-        ? new Blob([new Uint8Array(input.file)], { type: input.mimeType ?? 'application/octet-stream' })
-        : input.file instanceof ArrayBuffer
-          ? new Blob([new Uint8Array(input.file)], { type: input.mimeType ?? 'application/octet-stream' })
-          : input.file;
+    const fileBody =
+      input.file instanceof Blob
+        ? input.file
+        : input.file instanceof Uint8Array
+          ? new Blob([new Uint8Array(input.file)], {
+              type: input.mimeType ?? "application/octet-stream",
+            })
+          : input.file instanceof ArrayBuffer
+            ? new Blob([new Uint8Array(input.file)], {
+                type: input.mimeType ?? "application/octet-stream",
+              })
+            : input.file;
 
-    const safeFilename = input.filename.replace(/[\x00-\x1F\x7F"]/g, '');
+    const safeFilename = input.filename.replace(/[\x00-\x1F\x7F"]/g, "");
     const uploadHeaders: Record<string, string> = {
-      'Content-Disposition': `attachment; filename="${safeFilename}"`,
+      "Content-Disposition": `attachment; filename="${safeFilename}"`,
     };
 
     if (input.mimeType) {
-      uploadHeaders['Content-Type'] = input.mimeType;
+      uploadHeaders["Content-Type"] = input.mimeType;
     }
 
     const created = await this.executeMutation<WordPressMedia>(
-      applyRequestOverrides({
-        endpoint: '/media',
-        method: 'POST',
-        rawBody: fileBody,
-        headers: uploadHeaders,
-        omitContentType: true,
-      }, requestOptions),
+      applyRequestOverrides(
+        {
+          endpoint: "/media",
+          headers: uploadHeaders,
+          method: "POST",
+          omitContentType: true,
+          rawBody: fileBody,
+        },
+        requestOptions,
+      ),
     );
 
     const metadata: Record<string, unknown> = {};
@@ -99,27 +105,41 @@ export class MediaResource extends BaseCrudResource<
  */
 export function createMediaClient(
   resource: MediaResource,
-  describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
-): MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload> {
+  describeFn?: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>,
+): MediaResourceClient<
+  WordPressMedia,
+  ExtensibleFilter<MediaFilter>,
+  WordPressWritePayload,
+  WordPressWritePayload
+> {
   const item = ((
     idOrSlug: number | string,
     options?: WordPressRequestOverrides,
   ): Promise<WordPressMedia | undefined> => {
-    return typeof idOrSlug === 'number'
+    return typeof idOrSlug === "number"
       ? resource.getById(idOrSlug, options)
       : resource.getBySlug(idOrSlug, options);
-  }) as MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload>['item'];
+  }) as MediaResourceClient<
+    WordPressMedia,
+    ExtensibleFilter<MediaFilter>,
+    WordPressWritePayload,
+    WordPressWritePayload
+  >["item"];
 
   return {
-    list: (filter = {}, options) => resource.list(filter, options),
-    listAll: (filter = {}, options, listOptions) => resource.listAll(filter, options, listOptions),
-    listPaginated: (filter = {}, options) => resource.listPaginated(filter, options),
     create: (input, options) => resource.create(input, options),
-    update: (id, input, options) => resource.update(id, input, options),
-    item,
-    upload: (input, options) => resource.upload(input, options),
     delete: (id, options) => resource.delete(id, options),
-    getImageUrl: (media, size) => resource.getImageUrl(media, size),
     describe: describeFn ?? describeUnavailable,
+    getImageUrl: (media, size) => resource.getImageUrl(media, size),
+    item,
+    list: (filter = {}, options) => resource.list(filter, options),
+    listAll: (filter = {}, options, listOptions) =>
+      resource.listAll(filter, options, listOptions),
+    listPaginated: (filter = {}, options) =>
+      resource.listPaginated(filter, options),
+    update: (id, input, options) => resource.update(id, input, options),
+    upload: (input, options) => resource.upload(input, options),
   };
 }

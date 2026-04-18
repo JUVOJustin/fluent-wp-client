@@ -35,7 +35,7 @@ export function mergeMutationInput<T extends Record<string, unknown>>(
  * Returns true when a value is a plain non-null, non-array object.
  */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**

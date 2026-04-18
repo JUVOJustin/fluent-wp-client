@@ -5,67 +5,61 @@
  * but this barrel ensures backward compatibility for existing consumer imports.
  */
 
+export { compactPayload, filterToParams } from "./core/params.js";
 // Client configuration and request types
 export type {
   WordPressClientConfig,
+  WordPressMediaUploadInput,
   WordPressRequestOptions,
   WordPressRequestResult,
-  WordPressMediaUploadInput,
-} from './types/client.js';
-
-// Request overrides (used across resources)
-export type { WordPressRequestOverrides } from './types/resources.js';
-
-// Filter types
-export type {
-  BaseContentFilter,
-  PostsFilter,
-  PagesFilter,
-  MediaFilter,
-  CategoriesFilter,
-  TagsFilter,
-  UsersFilter,
-  CommentsFilter,
-  SearchFilter,
-} from './types/filters.js';
-
-// Payload types
-export type {
-  WordPressWritePayload,
-  TermWriteInput,
-  UserWriteInput,
-  DeleteOptions,
-  UserDeleteOptions,
-} from './types/payloads.js';
-
-export type {
-  CommentsResourceClient,
-  ExtensibleFilter,
-  QueryParamPrimitive,
-  QueryParamValue,
-  QueryParams,
-  SerializedQueryParams,
-  IncludeExcludeParam,
-  FetchResult,
-  MediaResourceClient,
-  PaginationParams,
-  PaginatedResponse,
-  SettingsResourceClient,
-  UsersResourceClient,
-  WordPressDeleteResult,
-  ContentResourceClient,
-  TermsResourceClient,
-} from './types/resources.js';
-
+} from "./types/client.js";
 export type {
   WordPressAbilityDescription,
+  WordPressAbilitySchemaSet,
   WordPressDiscoveryCatalog,
   WordPressDiscoveryOptions,
   WordPressDiscoveryWarning,
   WordPressJsonSchema,
   WordPressResourceDescription,
   WordPressResourceSchemaSet,
-  WordPressAbilitySchemaSet,
-} from './types/discovery.js';
-
-export { filterToParams, compactPayload } from './core/params.js';
+} from "./types/discovery.js";
+// Filter types
+export type {
+  BaseContentFilter,
+  CategoriesFilter,
+  CommentsFilter,
+  MediaFilter,
+  PagesFilter,
+  PostsFilter,
+  SearchFilter,
+  TagsFilter,
+  UsersFilter,
+} from "./types/filters.js";
+// Payload types
+export type {
+  DeleteOptions,
+  TermWriteInput,
+  UserDeleteOptions,
+  UserWriteInput,
+  WordPressWritePayload,
+} from "./types/payloads.js";
+// Request overrides (used across resources)
+export type {
+  CommentsResourceClient,
+  ContentResourceClient,
+  ExtensibleFilter,
+  FetchResult,
+  IncludeExcludeParam,
+  MediaResourceClient,
+  PaginatedResponse,
+  PaginationParams,
+  QueryParamPrimitive,
+  QueryParams,
+  QueryParamValue,
+  SerializedQueryParams,
+  SettingsResourceClient,
+  TermsResourceClient,
+  UsersResourceClient,
+  WordPressDeleteResult,
+  WordPressRequestOverrides,
+} from "./types/resources.js";

@@ -1,35 +1,40 @@
 import {
   createJwtAuthHeader,
-  resolveWordPressRequestCredentials,
-  resolveWordPressRequestHeaders,
   type JwtAuthCredentials,
   type JwtAuthTokenResponse,
   type JwtAuthValidationResponse,
   type JwtLoginCredentials,
+  resolveWordPressRequestCredentials,
+  resolveWordPressRequestHeaders,
   type WordPressAuthHeaders,
   type WordPressAuthHeadersProvider,
   type WordPressAuthInput,
-} from '../auth.js';
-import type { WordPressRequestOptions, WordPressRequestResult, WordPressMediaUploadInput } from '../types/client.js';
-import type { WordPressRequestCallback } from '../types/client.js';
-import type { WordPressRequestOverrides, FetchResult } from '../types/resources.js';
+} from "../auth.js";
+import type {
+  WordPressRequestCallback,
+  WordPressRequestOptions,
+  WordPressRequestResult,
+} from "../types/client.js";
+import type {
+  FetchResult,
+  WordPressRequestOverrides,
+} from "../types/resources.js";
 import {
   classifyFetchError,
   createConfigError,
   createInvalidRequestError,
   createParseError,
-  normalizeToClientError,
   throwIfHttpError,
-} from './errors.js';
-import { applyRequestOverrides } from './request-overrides.js';
+} from "./errors.js";
+import { applyRequestOverrides } from "./request-overrides.js";
 
 /**
  * Configuration for the WordPress transport layer.
  */
 export interface WordPressTransportConfig {
-  baseUrl: string;
   auth?: WordPressAuthInput;
   authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+  baseUrl: string;
   cookies?: string;
   credentials?: RequestCredentials;
   fetch?: typeof fetch;
@@ -50,7 +55,10 @@ export class WordPressTransport {
   private readonly baseOrigin: string;
   private readonly apiBase: string;
   private readonly auth: WordPressAuthInput | undefined;
-  private readonly authHeaders: WordPressAuthHeaders | WordPressAuthHeadersProvider | undefined;
+  private readonly authHeaders:
+    | WordPressAuthHeaders
+    | WordPressAuthHeadersProvider
+    | undefined;
   private readonly cookieHeader: string | undefined;
   private readonly defaultHeaders: Record<string, string>;
   private readonly requestCredentials: RequestCredentials | undefined;
@@ -58,7 +66,7 @@ export class WordPressTransport {
   private readonly onRequest: WordPressRequestCallback | undefined;
 
   constructor(config: WordPressTransportConfig) {
-    this.baseUrl = config.baseUrl.replace(/\/$/, '');
+    this.baseUrl = config.baseUrl.replace(/\/$/, "");
     this.baseOrigin = new URL(this.baseUrl).origin;
     this.auth = config.auth;
     this.authHeaders = config.authHeaders;
@@ -74,7 +82,11 @@ export class WordPressTransport {
    * Returns whether authentication is configured on this transport instance.
    */
   hasAuth(): boolean {
-    return this.auth !== undefined || this.authHeaders !== undefined || this.cookieHeader !== undefined;
+    return (
+      this.auth !== undefined ||
+      this.authHeaders !== undefined ||
+      this.cookieHeader !== undefined
+    );
   }
 
   /**
@@ -82,9 +94,12 @@ export class WordPressTransport {
    */
   setHeaders(name: string, value: string): this;
   setHeaders(headers: Record<string, string>): this;
-  setHeaders(nameOrHeaders: string | Record<string, string>, value?: string): this {
-    if (typeof nameOrHeaders === 'string') {
-      this.defaultHeaders[nameOrHeaders] = value ?? '';
+  setHeaders(
+    nameOrHeaders: string | Record<string, string>,
+    value?: string,
+  ): this {
+    if (typeof nameOrHeaders === "string") {
+      this.defaultHeaders[nameOrHeaders] = value ?? "";
       return this;
     }
 
@@ -101,7 +116,7 @@ export class WordPressTransport {
     if (url.origin !== this.baseOrigin) {
       throw createInvalidRequestError(
         `Cross-origin absolute URLs are not allowed. Expected origin '${this.baseOrigin}' but received '${url.origin}'.`,
-        { endpoint, baseUrl: this.baseUrl },
+        { baseUrl: this.baseUrl, endpoint },
       );
     }
 
@@ -111,10 +126,13 @@ export class WordPressTransport {
   /**
    * Builds one REST URL from endpoint and query params.
    */
-  createApiUrl(endpoint: string, params: Record<string, string | string[]> = {}): URL {
+  createApiUrl(
+    endpoint: string,
+    params: Record<string, string | string[]> = {},
+  ): URL {
     const url = /^https?:\/\//i.test(endpoint)
       ? this.createAbsoluteApiUrl(endpoint)
-      : endpoint.startsWith('/wp-json/')
+      : endpoint.startsWith("/wp-json/")
         ? new URL(`${this.baseUrl}${endpoint}`)
         : new URL(`${this.apiBase}${endpoint}`);
 
@@ -134,24 +152,27 @@ export class WordPressTransport {
   /**
    * Resolves one endpoint and params pair into an absolute URL string.
    */
-  createApiUrlString(endpoint: string, params: Record<string, string | string[]> = {}): string {
+  createApiUrlString(
+    endpoint: string,
+    params: Record<string, string | string[]> = {},
+  ): string {
     return this.createApiUrl(endpoint, params).toString();
   }
 
   /**
    * Normalizes a namespace + resource pair to one request endpoint.
    */
-  createNamespacedEndpoint(resource: string, namespace = 'wp/v2'): string {
-    const normalizedNamespace = namespace.replace(/^\/+|\/+$/g, '');
-    const normalizedResource = resource.replace(/^\/+|\/+$/g, '');
+  createNamespacedEndpoint(resource: string, namespace = "wp/v2"): string {
+    const normalizedNamespace = namespace.replace(/^\/+|\/+$/g, "");
+    const normalizedResource = resource.replace(/^\/+|\/+$/g, "");
 
     if (!normalizedResource) {
-      throw createInvalidRequestError('Resource path must not be empty.', {
+      throw createInvalidRequestError("Resource path must not be empty.", {
         baseUrl: this.baseUrl,
       });
     }
 
-    if (normalizedNamespace === 'wp/v2') {
+    if (normalizedNamespace === "wp/v2") {
       return `/${normalizedResource}`;
     }
 
@@ -161,7 +182,10 @@ export class WordPressTransport {
   /**
    * Checks whether one header name exists in a header map.
    */
-  private hasHeader(headers: Record<string, string>, headerName: string): boolean {
+  private hasHeader(
+    headers: Record<string, string>,
+    headerName: string,
+  ): boolean {
     const expected = headerName.toLowerCase();
 
     for (const key of Object.keys(headers)) {
@@ -176,10 +200,7 @@ export class WordPressTransport {
   /**
    * Serializes request body input to one final body value.
    */
-  private serializeBody(options: {
-    body?: unknown;
-    rawBody?: BodyInit;
-  }): {
+  private serializeBody(options: { body?: unknown; rawBody?: BodyInit }): {
     body: BodyInit | undefined;
     isJsonBody: boolean;
   } {
@@ -197,7 +218,7 @@ export class WordPressTransport {
       };
     }
 
-    if (typeof options.body === 'string') {
+    if (typeof options.body === "string") {
       return {
         body: options.body,
         isJsonBody: false,
@@ -232,9 +253,9 @@ export class WordPressTransport {
         auth: config.auth,
         authHeaders: config.authHeaders,
         request: {
+          body: config.body,
           method: config.method,
           url: config.url,
-          body: config.body,
         },
       }),
     );
@@ -250,11 +271,11 @@ export class WordPressTransport {
     }
 
     if (
-      config.isJsonBody
-      && !config.omitContentType
-      && !this.hasHeader(headers, 'Content-Type')
+      config.isJsonBody &&
+      !config.omitContentType &&
+      !this.hasHeader(headers, "Content-Type")
     ) {
-      headers['Content-Type'] = 'application/json';
+      headers["Content-Type"] = "application/json";
     }
 
     return headers;
@@ -264,23 +285,27 @@ export class WordPressTransport {
    * Parses one REST response payload based on returned content type.
    * Wraps parse failures as `WordPressClientError` with `PARSE_ERROR` kind.
    */
-  private async parseResponseBody(response: Response, diagnostics: { method: string; endpoint: string }): Promise<unknown> {
-    const contentType = response.headers.get('Content-Type')?.toLowerCase() || '';
+  private async parseResponseBody(
+    response: Response,
+    diagnostics: { method: string; endpoint: string },
+  ): Promise<unknown> {
+    const contentType =
+      response.headers.get("Content-Type")?.toLowerCase() || "";
 
     try {
-      if (contentType.includes('application/json')) {
+      if (contentType.includes("application/json")) {
         return await response.json();
       }
 
       return await response.text();
     } catch (error) {
       throw createParseError(error, {
-        method: diagnostics.method,
-        endpoint: diagnostics.endpoint,
         baseUrl: this.baseUrl,
+        contentType: contentType || undefined,
+        endpoint: diagnostics.endpoint,
+        method: diagnostics.method,
         status: response.status,
         statusText: response.statusText,
-        contentType: contentType || undefined,
       });
     }
   }
@@ -294,10 +319,12 @@ export class WordPressTransport {
    * - response parse failures (`PARSE_ERROR`)
    * - non-2xx HTTP responses (`HTTP_ERROR` / `WP_API_ERROR`)
    */
-  async request<T = unknown>(options: WordPressRequestOptions): Promise<WordPressRequestResult<T>> {
-    const method = options.method ?? 'GET';
+  async request<T = unknown>(
+    options: WordPressRequestOptions,
+  ): Promise<WordPressRequestResult<T>> {
+    const method = options.method ?? "GET";
     const endpoint = options.endpoint;
-    const diagnostics = { method, endpoint, baseUrl: this.baseUrl };
+    const diagnostics = { baseUrl: this.baseUrl, endpoint, method };
 
     const url = this.createApiUrl(endpoint, options.params);
     const resolvedAuth = options.auth ?? this.auth;
@@ -307,15 +334,15 @@ export class WordPressTransport {
     });
 
     const headers = await this.resolveRequestHeaders({
-      method,
-      url,
-      body: serializedBody.body,
-      isJsonBody: serializedBody.isJsonBody,
-      omitContentType: options.omitContentType,
       auth: resolvedAuth,
       authHeaders: options.authHeaders ?? this.authHeaders,
+      body: serializedBody.body,
       cookies: options.cookies ?? this.cookieHeader,
       headers: options.headers,
+      isJsonBody: serializedBody.isJsonBody,
+      method,
+      omitContentType: options.omitContentType,
+      url,
     });
 
     const credentials = resolveWordPressRequestCredentials({
@@ -324,15 +351,18 @@ export class WordPressTransport {
     });
 
     const requestInit: RequestInit = {
-      method,
-      headers,
       body: serializedBody.body,
       credentials,
+      headers,
+      method,
     };
 
-    if (typeof this.fetcher !== 'function' && typeof globalThis.fetch !== 'function') {
+    if (
+      typeof this.fetcher !== "function" &&
+      typeof globalThis.fetch !== "function"
+    ) {
       throw createConfigError(
-        'No fetch implementation found. Provide a custom `fetch` via WordPressClientConfig or ensure `globalThis.fetch` is available.',
+        "No fetch implementation found. Provide a custom `fetch` via WordPressClientConfig or ensure `globalThis.fetch` is available.",
         diagnostics,
       );
     }
@@ -345,14 +375,15 @@ export class WordPressTransport {
     let response: Response;
 
     try {
-      response = typeof this.fetcher === 'function'
-        ? await this.fetcher(url.toString(), requestInit)
-        : await globalThis.fetch(url.toString(), requestInit);
+      response =
+        typeof this.fetcher === "function"
+          ? await this.fetcher(url.toString(), requestInit)
+          : await globalThis.fetch(url.toString(), requestInit);
     } catch (error) {
       throw classifyFetchError(error, diagnostics);
     }
 
-    const data = await this.parseResponseBody(response, diagnostics) as T;
+    const data = (await this.parseResponseBody(response, diagnostics)) as T;
 
     // Throw on non-2xx so callers always receive successful data
     throwIfHttpError(response, data, diagnostics);
@@ -371,7 +402,11 @@ export class WordPressTransport {
     params: Record<string, string | string[]> = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<T> {
-    const result = await this.fetchAPIPaginated<T>(endpoint, params, requestOptions);
+    const result = await this.fetchAPIPaginated<T>(
+      endpoint,
+      params,
+      requestOptions,
+    );
     return result.data;
   }
 
@@ -383,14 +418,25 @@ export class WordPressTransport {
     params: Record<string, string | string[]> = {},
     requestOptions?: WordPressRequestOverrides,
   ): Promise<FetchResult<T>> {
-    const { data, response } = await this.request<T>(applyRequestOverrides({
-      endpoint,
-      method: 'GET',
-      params,
-    }, requestOptions));
+    const { data, response } = await this.request<T>(
+      applyRequestOverrides(
+        {
+          endpoint,
+          method: "GET",
+          params,
+        },
+        requestOptions,
+      ),
+    );
 
-    const total = Number.parseInt(response.headers.get('X-WP-Total') || '0', 10);
-    const totalPages = Number.parseInt(response.headers.get('X-WP-TotalPages') || '0', 10);
+    const total = Number.parseInt(
+      response.headers.get("X-WP-Total") || "0",
+      10,
+    );
+    const totalPages = Number.parseInt(
+      response.headers.get("X-WP-TotalPages") || "0",
+      10,
+    );
 
     return { data, total, totalPages };
   }
@@ -402,11 +448,16 @@ export class WordPressTransport {
     credentials: JwtLoginCredentials,
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TJwtResponse> {
-    const { data } = await this.request<unknown>(applyRequestOverrides({
-      endpoint: '/wp-json/jwt-auth/v1/token',
-      method: 'POST',
-      body: credentials,
-    }, requestOptions));
+    const { data } = await this.request<unknown>(
+      applyRequestOverrides(
+        {
+          body: credentials,
+          endpoint: "/wp-json/jwt-auth/v1/token",
+          method: "POST",
+        },
+        requestOptions,
+      ),
+    );
 
     return data as TJwtResponse;
   }
@@ -419,14 +470,19 @@ export class WordPressTransport {
     requestOptions?: WordPressRequestOverrides,
   ): Promise<TJwtValidation> {
     const authHeader = token
-      ? createJwtAuthHeader(typeof token === 'string' ? token : token.token)
+      ? createJwtAuthHeader(typeof token === "string" ? token : token.token)
       : undefined;
 
-    const { data } = await this.request<unknown>(applyRequestOverrides({
-      endpoint: '/wp-json/jwt-auth/v1/token/validate',
-      method: 'POST',
-      auth: authHeader,
-    }, requestOptions));
+    const { data } = await this.request<unknown>(
+      applyRequestOverrides(
+        {
+          auth: authHeader,
+          endpoint: "/wp-json/jwt-auth/v1/token/validate",
+          method: "POST",
+        },
+        requestOptions,
+      ),
+    );
 
     return data as TJwtValidation;
   }
@@ -438,10 +494,20 @@ export class WordPressTransport {
  * header mutation) so resources only depend on what they actually use.
  */
 export interface WordPressRuntime {
-  request: <T = unknown>(options: WordPressRequestOptions) => Promise<WordPressRequestResult<T>>;
-  fetchAPI: <T>(endpoint: string, params?: Record<string, string | string[]>, options?: WordPressRequestOverrides) => Promise<T>;
-  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string | string[]>, options?: WordPressRequestOverrides) => Promise<FetchResult<T>>;
+  fetchAPI: <T>(
+    endpoint: string,
+    params?: Record<string, string | string[]>,
+    options?: WordPressRequestOverrides,
+  ) => Promise<T>;
+  fetchAPIPaginated: <T>(
+    endpoint: string,
+    params?: Record<string, string | string[]>,
+    options?: WordPressRequestOverrides,
+  ) => Promise<FetchResult<T>>;
   hasAuth: () => boolean;
+  request: <T = unknown>(
+    options: WordPressRequestOptions,
+  ) => Promise<WordPressRequestResult<T>>;
 }
 
 /**
@@ -449,9 +515,9 @@ export interface WordPressRuntime {
  */
 export function createRuntime(transport: WordPressTransport): WordPressRuntime {
   return {
-    request: transport.request.bind(transport),
     fetchAPI: transport.fetchAPI.bind(transport),
     fetchAPIPaginated: transport.fetchAPIPaginated.bind(transport),
     hasAuth: transport.hasAuth.bind(transport),
+    request: transport.request.bind(transport),
   };
 }

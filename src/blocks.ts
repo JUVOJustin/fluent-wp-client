@@ -1,38 +1,51 @@
-import { z } from 'zod';
-import type { WordPressBlockType, WordPressParsedBlock } from './schemas.js';
-import type { WordPressJsonSchema } from './types/discovery.js';
-import { WordPressClientError, createConfigError } from './core/errors.js';
+import { z } from "zod";
+import { createConfigError, WordPressClientError } from "./core/errors.js";
+import type { WordPressBlockType, WordPressParsedBlock } from "./schemas.js";
+import type { WordPressJsonSchema } from "./types/discovery.js";
 
-export type { WordPressBlockType, WordPressParsedBlock } from './schemas.js';
+export type { WordPressBlockType, WordPressParsedBlock } from "./schemas.js";
 
-type WordPressBlockAttributeDefinition = NonNullable<NonNullable<WordPressBlockType['attributes']>[string]>;
+type WordPressBlockAttributeDefinition = NonNullable<
+  NonNullable<WordPressBlockType["attributes"]>[string]
+>;
 type WordPressBlockValidationPath = Array<string | number>;
 
-const JSON_SCHEMA_DRAFT_2020_12 = 'https://json-schema.org/draft/2020-12/schema';
+const JSON_SCHEMA_DRAFT_2020_12 =
+  "https://json-schema.org/draft/2020-12/schema";
 const BLOCK_NAME_PATTERN = /^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/;
-const JSON_SCHEMA_TYPE_NAMES = new Set(['array', 'boolean', 'integer', 'null', 'number', 'object', 'string']);
+const JSON_SCHEMA_TYPE_NAMES = new Set([
+  "array",
+  "boolean",
+  "integer",
+  "null",
+  "number",
+  "object",
+  "string",
+]);
 
 /**
  * Function signature for one Gutenberg block parser implementation.
  */
-export type WordPressBlockParser = (rawContent: string) => WordPressParsedBlock[];
+export type WordPressBlockParser = (
+  rawContent: string,
+) => WordPressParsedBlock[];
 
 /**
  * JSON Schema for one block node, including vendor extensions used by the block validator.
  */
 export interface WordPressBlockJsonSchema extends WordPressJsonSchema {
-  $schema: typeof JSON_SCHEMA_DRAFT_2020_12;
+  $defs?: Record<string, unknown>;
   $id?: string;
-  title?: string;
+  $schema: typeof JSON_SCHEMA_DRAFT_2020_12;
+  additionalProperties: boolean;
   description?: string;
-  type: 'object';
   properties: Record<string, unknown>;
   required: string[];
-  additionalProperties: boolean;
-  $defs?: Record<string, unknown>;
-  'x-wordpress-block-name': string;
-  'x-wordpress-parent'?: string[];
-  'x-wordpress-ancestor'?: string[];
+  title?: string;
+  type: "object";
+  "x-wordpress-ancestor"?: string[];
+  "x-wordpress-block-name": string;
+  "x-wordpress-parent"?: string[];
 }
 
 /**
@@ -48,18 +61,25 @@ export interface WordPressGetBlocksOptions {
  * One validation issue detected while preparing a block tree for saving.
  */
 export interface WordPressBlockValidationIssue {
-  code: 'invalid_shape' | 'invalid_name' | 'unknown_block' | 'invalid_parent' | 'invalid_ancestor' | 'schema_validation' | 'roundtrip_mismatch';
+  blockName: string | null;
+  code:
+    | "invalid_shape"
+    | "invalid_name"
+    | "unknown_block"
+    | "invalid_parent"
+    | "invalid_ancestor"
+    | "schema_validation"
+    | "roundtrip_mismatch";
   message: string;
   path: WordPressBlockValidationPath;
-  blockName: string | null;
 }
 
 /**
  * Result returned by the standalone block validation helper.
  */
 export interface WordPressBlockValidationResult {
-  valid: boolean;
   issues: WordPressBlockValidationIssue[];
+  valid: boolean;
 }
 
 /**
@@ -73,7 +93,8 @@ export interface WordPressValidateBlocksOptions {
 /**
  * Optional overrides supported by parsed block writes.
  */
-export interface WordPressSetBlocksOptions extends WordPressValidateBlocksOptions {
+export interface WordPressSetBlocksOptions
+  extends WordPressValidateBlocksOptions {
   validate?: boolean;
 }
 
@@ -81,11 +102,13 @@ export interface WordPressSetBlocksOptions extends WordPressValidateBlocksOption
  * Error thrown when block content cannot be safely serialized.
  */
 export class WordPressBlockValidationError extends WordPressClientError {
-  override readonly name = 'WordPressBlockValidationError';
+  override readonly name = "WordPressBlockValidationError";
   readonly issues: WordPressBlockValidationIssue[];
 
   constructor(issues: WordPressBlockValidationIssue[]) {
-    super(formatBlockValidationMessage(issues), 'BLOCK_VALIDATION_ERROR', { retryable: false });
+    super(formatBlockValidationMessage(issues), "BLOCK_VALIDATION_ERROR", {
+      retryable: false,
+    });
     this.issues = issues;
   }
 }
@@ -98,13 +121,16 @@ interface SerializeRawBlockOptions {
   isCommentDelimited?: boolean;
 }
 
-const blockSchemaValidatorCache = new WeakMap<WordPressBlockJsonSchema, z.ZodTypeAny>();
+const blockSchemaValidatorCache = new WeakMap<
+  WordPressBlockJsonSchema,
+  z.ZodTypeAny
+>();
 
 /**
  * Detects plain object records and excludes arrays from block payload validation.
  */
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 /**
@@ -113,12 +139,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 async function loadDefaultParserModule(): Promise<RuntimeWordPressDefaultParserModule> {
   try {
-    const parserModule = await import('@wordpress/block-serialization-default-parser');
+    const parserModule = await import(
+      "@wordpress/block-serialization-default-parser"
+    );
     return parserModule as unknown as RuntimeWordPressDefaultParserModule;
   } catch {
     throw createConfigError(
-      'Block parsing requires the `@wordpress/block-serialization-default-parser` package. '
-      + 'Install it with: npm install @wordpress/block-serialization-default-parser',
+      "Block parsing requires the `@wordpress/block-serialization-default-parser` package. " +
+        "Install it with: npm install @wordpress/block-serialization-default-parser",
     );
   }
 }
@@ -127,16 +155,22 @@ async function loadDefaultParserModule(): Promise<RuntimeWordPressDefaultParserM
  * Detects parser artifacts that only represent whitespace between top-level blocks.
  */
 function isIgnorableWhitespaceBlock(block: WordPressParsedBlock): boolean {
-  return block.blockName === null
-    && block.innerBlocks.length === 0
-    && (block.attrs === null || Object.keys(block.attrs).length === 0)
-    && block.innerContent.every((item) => item === null || item.trim().length === 0);
+  return (
+    block.blockName === null &&
+    block.innerBlocks.length === 0 &&
+    (block.attrs === null || Object.keys(block.attrs).length === 0) &&
+    block.innerContent.every(
+      (item) => item === null || item.trim().length === 0,
+    )
+  );
 }
 
 /**
  * Removes whitespace-only freeform nodes while preserving meaningful classic content blocks.
  */
-function normalizeParsedBlocks(blocks: WordPressParsedBlock[]): WordPressParsedBlock[] {
+function normalizeParsedBlocks(
+  blocks: WordPressParsedBlock[],
+): WordPressParsedBlock[] {
   return blocks
     .filter((block) => !isIgnorableWhitespaceBlock(block))
     .map((block) => ({
@@ -150,7 +184,8 @@ function normalizeParsedBlocks(blocks: WordPressParsedBlock[]): WordPressParsedB
  */
 export async function loadDefaultWordPressBlockParser(): Promise<WordPressBlockParser> {
   const parserModule = await loadDefaultParserModule();
-  return (rawContent: string): WordPressParsedBlock[] => normalizeParsedBlocks(parserModule.parse(rawContent));
+  return (rawContent: string): WordPressParsedBlock[] =>
+    normalizeParsedBlocks(parserModule.parse(rawContent));
 }
 
 /**
@@ -160,28 +195,30 @@ export async function parseWordPressBlocks(
   rawContent: string,
   parser?: WordPressBlockParser,
 ): Promise<WordPressParsedBlock[]> {
-  const runtimeParser = parser ?? await loadDefaultWordPressBlockParser();
+  const runtimeParser = parser ?? (await loadDefaultWordPressBlockParser());
   return runtimeParser(rawContent);
 }
 
 /**
  * Escapes serialized block attributes so the JSON stays safe inside HTML comments.
  */
-export function serializeWordPressBlockAttributes(attributes: Record<string, unknown>): string {
+export function serializeWordPressBlockAttributes(
+  attributes: Record<string, unknown>,
+): string {
   return JSON.stringify(attributes)
-    .replaceAll('\\"', '\\u0022')
-    .replaceAll('\\', '\\u005c')
-    .replaceAll('--', '\\u002d\\u002d')
-    .replaceAll('<', '\\u003c')
-    .replaceAll('>', '\\u003e')
-    .replaceAll('&', '\\u0026');
+    .replaceAll('\\"', "\\u0022")
+    .replaceAll("\\", "\\u005c")
+    .replaceAll("--", "\\u002d\\u002d")
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026");
 }
 
 /**
  * Normalizes core block names to the compact comment-delimited form used by WordPress.
  */
 function toSerializedBlockName(blockName: string): string {
-  return blockName.startsWith('core/') ? blockName.slice(5) : blockName;
+  return blockName.startsWith("core/") ? blockName.slice(5) : blockName;
 }
 
 /**
@@ -193,9 +230,10 @@ export function serializeWordPressBlockComment(
   content: string,
 ): string {
   const normalizedName = toSerializedBlockName(blockName);
-  const serializedAttributes = attributes && Object.keys(attributes).length > 0
-    ? `${serializeWordPressBlockAttributes(attributes)} `
-    : '';
+  const serializedAttributes =
+    attributes && Object.keys(attributes).length > 0
+      ? `${serializeWordPressBlockAttributes(attributes)} `
+      : "";
 
   if (!content) {
     return `<!-- wp:${normalizedName} ${serializedAttributes}/-->`;
@@ -216,10 +254,12 @@ function serializeRawBlock(
   let childIndex = 0;
 
   const content = block.innerContent
-    .map((item) => item !== null
-      ? item
-      : serializeRawBlock(block.innerBlocks[childIndex++]!, options))
-    .join('');
+    .map((item) =>
+      item !== null
+        ? item
+        : serializeRawBlock(block.innerBlocks[childIndex++]!, options),
+    )
+    .join("");
 
   if (!isCommentDelimited || block.blockName === null) {
     return content;
@@ -231,17 +271,25 @@ function serializeRawBlock(
 /**
  * Serializes the raw parsed block tree back into `post_content` markup.
  */
-export function serializeWordPressBlocks(blocks: WordPressParsedBlock[]): string {
+export function serializeWordPressBlocks(
+  blocks: WordPressParsedBlock[],
+): string {
   return blocks
-    .map((block) => serializeRawBlock(block, { isCommentDelimited: block.blockName !== null }))
-    .join('\n\n');
+    .map((block) =>
+      serializeRawBlock(block, {
+        isCommentDelimited: block.blockName !== null,
+      }),
+    )
+    .join("\n\n");
 }
 
 /**
  * Keeps only JSON Schema primitive type names supported by Gutenberg attribute definitions.
  */
-function normalizeJsonSchemaTypeNames(type: unknown): string | string[] | undefined {
-  if (typeof type === 'string') {
+function normalizeJsonSchemaTypeNames(
+  type: unknown,
+): string | string[] | undefined {
+  if (typeof type === "string") {
     return JSON_SCHEMA_TYPE_NAMES.has(type) ? type : undefined;
   }
 
@@ -249,7 +297,10 @@ function normalizeJsonSchemaTypeNames(type: unknown): string | string[] | undefi
     return undefined;
   }
 
-  const typeNames = type.filter((value): value is string => typeof value === 'string' && JSON_SCHEMA_TYPE_NAMES.has(value));
+  const typeNames = type.filter(
+    (value): value is string =>
+      typeof value === "string" && JSON_SCHEMA_TYPE_NAMES.has(value),
+  );
 
   if (typeNames.length === 0) {
     return undefined;
@@ -263,33 +314,39 @@ function normalizeJsonSchemaTypeNames(type: unknown): string | string[] | undefi
  */
 function createGenericParsedBlockJsonSchema(): WordPressJsonSchema {
   return {
-    type: 'object',
+    additionalProperties: false,
     properties: {
-      blockName: {
-        type: ['string', 'null'],
-      },
       attrs: {
-        type: ['object', 'null'],
         additionalProperties: true,
+        type: ["object", "null"],
+      },
+      blockName: {
+        type: ["string", "null"],
       },
       innerBlocks: {
-        type: 'array',
         items: {
-          $ref: '#/$defs/parsedBlock',
+          $ref: "#/$defs/parsedBlock",
         },
-      },
-      innerHTML: {
-        type: 'string',
+        type: "array",
       },
       innerContent: {
-        type: 'array',
         items: {
-          type: ['string', 'null'],
+          type: ["string", "null"],
         },
+        type: "array",
+      },
+      innerHTML: {
+        type: "string",
       },
     },
-    required: ['blockName', 'attrs', 'innerBlocks', 'innerHTML', 'innerContent'],
-    additionalProperties: false,
+    required: [
+      "blockName",
+      "attrs",
+      "innerBlocks",
+      "innerHTML",
+      "innerContent",
+    ],
+    type: "object",
   };
 }
 
@@ -297,7 +354,10 @@ function createGenericParsedBlockJsonSchema(): WordPressJsonSchema {
  * Converts one nested query attribute definition object to JSON Schema object properties.
  */
 function createWordPressBlockAttributeProperties(
-  attributes: Record<string, WordPressBlockAttributeDefinition> | null | undefined,
+  attributes:
+    | Record<string, WordPressBlockAttributeDefinition>
+    | null
+    | undefined,
 ): Record<string, WordPressJsonSchema> {
   return Object.fromEntries(
     Object.entries(attributes ?? {}).map(([attributeName, definition]) => [
@@ -328,34 +388,34 @@ function createWordPressBlockAttributeJsonSchema(
     schema.default = definition.default;
   }
 
-  if (typeof definition.role === 'string') {
-    schema['x-wordpress-role'] = definition.role;
+  if (typeof definition.role === "string") {
+    schema["x-wordpress-role"] = definition.role;
   }
 
-  if (typeof definition.source === 'string') {
-    schema['x-wordpress-source'] = definition.source;
+  if (typeof definition.source === "string") {
+    schema["x-wordpress-source"] = definition.source;
   }
 
-  if (typeof definition.selector === 'string') {
-    schema['x-wordpress-selector'] = definition.selector;
+  if (typeof definition.selector === "string") {
+    schema["x-wordpress-selector"] = definition.selector;
   }
 
-  if (typeof definition.attribute === 'string') {
-    schema['x-wordpress-attribute'] = definition.attribute;
+  if (typeof definition.attribute === "string") {
+    schema["x-wordpress-attribute"] = definition.attribute;
   }
 
-  if (typeof definition.meta === 'string') {
-    schema['x-wordpress-meta'] = definition.meta;
+  if (typeof definition.meta === "string") {
+    schema["x-wordpress-meta"] = definition.meta;
   }
 
-  if (definition.source === 'query' && isRecord(definition.query)) {
-    schema.type = 'array';
+  if (definition.source === "query" && isRecord(definition.query)) {
+    schema.type = "array";
     schema.items = {
-      type: 'object',
+      additionalProperties: false,
       properties: createWordPressBlockAttributeProperties(
         definition.query as Record<string, WordPressBlockAttributeDefinition>,
       ),
-      additionalProperties: false,
+      type: "object",
     };
 
     return schema;
@@ -368,7 +428,10 @@ function createWordPressBlockAttributeJsonSchema(
   if (isRecord(definition.properties)) {
     schema.properties = definition.properties;
     schema.additionalProperties = false;
-  } else if (type === 'object' || (Array.isArray(type) && type.includes('object'))) {
+  } else if (
+    type === "object" ||
+    (Array.isArray(type) && type.includes("object"))
+  ) {
     schema.additionalProperties = true;
   }
 
@@ -386,12 +449,12 @@ function createWordPressBlockAttrsJsonSchema(
   return {
     anyOf: [
       {
-        type: 'null',
+        type: "null",
       },
       {
-        type: 'object',
-        properties: createWordPressBlockAttributeProperties(attributes),
         additionalProperties: false,
+        properties: createWordPressBlockAttributeProperties(attributes),
+        type: "object",
       },
     ],
   };
@@ -407,45 +470,53 @@ function createWordPressBlockSchemaId(blockName: string): string {
 /**
  * Generates one JSON Schema document for one available block type.
  */
-export function createWordPressBlockJsonSchema(blockType: WordPressBlockType): WordPressBlockJsonSchema {
+export function createWordPressBlockJsonSchema(
+  blockType: WordPressBlockType,
+): WordPressBlockJsonSchema {
   return {
-    $schema: JSON_SCHEMA_DRAFT_2020_12,
-    $id: createWordPressBlockSchemaId(blockType.name),
-    title: blockType.title,
-    description: blockType.description,
-    type: 'object',
-    properties: {
-      blockName: {
-        const: blockType.name,
-      },
-      attrs: createWordPressBlockAttrsJsonSchema(blockType),
-      innerBlocks: {
-        type: 'array',
-        items: {
-          $ref: '#/$defs/parsedBlock',
-        },
-      },
-      innerHTML: {
-        type: 'string',
-      },
-      innerContent: {
-        type: 'array',
-        items: {
-          type: ['string', 'null'],
-        },
-      },
-    },
-    required: ['blockName', 'attrs', 'innerBlocks', 'innerHTML', 'innerContent'],
-    additionalProperties: false,
     $defs: {
       parsedBlock: createGenericParsedBlockJsonSchema(),
     },
-    'x-wordpress-block-name': blockType.name,
+    $id: createWordPressBlockSchemaId(blockType.name),
+    $schema: JSON_SCHEMA_DRAFT_2020_12,
+    additionalProperties: false,
+    description: blockType.description,
+    properties: {
+      attrs: createWordPressBlockAttrsJsonSchema(blockType),
+      blockName: {
+        const: blockType.name,
+      },
+      innerBlocks: {
+        items: {
+          $ref: "#/$defs/parsedBlock",
+        },
+        type: "array",
+      },
+      innerContent: {
+        items: {
+          type: ["string", "null"],
+        },
+        type: "array",
+      },
+      innerHTML: {
+        type: "string",
+      },
+    },
+    required: [
+      "blockName",
+      "attrs",
+      "innerBlocks",
+      "innerHTML",
+      "innerContent",
+    ],
+    title: blockType.title,
+    type: "object",
+    "x-wordpress-block-name": blockType.name,
     ...(Array.isArray(blockType.parent) && blockType.parent.length > 0
-      ? { 'x-wordpress-parent': blockType.parent }
+      ? { "x-wordpress-parent": blockType.parent }
       : {}),
     ...(Array.isArray(blockType.ancestor) && blockType.ancestor.length > 0
-      ? { 'x-wordpress-ancestor': blockType.ancestor }
+      ? { "x-wordpress-ancestor": blockType.ancestor }
       : {}),
   };
 }
@@ -462,23 +533,34 @@ export function createWordPressBlockJsonSchemas(
 /**
  * Resolves the block name encoded by one block schema definition.
  */
-function resolveWordPressBlockSchemaName(schema: WordPressBlockJsonSchema): string | undefined {
-  if (typeof schema['x-wordpress-block-name'] === 'string') {
-    return schema['x-wordpress-block-name'];
+function resolveWordPressBlockSchemaName(
+  schema: WordPressBlockJsonSchema,
+): string | undefined {
+  if (typeof schema["x-wordpress-block-name"] === "string") {
+    return schema["x-wordpress-block-name"];
   }
 
-  const properties = isRecord(schema.properties) ? schema.properties : undefined;
-  const blockNameProperty = properties && isRecord(properties.blockName) ? properties.blockName : undefined;
+  const properties = isRecord(schema.properties)
+    ? schema.properties
+    : undefined;
+  const blockNameProperty =
+    properties && isRecord(properties.blockName)
+      ? properties.blockName
+      : undefined;
 
   if (!blockNameProperty) {
     return undefined;
   }
 
-  if (typeof blockNameProperty.const === 'string') {
+  if (typeof blockNameProperty.const === "string") {
     return blockNameProperty.const;
   }
 
-  if (Array.isArray(blockNameProperty.enum) && blockNameProperty.enum.length === 1 && typeof blockNameProperty.enum[0] === 'string') {
+  if (
+    Array.isArray(blockNameProperty.enum) &&
+    blockNameProperty.enum.length === 1 &&
+    typeof blockNameProperty.enum[0] === "string"
+  ) {
     return blockNameProperty.enum[0];
   }
 
@@ -490,7 +572,7 @@ function resolveWordPressBlockSchemaName(schema: WordPressBlockJsonSchema): stri
  */
 function readWordPressBlockSchemaExtension(
   schema: WordPressBlockJsonSchema,
-  key: 'x-wordpress-parent' | 'x-wordpress-ancestor',
+  key: "x-wordpress-parent" | "x-wordpress-ancestor",
 ): string[] | undefined {
   const value = schema[key];
 
@@ -498,21 +580,27 @@ function readWordPressBlockSchemaExtension(
     return undefined;
   }
 
-  const names = value.filter((item): item is string => typeof item === 'string');
+  const names = value.filter(
+    (item): item is string => typeof item === "string",
+  );
   return names.length > 0 ? names : undefined;
 }
 
 /**
  * Lazily compiles one block JSON Schema with Zod so repeated validations stay cheap.
  */
-function getWordPressBlockSchemaValidator(schema: WordPressBlockJsonSchema): z.ZodTypeAny {
+function getWordPressBlockSchemaValidator(
+  schema: WordPressBlockJsonSchema,
+): z.ZodTypeAny {
   const cached = blockSchemaValidatorCache.get(schema);
 
   if (cached) {
     return cached;
   }
 
-  const validator = z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]);
+  const validator = z.fromJSONSchema(
+    schema as Parameters<typeof z.fromJSONSchema>[0],
+  );
   blockSchemaValidatorCache.set(schema, validator);
   return validator;
 }
@@ -524,15 +612,19 @@ function flattenZodIssues(
   issues: readonly z.core.$ZodIssue[],
   prefix: WordPressBlockValidationPath = [],
 ): Array<{ path: WordPressBlockValidationPath; message: string }> {
-  const flattened: Array<{ path: WordPressBlockValidationPath; message: string }> = [];
+  const flattened: Array<{
+    path: WordPressBlockValidationPath;
+    message: string;
+  }> = [];
 
   for (const issue of issues) {
     const normalizedIssuePath = issue.path.filter(
-      (segment): segment is string | number => typeof segment === 'string' || typeof segment === 'number',
+      (segment): segment is string | number =>
+        typeof segment === "string" || typeof segment === "number",
     );
     const issuePath = [...prefix, ...normalizedIssuePath];
 
-    if (issue.code === 'invalid_union' && Array.isArray(issue.errors)) {
+    if (issue.code === "invalid_union" && Array.isArray(issue.errors)) {
       for (const nestedIssues of issue.errors) {
         flattened.push(...flattenZodIssues(nestedIssues, issuePath));
       }
@@ -541,8 +633,8 @@ function flattenZodIssues(
     }
 
     flattened.push({
-      path: issuePath,
       message: issue.message,
+      path: issuePath,
     });
   }
 
@@ -560,52 +652,55 @@ function validateBlockTreeStructure(
   for (const [index, block] of blocks.entries()) {
     const currentPath = [...path, index];
     const blockName = block.blockName;
-    const nullPlaceholderCount = block.innerContent.filter((item) => item === null).length;
+    const nullPlaceholderCount = block.innerContent.filter(
+      (item) => item === null,
+    ).length;
 
     if (!Array.isArray(block.innerBlocks)) {
       issues.push({
-        code: 'invalid_shape',
-        message: 'Block `innerBlocks` must be an array.',
-        path: currentPath,
         blockName,
+        code: "invalid_shape",
+        message: "Block `innerBlocks` must be an array.",
+        path: currentPath,
       });
       continue;
     }
 
     if (!Array.isArray(block.innerContent)) {
       issues.push({
-        code: 'invalid_shape',
-        message: 'Block `innerContent` must be an array.',
-        path: currentPath,
         blockName,
+        code: "invalid_shape",
+        message: "Block `innerContent` must be an array.",
+        path: currentPath,
       });
       continue;
     }
 
     if (nullPlaceholderCount !== block.innerBlocks.length) {
       issues.push({
-        code: 'invalid_shape',
-        message: 'Block `innerContent` must contain one `null` placeholder for each nested block.',
-        path: currentPath,
         blockName,
+        code: "invalid_shape",
+        message:
+          "Block `innerContent` must contain one `null` placeholder for each nested block.",
+        path: currentPath,
       });
     }
 
     if (blockName !== null && !BLOCK_NAME_PATTERN.test(blockName)) {
       issues.push({
-        code: 'invalid_name',
-        message: 'Block names must use the `namespace/name` format.',
-        path: currentPath,
         blockName,
+        code: "invalid_name",
+        message: "Block names must use the `namespace/name` format.",
+        path: currentPath,
       });
     }
 
     if (block.attrs !== null && !isRecord(block.attrs)) {
       issues.push({
-        code: 'invalid_shape',
-        message: 'Block `attrs` must be an object or null.',
-        path: currentPath,
         blockName,
+        code: "invalid_shape",
+        message: "Block `attrs` must be an object or null.",
+        path: currentPath,
       });
     }
 
@@ -627,10 +722,11 @@ function createWordPressBlockSchemaMap(
 
     if (!blockName) {
       issues.push({
-        code: 'schema_validation',
-        message: 'Block schema must declare a single block name using `x-wordpress-block-name` or `properties.blockName.const`.',
-        path: [],
         blockName: null,
+        code: "schema_validation",
+        message:
+          "Block schema must declare a single block name using `x-wordpress-block-name` or `properties.blockName.const`.",
+        path: [],
       });
       continue;
     }
@@ -661,10 +757,10 @@ function validateBlocksAgainstSchemas(
 
       if (!schema) {
         issues.push({
-          code: 'unknown_block',
+          blockName,
+          code: "unknown_block",
           message: `Block type \`${blockName}\` is not allowed by the provided block schemas.`,
           path: currentPath,
-          blockName,
         });
       } else {
         try {
@@ -672,45 +768,63 @@ function validateBlocksAgainstSchemas(
           const result = validator.safeParse(block);
 
           if (!result.success) {
-            for (const issue of flattenZodIssues(result.error.issues, currentPath)) {
+            for (const issue of flattenZodIssues(
+              result.error.issues,
+              currentPath,
+            )) {
               issues.push({
-                code: 'schema_validation',
+                blockName,
+                code: "schema_validation",
                 message: issue.message,
                 path: issue.path,
-                blockName,
               });
             }
           }
         } catch (error) {
           issues.push({
-            code: 'schema_validation',
-            message: error instanceof Error
-              ? error.message
-              : `Block schema for \`${blockName}\` could not be compiled.`,
-            path: currentPath,
             blockName,
+            code: "schema_validation",
+            message:
+              error instanceof Error
+                ? error.message
+                : `Block schema for \`${blockName}\` could not be compiled.`,
+            path: currentPath,
           });
         }
 
-        const allowedParents = readWordPressBlockSchemaExtension(schema, 'x-wordpress-parent');
+        const allowedParents = readWordPressBlockSchemaExtension(
+          schema,
+          "x-wordpress-parent",
+        );
 
-        if (allowedParents && (!parentBlockName || !allowedParents.includes(parentBlockName))) {
+        if (
+          allowedParents &&
+          (!parentBlockName || !allowedParents.includes(parentBlockName))
+        ) {
           issues.push({
-            code: 'invalid_parent',
-            message: `Block type \`${blockName}\` must be nested directly inside one of: ${allowedParents.join(', ')}.`,
-            path: currentPath,
             blockName,
+            code: "invalid_parent",
+            message: `Block type \`${blockName}\` must be nested directly inside one of: ${allowedParents.join(", ")}.`,
+            path: currentPath,
           });
         }
 
-        const allowedAncestors = readWordPressBlockSchemaExtension(schema, 'x-wordpress-ancestor');
+        const allowedAncestors = readWordPressBlockSchemaExtension(
+          schema,
+          "x-wordpress-ancestor",
+        );
 
-        if (allowedAncestors && !ancestorBlockNames.some((ancestorName) => allowedAncestors.includes(ancestorName))) {
+        if (
+          allowedAncestors &&
+          !ancestorBlockNames.some((ancestorName) =>
+            allowedAncestors.includes(ancestorName),
+          )
+        ) {
           issues.push({
-            code: 'invalid_ancestor',
-            message: `Block type \`${blockName}\` requires one of these ancestors: ${allowedAncestors.join(', ')}.`,
-            path: currentPath,
             blockName,
+            code: "invalid_ancestor",
+            message: `Block type \`${blockName}\` requires one of these ancestors: ${allowedAncestors.join(", ")}.`,
+            path: currentPath,
           });
         }
       }
@@ -730,11 +844,13 @@ function validateBlocksAgainstSchemas(
 /**
  * Formats a compact validation summary for `WordPressBlockValidationError`.
  */
-function formatBlockValidationMessage(issues: WordPressBlockValidationIssue[]): string {
+function formatBlockValidationMessage(
+  issues: WordPressBlockValidationIssue[],
+): string {
   const preview = issues
     .slice(0, 3)
-    .map((issue) => `${issue.path.join('.') || 'root'}: ${issue.message}`)
-    .join(' ');
+    .map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)
+    .join(" ");
 
   return issues.length > 3
     ? `WordPress block validation failed with ${issues.length} issues. ${preview}`
@@ -759,8 +875,8 @@ export async function validateWordPressBlocks(
 
   if (issues.length > 0) {
     return {
-      valid: false,
       issues,
+      valid: false,
     };
   }
 
@@ -773,30 +889,33 @@ export async function validateWordPressBlocks(
     // Normalize inter-block whitespace for comparison because the parser
     // turns top-level `\n\n` separators into freeform nodes that are
     // stripped before re-serialization.
-    const normalize = (s: string): string => s.replace(/\n{2,}/g, '\n\n').trim();
+    const normalize = (s: string): string =>
+      s.replace(/\n{2,}/g, "\n\n").trim();
 
     if (normalize(reserialized) !== normalize(serialized)) {
       issues.push({
-        code: 'roundtrip_mismatch',
-        message: 'Block serialization does not round-trip cleanly through the WordPress raw block parser.',
-        path: [],
         blockName: null,
+        code: "roundtrip_mismatch",
+        message:
+          "Block serialization does not round-trip cleanly through the WordPress raw block parser.",
+        path: [],
       });
     }
   } catch (error) {
     issues.push({
-      code: 'roundtrip_mismatch',
-      message: error instanceof Error
-        ? error.message
-        : 'Block serialization does not round-trip cleanly through the WordPress raw block parser.',
-      path: [],
       blockName: null,
+      code: "roundtrip_mismatch",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Block serialization does not round-trip cleanly through the WordPress raw block parser.",
+      path: [],
     });
   }
 
   return {
-    valid: issues.length === 0,
     issues,
+    valid: issues.length === 0,
   };
 }
 

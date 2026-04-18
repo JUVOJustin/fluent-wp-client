@@ -1,20 +1,20 @@
-import { WordPressClient } from '../client.js';
-import type { WordPressClientConfig } from '../types/client.js';
+import { WordPressClient } from "../client.js";
+import type { WordPressClientConfig } from "../types/client.js";
 
 /**
  * JSON Schema property definition from WordPress REST API discovery.
  */
 export interface WPSchemaProperty {
-  type?: string | string[];
+  context?: string[];
+  default?: unknown;
   description?: string;
   enum?: unknown[];
-  default?: unknown;
-  readonly?: boolean;
-  context?: string[];
-  required?: boolean;
-  properties?: Record<string, WPSchemaProperty>;
-  items?: WPSchemaProperty;
   format?: string;
+  items?: WPSchemaProperty;
+  properties?: Record<string, WPSchemaProperty>;
+  readonly?: boolean;
+  required?: boolean;
+  type?: string | string[];
 }
 
 /**
@@ -22,93 +22,99 @@ export interface WPSchemaProperty {
  */
 export interface WPRouteSchema {
   $schema?: string;
+  properties?: Record<string, WPSchemaProperty>;
   title?: string;
   type?: string;
-  properties?: Record<string, WPSchemaProperty>;
 }
 
 /**
  * One route endpoint entry from WordPress REST discovery.
  */
 export interface WPRouteEndpoint {
-  methods: string[];
   args?: Record<string, WPSchemaProperty>;
+  methods: string[];
 }
 
 /**
  * One route from the WordPress REST discovery document.
  */
 export interface WPRoute {
-  namespace: string;
-  methods: string[];
-  endpoints: WPRouteEndpoint[];
-  schema?: WPRouteSchema;
   _links?: unknown;
+  endpoints: WPRouteEndpoint[];
+  methods: string[];
+  namespace: string;
+  schema?: WPRouteSchema;
 }
 
 /**
  * WordPress REST API discovery document shape.
  */
 export interface WPDiscoveryDocument {
-  name: string;
   description: string;
-  url: string;
   home: string;
+  name: string;
   namespaces: string[];
   routes: Record<string, WPRoute>;
+  url: string;
 }
 
 /**
  * WordPress post type definition from /wp/v2/types.
  */
 export interface WPPostType {
-  slug: string;
-  name: string;
+  _links?: unknown;
   description: string;
+  name: string;
   rest_base: string;
   rest_namespace: string;
+  slug: string;
   taxonomies: string[];
-  _links?: unknown;
 }
 
 /**
  * WordPress taxonomy definition from /wp/v2/taxonomies.
  */
 export interface WPTaxonomy {
-  slug: string;
-  name: string;
+  _links?: unknown;
   description: string;
+  name: string;
   rest_base: string;
   rest_namespace: string;
+  slug: string;
   types: string[];
-  _links?: unknown;
 }
 
 /**
  * Discovered resource with its schema for code generation.
  */
 export interface DiscoveredResource {
-  kind: 'post_type' | 'taxonomy';
-  slug: string;
+  kind: "post_type" | "taxonomy";
   name: string;
   restBase: string;
   schema: WPRouteSchema | undefined;
+  slug: string;
 }
 
 /**
  * Optional include/exclude filters for CLI discovery.
  */
 export interface DiscoveryResourceFilters {
-  include?: string[];
   exclude?: string[];
+  include?: string[];
 }
 
 /**
  * Returns whether one resource matches a CLI filter token.
  */
-function matchesResourceToken(resource: { slug: string; rest_base: string }, token: string): boolean {
+function matchesResourceToken(
+  resource: { slug: string; rest_base: string },
+  token: string,
+): boolean {
   const normalizedToken = token.trim().toLowerCase();
-  return resource.slug.toLowerCase() === normalizedToken || resource.rest_base.toLowerCase() === normalizedToken;
+  return (
+    resource.slug.toLowerCase() === normalizedToken ||
+    resource.rest_base.toLowerCase() === normalizedToken
+  );
 }
 
 /**
@@ -119,14 +125,18 @@ function shouldDiscoverResource(
   filters?: DiscoveryResourceFilters,
 ): boolean {
   if (filters?.include && filters.include.length > 0) {
-    const included = filters.include.some((token) => matchesResourceToken(resource, token));
+    const included = filters.include.some((token) =>
+      matchesResourceToken(resource, token),
+    );
 
     if (!included) {
       return false;
     }
   }
 
-  if (filters?.exclude && filters.exclude.some((token) => matchesResourceToken(resource, token))) {
+  if (
+    filters?.exclude?.some((token) => matchesResourceToken(resource, token))
+  ) {
     return false;
   }
 
@@ -136,11 +146,14 @@ function shouldDiscoverResource(
 /**
  * Builds one request endpoint for resource schema discovery.
  */
-function createSchemaEndpoint(restNamespace: string | undefined, restBase: string): string {
-  const namespace = (restNamespace || 'wp/v2').replace(/^\/+|\/+$/g, '');
-  const resource = restBase.replace(/^\/+|\/+$/g, '');
+function createSchemaEndpoint(
+  restNamespace: string | undefined,
+  restBase: string,
+): string {
+  const namespace = (restNamespace || "wp/v2").replace(/^\/+|\/+$/g, "");
+  const resource = restBase.replace(/^\/+|\/+$/g, "");
 
-  if (namespace === 'wp/v2') {
+  if (namespace === "wp/v2") {
     return `/${resource}`;
   }
 
@@ -163,7 +176,7 @@ async function fetchResourceSchema(
   try {
     const response = await client.request<WPRoute>({
       endpoint: createSchemaEndpoint(restNamespace, restBase),
-      method: 'OPTIONS',
+      method: "OPTIONS",
     });
 
     return response.data.schema;
@@ -178,7 +191,9 @@ async function fetchResourceSchema(
  * Connects to a WordPress instance and discovers all registered resources
  * and their REST API schemas.
  */
-export async function discoverWordPress(config: WordPressClientConfig): Promise<{
+export async function discoverWordPress(
+  config: WordPressClientConfig,
+): Promise<{
   siteName: string;
   siteUrl: string;
   resources: DiscoveredResource[];
@@ -204,19 +219,19 @@ export async function discoverWordPress(
 
   // Fetch discovery document.
   const discovery = await runtime.fetchAPI<WPDiscoveryDocument>(
-    '/wp-json/',
+    "/wp-json/",
     {},
   );
 
   // Fetch registered post types.
   const typesResponse = await runtime.fetchAPI<Record<string, WPPostType>>(
-    '/types',
+    "/types",
     {},
   );
 
   // Fetch registered taxonomies.
   const taxonomiesResponse = await runtime.fetchAPI<Record<string, WPTaxonomy>>(
-    '/taxonomies',
+    "/taxonomies",
     {},
   );
 
@@ -230,11 +245,16 @@ export async function discoverWordPress(
     const route = discovery.routes[routeKey];
 
     resources.push({
-      kind: 'post_type',
-      slug: pt.slug,
+      kind: "post_type",
       name: pt.name,
       restBase: pt.rest_base,
-      schema: await fetchResourceSchema(client, route, pt.rest_namespace, pt.rest_base),
+      schema: await fetchResourceSchema(
+        client,
+        route,
+        pt.rest_namespace,
+        pt.rest_base,
+      ),
+      slug: pt.slug,
     });
   }
 
@@ -246,17 +266,22 @@ export async function discoverWordPress(
     const route = discovery.routes[routeKey];
 
     resources.push({
-      kind: 'taxonomy',
-      slug: tax.slug,
+      kind: "taxonomy",
       name: tax.name,
       restBase: tax.rest_base,
-      schema: await fetchResourceSchema(client, route, tax.rest_namespace, tax.rest_base),
+      schema: await fetchResourceSchema(
+        client,
+        route,
+        tax.rest_namespace,
+        tax.rest_base,
+      ),
+      slug: tax.slug,
     });
   }
 
   return {
+    resources,
     siteName: discovery.name,
     siteUrl: discovery.url,
-    resources,
   };
 }

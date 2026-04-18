@@ -3,18 +3,18 @@
  * values when `instanceof` is not available (e.g. serialized logs).
  */
 export type WordPressClientErrorKind =
-  | 'CONFIG_ERROR'
-  | 'NETWORK_ERROR'
-  | 'TIMEOUT_ERROR'
-  | 'AUTH_ERROR'
-  | 'HTTP_ERROR'
-  | 'WP_API_ERROR'
-  | 'SCHEMA_VALIDATION_ERROR'
-  | 'BLOCK_VALIDATION_ERROR'
-  | 'PARSE_ERROR'
-  | 'DISCOVERY_ERROR'
-  | 'INVALID_REQUEST_ERROR'
-  | 'UNKNOWN_ERROR';
+  | "CONFIG_ERROR"
+  | "NETWORK_ERROR"
+  | "TIMEOUT_ERROR"
+  | "AUTH_ERROR"
+  | "HTTP_ERROR"
+  | "WP_API_ERROR"
+  | "SCHEMA_VALIDATION_ERROR"
+  | "BLOCK_VALIDATION_ERROR"
+  | "PARSE_ERROR"
+  | "DISCOVERY_ERROR"
+  | "INVALID_REQUEST_ERROR"
+  | "UNKNOWN_ERROR";
 
 /**
  * Minimal shape for one schema validation issue.
@@ -31,14 +31,14 @@ export interface SchemaValidationIssue {
  * is never included.
  */
 export interface WordPressErrorContext {
-  /** High-level operation name, e.g. `content.list`, `auth.loginWithJwt`. */
-  operation?: string;
-  /** HTTP method used for the request. */
-  method?: string;
-  /** Endpoint path (no origin, no query string). */
-  endpoint?: string;
   /** WordPress site base URL. */
   baseUrl?: string;
+  /** Endpoint path (no origin, no query string). */
+  endpoint?: string;
+  /** HTTP method used for the request. */
+  method?: string;
+  /** High-level operation name, e.g. `content.list`, `auth.loginWithJwt`. */
+  operation?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ export interface WordPressErrorContext {
  * available for serialization and logging.
  */
 export class WordPressClientError extends Error {
-  override readonly name: string = 'WordPressClientError';
+  override readonly name: string = "WordPressClientError";
   readonly kind: WordPressClientErrorKind;
   readonly retryable: boolean;
   readonly operation?: string;
@@ -82,9 +82,9 @@ export class WordPressClientError extends Error {
    */
   toJSON(): Record<string, unknown> {
     return {
-      name: this.name,
       kind: this.kind,
       message: this.message,
+      name: this.name,
       retryable: this.retryable,
       ...(this.operation !== undefined && { operation: this.operation }),
       ...(this.method !== undefined && { method: this.method }),
@@ -101,7 +101,9 @@ export class WordPressClientError extends Error {
 /**
  * Narrows an unknown caught value to a `WordPressClientError`.
  */
-export function isWordPressClientError(value: unknown): value is WordPressClientError {
+export function isWordPressClientError(
+  value: unknown,
+): value is WordPressClientError {
   return value instanceof WordPressClientError;
 }
 
@@ -114,10 +116,10 @@ export function isWordPressClientError(value: unknown): value is WordPressClient
  * empty auth tokens, malformed nonce values).
  */
 export class WordPressConfigError extends WordPressClientError {
-  override readonly name = 'WordPressConfigError';
+  override readonly name = "WordPressConfigError";
 
   constructor(message: string, context?: WordPressErrorContext) {
-    super(message, 'CONFIG_ERROR', { ...context, retryable: false });
+    super(message, "CONFIG_ERROR", { ...context, retryable: false });
   }
 }
 
@@ -125,13 +127,13 @@ export class WordPressConfigError extends WordPressClientError {
  * Network-level fetch failure (DNS resolution, connection refused, etc.).
  */
 export class WordPressNetworkError extends WordPressClientError {
-  override readonly name = 'WordPressNetworkError';
+  override readonly name = "WordPressNetworkError";
 
   constructor(cause: unknown, context?: WordPressErrorContext) {
     const causeMessage = cause instanceof Error ? cause.message : String(cause);
     super(
       `WordPress request failed: ${causeMessage}`,
-      'NETWORK_ERROR',
+      "NETWORK_ERROR",
       { ...context, retryable: true },
       { cause },
     );
@@ -142,12 +144,12 @@ export class WordPressNetworkError extends WordPressClientError {
  * Request exceeded the configured timeout.
  */
 export class WordPressTimeoutError extends WordPressClientError {
-  override readonly name = 'WordPressTimeoutError';
+  override readonly name = "WordPressTimeoutError";
 
   constructor(cause: unknown, context?: WordPressErrorContext) {
     super(
-      'WordPress request timed out.',
-      'TIMEOUT_ERROR',
+      "WordPress request timed out.",
+      "TIMEOUT_ERROR",
       { ...context, retryable: true },
       { cause },
     );
@@ -159,10 +161,10 @@ export class WordPressTimeoutError extends WordPressClientError {
  * the client detects that auth is required but not configured.
  */
 export class WordPressAuthError extends WordPressClientError {
-  override readonly name = 'WordPressAuthError';
+  override readonly name = "WordPressAuthError";
 
   constructor(message: string, context?: WordPressErrorContext) {
-    super(message, 'AUTH_ERROR', { ...context, retryable: false });
+    super(message, "AUTH_ERROR", { ...context, retryable: false });
   }
 }
 
@@ -175,11 +177,11 @@ export class WordPressAuthError extends WordPressClientError {
  */
 export interface WordPressErrorPayload {
   code?: string;
-  message?: string;
   data?: {
     status?: number;
     [key: string]: unknown;
   };
+  message?: string;
   [key: string]: unknown;
 }
 
@@ -191,7 +193,7 @@ export interface WordPressErrorPayload {
  * is `HTTP_ERROR`.
  */
 export class WordPressHttpError extends WordPressClientError {
-  override readonly name = 'WordPressHttpError';
+  override readonly name = "WordPressHttpError";
   readonly status: number;
   readonly statusText: string;
   readonly contentType?: string;
@@ -201,7 +203,7 @@ export class WordPressHttpError extends WordPressClientError {
 
   constructor(
     message: string,
-    kind: 'WP_API_ERROR' | 'HTTP_ERROR',
+    kind: "WP_API_ERROR" | "HTTP_ERROR",
     fields: {
       status: number;
       statusText: string;
@@ -230,7 +232,9 @@ export class WordPressHttpError extends WordPressClientError {
       ...(this.contentType !== undefined && { contentType: this.contentType }),
       ...(this.wpCode !== undefined && { wpCode: this.wpCode }),
       ...(this.wpMessage !== undefined && { wpMessage: this.wpMessage }),
-      ...(this.responseBody !== undefined && { responseBody: this.responseBody }),
+      ...(this.responseBody !== undefined && {
+        responseBody: this.responseBody,
+      }),
     };
   }
 }
@@ -239,7 +243,7 @@ export class WordPressHttpError extends WordPressClientError {
  * Response body could not be parsed (invalid JSON, unexpected content type).
  */
 export class WordPressParseError extends WordPressClientError {
-  override readonly name = 'WordPressParseError';
+  override readonly name = "WordPressParseError";
   readonly status?: number;
   readonly statusText?: string;
   readonly contentType?: string;
@@ -252,7 +256,7 @@ export class WordPressParseError extends WordPressClientError {
     const causeMessage = cause instanceof Error ? cause.message : String(cause);
     super(
       `Failed to parse WordPress response: ${causeMessage}`,
-      'PARSE_ERROR',
+      "PARSE_ERROR",
       { ...context, retryable: false },
       { cause },
     );
@@ -276,10 +280,10 @@ export class WordPressParseError extends WordPressClientError {
  * types/taxonomies, OPTIONS fetch failed, etc.).
  */
 export class WordPressDiscoveryError extends WordPressClientError {
-  override readonly name = 'WordPressDiscoveryError';
+  override readonly name = "WordPressDiscoveryError";
 
   constructor(message: string, context?: WordPressErrorContext) {
-    super(message, 'DISCOVERY_ERROR', { ...context, retryable: false });
+    super(message, "DISCOVERY_ERROR", { ...context, retryable: false });
   }
 }
 
@@ -288,10 +292,10 @@ export class WordPressDiscoveryError extends WordPressClientError {
  * detected before a request is sent.
  */
 export class WordPressInvalidRequestError extends WordPressClientError {
-  override readonly name = 'WordPressInvalidRequestError';
+  override readonly name = "WordPressInvalidRequestError";
 
   constructor(message: string, context?: WordPressErrorContext) {
-    super(message, 'INVALID_REQUEST_ERROR', { ...context, retryable: false });
+    super(message, "INVALID_REQUEST_ERROR", { ...context, retryable: false });
   }
 }
 
@@ -352,23 +356,26 @@ export function createHttpError(
 ): WordPressHttpError {
   const wpError = toWordPressErrorPayload(payload);
   const status = wpError?.data?.status ?? response.status;
-  const wpCode = typeof wpError?.code === 'string' ? wpError.code : undefined;
-  const wpMessage = typeof wpError?.message === 'string' ? wpError.message : undefined;
+  const wpCode = typeof wpError?.code === "string" ? wpError.code : undefined;
+  const wpMessage =
+    typeof wpError?.message === "string" ? wpError.message : undefined;
   const hasWpPayload = wpCode !== undefined || wpMessage !== undefined;
 
-  const message = wpMessage ?? `WordPress API error: ${response.status} ${response.statusText}`;
+  const message =
+    wpMessage ??
+    `WordPress API error: ${response.status} ${response.statusText}`;
 
   return new WordPressHttpError(
     message,
-    hasWpPayload ? 'WP_API_ERROR' : 'HTTP_ERROR',
+    hasWpPayload ? "WP_API_ERROR" : "HTTP_ERROR",
     {
-      status,
-      statusText: response.statusText,
-      contentType: response.headers.get('Content-Type') ?? undefined,
-      wpCode,
-      wpMessage,
+      contentType: response.headers.get("Content-Type") ?? undefined,
       responseBody: payload,
       retryable: status === 429 || status >= 500,
+      status,
+      statusText: response.statusText,
+      wpCode,
+      wpMessage,
     },
     context,
   );
@@ -379,10 +386,18 @@ export function createHttpError(
  */
 export function createParseError(
   cause: unknown,
-  context?: WordPressErrorContext & { status?: number; statusText?: string; contentType?: string },
+  context?: WordPressErrorContext & {
+    status?: number;
+    statusText?: string;
+    contentType?: string;
+  },
 ): WordPressParseError {
   const { status, statusText, contentType, ...baseContext } = context ?? {};
-  return new WordPressParseError(cause, { status, statusText, contentType }, baseContext);
+  return new WordPressParseError(
+    cause,
+    { contentType, status, statusText },
+    baseContext,
+  );
 }
 
 /**
@@ -421,15 +436,15 @@ export function normalizeToClientError(
   if (error instanceof Error) {
     return new WordPressClientError(
       error.message,
-      'UNKNOWN_ERROR',
+      "UNKNOWN_ERROR",
       { ...context, retryable: false },
       { cause: error },
     );
   }
 
   return new WordPressClientError(
-    typeof error === 'string' ? error : 'An unknown error occurred.',
-    'UNKNOWN_ERROR',
+    typeof error === "string" ? error : "An unknown error occurred.",
+    "UNKNOWN_ERROR",
     { ...context, retryable: false },
     { cause: error },
   );
@@ -466,11 +481,18 @@ export function classifyFetchError(
   error: unknown,
   context?: WordPressErrorContext,
 ): WordPressTimeoutError | WordPressNetworkError {
-  if (typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError') {
+  if (
+    typeof DOMException !== "undefined" &&
+    error instanceof DOMException &&
+    error.name === "AbortError"
+  ) {
     return createTimeoutError(error, context);
   }
 
-  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+  if (
+    error instanceof Error &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
+  ) {
     return createTimeoutError(error, context);
   }
 
@@ -486,14 +508,20 @@ export function classifyFetchError(
  * Only returns a payload when the object contains at least one of the
  * standard WordPress error fields (`code` or `message`).
  */
-function toWordPressErrorPayload(payload: unknown): WordPressErrorPayload | null {
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+function toWordPressErrorPayload(
+  payload: unknown,
+): WordPressErrorPayload | null {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
     return null;
   }
 
   const record = payload as Record<string, unknown>;
 
-  if (!('code' in record) && !('message' in record)) {
+  if (!("code" in record) && !("message" in record)) {
     return null;
   }
 

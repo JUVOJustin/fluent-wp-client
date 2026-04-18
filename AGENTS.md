@@ -288,6 +288,7 @@ Follow the global coding rules already provided to the agent. Additionally:
 - Treat `src/client.ts` and related client primitives as the center of the package design.
 - Prefer web-standard APIs so the client works across Node, Bun, Deno, and browsers.
 - All public API is re-exported from `src/index.ts`.
+- After any code changes, run `npm run biome:check` and fix any reported Biome issues before finalizing.
 
 ## npm Package
 

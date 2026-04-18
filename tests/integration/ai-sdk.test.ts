@@ -1,15 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { z } from 'zod';
-import {
-  createPublicClient,
-  createAuthClient,
-} from '../helpers/wp-client';
-import type { WordPressClient, WordPressDiscoveryCatalog } from 'fluent-wp-client';
+import type {
+  WordPressClient,
+  WordPressDiscoveryCatalog,
+} from "fluent-wp-client";
 import {
   createAbilityTools,
   createContentTool,
   createResourceTool,
-  createTermTool,
   deleteContentTool,
   deleteResourceTool,
   executeRunAbilityTool,
@@ -25,14 +21,23 @@ import {
   updateContentTool,
   updateResourceTool,
   type WordPressAIReadAdapter,
-} from 'fluent-wp-client/ai-sdk';
+} from "fluent-wp-client/ai-sdk";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { z } from "zod";
+import { createAuthClient, createPublicClient } from "../helpers/wp-client";
 
-async function run<T>(tool: { execute?: Function }, args: Record<string, unknown>): Promise<T> {
-  const result = await tool.execute!(args, { toolCallId: 'test', messages: [] });
+async function run<T>(
+  tool: { execute?: Function },
+  args: Record<string, unknown>,
+): Promise<T> {
+  const result = await tool.execute?.(args, {
+    messages: [],
+    toolCallId: "test",
+  });
   return result as T;
 }
 
-describe('AI SDK tool integration', () => {
+describe("AI SDK tool integration", () => {
   let publicClient: WordPressClient;
   let authClient: WordPressClient;
   let catalog: WordPressDiscoveryCatalog;
@@ -44,41 +49,47 @@ describe('AI SDK tool integration', () => {
     publicClient.useCatalog(catalog);
   });
 
-  describe('generic collection tools', () => {
-    it('getContentCollectionTool lists posts when fixed to one content type', async () => {
+  describe("generic collection tools", () => {
+    it("getContentCollectionTool lists posts when fixed to one content type", async () => {
       const tool = getContentCollectionTool(publicClient, {
-        contentType: 'posts',
+        contentType: "posts",
         fixedArgs: { perPage: 3 },
       });
 
       const result = await run<unknown[]>(tool, { perPage: 10 });
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeLessThanOrEqual(3);
-      expect(result[0]).toHaveProperty('id');
+      expect(result[0]).toHaveProperty("id");
     });
 
-    it('getContentCollectionTool can switch content types through input', async () => {
+    it("getContentCollectionTool can switch content types through input", async () => {
       const tool = getContentCollectionTool(publicClient);
-      const result = await run<Array<{ slug: string }>>(tool, { contentType: 'books', perPage: 2 });
+      const result = await run<Array<{ slug: string }>>(tool, {
+        contentType: "books",
+        perPage: 2,
+      });
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
-      expect(result[0]?.slug).toContain('test-book');
+      expect(result[0]?.slug).toContain("test-book");
     });
 
-    it('getTermCollectionTool lists taxonomy terms through taxonomyType', async () => {
+    it("getTermCollectionTool lists taxonomy terms through taxonomyType", async () => {
       const tool = getTermCollectionTool(authClient);
-      const result = await run<Array<{ slug: string }>>(tool, { taxonomyType: 'categories', perPage: 3 });
+      const result = await run<Array<{ slug: string }>>(tool, {
+        perPage: 3,
+        taxonomyType: "categories",
+      });
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
-      expect(result[0]).toHaveProperty('slug');
+      expect(result[0]).toHaveProperty("slug");
     });
 
-    it('getTermCollectionTool with fixedArgs overrides model-provided taxonomyType', async () => {
+    it("getTermCollectionTool with fixedArgs overrides model-provided taxonomyType", async () => {
       const tool = getTermCollectionTool(authClient, {
-        taxonomyType: 'tags',
-        fixedArgs: { taxonomyType: 'tags' },
+        fixedArgs: { taxonomyType: "tags" },
+        taxonomyType: "tags",
       });
 
       // Even if model tries to provide taxonomyType: 'categories', fixed wins
@@ -87,417 +98,518 @@ describe('AI SDK tool integration', () => {
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
       // Should return tags, not categories
-      expect(result[0]).toHaveProperty('taxonomy', 'post_tag');
+      expect(result[0]).toHaveProperty("taxonomy", "post_tag");
     });
 
-    it('getResourceCollectionTool lists users through resourceType', async () => {
-      const tool = getResourceCollectionTool(authClient, { resourceType: 'users' });
+    it("getResourceCollectionTool lists users through resourceType", async () => {
+      const tool = getResourceCollectionTool(authClient, {
+        resourceType: "users",
+      });
       const result = await run<unknown[]>(tool, { perPage: 3 });
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
     });
 
-    it('getContentCollectionTool can use a read adapter for cached reads', async () => {
+    it("getContentCollectionTool can use a read adapter for cached reads", async () => {
       const readAdapter: WordPressAIReadAdapter = {
-        listContent: async ({ contentType, filter }) => [{ id: 999, contentType, filter }],
+        listContent: async ({ contentType, filter }) => [
+          { contentType, filter, id: 999 },
+        ],
       };
 
       const tool = getContentCollectionTool(publicClient, {
-        contentType: 'posts',
+        contentType: "posts",
         readAdapter,
       });
-      const result = await run<Array<{ id: number; contentType: string; filter: Record<string, unknown> }>>(tool, { perPage: 2 });
+      const result = await run<
+        Array<{
+          id: number;
+          contentType: string;
+          filter: Record<string, unknown>;
+        }>
+      >(tool, { perPage: 2 });
 
-      expect(result).toEqual([{ id: 999, contentType: 'posts', filter: { perPage: 2 } }]);
+      expect(result).toEqual([
+        { contentType: "posts", filter: { perPage: 2 }, id: 999 },
+      ]);
     });
 
-    it('getTermCollectionTool can use a read adapter for cached reads', async () => {
+    it("getTermCollectionTool can use a read adapter for cached reads", async () => {
       const readAdapter: WordPressAIReadAdapter = {
-        listTerms: async ({ taxonomyType, filter }) => [{ id: 998, taxonomyType, filter }],
+        listTerms: async ({ taxonomyType, filter }) => [
+          { filter, id: 998, taxonomyType },
+        ],
       };
 
       const tool = getTermCollectionTool(publicClient, {
-        taxonomyType: 'categories',
         readAdapter,
+        taxonomyType: "categories",
       });
-      const result = await run<Array<{ id: number; taxonomyType: string; filter: Record<string, unknown> }>>(tool, { perPage: 4 });
+      const result = await run<
+        Array<{
+          id: number;
+          taxonomyType: string;
+          filter: Record<string, unknown>;
+        }>
+      >(tool, { perPage: 4 });
 
-      expect(result).toEqual([{ id: 998, taxonomyType: 'categories', filter: { perPage: 4 } }]);
+      expect(result).toEqual([
+        { filter: { perPage: 4 }, id: 998, taxonomyType: "categories" },
+      ]);
     });
 
-    it('getResourceCollectionTool can use a read adapter for cached reads', async () => {
+    it("getResourceCollectionTool can use a read adapter for cached reads", async () => {
       const readAdapter: WordPressAIReadAdapter = {
-        listResource: async ({ resourceType, filter }) => [{ id: 997, resourceType, filter }],
+        listResource: async ({ resourceType, filter }) => [
+          { filter, id: 997, resourceType },
+        ],
       };
 
       const tool = getResourceCollectionTool(authClient, {
-        resourceType: 'users',
         readAdapter,
+        resourceType: "users",
       });
-      const result = await run<Array<{ id: number; resourceType: string; filter: Record<string, unknown> }>>(tool, { perPage: 5 });
+      const result = await run<
+        Array<{
+          id: number;
+          resourceType: string;
+          filter: Record<string, unknown>;
+        }>
+      >(tool, { perPage: 5 });
 
-      expect(result).toEqual([{ id: 997, resourceType: 'users', filter: { perPage: 5 } }]);
+      expect(result).toEqual([
+        { filter: { perPage: 5 }, id: 997, resourceType: "users" },
+      ]);
     });
   });
 
-  describe('generic single-item tools', () => {
-    it('getContentTool fetches a post with content expansion', async () => {
-      const posts = await authClient.content('posts').list({ perPage: 1 });
+  describe("generic single-item tools", () => {
+    it("getContentTool fetches a post with content expansion", async () => {
+      const posts = await authClient.content("posts").list({ perPage: 1 });
       const tool = getContentTool(authClient, {
-        contentType: 'posts',
+        contentType: "posts",
       });
 
-      const result = await run<{ item: { id: number }; content?: unknown }>(tool, {
-        id: posts[0].id,
-        includeContent: true,
-      });
+      const result = await run<{ item: { id: number }; content?: unknown }>(
+        tool,
+        {
+          id: posts[0].id,
+          includeContent: true,
+        },
+      );
 
-      expect(result).toHaveProperty('item.id', posts[0].id);
-      expect(result).toHaveProperty('content');
+      expect(result).toHaveProperty("item.id", posts[0].id);
+      expect(result).toHaveProperty("content");
     });
 
-    it('getContentTool with fixedArgs overrides model-provided contentType', async () => {
+    it("getContentTool with fixedArgs overrides model-provided contentType", async () => {
       const tool = getContentTool(publicClient, {
-        contentType: 'posts',
-        fixedArgs: { contentType: 'posts' },
+        contentType: "posts",
+        fixedArgs: { contentType: "posts" },
       });
 
       // Even if model provides contentType: 'books', the fixed value wins
       const result = await run<{ item: { slug: string } }>(tool, {
-        slug: 'test-post-001',
+        slug: "test-post-001",
       });
 
-      expect(result).toHaveProperty('item.slug', 'test-post-001');
+      expect(result).toHaveProperty("item.slug", "test-post-001");
     });
 
-    it('getContentTool fetches a custom post type by slug', async () => {
+    it("getContentTool fetches a custom post type by slug", async () => {
       const tool = getContentTool(publicClient);
       const result = await run<{ item: { slug: string } }>(tool, {
-        contentType: 'books',
-        slug: 'test-book-001',
+        contentType: "books",
+        slug: "test-book-001",
       });
 
-      expect(result).toHaveProperty('item.slug', 'test-book-001');
+      expect(result).toHaveProperty("item.slug", "test-book-001");
     });
 
-    it('getTermTool fetches a term by slug', async () => {
-      const tool = getTermTool(publicClient, { taxonomyType: 'categories' });
-      const result = await run<{ slug: string }>(tool, { slug: 'technology' });
+    it("getTermTool fetches a term by slug", async () => {
+      const tool = getTermTool(publicClient, { taxonomyType: "categories" });
+      const result = await run<{ slug: string }>(tool, { slug: "technology" });
 
-      expect(result).toHaveProperty('slug', 'technology');
+      expect(result).toHaveProperty("slug", "technology");
     });
 
-    it('getTermTool with fixedArgs overrides model-provided taxonomyType', async () => {
+    it("getTermTool with fixedArgs overrides model-provided taxonomyType", async () => {
       const tool = getTermTool(publicClient, {
-        taxonomyType: 'tags',
-        fixedArgs: { taxonomyType: 'tags' },
+        fixedArgs: { taxonomyType: "tags" },
+        taxonomyType: "tags",
       });
 
       // Even if model tries to provide taxonomyType: 'categories', fixed wins
-      const result = await run<{ slug: string }>(tool, { slug: 'featured' });
+      const result = await run<{ slug: string }>(tool, { slug: "featured" });
 
-      expect(result).toHaveProperty('slug', 'featured');
+      expect(result).toHaveProperty("slug", "featured");
     });
 
-    it('getResourceTool fetches a user by slug', async () => {
+    it("getResourceTool fetches a user by slug", async () => {
       const user = (await authClient.users().list({ perPage: 1 }))[0];
-      const tool = getResourceTool(authClient, { resourceType: 'users' });
+      const tool = getResourceTool(authClient, { resourceType: "users" });
       const result = await run<{ slug: string }>(tool, { slug: user.slug });
 
-      expect(result).toHaveProperty('slug', user.slug);
+      expect(result).toHaveProperty("slug", user.slug);
     });
 
-    it('getResourceTool with fixedArgs overrides model-provided resourceType', async () => {
+    it("getResourceTool with fixedArgs overrides model-provided resourceType", async () => {
       const user = (await authClient.users().list({ perPage: 1 }))[0];
       const tool = getResourceTool(authClient, {
-        resourceType: 'users',
-        fixedArgs: { resourceType: 'users' },
+        fixedArgs: { resourceType: "users" },
+        resourceType: "users",
       });
 
       // Even if model tries to provide resourceType: 'media', fixed wins
       const result = await run<{ slug: string }>(tool, { slug: user.slug });
 
-      expect(result).toHaveProperty('slug', user.slug);
+      expect(result).toHaveProperty("slug", user.slug);
     });
 
-    it('getSettingsTool returns site settings', async () => {
+    it("getSettingsTool returns site settings", async () => {
       const tool = getSettingsTool(authClient);
       const result = await run<{ title: string }>(tool, {});
 
-      expect(result).toHaveProperty('title');
+      expect(result).toHaveProperty("title");
     });
 
-    it('read-only tools can use a read adapter without changing their public shapes', async () => {
+    it("read-only tools can use a read adapter without changing their public shapes", async () => {
       const readAdapter: WordPressAIReadAdapter = {
         getContent: async ({ contentType, slug, includeContent }) => ({
+          content: includeContent ? { raw: "<p>cached</p>" } : undefined,
           item: { id: 321, slug, type: contentType },
-          content: includeContent ? { raw: '<p>cached</p>' } : undefined,
         }),
+        getResource: async ({ slug, resourceType }) => ({
+          id: 12,
+          resourceType,
+          slug,
+        }),
+        getSettings: async () => ({ title: "Cached settings title" }),
         getTerm: async ({ slug }) => ({ id: 11, slug }),
-        getResource: async ({ slug, resourceType }) => ({ id: 12, slug, resourceType }),
-        getSettings: async () => ({ title: 'Cached settings title' }),
       };
 
       const contentTool = getContentTool(publicClient, {
-        contentType: 'posts',
+        contentType: "posts",
         readAdapter,
       });
-      const contentResult = await run<{ item: { slug: string; type: string }; content?: { raw: string } }>(contentTool, {
-        slug: 'cached-post',
+      const contentResult = await run<{
+        item: { slug: string; type: string };
+        content?: { raw: string };
+      }>(contentTool, {
         includeContent: true,
+        slug: "cached-post",
       });
       expect(contentResult).toEqual({
-        item: { id: 321, slug: 'cached-post', type: 'posts' },
-        content: { raw: '<p>cached</p>' },
+        content: { raw: "<p>cached</p>" },
+        item: { id: 321, slug: "cached-post", type: "posts" },
       });
 
       const termTool = getTermTool(publicClient, {
-        taxonomyType: 'categories',
         readAdapter,
+        taxonomyType: "categories",
       });
-      expect(await run<{ slug: string }>(termTool, { slug: 'cached-term' })).toEqual({ id: 11, slug: 'cached-term' });
+      expect(
+        await run<{ slug: string }>(termTool, { slug: "cached-term" }),
+      ).toEqual({ id: 11, slug: "cached-term" });
 
       const resourceTool = getResourceTool(authClient, {
-        resourceType: 'users',
         readAdapter,
+        resourceType: "users",
       });
-      expect(await run<{ slug: string; resourceType: string }>(resourceTool, { slug: 'cached-user' })).toEqual({
+      expect(
+        await run<{ slug: string; resourceType: string }>(resourceTool, {
+          slug: "cached-user",
+        }),
+      ).toEqual({
         id: 12,
-        slug: 'cached-user',
-        resourceType: 'users',
+        resourceType: "users",
+        slug: "cached-user",
       });
 
       const settingsTool = getSettingsTool(authClient, { readAdapter });
-      expect(await run<{ title: string }>(settingsTool, {})).toEqual({ title: 'Cached settings title' });
+      expect(await run<{ title: string }>(settingsTool, {})).toEqual({
+        title: "Cached settings title",
+      });
     });
   });
 
-  describe('generic mutation tools', () => {
+  describe("generic mutation tools", () => {
     const postCleanupIds: number[] = [];
     const userCleanupIds: number[] = [];
 
     afterAll(async () => {
       for (const id of postCleanupIds) {
-        try { await authClient.content('posts').delete(id, { force: true }); } catch {}
+        try {
+          await authClient.content("posts").delete(id, { force: true });
+        } catch {}
       }
 
       for (const id of userCleanupIds) {
-        try { await authClient.users().delete(id, { force: true, reassign: 1 }); } catch {}
+        try {
+          await authClient.users().delete(id, { force: true, reassign: 1 });
+        } catch {}
       }
     });
 
-    it('createContentTool creates a draft post', async () => {
+    it("createContentTool creates a draft post", async () => {
       const tool = createContentTool(authClient, {
-        contentType: 'posts',
-        fixedInput: { status: 'draft' },
+        contentType: "posts",
+        fixedInput: { status: "draft" },
       });
 
-      const result = await run<{ id: number }>(tool, {
-        input: { title: 'AI SDK Generic Post', content: 'Created via generic content tool' },
-      });
-
-      expect(result).toHaveProperty('id');
-      postCleanupIds.push(result.id);
-    });
-
-    it('updateContentTool updates a post', async () => {
-      const created = await authClient.content('posts').create({ title: 'Update Target', status: 'draft' });
-      postCleanupIds.push(created.id);
-
-      const tool = updateContentTool(authClient, { contentType: 'posts' });
-      const result = await run<{ id: number }>(tool, {
-        id: created.id,
-        input: { title: 'Updated Generic Title' },
-      });
-
-      expect(result).toHaveProperty('id', created.id);
-    });
-
-    it('deleteContentTool deletes a post', async () => {
-      const created = await authClient.content('posts').create({ title: 'Delete Target', status: 'draft' });
-      const tool = deleteContentTool(authClient, { contentType: 'posts' });
-      const result = await run<{ deleted: boolean }>(tool, { id: created.id, force: true });
-
-      expect(result).toHaveProperty('deleted', true);
-    });
-
-    it('createResourceTool creates a user', async () => {
-      const tool = createResourceTool(authClient, { resourceType: 'users' });
-      const unique = Date.now();
       const result = await run<{ id: number }>(tool, {
         input: {
-          username: `ai-sdk-user-${unique}`,
-          email: `ai-sdk-user-${unique}@example.com`,
-          password: 'password123!',
-          name: 'AI SDK User',
+          content: "Created via generic content tool",
+          title: "AI SDK Generic Post",
         },
       });
 
-      expect(result).toHaveProperty('id');
+      expect(result).toHaveProperty("id");
+      postCleanupIds.push(result.id);
+    });
+
+    it("updateContentTool updates a post", async () => {
+      const created = await authClient
+        .content("posts")
+        .create({ status: "draft", title: "Update Target" });
+      postCleanupIds.push(created.id);
+
+      const tool = updateContentTool(authClient, { contentType: "posts" });
+      const result = await run<{ id: number }>(tool, {
+        id: created.id,
+        input: { title: "Updated Generic Title" },
+      });
+
+      expect(result).toHaveProperty("id", created.id);
+    });
+
+    it("deleteContentTool deletes a post", async () => {
+      const created = await authClient
+        .content("posts")
+        .create({ status: "draft", title: "Delete Target" });
+      const tool = deleteContentTool(authClient, { contentType: "posts" });
+      const result = await run<{ deleted: boolean }>(tool, {
+        force: true,
+        id: created.id,
+      });
+
+      expect(result).toHaveProperty("deleted", true);
+    });
+
+    it("createResourceTool creates a user", async () => {
+      const tool = createResourceTool(authClient, { resourceType: "users" });
+      const unique = Date.now();
+      const result = await run<{ id: number }>(tool, {
+        input: {
+          email: `ai-sdk-user-${unique}@example.com`,
+          name: "AI SDK User",
+          password: "password123!",
+          username: `ai-sdk-user-${unique}`,
+        },
+      });
+
+      expect(result).toHaveProperty("id");
       userCleanupIds.push(result.id);
     });
 
-    it('updateResourceTool updates a user', async () => {
+    it("updateResourceTool updates a user", async () => {
       const unique = Date.now();
       const created = await authClient.users().create({
-        username: `ai-sdk-update-${unique}`,
         email: `ai-sdk-update-${unique}@example.com`,
-        password: 'password123!',
+        password: "password123!",
+        username: `ai-sdk-update-${unique}`,
       });
       userCleanupIds.push(created.id);
 
-      const tool = updateResourceTool(authClient, { resourceType: 'users' });
+      const tool = updateResourceTool(authClient, { resourceType: "users" });
       const result = await run<{ id: number }>(tool, {
         id: created.id,
-        input: { name: 'Updated AI SDK User' },
+        input: { name: "Updated AI SDK User" },
       });
 
-      expect(result).toHaveProperty('id', created.id);
+      expect(result).toHaveProperty("id", created.id);
     });
 
-    it('deleteResourceTool deletes a user', async () => {
+    it("deleteResourceTool deletes a user", async () => {
       const unique = Date.now();
       const created = await authClient.users().create({
-        username: `ai-sdk-delete-${unique}`,
         email: `ai-sdk-delete-${unique}@example.com`,
-        password: 'password123!',
+        password: "password123!",
+        username: `ai-sdk-delete-${unique}`,
       });
 
-      const tool = deleteResourceTool(authClient, { resourceType: 'users' });
-      const result = await run<{ deleted: boolean }>(tool, { id: created.id, force: true, reassign: 1 });
+      const tool = deleteResourceTool(authClient, { resourceType: "users" });
+      const result = await run<{ deleted: boolean }>(tool, {
+        force: true,
+        id: created.id,
+        reassign: 1,
+      });
 
-      expect(result).toHaveProperty('deleted', true);
+      expect(result).toHaveProperty("deleted", true);
     });
 
-    it('returns structured tool errors instead of throwing raw exceptions', async () => {
-      const tool = createContentTool(publicClient, { contentType: 'posts' });
+    it("returns structured tool errors instead of throwing raw exceptions", async () => {
+      const tool = createContentTool(publicClient, { contentType: "posts" });
       const result = await run<{
         ok: false;
         error: { kind: string; message: string; status?: number };
       }>(tool, {
-        input: { title: 'Unauthorized post' },
+        input: { title: "Unauthorized post" },
       });
 
-      expect(result).toHaveProperty('ok', false);
-      expect(result).toHaveProperty('error.kind');
-      expect(result).toHaveProperty('error.message');
+      expect(result).toHaveProperty("ok", false);
+      expect(result).toHaveProperty("error.kind");
+      expect(result).toHaveProperty("error.message");
     });
   });
 
-  describe('catalog-aware schemas', () => {
-    it('content tools expose catalog-backed contentType enums', () => {
+  describe("catalog-aware schemas", () => {
+    it("content tools expose catalog-backed contentType enums", () => {
       const tool = getContentCollectionTool(publicClient);
-      const schema = tool.inputSchema as { safeParse: (input: unknown) => { success: boolean } };
+      const schema = tool.inputSchema as {
+        safeParse: (input: unknown) => { success: boolean };
+      };
 
-      expect(schema.safeParse({ contentType: 'posts' }).success).toBe(true);
-      expect(schema.safeParse({ contentType: 'not-a-real-type' }).success).toBe(false);
+      expect(schema.safeParse({ contentType: "posts" }).success).toBe(true);
+      expect(schema.safeParse({ contentType: "not-a-real-type" }).success).toBe(
+        false,
+      );
     });
 
-    it('fixed content tools remove contentType from the input shape', () => {
-      const tool = createContentTool(authClient, { contentType: 'posts' });
-      const schema = tool.inputSchema as { safeParse: (input: unknown) => { success: boolean } };
+    it("fixed content tools remove contentType from the input shape", () => {
+      const tool = createContentTool(authClient, { contentType: "posts" });
+      const schema = tool.inputSchema as {
+        safeParse: (input: unknown) => { success: boolean };
+      };
 
-      expect(schema.safeParse({ contentType: 'posts', input: { title: 'Hello world' } }).success).toBe(false);
+      expect(
+        schema.safeParse({
+          contentType: "posts",
+          input: { title: "Hello world" },
+        }).success,
+      ).toBe(false);
     });
 
-    it('ability tools expose catalog-backed ability enums when available', () => {
+    it("ability tools expose catalog-backed ability enums when available", () => {
       const abilityNames = Object.keys(catalog.abilities);
       if (abilityNames.length === 0) return;
 
       const tool = executeRunAbilityTool(authClient);
-      const schema = tool.inputSchema as { safeParse: (input: unknown) => { success: boolean } };
+      const schema = tool.inputSchema as {
+        safeParse: (input: unknown) => { success: boolean };
+      };
 
       expect(schema.safeParse({ name: abilityNames[0] }).success).toBe(true);
-      expect(schema.safeParse({ name: 'missing/ability' }).success).toBe(false);
+      expect(schema.safeParse({ name: "missing/ability" }).success).toBe(false);
     });
 
-    it('manual inputSchema overrides generated schemas when no catalog is provided', () => {
+    it("manual inputSchema overrides generated schemas when no catalog is provided", () => {
       const tool = createContentTool(authClient, {
-        contentType: 'posts',
+        contentType: "posts",
         inputSchema: z.object({
           input: z.object({
-            title: z.string(),
             customField: z.number(),
+            title: z.string(),
           }),
         }),
       });
-      const schema = tool.inputSchema as { safeParse: (input: unknown) => { success: boolean } };
+      const schema = tool.inputSchema as {
+        safeParse: (input: unknown) => { success: boolean };
+      };
 
-      expect(schema.safeParse({ input: { title: 'Hello', customField: 1 } }).success).toBe(true);
-      expect(schema.safeParse({ input: { title: 'Hello' } }).success).toBe(false);
+      expect(
+        schema.safeParse({ input: { customField: 1, title: "Hello" } }).success,
+      ).toBe(true);
+      expect(schema.safeParse({ input: { title: "Hello" } }).success).toBe(
+        false,
+      );
     });
   });
 
-  describe('block tools', () => {
+  describe("block tools", () => {
     let blockTestPostId: number;
 
     beforeAll(async () => {
-      const post = await authClient.content('posts').create({
-        title: 'Block Tool Test Post',
-        content: '<!-- wp:paragraph -->\n<p>Original content</p>\n<!-- /wp:paragraph -->',
-        status: 'draft',
+      const post = await authClient.content("posts").create({
+        content:
+          "<!-- wp:paragraph -->\n<p>Original content</p>\n<!-- /wp:paragraph -->",
+        status: "draft",
+        title: "Block Tool Test Post",
       });
       blockTestPostId = post.id;
     });
 
     afterAll(async () => {
       if (blockTestPostId) {
-        try { await authClient.content('posts').delete(blockTestPostId, { force: true }); } catch {}
+        try {
+          await authClient
+            .content("posts")
+            .delete(blockTestPostId, { force: true });
+        } catch {}
       }
     });
 
-    it('getBlocksTool returns parsed block structure', async () => {
-      const tool = getBlocksTool(authClient, { contentType: 'posts' });
-      const result = await run<{ id: number; contentType: string; blocks: unknown[] }>(tool, {
+    it("getBlocksTool returns parsed block structure", async () => {
+      const tool = getBlocksTool(authClient, { contentType: "posts" });
+      const result = await run<{
+        id: number;
+        contentType: string;
+        blocks: unknown[];
+      }>(tool, {
         id: blockTestPostId,
       });
 
-      expect(result).toHaveProperty('id', blockTestPostId);
-      expect(result).toHaveProperty('contentType', 'posts');
+      expect(result).toHaveProperty("id", blockTestPostId);
+      expect(result).toHaveProperty("contentType", "posts");
       expect(Array.isArray(result.blocks)).toBe(true);
       expect(result.blocks.length).toBeGreaterThan(0);
     });
 
-    it('setBlocksTool writes block structure and getBlocksTool reads it back', async () => {
+    it("setBlocksTool writes block structure and getBlocksTool reads it back", async () => {
       const newBlocks = [
         {
-          blockName: 'core/paragraph',
           attrs: {},
+          blockName: "core/paragraph",
           innerBlocks: [],
-          innerHTML: '\n<p>Updated via AI SDK tool</p>\n',
-          innerContent: ['\n<p>Updated via AI SDK tool</p>\n'],
+          innerContent: ["\n<p>Updated via AI SDK tool</p>\n"],
+          innerHTML: "\n<p>Updated via AI SDK tool</p>\n",
         },
         {
-          blockName: 'core/heading',
           attrs: { level: 2 },
+          blockName: "core/heading",
           innerBlocks: [],
-          innerHTML: '\n<h2>AI-generated heading</h2>\n',
-          innerContent: ['\n<h2>AI-generated heading</h2>\n'],
+          innerContent: ["\n<h2>AI-generated heading</h2>\n"],
+          innerHTML: "\n<h2>AI-generated heading</h2>\n",
         },
       ];
 
-      const setTool = setBlocksTool(authClient, { contentType: 'posts' });
+      const setTool = setBlocksTool(authClient, { contentType: "posts" });
       const setResult = await run<{ updated: boolean }>(setTool, {
-        id: blockTestPostId,
         blocks: newBlocks,
-      });
-      expect(setResult).toHaveProperty('updated', true);
-
-      const getTool = getBlocksTool(authClient, { contentType: 'posts' });
-      const getResult = await run<{ blocks: Array<{ blockName: string }> }>(getTool, {
         id: blockTestPostId,
       });
+      expect(setResult).toHaveProperty("updated", true);
 
-      const blockNames = getResult.blocks.filter((b) => b.blockName).map((b) => b.blockName);
-      expect(blockNames).toContain('core/paragraph');
-      expect(blockNames).toContain('core/heading');
+      const getTool = getBlocksTool(authClient, { contentType: "posts" });
+      const getResult = await run<{ blocks: Array<{ blockName: string }> }>(
+        getTool,
+        {
+          id: blockTestPostId,
+        },
+      );
+
+      const blockNames = getResult.blocks
+        .filter((b) => b.blockName)
+        .map((b) => b.blockName);
+      expect(blockNames).toContain("core/paragraph");
+      expect(blockNames).toContain("core/heading");
     });
 
-    it('getBlocksTool with fixedArgs overrides model-provided contentType', async () => {
+    it("getBlocksTool with fixedArgs overrides model-provided contentType", async () => {
       const tool = getBlocksTool(authClient, {
-        contentType: 'posts',
-        fixedArgs: { contentType: 'posts' },
+        contentType: "posts",
+        fixedArgs: { contentType: "posts" },
       });
 
       // Even if model tries to provide contentType: 'pages', fixed wins
@@ -505,89 +617,97 @@ describe('AI SDK tool integration', () => {
         id: blockTestPostId,
       });
 
-      expect(result).toHaveProperty('id', blockTestPostId);
-      expect(result).toHaveProperty('contentType', 'posts');
+      expect(result).toHaveProperty("id", blockTestPostId);
+      expect(result).toHaveProperty("contentType", "posts");
     });
 
-    it('getBlocksTool can use a read adapter for cached block reads', async () => {
+    it("getBlocksTool can use a read adapter for cached block reads", async () => {
       const tool = getBlocksTool(authClient, {
-        contentType: 'posts',
+        contentType: "posts",
         readAdapter: {
           getBlocks: async ({ contentType, id }) => ({
-            id,
-            contentType,
             blocks: [
               {
-                blockName: 'core/paragraph',
                 attrs: {},
+                blockName: "core/paragraph",
                 innerBlocks: [],
-                innerHTML: '<p>Cached blocks</p>',
-                innerContent: ['<p>Cached blocks</p>'],
+                innerContent: ["<p>Cached blocks</p>"],
+                innerHTML: "<p>Cached blocks</p>",
               },
             ],
+            contentType,
+            id,
           }),
         },
       });
 
-      const result = await run<{ id: number; contentType: string; blocks: Array<{ blockName: string }> }>(tool, {
+      const result = await run<{
+        id: number;
+        contentType: string;
+        blocks: Array<{ blockName: string }>;
+      }>(tool, {
         id: blockTestPostId,
       });
 
       expect(result).toEqual({
-        id: blockTestPostId,
-        contentType: 'posts',
         blocks: [
           {
-            blockName: 'core/paragraph',
             attrs: {},
+            blockName: "core/paragraph",
             innerBlocks: [],
-            innerHTML: '<p>Cached blocks</p>',
-            innerContent: ['<p>Cached blocks</p>'],
+            innerContent: ["<p>Cached blocks</p>"],
+            innerHTML: "<p>Cached blocks</p>",
           },
         ],
+        contentType: "posts",
+        id: blockTestPostId,
       });
     });
 
-    it('setBlocksTool with fixedArgs overrides model-provided contentType', async () => {
+    it("setBlocksTool with fixedArgs overrides model-provided contentType", async () => {
       const newBlocks = [
         {
-          blockName: 'core/paragraph',
           attrs: {},
+          blockName: "core/paragraph",
           innerBlocks: [],
-          innerHTML: '\n<p>FixedArgs test content</p>\n',
-          innerContent: ['\n<p>FixedArgs test content</p>\n'],
+          innerContent: ["\n<p>FixedArgs test content</p>\n"],
+          innerHTML: "\n<p>FixedArgs test content</p>\n",
         },
       ];
 
       const tool = setBlocksTool(authClient, {
-        contentType: 'posts',
-        fixedArgs: { contentType: 'posts' },
+        contentType: "posts",
+        fixedArgs: { contentType: "posts" },
       });
 
       // Even if model tries to provide contentType: 'pages', fixed wins
       const result = await run<{ updated: boolean }>(tool, {
-        id: blockTestPostId,
         blocks: newBlocks,
+        id: blockTestPostId,
       });
 
-      expect(result).toHaveProperty('updated', true);
+      expect(result).toHaveProperty("updated", true);
     });
   });
 
-  describe('createAbilityTools', () => {
-    const optionKey = 'ai_sdk_ability_tools_test';
+  describe("createAbilityTools", () => {
+    const optionKey = "ai_sdk_ability_tools_test";
 
     afterAll(async () => {
-      await authClient.executeDeleteAbility('test/delete-option', optionKey).catch(() => undefined);
+      await authClient
+        .executeDeleteAbility("test/delete-option", optionKey)
+        .catch(() => undefined);
     });
 
-    it('throws when no catalog is available', () => {
+    it("throws when no catalog is available", () => {
       const freshClient = createPublicClient();
 
-      expect(() => createAbilityTools(freshClient)).toThrow('requires a discovery catalog');
+      expect(() => createAbilityTools(freshClient)).toThrow(
+        "requires a discovery catalog",
+      );
     });
 
-    it('generates one tool per discovered ability from the cached catalog', () => {
+    it("generates one tool per discovered ability from the cached catalog", () => {
       const abilityNames = Object.keys(catalog.abilities);
       if (abilityNames.length === 0) return;
 
@@ -597,110 +717,115 @@ describe('AI SDK tool integration', () => {
 
       // Tool keys replace / with _
       for (const name of abilityNames) {
-        expect(tools).toHaveProperty(name.replace('/', '_'));
+        expect(tools).toHaveProperty(name.replace("/", "_"));
       }
     });
 
-    it('include filters to only the specified abilities', () => {
+    it("include filters to only the specified abilities", () => {
       const tools = createAbilityTools(authClient, {
-        include: ['test/get-site-title'],
+        include: ["test/get-site-title"],
       });
 
-      expect(Object.keys(tools)).toEqual(['test_get-site-title']);
+      expect(Object.keys(tools)).toEqual(["test_get-site-title"]);
     });
 
-    it('exclude removes specified abilities', () => {
+    it("exclude removes specified abilities", () => {
       const all = createAbilityTools(authClient);
       const filtered = createAbilityTools(authClient, {
-        exclude: ['test/get-site-title'],
+        exclude: ["test/get-site-title"],
       });
 
       expect(Object.keys(filtered).length).toBe(Object.keys(all).length - 1);
-      expect(filtered).not.toHaveProperty('test_get-site-title');
+      expect(filtered).not.toHaveProperty("test_get-site-title");
     });
 
-    it('toolName overrides the generated tool key', () => {
+    it("toolName overrides the generated tool key", () => {
       const tools = createAbilityTools(authClient, {
-        include: ['test/get-site-title'],
-        toolName: (name) => `wp_${name.replace('/', '__')}`,
+        include: ["test/get-site-title"],
+        toolName: (name) => `wp_${name.replace("/", "__")}`,
       });
 
-      expect(Object.keys(tools)).toEqual(['wp_test__get-site-title']);
+      expect(Object.keys(tools)).toEqual(["wp_test__get-site-title"]);
     });
 
-    it('toolDescription overrides the generated tool description', () => {
+    it("toolDescription overrides the generated tool description", () => {
       const tools = createAbilityTools(authClient, {
-        include: ['test/get-site-title'],
-        toolDescription: () => 'Custom description',
+        include: ["test/get-site-title"],
+        toolDescription: () => "Custom description",
       });
 
-      const toolDef = tools['test_get-site-title'] as { description?: string };
-      expect(toolDef.description).toBe('Custom description');
+      const toolDef = tools["test_get-site-title"] as { description?: string };
+      expect(toolDef.description).toBe("Custom description");
     });
 
-    it('executes a readonly ability via GET', async () => {
+    it("executes a readonly ability via GET", async () => {
       const tools = createAbilityTools(authClient, {
-        include: ['test/get-site-title'],
+        include: ["test/get-site-title"],
       });
 
-      const result = await run<{ title: string }>(tools['test_get-site-title'], {});
+      const result = await run<{ title: string }>(
+        tools["test_get-site-title"],
+        {},
+      );
 
-      expect(typeof result.title).toBe('string');
+      expect(typeof result.title).toBe("string");
       expect(result.title.length).toBeGreaterThan(0);
     });
 
-    it('executes a regular ability via POST with typed input', async () => {
+    it("executes a regular ability via POST with typed input", async () => {
       const tools = createAbilityTools(authClient, {
-        include: ['test/update-option'],
+        include: ["test/update-option"],
       });
 
       const result = await run<{ previous: string; current: string }>(
-        tools['test_update-option'],
-        { input: { key: optionKey, value: 'ability-tools-test' } },
+        tools["test_update-option"],
+        { input: { key: optionKey, value: "ability-tools-test" } },
       );
 
-      expect(result.current).toBe('ability-tools-test');
+      expect(result.current).toBe("ability-tools-test");
     });
 
-    it('executes a destructive ability via DELETE', async () => {
+    it("executes a destructive ability via DELETE", async () => {
       // Seed the option first
-      await authClient.executeRunAbility('test/update-option', {
+      await authClient.executeRunAbility("test/update-option", {
         key: optionKey,
-        value: 'delete-me',
+        value: "delete-me",
       });
 
       const tools = createAbilityTools(authClient, {
-        include: ['test/delete-option'],
+        include: ["test/delete-option"],
       });
 
       const result = await run<{ deleted: boolean; previous: string }>(
-        tools['test_delete-option'],
+        tools["test_delete-option"],
         { input: optionKey },
       );
 
       expect(result.deleted).toBe(true);
-      expect(result.previous).toBe('delete-me');
+      expect(result.previous).toBe("delete-me");
     });
 
-    it('returns structured error envelopes on failure', async () => {
+    it("returns structured error envelopes on failure", async () => {
       const publicTools = createAbilityTools(publicClient, {
-        include: ['test/get-site-title'],
+        include: ["test/get-site-title"],
       });
 
       const result = await run<{
         ok: false;
         error: { kind: string; message: string; status?: number };
-      }>(publicTools['test_get-site-title'], {});
+      }>(publicTools["test_get-site-title"], {});
 
-      expect(result).toHaveProperty('ok', false);
-      expect(result).toHaveProperty('error.kind');
+      expect(result).toHaveProperty("ok", false);
+      expect(result).toHaveProperty("error.kind");
     });
 
-    it('accepts an explicit catalog instead of the cached one', () => {
+    it("accepts an explicit catalog instead of the cached one", () => {
       const freshClient = createPublicClient();
       const tools = createAbilityTools(freshClient, { catalog });
 
-      expect(Object.keys(tools).length).toBe(Object.keys(catalog.abilities).length);
+      expect(Object.keys(tools).length).toBe(
+        Object.keys(catalog.abilities).length,
+      );
     });
   });
 });

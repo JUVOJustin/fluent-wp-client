@@ -1,8 +1,11 @@
-import type { WordPressClient } from '../client.js';
-import type { QueryParams } from '../types/resources.js';
-import type { WordPressAbilityDescription, WordPressDiscoveryCatalog } from '../types/discovery.js';
-import type { WordPressParsedBlock } from '../blocks.js';
-import type { ZodType } from 'zod';
+import type { ZodType } from "zod";
+import type { WordPressParsedBlock } from "../blocks.js";
+import type { WordPressClient } from "../client.js";
+import type {
+  WordPressAbilityDescription,
+  WordPressDiscoveryCatalog,
+} from "../types/discovery.js";
+import type { QueryParams } from "../types/resources.js";
 
 /**
  * Optional read hooks for AI SDK tools.
@@ -11,44 +14,6 @@ import type { ZodType } from 'zod';
  * through another abstraction, such as Astro live loaders.
  */
 export interface WordPressAIReadAdapter {
-  listContent?: (input: {
-    client: WordPressClient;
-    contentType: string;
-    filter: QueryParams;
-  }) => Promise<unknown>;
-  getContent?: (input: {
-    client: WordPressClient;
-    contentType: string;
-    id?: number;
-    slug?: string;
-    includeContent?: boolean;
-    includeBlocks?: boolean;
-  }) => Promise<unknown>;
-  listTerms?: (input: {
-    client: WordPressClient;
-    taxonomyType: string;
-    filter: QueryParams;
-  }) => Promise<unknown>;
-  getTerm?: (input: {
-    client: WordPressClient;
-    taxonomyType: string;
-    id?: number;
-    slug?: string;
-  }) => Promise<unknown>;
-  listResource?: (input: {
-    client: WordPressClient;
-    resourceType: 'media' | 'comments' | 'users';
-    filter: QueryParams;
-  }) => Promise<unknown>;
-  getResource?: (input: {
-    client: WordPressClient;
-    resourceType: 'media' | 'comments' | 'users';
-    id?: number;
-    slug?: string;
-  }) => Promise<unknown>;
-  getSettings?: (input: {
-    client: WordPressClient;
-  }) => Promise<unknown>;
   getBlocks?: (input: {
     client: WordPressClient;
     contentType: string;
@@ -58,6 +23,42 @@ export interface WordPressAIReadAdapter {
     contentType: string;
     blocks: WordPressParsedBlock[];
   }>;
+  getContent?: (input: {
+    client: WordPressClient;
+    contentType: string;
+    id?: number;
+    slug?: string;
+    includeContent?: boolean;
+    includeBlocks?: boolean;
+  }) => Promise<unknown>;
+  getResource?: (input: {
+    client: WordPressClient;
+    resourceType: "media" | "comments" | "users";
+    id?: number;
+    slug?: string;
+  }) => Promise<unknown>;
+  getSettings?: (input: { client: WordPressClient }) => Promise<unknown>;
+  getTerm?: (input: {
+    client: WordPressClient;
+    taxonomyType: string;
+    id?: number;
+    slug?: string;
+  }) => Promise<unknown>;
+  listContent?: (input: {
+    client: WordPressClient;
+    contentType: string;
+    filter: QueryParams;
+  }) => Promise<unknown>;
+  listResource?: (input: {
+    client: WordPressClient;
+    resourceType: "media" | "comments" | "users";
+    filter: QueryParams;
+  }) => Promise<unknown>;
+  listTerms?: (input: {
+    client: WordPressClient;
+    taxonomyType: string;
+    filter: QueryParams;
+  }) => Promise<unknown>;
 }
 
 /**
@@ -70,22 +71,24 @@ export interface WordPressAIReadAdapter {
 export interface ToolFactoryOptions<TArgs extends Record<string, unknown>> {
   /** Override the AI-facing tool description. */
   description?: string;
-  /** Override the generated tool input schema. Use Zod .default() for default values. */
-  inputSchema?: ZodType;
-  /** Enable provider strict-mode tool calling when supported. */
-  strict?: boolean;
-  /** Require approval before executing this tool. */
-  needsApproval?: boolean | ((input: TArgs) => boolean | Promise<boolean>);
   /** Locked arguments that always override model-provided input. */
   fixedArgs?: Partial<TArgs>;
+  /** Override the generated tool input schema. Use Zod .default() for default values. */
+  inputSchema?: ZodType;
+  /** Require approval before executing this tool. */
+  needsApproval?: boolean | ((input: TArgs) => boolean | Promise<boolean>);
   /** Optional read adapter for cached or framework-managed reads. */
   readAdapter?: WordPressAIReadAdapter;
+  /** Enable provider strict-mode tool calling when supported. */
+  strict?: boolean;
 }
 
 /**
  * Mutation tool options support nested `input` defaults and overrides.
  */
-export interface MutationToolFactoryOptions<TArgs extends Record<string, unknown>> extends ToolFactoryOptions<TArgs> {
+export interface MutationToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends ToolFactoryOptions<TArgs> {
   /** Default nested input fields merged underneath model-provided input.input. */
   defaultInput?: Record<string, unknown>;
   /** Locked nested input fields that always override model-provided input.input. */
@@ -98,7 +101,9 @@ export interface MutationToolFactoryOptions<TArgs extends Record<string, unknown
  * When a catalog is provided, factories can tighten model-facing schemas with
  * real enums and instance-specific create/update payloads.
  */
-export interface CatalogToolFactoryOptions<TArgs extends Record<string, unknown>> extends ToolFactoryOptions<TArgs> {
+export interface CatalogToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends ToolFactoryOptions<TArgs> {
   /** Discovery catalog returned by `wp.explore()` or restored via storage. */
   catalog?: WordPressDiscoveryCatalog;
 }
@@ -106,7 +111,9 @@ export interface CatalogToolFactoryOptions<TArgs extends Record<string, unknown>
 /**
  * Mutation tool options with optional discovery catalog support.
  */
-export interface CatalogMutationToolFactoryOptions<TArgs extends Record<string, unknown>> extends MutationToolFactoryOptions<TArgs> {
+export interface CatalogMutationToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends MutationToolFactoryOptions<TArgs> {
   /** Discovery catalog returned by `wp.explore()` or restored via storage. */
   catalog?: WordPressDiscoveryCatalog;
 }
@@ -118,7 +125,9 @@ export interface CatalogMutationToolFactoryOptions<TArgs extends Record<string, 
  * from the model-facing input. Omit it to expose one tool across all content
  * resources, optionally enum-backed from the discovery catalog.
  */
-export interface ContentToolFactoryOptions<TArgs extends Record<string, unknown>> extends CatalogToolFactoryOptions<TArgs> {
+export interface ContentToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogToolFactoryOptions<TArgs> {
   /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
   contentType?: string;
 }
@@ -126,7 +135,9 @@ export interface ContentToolFactoryOptions<TArgs extends Record<string, unknown>
 /**
  * Generic content mutation tool options.
  */
-export interface ContentMutationToolFactoryOptions<TArgs extends Record<string, unknown>> extends CatalogMutationToolFactoryOptions<TArgs> {
+export interface ContentMutationToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogMutationToolFactoryOptions<TArgs> {
   /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
   contentType?: string;
 }
@@ -134,7 +145,8 @@ export interface ContentMutationToolFactoryOptions<TArgs extends Record<string, 
 /**
  * Generic taxonomy tool options.
  */
-export interface TermToolFactoryOptions<TArgs extends Record<string, unknown>> extends CatalogToolFactoryOptions<TArgs> {
+export interface TermToolFactoryOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
   /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
   taxonomyType?: string;
 }
@@ -142,7 +154,9 @@ export interface TermToolFactoryOptions<TArgs extends Record<string, unknown>> e
 /**
  * Generic taxonomy mutation tool options.
  */
-export interface TermMutationToolFactoryOptions<TArgs extends Record<string, unknown>> extends CatalogMutationToolFactoryOptions<TArgs> {
+export interface TermMutationToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogMutationToolFactoryOptions<TArgs> {
   /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
   taxonomyType?: string;
 }
@@ -150,7 +164,9 @@ export interface TermMutationToolFactoryOptions<TArgs extends Record<string, unk
 /**
  * Generic ability tool options.
  */
-export interface AbilityToolFactoryOptions<TArgs extends Record<string, unknown>> extends CatalogToolFactoryOptions<TArgs> {
+export interface AbilityToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogToolFactoryOptions<TArgs> {
   /** Fixed ability name in `namespace/ability` format. */
   abilityName?: string;
 }
@@ -172,27 +188,11 @@ export interface CreateAbilityToolsOptions {
    */
   catalog?: WordPressDiscoveryCatalog;
 
-  /** Only generate tools for these ability names. */
-  include?: string[];
-
   /** Skip these ability names when generating tools. */
   exclude?: string[];
 
-  /**
-   * Override the tool key used for each ability.
-   *
-   * Receives the raw `namespace/ability` name and the description.
-   * Defaults to replacing `/` with `_` (e.g. `myapp/send_email` → `myapp_send_email`).
-   */
-  toolName?: (abilityName: string, ability: WordPressAbilityDescription) => string;
-
-  /**
-   * Override the AI-facing tool description for each ability.
-   *
-   * Defaults to the ability's `description`, enriched with `annotations.instructions`
-   * when present. Falls back to the ability's `label`.
-   */
-  toolDescription?: (abilityName: string, ability: WordPressAbilityDescription) => string;
+  /** Only generate tools for these ability names. */
+  include?: string[];
 
   /**
    * Whether each tool should require approval before executing.
@@ -201,11 +201,37 @@ export interface CreateAbilityToolsOptions {
    * When a function, called per ability — destructive abilities receive
    * `needsApproval: true` by default when this option is omitted.
    */
-  needsApproval?: boolean
-    | ((abilityName: string, ability: WordPressAbilityDescription) => boolean | Promise<boolean>);
+  needsApproval?:
+    | boolean
+    | ((
+        abilityName: string,
+        ability: WordPressAbilityDescription,
+      ) => boolean | Promise<boolean>);
 
   /** Enable provider strict-mode tool calling when supported. */
   strict?: boolean;
+
+  /**
+   * Override the AI-facing tool description for each ability.
+   *
+   * Defaults to the ability's `description`, enriched with `annotations.instructions`
+   * when present. Falls back to the ability's `label`.
+   */
+  toolDescription?: (
+    abilityName: string,
+    ability: WordPressAbilityDescription,
+  ) => string;
+
+  /**
+   * Override the tool key used for each ability.
+   *
+   * Receives the raw `namespace/ability` name and the description.
+   * Defaults to replacing `/` with `_` (e.g. `myapp/send_email` → `myapp_send_email`).
+   */
+  toolName?: (
+    abilityName: string,
+    ability: WordPressAbilityDescription,
+  ) => string;
 }
 
 /**
@@ -213,7 +239,9 @@ export interface CreateAbilityToolsOptions {
  *
  * Adds the `resource` string so the factory knows which REST endpoint to target.
  */
-export interface GenericResourceToolFactoryOptions<TArgs extends Record<string, unknown>> extends ToolFactoryOptions<TArgs> {
+export interface GenericResourceToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends ToolFactoryOptions<TArgs> {
   /** REST base for the custom resource, e.g. `'books'` or `'genre'`. */
   resource: string;
 }
@@ -221,7 +249,9 @@ export interface GenericResourceToolFactoryOptions<TArgs extends Record<string, 
 /**
  * Generic mutation tool options for custom resources.
  */
-export interface GenericMutationToolFactoryOptions<TArgs extends Record<string, unknown>> extends MutationToolFactoryOptions<TArgs> {
+export interface GenericMutationToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends MutationToolFactoryOptions<TArgs> {
   /** REST base for the custom resource. */
   resource: string;
 }

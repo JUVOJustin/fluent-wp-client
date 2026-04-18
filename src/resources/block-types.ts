@@ -2,18 +2,21 @@ import {
   createWordPressBlockJsonSchema,
   createWordPressBlockJsonSchemas,
   type WordPressBlockJsonSchema,
-} from '../blocks.js';
-import { filterToParams } from '../core/params.js';
-import { createInvalidRequestError, WordPressHttpError } from '../core/errors.js';
-import type { WordPressRuntime } from '../core/transport.js';
-import type { WordPressBlockType } from '../schemas.js';
-import type { WordPressResourceDescription } from '../types/discovery.js';
+} from "../blocks.js";
+import {
+  createInvalidRequestError,
+  WordPressHttpError,
+} from "../core/errors.js";
+import { filterToParams } from "../core/params.js";
+import type { WordPressRuntime } from "../core/transport.js";
+import type { WordPressBlockType } from "../schemas.js";
+import type { WordPressResourceDescription } from "../types/discovery.js";
 import type {
   BlocksResourceClient,
   QueryParams,
   WordPressRequestOverrides,
-} from '../types/resources.js';
-import { describeUnavailable } from './describe.js';
+} from "../types/resources.js";
+import { describeUnavailable } from "./describe.js";
 
 /**
  * Narrow error check used to turn 404s into `undefined` item lookups.
@@ -39,19 +42,19 @@ function createBlockTypeItemEndpoint(name: string): string {
   const trimmed = name.trim();
 
   if (!trimmed) {
-    throw createInvalidRequestError('Block type name must not be empty.', {
-      operation: 'blocks.item',
+    throw createInvalidRequestError("Block type name must not be empty.", {
+      operation: "blocks.item",
     });
   }
 
   if (!BLOCK_NAME_PATTERN.test(trimmed)) {
     throw createInvalidRequestError(
       `Invalid block type name "${trimmed}". Expected format: "namespace/block-name" (lowercase alphanumeric and hyphens).`,
-      { operation: 'blocks.item' },
+      { operation: "blocks.item" },
     );
   }
 
-  const [namespace, blockName] = trimmed.split('/');
+  const [namespace, blockName] = trimmed.split("/");
 
   return `/block-types/${encodeURIComponent(namespace!)}/${encodeURIComponent(blockName!)}`;
 }
@@ -65,9 +68,16 @@ export class BlockTypesResource {
   /**
    * Lists block types.
    */
-  async list(filter: QueryParams = {}, options?: WordPressRequestOverrides): Promise<WordPressBlockType[]> {
+  async list(
+    filter: QueryParams = {},
+    options?: WordPressRequestOverrides,
+  ): Promise<WordPressBlockType[]> {
     const params = filterToParams(filter, { applyPerPageDefault: false });
-    return this.runtime.fetchAPI<WordPressBlockType[]>('/block-types', params, options);
+    return this.runtime.fetchAPI<WordPressBlockType[]>(
+      "/block-types",
+      params,
+      options,
+    );
   }
 
   /**
@@ -75,10 +85,16 @@ export class BlockTypesResource {
    */
   async item(
     name: string,
-    options?: WordPressRequestOverrides & { context?: 'view' | 'embed' | 'edit'; fields?: string[] },
+    options?: WordPressRequestOverrides & {
+      context?: "view" | "embed" | "edit";
+      fields?: string[];
+    },
   ): Promise<WordPressBlockType | undefined> {
     const { context, fields, ...requestOptions } = options || {};
-    const params = filterToParams({ context, fields }, { applyPerPageDefault: false });
+    const params = filterToParams(
+      { context, fields },
+      { applyPerPageDefault: false },
+    );
 
     try {
       return await this.runtime.fetchAPI<WordPressBlockType>(
@@ -101,19 +117,27 @@ export class BlockTypesResource {
  */
 export function createBlocksClient(
   resource: BlockTypesResource,
-  describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
+  describeFn?: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>,
 ): BlocksResourceClient<WordPressBlockType, QueryParams> {
   return {
-    list: (filter = {}, options) => resource.list(filter, options),
+    describe: describeFn ?? describeUnavailable,
     item: (name, options) => resource.item(name, options),
-    schema: async (name, options): Promise<WordPressBlockJsonSchema | undefined> => {
+    list: (filter = {}, options) => resource.list(filter, options),
+    schema: async (
+      name,
+      options,
+    ): Promise<WordPressBlockJsonSchema | undefined> => {
       const blockType = await resource.item(name, options);
       return blockType ? createWordPressBlockJsonSchema(blockType) : undefined;
     },
-    schemas: async (filter = {}, options): Promise<WordPressBlockJsonSchema[]> => {
+    schemas: async (
+      filter = {},
+      options,
+    ): Promise<WordPressBlockJsonSchema[]> => {
       const blockTypes = await resource.list(filter, options);
       return createWordPressBlockJsonSchemas(blockTypes);
     },
-    describe: describeFn ?? describeUnavailable,
   };
 }

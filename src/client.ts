@@ -1,32 +1,31 @@
 import {
-  WordPressAbilityBuilder,
   createAbilityMethods,
-} from './abilities.js';
-import type {
-  WordPressClientConfig,
-  WordPressRequestOptions,
-  WordPressRequestResult,
-} from './types/client.js';
+  type WordPressAbilityBuilder,
+} from "./abilities.js";
 import type {
   JwtAuthCredentials,
   JwtAuthTokenResponse,
   JwtAuthValidationResponse,
   JwtLoginCredentials,
-} from './auth.js';
-import type { WordPressRequestOverrides } from './types/resources.js';
-import type {
-  WordPressDiscoveryCatalog,
-  WordPressDiscoveryOptions,
-} from './types/discovery.js';
-import { MediaResource, createMediaClient } from './resources/media.js';
-import { UsersResource, createUsersClient } from './resources/users.js';
-import { SettingsResource, createSettingsClient } from './resources/settings.js';
-import { CommentsResource, createCommentsClient } from './resources/comments.js';
-import { GenericResourceRegistry } from './resources/registry.js';
+} from "./auth.js";
+import { filterToParams } from "./core/params.js";
 import {
-  createDiscoveryMethods,
-  type DiscoveryMethods,
-} from './discovery.js';
+  createRuntime,
+  type WordPressRuntime,
+  WordPressTransport,
+} from "./core/transport.js";
+import { createDiscoveryMethods, type DiscoveryMethods } from "./discovery.js";
+import {
+  CommentsResource,
+  createCommentsClient,
+} from "./resources/comments.js";
+import { createMediaClient, MediaResource } from "./resources/media.js";
+import { GenericResourceRegistry } from "./resources/registry.js";
+import {
+  createSettingsClient,
+  SettingsResource,
+} from "./resources/settings.js";
+import { createUsersClient, UsersResource } from "./resources/users.js";
 import type {
   WordPressAuthor,
   WordPressCategory,
@@ -39,32 +38,43 @@ import type {
   WordPressSearchResult,
   WordPressSettings,
   WordPressTag,
-} from './schemas.js';
-import { filterToParams } from './core/params.js';
-import { WordPressTransport, createRuntime, type WordPressRuntime } from './core/transport.js';
+} from "./schemas.js";
 import type {
-  PostsFilter,
-  PagesFilter,
-  MediaFilter,
+  WordPressClientConfig,
+  WordPressRequestOptions,
+  WordPressRequestResult,
+} from "./types/client.js";
+import type {
+  WordPressDiscoveryCatalog,
+  WordPressDiscoveryOptions,
+} from "./types/discovery.js";
+import type {
   CategoriesFilter,
+  CommentsFilter,
+  MediaFilter,
+  PagesFilter,
+  PostsFilter,
+  SearchFilter,
   TagsFilter,
   UsersFilter,
-  CommentsFilter,
-  SearchFilter,
-} from './types/filters.js';
+} from "./types/filters.js";
 import type {
-  ContentResourceClient,
+  TermWriteInput,
+  UserWriteInput,
+  WordPressWritePayload,
+} from "./types/payloads.js";
+import type {
   CommentsResourceClient,
+  ContentResourceClient,
   ExtensibleFilter,
   MediaResourceClient,
-  QueryParams,
-  TermsResourceClient,
   PaginationParams,
+  QueryParams,
   SettingsResourceClient,
+  TermsResourceClient,
   UsersResourceClient,
-  WordPressRequestOverrides as _Overrides,
-} from './types/resources.js';
-import type { TermWriteInput, UserWriteInput, WordPressWritePayload } from './types/payloads.js';
+  WordPressRequestOverrides,
+} from "./types/resources.js";
 
 /**
  * Runtime-agnostic WordPress API client with typed resources and CRUD helpers.
@@ -115,9 +125,9 @@ export class WordPressClient {
   constructor(config: WordPressClientConfig) {
     // Initialize transport layer
     this.transport = new WordPressTransport({
-      baseUrl: config.baseUrl,
       auth: config.authHeader ? config.authHeader : config.auth,
       authHeaders: config.authHeaders,
+      baseUrl: config.baseUrl,
       cookies: config.cookies,
       credentials: config.credentials,
       fetch: config.fetch,
@@ -135,13 +145,14 @@ export class WordPressClient {
     this.discoveryMethods = createDiscoveryMethods(this.runtime);
 
     this.genericResourcesRegistry = new GenericResourceRegistry({
-      runtime: this.runtime,
       discoveryMethods: this.discoveryMethods,
+      runtime: this.runtime,
     });
     this.abilityMethods = createAbilityMethods({
+      describeAbility: (name, options) =>
+        this.discoveryMethods.describeAbility(name, options),
       fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
       request: this.runtime.request.bind(this.runtime),
-      describeAbility: (name, options) => this.discoveryMethods.describeAbility(name, options),
     });
   }
 
@@ -152,9 +163,12 @@ export class WordPressClient {
    */
   setHeaders(name: string, value: string): this;
   setHeaders(headers: Record<string, string>): this;
-  setHeaders(nameOrHeaders: string | Record<string, string>, value?: string): this {
-    if (typeof nameOrHeaders === 'string') {
-      this.transport.setHeaders(nameOrHeaders, value ?? '');
+  setHeaders(
+    nameOrHeaders: string | Record<string, string>,
+    value?: string,
+  ): this {
+    if (typeof nameOrHeaders === "string") {
+      this.transport.setHeaders(nameOrHeaders, value ?? "");
     } else {
       this.transport.setHeaders(nameOrHeaders);
     }
@@ -178,67 +192,124 @@ export class WordPressClient {
   /**
    * Executes one low-level WordPress request.
    */
-  request<T = unknown>(options: WordPressRequestOptions): Promise<WordPressRequestResult<T>> {
+  request<T = unknown>(
+    options: WordPressRequestOptions,
+  ): Promise<WordPressRequestResult<T>> {
     return this.runtime.request(options);
   }
 
   // ============= FIRST-CLASS RESOURCE API =============
 
-  media(): MediaResourceClient<WordPressMedia, ExtensibleFilter<MediaFilter>, WordPressWritePayload, WordPressWritePayload> {
+  media(): MediaResourceClient<
+    WordPressMedia,
+    ExtensibleFilter<MediaFilter>,
+    WordPressWritePayload,
+    WordPressWritePayload
+  > {
     return createMediaClient(this.mediaResource, (options) =>
-      this.discoveryMethods.describeResource('media', options),
+      this.discoveryMethods.describeResource("media", options),
     );
   }
 
-  comments(): CommentsResourceClient<WordPressComment, ExtensibleFilter<CommentsFilter>, WordPressWritePayload, WordPressWritePayload> {
+  comments(): CommentsResourceClient<
+    WordPressComment,
+    ExtensibleFilter<CommentsFilter>,
+    WordPressWritePayload,
+    WordPressWritePayload
+  > {
     return createCommentsClient(this.commentsResource, (options) =>
-      this.discoveryMethods.describeResource('comments', options),
+      this.discoveryMethods.describeResource("comments", options),
     );
   }
 
-  users(): UsersResourceClient<WordPressAuthor, ExtensibleFilter<UsersFilter>, UserWriteInput, UserWriteInput> {
+  users(): UsersResourceClient<
+    WordPressAuthor,
+    ExtensibleFilter<UsersFilter>,
+    UserWriteInput,
+    UserWriteInput
+  > {
     return createUsersClient(this.usersResource, (options) =>
-      this.discoveryMethods.describeResource('users', options),
+      this.discoveryMethods.describeResource("users", options),
     );
   }
 
   settings(): SettingsResourceClient<WordPressSettings> {
     return createSettingsClient(this.settingsResource, (options) =>
-      this.discoveryMethods.describeResource('settings', options),
+      this.discoveryMethods.describeResource("settings", options),
     );
   }
 
   // ============= GENERIC CONTENT API =============
 
   content(
-    resource: 'posts',
-  ): ContentResourceClient<WordPressPost, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
+    resource: "posts",
+  ): ContentResourceClient<
+    WordPressPost,
+    ExtensibleFilter<PostsFilter>,
+    WordPressPostWriteBase,
+    WordPressPostWriteBase
+  >;
   content(
-    resource: 'pages',
-  ): ContentResourceClient<WordPressPage, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
+    resource: "pages",
+  ): ContentResourceClient<
+    WordPressPage,
+    ExtensibleFilter<PagesFilter>,
+    WordPressPostWriteBase,
+    WordPressPostWriteBase
+  >;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-  ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload>;
+  ): ContentResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    WordPressWritePayload,
+    WordPressWritePayload
+  >;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-  ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
+  ): ContentResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    WordPressWritePayload,
+    WordPressWritePayload
+  > {
     return this.genericResourcesRegistry.content(resource);
   }
 
   // ============= GENERIC TERMS API =============
 
   terms(
-    resource: 'categories',
-  ): TermsResourceClient<WordPressCategory, ExtensibleFilter<CategoriesFilter>, TermWriteInput, TermWriteInput>;
+    resource: "categories",
+  ): TermsResourceClient<
+    WordPressCategory,
+    ExtensibleFilter<CategoriesFilter>,
+    TermWriteInput,
+    TermWriteInput
+  >;
   terms(
-    resource: 'tags',
-  ): TermsResourceClient<WordPressTag, ExtensibleFilter<TagsFilter>, TermWriteInput, TermWriteInput>;
+    resource: "tags",
+  ): TermsResourceClient<
+    WordPressTag,
+    ExtensibleFilter<TagsFilter>,
+    TermWriteInput,
+    TermWriteInput
+  >;
   terms<TResource = WordPressCategory>(
     resource: string,
-  ): TermsResourceClient<TResource, QueryParams & PaginationParams, TermWriteInput, TermWriteInput>;
+  ): TermsResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    TermWriteInput,
+    TermWriteInput
+  >;
   terms<TResource = WordPressCategory>(
     resource: string,
-  ): TermsResourceClient<TResource, QueryParams & PaginationParams, TermWriteInput, TermWriteInput> {
+  ): TermsResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    TermWriteInput,
+    TermWriteInput
+  > {
     return this.genericResourcesRegistry.terms(resource);
   }
 
@@ -249,11 +320,11 @@ export class WordPressClient {
    */
   async searchContent<TResult = WordPressSearchResult>(
     query: string,
-    filter?: Omit<SearchFilter, 'search'>,
+    filter?: Omit<SearchFilter, "search">,
     options?: WordPressRequestOverrides,
   ): Promise<TResult[]> {
     const params = filterToParams({ ...filter, search: query });
-    return this.runtime.fetchAPI<TResult[]>('/search', params, options);
+    return this.runtime.fetchAPI<TResult[]>("/search", params, options);
   }
 
   // ============= ABILITIES API =============
@@ -261,7 +332,9 @@ export class WordPressClient {
   /**
    * Starts a fluent REST ability builder.
    */
-  ability<TInput = unknown, TOutput = unknown>(name: string): WordPressAbilityBuilder<TInput, TOutput> {
+  ability<TInput = unknown, TOutput = unknown>(
+    name: string,
+  ): WordPressAbilityBuilder<TInput, TOutput> {
     return this.abilityMethods.ability<TInput, TOutput>(name);
   }
 

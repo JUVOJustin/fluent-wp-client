@@ -18,9 +18,9 @@ export interface WordPressJsonSchema {
  * and update payloads.
  */
 export interface WordPressResourceSchemaSet {
-  item?: WordPressJsonSchema;
   collection?: WordPressJsonSchema;
   create?: WordPressJsonSchema;
+  item?: WordPressJsonSchema;
   update?: WordPressJsonSchema;
 }
 
@@ -43,6 +43,10 @@ export interface WordPressAbilitySchemaSet {
  */
 export interface WordPressResourceCapabilities {
   /**
+   * Fields accepted by the create endpoint (`POST /resource`).
+   */
+  createFields: string[];
+  /**
    * Query params accepted by the collection GET endpoint.
    * Includes plugin-added params such as `lang` (WPML), `acf_format`, etc.
    */
@@ -51,10 +55,6 @@ export interface WordPressResourceCapabilities {
    * Fields present on item read responses (`GET /resource/:id`).
    */
   readFields: string[];
-  /**
-   * Fields accepted by the create endpoint (`POST /resource`).
-   */
-  createFields: string[];
   /**
    * Fields accepted by the update endpoint (`POST /resource/:id`).
    * Identical to `createFields` but with no required constraints.
@@ -66,32 +66,32 @@ export interface WordPressResourceCapabilities {
  * Description of a content or term resource with its schemas.
  */
 export interface WordPressResourceDescription {
-  kind: 'content' | 'term' | 'resource';
-  resource: string;   // e.g., posts, pages, books, categories, tags, genre
-  slug?: string;      // e.g., post, page, book, category, post_tag, genre
-  restBase?: string;  // e.g., posts, pages, books, categories, tags, genre
-  namespace: string;  // usually wp/v2
-  route: string;      // e.g., /wp-json/wp/v2/books
-  schemas: WordPressResourceSchemaSet;
   /**
    * Normalized capability surface derived from the OPTIONS response.
    * Present on freshly fetched descriptions and on catalogs loaded via
    * `wp.useCatalog()` when the catalog was produced by this package.
    */
   capabilities?: WordPressResourceCapabilities;
+  kind: "content" | "term" | "resource";
+  namespace: string; // usually wp/v2
   raw?: Record<string, unknown>;
+  resource: string; // e.g., posts, pages, books, categories, tags, genre
+  restBase?: string; // e.g., posts, pages, books, categories, tags, genre
+  route: string; // e.g., /wp-json/wp/v2/books
+  schemas: WordPressResourceSchemaSet;
+  slug?: string; // e.g., post, page, book, category, post_tag, genre
 }
 
 /**
  * Description of an ability with its schemas and annotations.
  */
 export interface WordPressAbilityDescription {
-  kind: 'ability';
+  annotations?: Record<string, unknown>;
+  kind: "ability";
   name: string;
+  raw?: Record<string, unknown>;
   route: string;
   schemas: WordPressAbilitySchemaSet;
-  annotations?: Record<string, unknown>;
-  raw?: Record<string, unknown>;
 }
 
 /**
@@ -107,10 +107,10 @@ export interface WordPressDiscoveryWarning {
  * Complete discovery catalog containing all discoverable resources and abilities.
  */
 export interface WordPressDiscoveryCatalog {
-  content: Record<string, WordPressResourceDescription>;
-  terms: Record<string, WordPressResourceDescription>;
-  resources: Record<string, WordPressResourceDescription>;
   abilities: Record<string, WordPressAbilityDescription>;
+  content: Record<string, WordPressResourceDescription>;
+  resources: Record<string, WordPressResourceDescription>;
+  terms: Record<string, WordPressResourceDescription>;
   warnings?: WordPressDiscoveryWarning[];
 }
 
@@ -119,25 +119,24 @@ export interface WordPressDiscoveryCatalog {
  */
 export interface WordPressDiscoveryOptions {
   /**
-   * Bypass cache and force fresh discovery.
-   */
-  refresh?: boolean;
-
-  /**
    * Limit discovery to specific kinds.
    * Defaults to all kinds if not specified.
    */
-  include?: Array<'content' | 'terms' | 'resources' | 'abilities'>;
+  include?: Array<"content" | "terms" | "resources" | "abilities">;
+  /**
+   * Bypass cache and force fresh discovery.
+   */
+  refresh?: boolean;
 }
 
 /**
  * Raw REST API type information for content types.
  */
 export interface WordPressTypeInfo {
-  slug: string;
   name: string;
   rest_base?: string;
   rest_namespace?: string;
+  slug: string;
   [key: string]: unknown;
 }
 
@@ -152,10 +151,10 @@ export interface WordPressTypesResponse {
  * Raw REST API taxonomy information.
  */
 export interface WordPressTaxonomyInfo {
-  slug: string;
   name: string;
   rest_base?: string;
   rest_namespace?: string;
+  slug: string;
   [key: string]: unknown;
 }
 
@@ -170,9 +169,9 @@ export interface WordPressTaxonomiesResponse {
  * Raw REST API endpoint schema from OPTIONS response.
  */
 export interface WordPressEndpointSchema {
+  args?: Record<string, unknown>;
   methods?: string[];
   schema?: WordPressJsonSchema;
-  args?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -180,9 +179,9 @@ export interface WordPressEndpointSchema {
  * Parsed endpoint schema information.
  */
 export interface ParsedEndpointSchema {
-  item?: WordPressJsonSchema;
-  create?: WordPressJsonSchema;
   collection?: WordPressJsonSchema;
+  create?: WordPressJsonSchema;
+  item?: WordPressJsonSchema;
   update?: WordPressJsonSchema;
 }
 
@@ -190,13 +189,13 @@ export interface ParsedEndpointSchema {
  * REST API route argument shape.
  */
 export interface WordPressRouteArg {
-  type?: string;
-  description?: string;
-  required?: boolean;
   default?: unknown;
+  description?: string;
   enum?: unknown[];
   items?: WordPressRouteArg;
   properties?: Record<string, WordPressRouteArg>;
+  required?: boolean;
+  type?: string;
   [key: string]: unknown;
 }
 
@@ -204,13 +203,13 @@ export interface WordPressRouteArg {
  * REST API schema property shape.
  */
 export interface WordPressSchemaProperty {
-  type?: string | string[];
+  default?: unknown;
   description?: string;
+  enum?: unknown[];
   format?: string;
-  readonly?: boolean;
   items?: WordPressSchemaProperty;
   properties?: Record<string, WordPressSchemaProperty>;
-  enum?: unknown[];
-  default?: unknown;
+  readonly?: boolean;
+  type?: string | string[];
   [key: string]: unknown;
 }

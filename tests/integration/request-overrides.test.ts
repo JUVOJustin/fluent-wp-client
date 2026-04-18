@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { WordPressClient } from '../../dist/index.js';
-import { withBlocks } from '../../dist/blocks-entry.js';
-import { getBaseUrl } from '../helpers/wp-client';
+import { describe, expect, it } from "vitest";
+import { withBlocks } from "../../dist/blocks-entry.js";
+import { WordPressClient } from "../../dist/index.js";
+import { getBaseUrl } from "../helpers/wp-client";
 
 /**
  * Creates one authenticated client that inspects outgoing requests in-flight.
@@ -12,16 +12,16 @@ function createObservedAuthClient(
   const password = process.env.WP_APP_PASSWORD;
 
   if (!password) {
-    throw new Error('WP_APP_PASSWORD not set — did global-setup run?');
+    throw new Error("WP_APP_PASSWORD not set — did global-setup run?");
   }
 
   return new WordPressClient({
+    auth: { password, username: "admin" },
     baseUrl: getBaseUrl(),
-    auth: { username: 'admin', password },
     fetch: async (input, init: RequestInit = {}) => {
-      const method = (init.method ?? 'GET').toUpperCase();
+      const method = (init.method ?? "GET").toUpperCase();
       const requestUrl = new URL(
-        typeof input === 'string'
+        typeof input === "string"
           ? input
           : input instanceof URL
             ? input.toString()
@@ -39,8 +39,8 @@ function createObservedAuthClient(
 /**
  * Integration coverage for request-scoped overrides on high-level mutation helpers.
  */
-describe('Client: request-scoped mutation overrides', () => {
-  it('uses the runtime fetch with the global object context by default', async () => {
+describe("Client: request-scoped mutation overrides", () => {
+  it("uses the runtime fetch with the global object context by default", async () => {
     const originalFetch = globalThis.fetch;
     let observedThis: unknown;
 
@@ -55,7 +55,7 @@ describe('Client: request-scoped mutation overrides', () => {
 
     try {
       const client = new WordPressClient({ baseUrl: getBaseUrl() });
-      const posts = await client.content('posts').list({ perPage: 1 });
+      const posts = await client.content("posts").list({ perPage: 1 });
 
       expect(posts).toHaveLength(1);
       expect(observedThis).toBe(globalThis);
@@ -64,37 +64,43 @@ describe('Client: request-scoped mutation overrides', () => {
     }
   });
 
-  it('forwards custom headers for content(\'posts\') create/update/delete helpers', async () => {
+  it("forwards custom headers for content('posts') create/update/delete helpers", async () => {
     const seen = {
       create: false,
-      update: false,
       delete: false,
+      update: false,
     };
 
     const client = createObservedAuthClient((method, url, headers) => {
-      if (method === 'POST' && url.pathname.endsWith('/wp-json/wp/v2/posts')) {
-        seen.create = headers.get('x-test-source') === 'post-create';
+      if (method === "POST" && url.pathname.endsWith("/wp-json/wp/v2/posts")) {
+        seen.create = headers.get("x-test-source") === "post-create";
       }
 
-      if (method === 'POST' && /\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname)) {
-        seen.update = headers.get('x-test-source') === 'post-update';
+      if (
+        method === "POST" &&
+        /\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname)
+      ) {
+        seen.update = headers.get("x-test-source") === "post-update";
       }
 
-      if (method === 'DELETE' && /\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname)) {
-        seen.delete = headers.get('x-test-source') === 'post-delete';
+      if (
+        method === "DELETE" &&
+        /\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname)
+      ) {
+        seen.delete = headers.get("x-test-source") === "post-delete";
       }
     });
 
-    const posts = client.content('posts');
+    const posts = client.content("posts");
 
     const created = await posts.create(
       {
-        title: 'Request overrides: post create',
-        status: 'draft',
+        status: "draft",
+        title: "Request overrides: post create",
       },
       {
         headers: {
-          'x-test-source': 'post-create',
+          "x-test-source": "post-create",
         },
       },
     );
@@ -102,12 +108,12 @@ describe('Client: request-scoped mutation overrides', () => {
     const updated = await posts.update(
       created.id,
       {
-        title: 'Request overrides: post update',
-        status: 'private',
+        status: "private",
+        title: "Request overrides: post update",
       },
       {
         headers: {
-          'x-test-source': 'post-update',
+          "x-test-source": "post-update",
         },
       },
     );
@@ -115,67 +121,56 @@ describe('Client: request-scoped mutation overrides', () => {
     const deleted = await posts.delete(created.id, {
       force: true,
       headers: {
-        'x-test-source': 'post-delete',
+        "x-test-source": "post-delete",
       },
     });
 
-    expect(updated.status).toBe('private');
+    expect(updated.status).toBe("private");
     expect(deleted.deleted).toBe(true);
     expect(seen.create).toBe(true);
     expect(seen.update).toBe(true);
     expect(seen.delete).toBe(true);
   });
 
-  it('forwards custom headers for media().upload including metadata update', async () => {
+  it("forwards custom headers for media().upload including metadata update", async () => {
     const seen = {
-      upload: false,
       metadataUpdate: false,
+      upload: false,
     };
 
     const client = createObservedAuthClient((method, url, headers) => {
-      if (method !== 'POST') {
+      if (method !== "POST") {
         return;
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/media')) {
-        seen.upload = headers.get('x-test-source') === 'media-upload';
+      if (url.pathname.endsWith("/wp-json/wp/v2/media")) {
+        seen.upload = headers.get("x-test-source") === "media-upload";
       }
 
       if (/\/wp-json\/wp\/v2\/media\/\d+$/.test(url.pathname)) {
-        seen.metadataUpdate = headers.get('x-test-source') === 'media-upload';
+        seen.metadataUpdate = headers.get("x-test-source") === "media-upload";
       }
     });
 
     const png1x1 = new Uint8Array([
-      0x89, 0x50, 0x4e, 0x47,
-      0x0d, 0x0a, 0x1a, 0x0a,
-      0x00, 0x00, 0x00, 0x0d,
-      0x49, 0x48, 0x44, 0x52,
-      0x00, 0x00, 0x00, 0x01,
-      0x00, 0x00, 0x00, 0x01,
-      0x08, 0x06, 0x00, 0x00,
-      0x00, 0x1f, 0x15, 0xc4,
-      0x89, 0x00, 0x00, 0x00,
-      0x0a, 0x49, 0x44, 0x41,
-      0x54, 0x78, 0x9c, 0x63,
-      0x00, 0x01, 0x00, 0x00,
-      0x05, 0x00, 0x01, 0x0d,
-      0x0a, 0x2d, 0xb4, 0x00,
-      0x00, 0x00, 0x00, 0x49,
-      0x45, 0x4e, 0x44, 0xae,
-      0x42, 0x60, 0x82,
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+      0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+      0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
     ]);
 
     const media = await client.media().upload(
       {
         file: png1x1,
-        filename: 'request-overrides-1x1.png',
-        mimeType: 'image/png',
-        title: 'Request overrides media title',
+        filename: "request-overrides-1x1.png",
+        mimeType: "image/png",
+        title: "Request overrides media title",
       },
       {
         headers: {
-          'x-test-source': 'media-upload',
+          "x-test-source": "media-upload",
         },
       },
     );
@@ -186,53 +181,65 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.metadataUpdate).toBe(true);
   });
 
-  it('forwards custom headers for generic content() and terms() mutations', async () => {
+  it("forwards custom headers for generic content() and terms() mutations", async () => {
     const seen = {
       contentCreate: false,
-      contentUpdate: false,
       contentDelete: false,
+      contentUpdate: false,
       termCreate: false,
-      termUpdate: false,
       termDelete: false,
+      termUpdate: false,
     };
 
     const client = createObservedAuthClient((method, url, headers) => {
-      if (method === 'POST' && url.pathname.endsWith('/wp-json/wp/v2/books')) {
-        seen.contentCreate = headers.get('x-test-source') === 'books-create';
+      if (method === "POST" && url.pathname.endsWith("/wp-json/wp/v2/books")) {
+        seen.contentCreate = headers.get("x-test-source") === "books-create";
       }
 
-      if (method === 'POST' && /\/wp-json\/wp\/v2\/books\/\d+$/.test(url.pathname)) {
-        seen.contentUpdate = headers.get('x-test-source') === 'books-update';
+      if (
+        method === "POST" &&
+        /\/wp-json\/wp\/v2\/books\/\d+$/.test(url.pathname)
+      ) {
+        seen.contentUpdate = headers.get("x-test-source") === "books-update";
       }
 
-      if (method === 'DELETE' && /\/wp-json\/wp\/v2\/books\/\d+$/.test(url.pathname)) {
-        seen.contentDelete = headers.get('x-test-source') === 'books-delete';
+      if (
+        method === "DELETE" &&
+        /\/wp-json\/wp\/v2\/books\/\d+$/.test(url.pathname)
+      ) {
+        seen.contentDelete = headers.get("x-test-source") === "books-delete";
       }
 
-      if (method === 'POST' && url.pathname.endsWith('/wp-json/wp/v2/genre')) {
-        seen.termCreate = headers.get('x-test-source') === 'genre-create';
+      if (method === "POST" && url.pathname.endsWith("/wp-json/wp/v2/genre")) {
+        seen.termCreate = headers.get("x-test-source") === "genre-create";
       }
 
-      if (method === 'POST' && /\/wp-json\/wp\/v2\/genre\/\d+$/.test(url.pathname)) {
-        seen.termUpdate = headers.get('x-test-source') === 'genre-update';
+      if (
+        method === "POST" &&
+        /\/wp-json\/wp\/v2\/genre\/\d+$/.test(url.pathname)
+      ) {
+        seen.termUpdate = headers.get("x-test-source") === "genre-update";
       }
 
-      if (method === 'DELETE' && /\/wp-json\/wp\/v2\/genre\/\d+$/.test(url.pathname)) {
-        seen.termDelete = headers.get('x-test-source') === 'genre-delete';
+      if (
+        method === "DELETE" &&
+        /\/wp-json\/wp\/v2\/genre\/\d+$/.test(url.pathname)
+      ) {
+        seen.termDelete = headers.get("x-test-source") === "genre-delete";
       }
     });
 
-    const books = client.content('books');
-    const genres = client.terms('genre');
+    const books = client.content("books");
+    const genres = client.terms("genre");
 
     const createdBook = await books.create(
       {
-        title: 'Request overrides: books create',
-        status: 'draft',
+        status: "draft",
+        title: "Request overrides: books create",
       },
       {
         headers: {
-          'x-test-source': 'books-create',
+          "x-test-source": "books-create",
         },
       },
     );
@@ -240,12 +247,12 @@ describe('Client: request-scoped mutation overrides', () => {
     await books.update(
       createdBook.id,
       {
-        title: 'Request overrides: books update',
-        status: 'private',
+        status: "private",
+        title: "Request overrides: books update",
       },
       {
         headers: {
-          'x-test-source': 'books-update',
+          "x-test-source": "books-update",
         },
       },
     );
@@ -253,17 +260,17 @@ describe('Client: request-scoped mutation overrides', () => {
     await books.delete(createdBook.id, {
       force: true,
       headers: {
-        'x-test-source': 'books-delete',
+        "x-test-source": "books-delete",
       },
     });
 
     const createdGenre = await genres.create(
       {
-        name: 'request-overrides-genre-create',
+        name: "request-overrides-genre-create",
       },
       {
         headers: {
-          'x-test-source': 'genre-create',
+          "x-test-source": "genre-create",
         },
       },
     );
@@ -271,11 +278,11 @@ describe('Client: request-scoped mutation overrides', () => {
     await genres.update(
       createdGenre.id,
       {
-        name: 'request-overrides-genre-update',
+        name: "request-overrides-genre-update",
       },
       {
         headers: {
-          'x-test-source': 'genre-update',
+          "x-test-source": "genre-update",
         },
       },
     );
@@ -283,7 +290,7 @@ describe('Client: request-scoped mutation overrides', () => {
     await genres.delete(createdGenre.id, {
       force: true,
       headers: {
-        'x-test-source': 'genre-delete',
+        "x-test-source": "genre-delete",
       },
     });
 
@@ -295,74 +302,90 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.termDelete).toBe(true);
   });
 
-  it('forwards custom headers for read and listing helpers', async () => {
+  it("forwards custom headers for read and listing helpers", async () => {
     const seen = {
-      postsList: false,
-      postByIdView: false,
-      postByIdEdit: false,
       booksList: false,
       genreList: false,
+      postByIdEdit: false,
+      postByIdView: false,
+      postsList: false,
     };
 
     const client = createObservedAuthClient((method, url, headers) => {
-      if (method !== 'GET') {
+      if (method !== "GET") {
         return;
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.has('per_page')) {
-        seen.postsList = headers.get('x-test-source') === 'read-posts';
+      if (
+        url.pathname.endsWith("/wp-json/wp/v2/posts") &&
+        url.searchParams.has("per_page")
+      ) {
+        seen.postsList = headers.get("x-test-source") === "read-posts";
       }
 
-      if (/\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname) && url.searchParams.get('context') !== 'edit') {
-        seen.postByIdView = headers.get('x-test-source') === 'read-post-by-id';
+      if (
+        /\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname) &&
+        url.searchParams.get("context") !== "edit"
+      ) {
+        seen.postByIdView = headers.get("x-test-source") === "read-post-by-id";
       }
 
-      if (/\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname) && url.searchParams.get('context') === 'edit') {
-        seen.postByIdEdit = headers.get('x-test-source') === 'read-post-by-id';
+      if (
+        /\/wp-json\/wp\/v2\/posts\/\d+$/.test(url.pathname) &&
+        url.searchParams.get("context") === "edit"
+      ) {
+        seen.postByIdEdit = headers.get("x-test-source") === "read-post-by-id";
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/books') && url.searchParams.has('per_page')) {
-        seen.booksList = headers.get('x-test-source') === 'read-books';
+      if (
+        url.pathname.endsWith("/wp-json/wp/v2/books") &&
+        url.searchParams.has("per_page")
+      ) {
+        seen.booksList = headers.get("x-test-source") === "read-books";
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/genre') && url.searchParams.has('per_page')) {
-        seen.genreList = headers.get('x-test-source') === 'read-genre';
+      if (
+        url.pathname.endsWith("/wp-json/wp/v2/genre") &&
+        url.searchParams.has("per_page")
+      ) {
+        seen.genreList = headers.get("x-test-source") === "read-genre";
       }
-
     });
 
-    const posts = await client.content('posts').list(
+    const posts = await client.content("posts").list(
       { perPage: 1 },
       {
         headers: {
-          'x-test-source': 'read-posts',
+          "x-test-source": "read-posts",
         },
       },
     );
 
-    const postQuery = withBlocks(client).content('posts').item(posts[0].id, {
-      headers: {
-        'x-test-source': 'read-post-by-id',
-      },
-    });
+    const postQuery = withBlocks(client)
+      .content("posts")
+      .item(posts[0].id, {
+        headers: {
+          "x-test-source": "read-post-by-id",
+        },
+      });
 
     await postQuery;
     await postQuery.blocks().get();
 
-    const books = await client.content('books').list(
+    const books = await client.content("books").list(
       { perPage: 1 },
       {
         headers: {
-          'x-test-source': 'read-books',
+          "x-test-source": "read-books",
         },
       },
     );
 
-    const genres = await client.terms('genre').list(
+    const genres = await client.terms("genre").list(
       { perPage: 1 },
       {
         headers: {
-          'x-test-source': 'read-genre',
+          "x-test-source": "read-genre",
         },
       },
     );
@@ -377,24 +400,27 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.genreList).toBe(true);
   });
 
-  it('only adds _embed when requested by filters or relation hydration', async () => {
+  it("only adds _embed when requested by filters or relation hydration", async () => {
     const seen = {
-      postsListDefault: false,
-      postsListEmbedded: false,
       booksListDefault: false,
       booksListEmbedded: false,
       itemDefault: false,
       itemWithRelations: false,
+      postsListDefault: false,
+      postsListEmbedded: false,
     };
 
     const client = createObservedAuthClient((method, url) => {
-      if (method !== 'GET') {
+      if (method !== "GET") {
         return;
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('per_page') === '1') {
-        if (url.searchParams.get('search') === 'Test Post 001') {
-          if (url.searchParams.get('_embed') === 'true') {
+      if (
+        url.pathname.endsWith("/wp-json/wp/v2/posts") &&
+        url.searchParams.get("per_page") === "1"
+      ) {
+        if (url.searchParams.get("search") === "Test Post 001") {
+          if (url.searchParams.get("_embed") === "true") {
             seen.postsListEmbedded = true;
           } else {
             seen.postsListDefault = true;
@@ -402,9 +428,12 @@ describe('Client: request-scoped mutation overrides', () => {
         }
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/books') && url.searchParams.get('per_page') === '1') {
-        if (url.searchParams.get('search') === 'Test Book 001') {
-          if (url.searchParams.get('_embed') === 'true') {
+      if (
+        url.pathname.endsWith("/wp-json/wp/v2/books") &&
+        url.searchParams.get("per_page") === "1"
+      ) {
+        if (url.searchParams.get("search") === "Test Book 001") {
+          if (url.searchParams.get("_embed") === "true") {
             seen.booksListEmbedded = true;
           } else {
             seen.booksListDefault = true;
@@ -412,28 +441,44 @@ describe('Client: request-scoped mutation overrides', () => {
         }
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('slug') === 'test-post-001') {
-        seen.itemDefault = !url.searchParams.has('_embed');
+      if (
+        url.pathname.endsWith("/wp-json/wp/v2/posts") &&
+        url.searchParams.get("slug") === "test-post-001"
+      ) {
+        seen.itemDefault = !url.searchParams.has("_embed");
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('slug') === 'test-post-002') {
-        seen.itemWithRelations = url.searchParams.get('_embed') === 'true';
+      if (
+        url.pathname.endsWith("/wp-json/wp/v2/posts") &&
+        url.searchParams.get("slug") === "test-post-002"
+      ) {
+        seen.itemWithRelations = url.searchParams.get("_embed") === "true";
       }
     });
 
-    const defaultPosts = await client.content('posts').list({ perPage: 1, search: 'Test Post 001' });
-    const embeddedPosts = await client.content('posts').list({ perPage: 1, search: 'Test Post 001', embed: true });
-    const defaultBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001' });
-    const embeddedBooks = await client.content('books').list({ perPage: 1, search: 'Test Book 001', embed: true });
-    const plainItem = await client.content('posts').item('test-post-001');
-    const relatedItem = await client.content('posts').item('test-post-002', { embed: true });
+    const defaultPosts = await client
+      .content("posts")
+      .list({ perPage: 1, search: "Test Post 001" });
+    const embeddedPosts = await client
+      .content("posts")
+      .list({ embed: true, perPage: 1, search: "Test Post 001" });
+    const defaultBooks = await client
+      .content("books")
+      .list({ perPage: 1, search: "Test Book 001" });
+    const embeddedBooks = await client
+      .content("books")
+      .list({ embed: true, perPage: 1, search: "Test Book 001" });
+    const plainItem = await client.content("posts").item("test-post-001");
+    const relatedItem = await client
+      .content("posts")
+      .item("test-post-002", { embed: true });
 
     expect(defaultPosts).toHaveLength(1);
     expect(embeddedPosts).toHaveLength(1);
     expect(defaultBooks).toHaveLength(1);
     expect(embeddedBooks).toHaveLength(1);
-    expect(plainItem?.slug).toBe('test-post-001');
-    expect(relatedItem?.slug).toBe('test-post-002');
+    expect(plainItem?.slug).toBe("test-post-001");
+    expect(relatedItem?.slug).toBe("test-post-002");
     expect(seen.postsListDefault).toBe(true);
     expect(seen.postsListEmbedded).toBe(true);
     expect(seen.booksListDefault).toBe(true);
@@ -442,114 +487,111 @@ describe('Client: request-scoped mutation overrides', () => {
     expect(seen.itemWithRelations).toBe(true);
   });
 
-  it('rejects auth header overrides on read helpers', async () => {
+  it("rejects auth header overrides on read helpers", async () => {
     const client = createObservedAuthClient(() => undefined);
 
     await expect(
-      client.content('posts').list(
+      client.content("posts").list(
         { perPage: 1 },
         {
           headers: {
-            Authorization: 'Bearer blocked',
+            Authorization: "Bearer blocked",
           },
         },
       ),
     ).rejects.toThrow(/auth header overrides are not supported/i);
   });
 
-  it('rejects auth header overrides case-insensitively', async () => {
+  it("rejects auth header overrides case-insensitively", async () => {
     const client = createObservedAuthClient(() => undefined);
 
     // Test various case combinations
     const authVariations: Record<string, string>[] = [
-      { authorization: 'Bearer blocked-lowercase' },
-      { AUTHORIZATION: 'Bearer blocked-uppercase' },
-      { AuthoriZation: 'Bearer blocked-mixed' },
-      { AuThOrIzAtIoN: 'Bearer blocked-mixed2' },
+      { authorization: "Bearer blocked-lowercase" },
+      { AUTHORIZATION: "Bearer blocked-uppercase" },
+      { AuthoriZation: "Bearer blocked-mixed" },
+      { AuThOrIzAtIoN: "Bearer blocked-mixed2" },
     ];
 
     for (const headers of authVariations) {
       await expect(
-        client.content('posts').list(
-          { perPage: 1 },
-          { headers },
-        ),
+        client.content("posts").list({ perPage: 1 }, { headers }),
       ).rejects.toThrow(/auth header overrides are not supported/i);
     }
   });
 
-  it('ignores non-header override keys for mutation helpers even when passed as any', async () => {
+  it("ignores non-header override keys for mutation helpers even when passed as any", async () => {
     const seen = {
-      usedPostsEndpoint: false,
       usedForcedQueryParam: false,
+      usedPostsEndpoint: false,
     };
 
     const client = createObservedAuthClient((method, url, headers) => {
-      if (method !== 'POST') {
+      if (method !== "POST") {
         return;
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/posts')) {
+      if (url.pathname.endsWith("/wp-json/wp/v2/posts")) {
         seen.usedPostsEndpoint = true;
-        seen.usedForcedQueryParam = url.searchParams.get('forced') === '1';
-        expect(headers.get('x-test-source')).toBe('ignore-non-header-mutation');
+        seen.usedForcedQueryParam = url.searchParams.get("forced") === "1";
+        expect(headers.get("x-test-source")).toBe("ignore-non-header-mutation");
       }
     });
 
-    const created = await client.content('posts').create(
+    const created = await client.content("posts").create(
       {
-        title: 'Request overrides: ignore non-header keys',
-        status: 'draft',
+        status: "draft",
+        title: "Request overrides: ignore non-header keys",
       },
       {
+        endpoint: "/users",
         headers: {
-          'x-test-source': 'ignore-non-header-mutation',
+          "x-test-source": "ignore-non-header-mutation",
         },
-        endpoint: '/users',
-        params: { forced: '1' },
-        method: 'DELETE',
+        method: "DELETE",
+        params: { forced: "1" },
       } as unknown as never,
     );
 
-    await client.content('posts').delete(created.id, { force: true });
+    await client.content("posts").delete(created.id, { force: true });
 
     expect(created.id).toBeGreaterThan(0);
     expect(seen.usedPostsEndpoint).toBe(true);
     expect(seen.usedForcedQueryParam).toBe(false);
   });
 
-  it('ignores non-header override keys for read helpers even when passed as any', async () => {
+  it("ignores non-header override keys for read helpers even when passed as any", async () => {
     const seen = {
-      usedPostsEndpoint: false,
       usedInjectedSlugParam: false,
+      usedPostsEndpoint: false,
     };
 
     const client = createObservedAuthClient((method, url, headers) => {
-      if (method !== 'GET') {
+      if (method !== "GET") {
         return;
       }
 
-      if (url.pathname.endsWith('/wp-json/wp/v2/posts') && url.searchParams.get('per_page') === '1') {
+      if (
+        url.pathname.endsWith("/wp-json/wp/v2/posts") &&
+        url.searchParams.get("per_page") === "1"
+      ) {
         seen.usedPostsEndpoint = true;
-        seen.usedInjectedSlugParam = url.searchParams.get('slug') === 'test-post-999';
-        expect(headers.get('x-test-source')).toBe('ignore-non-header-read');
+        seen.usedInjectedSlugParam =
+          url.searchParams.get("slug") === "test-post-999";
+        expect(headers.get("x-test-source")).toBe("ignore-non-header-read");
       }
     });
 
-    const posts = await client.content('posts').list(
-      { perPage: 1 },
-      {
-        headers: {
-          'x-test-source': 'ignore-non-header-read',
-        },
-        endpoint: '/users',
-        params: { slug: 'test-post-999' },
-      } as unknown as never,
-    );
+    const posts = await client.content("posts").list({ perPage: 1 }, {
+      endpoint: "/users",
+      headers: {
+        "x-test-source": "ignore-non-header-read",
+      },
+      params: { slug: "test-post-999" },
+    } as unknown as never);
 
     expect(posts.length).toBe(1);
     expect(seen.usedPostsEndpoint).toBe(true);
     expect(seen.usedInjectedSlugParam).toBe(false);
   });
-
 });

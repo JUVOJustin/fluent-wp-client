@@ -1,13 +1,17 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WordPressClient, createBasicAuthHeader } from 'fluent-wp-client';
-import { createAuthClient, createPublicClient, getBaseUrl } from '../helpers/wp-client';
+import { createBasicAuthHeader, type WordPressClient } from "fluent-wp-client";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  createAuthClient,
+  createPublicClient,
+  getBaseUrl,
+} from "../helpers/wp-client";
 
-type ResourceName = 'posts' | 'pages' | 'books';
+type ResourceName = "posts" | "pages" | "books";
 
 interface ResourceHarness {
   create: (input: Record<string, unknown>) => Promise<unknown>;
-  update: (id: number, input: Record<string, unknown>) => Promise<unknown>;
   remove: (id: number) => Promise<unknown>;
+  update: (id: number, input: Record<string, unknown>) => Promise<unknown>;
 }
 
 /**
@@ -17,12 +21,12 @@ function getAuthHeader(): string {
   const password = process.env.WP_APP_PASSWORD;
 
   if (!password) {
-    throw new Error('WP_APP_PASSWORD not set - did global-setup run?');
+    throw new Error("WP_APP_PASSWORD not set - did global-setup run?");
   }
 
   return createBasicAuthHeader({
-    username: 'admin',
     password,
+    username: "admin",
   });
 }
 
@@ -49,62 +53,73 @@ function getMetaRecord(entry: unknown): Record<string, unknown> {
 /**
  * Creates one resource-specific CRUD harness backed by the standalone client.
  */
-function createResourceHarness(client: WordPressClient, resource: ResourceName): ResourceHarness {
-  if (resource === 'posts') {
+function createResourceHarness(
+  client: WordPressClient,
+  resource: ResourceName,
+): ResourceHarness {
+  if (resource === "posts") {
     return {
-      create: (input) => client.content('posts').create(input),
-      update: (id, input) => client.content('posts').update(id, input),
-      remove: (id) => client.content('posts').delete(id, { force: true }),
+      create: (input) => client.content("posts").create(input),
+      remove: (id) => client.content("posts").delete(id, { force: true }),
+      update: (id, input) => client.content("posts").update(id, input),
     };
   }
 
-  if (resource === 'pages') {
+  if (resource === "pages") {
     return {
-      create: (input) => client.content('pages').create(input),
-      update: (id, input) => client.content('pages').update(id, input),
-      remove: (id) => client.content('pages').delete(id, { force: true }),
+      create: (input) => client.content("pages").create(input),
+      remove: (id) => client.content("pages").delete(id, { force: true }),
+      update: (id, input) => client.content("pages").update(id, input),
     };
   }
 
-  const books = client.content('books');
+  const books = client.content("books");
 
   return {
     create: (input) => books.create(input),
-    update: (id, input) => books.update(id, input),
     remove: (id) => books.delete(id, { force: true }),
+    update: (id, input) => books.update(id, input),
   };
 }
 
 /**
  * Reads one resource directly from the REST API to verify persisted fields.
  */
-async function fetchResource(resource: ResourceName, id: number): Promise<Record<string, unknown>> {
-  const response = await fetch(`${getBaseUrl()}/wp-json/wp/v2/${resource}/${id}`, {
-    headers: {
-      Authorization: getAuthHeader(),
+async function fetchResource(
+  resource: ResourceName,
+  id: number,
+): Promise<Record<string, unknown>> {
+  const response = await fetch(
+    `${getBaseUrl()}/wp-json/wp/v2/${resource}/${id}`,
+    {
+      headers: {
+        Authorization: getAuthHeader(),
+      },
     },
-  });
+  );
 
   if (!response.ok) {
-    throw new Error(`Expected ${resource}/${id} to exist. Received ${response.status}.`);
+    throw new Error(
+      `Expected ${resource}/${id} to exist. Received ${response.status}.`,
+    );
   }
 
-  return await response.json() as Record<string, unknown>;
+  return (await response.json()) as Record<string, unknown>;
 }
 
 /**
  * Tracks created entries per resource so the suite can clean up after itself.
  */
 const createdIds: Record<ResourceName, number[]> = {
-  posts: [],
-  pages: [],
   books: [],
+  pages: [],
+  posts: [],
 };
 
 /**
  * Integration coverage for registered REST meta fields through the standalone client.
  */
-describe('Client: meta fields', () => {
+describe("Client: meta fields", () => {
   let client: WordPressClient;
 
   beforeAll(() => {
@@ -121,142 +136,143 @@ describe('Client: meta fields', () => {
     }
   });
 
-  describe.each([{ resource: 'posts' }, { resource: 'pages' }, { resource: 'books' }] as const)(
-    'resource: $resource',
-    ({ resource }) => {
-      it('creates scalar meta fields', async () => {
-        const harness = createResourceHarness(client, resource);
-        const entry = await harness.create({
-          title: `Client Meta Scalars: ${resource}`,
-          status: 'draft',
-          meta: {
-            test_string_meta: 'hello world',
-            test_boolean_meta: true,
-            test_integer_meta: 42,
-            test_number_meta: 3.14,
-          },
-        });
-
-        createdIds[resource].push(getEntryId(entry));
-
-        const meta = getMetaRecord(entry);
-        expect(meta.test_string_meta).toBe('hello world');
-        expect(meta.test_boolean_meta).toBe(true);
-        expect(meta.test_integer_meta).toBe(42);
-        expect(meta.test_number_meta).toBeCloseTo(3.14);
+  describe.each([
+    { resource: "posts" },
+    { resource: "pages" },
+    { resource: "books" },
+  ] as const)("resource: $resource", ({ resource }) => {
+    it("creates scalar meta fields", async () => {
+      const harness = createResourceHarness(client, resource);
+      const entry = await harness.create({
+        meta: {
+          test_boolean_meta: true,
+          test_integer_meta: 42,
+          test_number_meta: 3.14,
+          test_string_meta: "hello world",
+        },
+        status: "draft",
+        title: `Client Meta Scalars: ${resource}`,
       });
 
-      it('creates complex meta fields', async () => {
-        const harness = createResourceHarness(client, resource);
-        const entry = await harness.create({
-          title: `Client Meta Complex: ${resource}`,
-          status: 'draft',
-          meta: {
-            test_array_meta: ['alpha', 'beta', 'gamma'],
-            test_object_meta: {
-              city: 'Berlin',
-              zip: '10115',
-              lat: 52.52,
-              lng: 13.405,
-            },
-          },
-        });
+      createdIds[resource].push(getEntryId(entry));
 
-        createdIds[resource].push(getEntryId(entry));
-
-        const meta = getMetaRecord(entry);
-        expect(meta.test_array_meta).toEqual(['alpha', 'beta', 'gamma']);
-        expect(meta.test_object_meta).toEqual({
-          city: 'Berlin',
-          zip: '10115',
-          lat: 52.52,
-          lng: 13.405,
-        });
-      });
-
-      it('reads persisted meta back from a fresh REST GET', async () => {
-        const harness = createResourceHarness(client, resource);
-        const entry = await harness.create({
-          title: `Client Meta Readback: ${resource}`,
-          status: 'draft',
-          meta: {
-            test_string_meta: 'readback',
-            test_integer_meta: 7,
-          },
-        });
-
-        const id = getEntryId(entry);
-        createdIds[resource].push(id);
-
-        const readBack = await fetchResource(resource, id);
-        const meta = getMetaRecord(readBack);
-
-        expect(meta.test_string_meta).toBe('readback');
-        expect(meta.test_integer_meta).toBe(7);
-      });
-
-      it('updates one meta field without clobbering another', async () => {
-        const harness = createResourceHarness(client, resource);
-        const entry = await harness.create({
-          title: `Client Meta Update: ${resource}`,
-          status: 'draft',
-          meta: {
-            test_string_meta: 'before',
-            test_integer_meta: 1,
-          },
-        });
-
-        const id = getEntryId(entry);
-        createdIds[resource].push(id);
-
-        const updated = await harness.update(id, {
-          meta: {
-            test_string_meta: 'after',
-          },
-        });
-
-        const meta = getMetaRecord(updated);
-        expect(meta.test_string_meta).toBe('after');
-        expect(meta.test_integer_meta).toBe(1);
-      });
-    },
-  );
-
-  it('replaces array meta values on update', async () => {
-    const harness = createResourceHarness(client, 'posts');
-    const entry = await harness.create({
-      title: 'Client Meta Array Replace',
-      status: 'draft',
-      meta: {
-        test_array_meta: ['one', 'two'],
-      },
+      const meta = getMetaRecord(entry);
+      expect(meta.test_string_meta).toBe("hello world");
+      expect(meta.test_boolean_meta).toBe(true);
+      expect(meta.test_integer_meta).toBe(42);
+      expect(meta.test_number_meta).toBeCloseTo(3.14);
     });
 
-    const id = getEntryId(entry);
-    createdIds.posts.push(id);
+    it("creates complex meta fields", async () => {
+      const harness = createResourceHarness(client, resource);
+      const entry = await harness.create({
+        meta: {
+          test_array_meta: ["alpha", "beta", "gamma"],
+          test_object_meta: {
+            city: "Berlin",
+            lat: 52.52,
+            lng: 13.405,
+            zip: "10115",
+          },
+        },
+        status: "draft",
+        title: `Client Meta Complex: ${resource}`,
+      });
 
-    const updated = await harness.update(id, {
-      meta: {
-        test_array_meta: ['three'],
-      },
+      createdIds[resource].push(getEntryId(entry));
+
+      const meta = getMetaRecord(entry);
+      expect(meta.test_array_meta).toEqual(["alpha", "beta", "gamma"]);
+      expect(meta.test_object_meta).toEqual({
+        city: "Berlin",
+        lat: 52.52,
+        lng: 13.405,
+        zip: "10115",
+      });
     });
 
-    expect(getMetaRecord(updated).test_array_meta).toEqual(['three']);
+    it("reads persisted meta back from a fresh REST GET", async () => {
+      const harness = createResourceHarness(client, resource);
+      const entry = await harness.create({
+        meta: {
+          test_integer_meta: 7,
+          test_string_meta: "readback",
+        },
+        status: "draft",
+        title: `Client Meta Readback: ${resource}`,
+      });
+
+      const id = getEntryId(entry);
+      createdIds[resource].push(id);
+
+      const readBack = await fetchResource(resource, id);
+      const meta = getMetaRecord(readBack);
+
+      expect(meta.test_string_meta).toBe("readback");
+      expect(meta.test_integer_meta).toBe(7);
+    });
+
+    it("updates one meta field without clobbering another", async () => {
+      const harness = createResourceHarness(client, resource);
+      const entry = await harness.create({
+        meta: {
+          test_integer_meta: 1,
+          test_string_meta: "before",
+        },
+        status: "draft",
+        title: `Client Meta Update: ${resource}`,
+      });
+
+      const id = getEntryId(entry);
+      createdIds[resource].push(id);
+
+      const updated = await harness.update(id, {
+        meta: {
+          test_string_meta: "after",
+        },
+      });
+
+      const meta = getMetaRecord(updated);
+      expect(meta.test_string_meta).toBe("after");
+      expect(meta.test_integer_meta).toBe(1);
+    });
   });
 
-  it('replaces object meta values on update', async () => {
-    const harness = createResourceHarness(client, 'posts');
+  it("replaces array meta values on update", async () => {
+    const harness = createResourceHarness(client, "posts");
     const entry = await harness.create({
-      title: 'Client Meta Object Replace',
-      status: 'draft',
+      meta: {
+        test_array_meta: ["one", "two"],
+      },
+      status: "draft",
+      title: "Client Meta Array Replace",
+    });
+
+    const id = getEntryId(entry);
+    createdIds.posts.push(id);
+
+    const updated = await harness.update(id, {
+      meta: {
+        test_array_meta: ["three"],
+      },
+    });
+
+    expect(getMetaRecord(updated).test_array_meta).toEqual(["three"]);
+  });
+
+  it("replaces object meta values on update", async () => {
+    const harness = createResourceHarness(client, "posts");
+    const entry = await harness.create({
       meta: {
         test_object_meta: {
-          city: 'Berlin',
-          zip: '10115',
+          city: "Berlin",
           lat: 52.52,
           lng: 13.405,
+          zip: "10115",
         },
       },
+      status: "draft",
+      title: "Client Meta Object Replace",
     });
 
     const id = getEntryId(entry);
@@ -265,64 +281,64 @@ describe('Client: meta fields', () => {
     const updated = await harness.update(id, {
       meta: {
         test_object_meta: {
-          city: 'Munich',
-          zip: '80331',
+          city: "Munich",
           lat: 48.137,
           lng: 11.575,
+          zip: "80331",
         },
       },
     });
 
     expect(getMetaRecord(updated).test_object_meta).toEqual({
-      city: 'Munich',
-      zip: '80331',
+      city: "Munich",
       lat: 48.137,
       lng: 11.575,
+      zip: "80331",
     });
   });
 
-  it('rejects writes to readonly registered meta fields', async () => {
+  it("rejects writes to readonly registered meta fields", async () => {
     await expect(
-      client.content('posts').create({
-        title: 'Client Meta Readonly Reject',
-        status: 'draft',
+      client.content("posts").create({
         meta: {
-          test_readonly_meta: 'should not save',
+          test_readonly_meta: "should not save",
         },
+        status: "draft",
+        title: "Client Meta Readonly Reject",
       }),
     ).rejects.toMatchObject({
-        name: 'WordPressHttpError',
+      name: "WordPressHttpError",
     });
   });
 
-  it('stores book-only ISBN meta on the book custom post type', async () => {
-    const harness = createResourceHarness(client, 'books');
+  it("stores book-only ISBN meta on the book custom post type", async () => {
+    const harness = createResourceHarness(client, "books");
     const entry = await harness.create({
-      title: 'Client Meta Book ISBN',
-      status: 'draft',
       meta: {
-        test_book_isbn: '978-1-4028-9462-6',
+        test_book_isbn: "978-1-4028-9462-6",
       },
+      status: "draft",
+      title: "Client Meta Book ISBN",
     });
 
     createdIds.books.push(getEntryId(entry));
 
-    expect(getMetaRecord(entry).test_book_isbn).toBe('978-1-4028-9462-6');
+    expect(getMetaRecord(entry).test_book_isbn).toBe("978-1-4028-9462-6");
   });
 
-  it('rejects unauthenticated writes to registered meta fields', async () => {
+  it("rejects unauthenticated writes to registered meta fields", async () => {
     const publicClient = createPublicClient();
 
     await expect(
-      publicClient.content('posts').create({
-        title: 'Client Meta Public Reject',
-        status: 'draft',
+      publicClient.content("posts").create({
         meta: {
-          test_string_meta: 'nope',
+          test_string_meta: "nope",
         },
+        status: "draft",
+        title: "Client Meta Public Reject",
       }),
     ).rejects.toMatchObject({
-        name: 'WordPressHttpError',
+      name: "WordPressHttpError",
     });
   });
 });

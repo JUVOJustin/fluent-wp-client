@@ -1,5 +1,6 @@
-import type { DeleteOptions, UserDeleteOptions, WordPressWritePayload } from './payloads.js';
-import type { ContentItemQuery } from '../builders/content-item-query.js';
+import type { WordPressBlockJsonSchema } from "../blocks.js";
+import type { ContentItemQuery } from "../builders/content-item-query.js";
+import type { ListAllOptions } from "../core/pagination.js";
 import type {
   WordPressAuthor,
   WordPressBlockType,
@@ -7,11 +8,14 @@ import type {
   WordPressMedia,
   WordPressPostLike,
   WordPressSettings,
-} from '../schemas.js';
-import type { WordPressResourceDescription } from './discovery.js';
-import type { WordPressMediaUploadInput } from './client.js';
-import type { ListAllOptions } from '../core/pagination.js';
-import type { WordPressBlockJsonSchema } from '../blocks.js';
+} from "../schemas.js";
+import type { WordPressMediaUploadInput } from "./client.js";
+import type { WordPressResourceDescription } from "./discovery.js";
+import type {
+  DeleteOptions,
+  UserDeleteOptions,
+  WordPressWritePayload,
+} from "./payloads.js";
 
 /**
  * Per-request transport overrides supported by high-level helper methods.
@@ -67,8 +71,8 @@ export interface FetchResult<T> {
  * Pagination options for list endpoints.
  */
 export interface PaginationParams {
-  perPage?: number;
   page?: number;
+  perPage?: number;
 }
 
 /**
@@ -76,18 +80,18 @@ export interface PaginationParams {
  */
 export interface PaginatedResponse<T> {
   data: T[];
-  total: number;
-  totalPages: number;
   page: number;
   perPage: number;
+  total: number;
+  totalPages: number;
 }
 
 /**
  * Normalized delete result returned by resource delete helpers.
  */
 export interface WordPressDeleteResult {
-  id: number;
   deleted: boolean;
+  id: number;
   previous?: unknown;
 }
 
@@ -100,18 +104,46 @@ export interface ContentResourceClient<
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > {
-  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
-  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides, listOptions?: ListAllOptions) => Promise<TResource[]>;
-  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
-  item: (idOrSlug: number | string, options?: WordPressRequestOverrides & { embed?: boolean | string[]; fields?: string[] }) => ContentItemQuery<TResource>;
-  create: (input: TCreate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  update: (id: number, input: TUpdate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
+  create: (
+    input: TCreate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
+  delete: (
+    id: number,
+    options?: DeleteOptions & WordPressRequestOverrides,
+  ) => Promise<WordPressDeleteResult>;
   /**
    * Returns a JSON Schema descriptor for this content resource.
    * @param options Optional request overrides
    */
-  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+  describe: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>;
+  item: (
+    idOrSlug: number | string,
+    options?: WordPressRequestOverrides & {
+      embed?: boolean | string[];
+      fields?: string[];
+    },
+  ) => ContentItemQuery<TResource>;
+  list: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource[]>;
+  listAll: (
+    filter?: Omit<TFilter, "page">,
+    options?: WordPressRequestOverrides,
+    listOptions?: ListAllOptions,
+  ) => Promise<TResource[]>;
+  listPaginated: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<PaginatedResponse<TResource>>;
+  update: (
+    id: number,
+    input: TUpdate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
 }
 
 /**
@@ -123,18 +155,43 @@ export interface TermsResourceClient<
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > {
-  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
-  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides, listOptions?: ListAllOptions) => Promise<TResource[]>;
-  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
-  item: (idOrSlug: number | string, options?: WordPressRequestOverrides) => Promise<TResource | undefined>;
-  create: (input: TCreate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  update: (id: number, input: TUpdate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
+  create: (
+    input: TCreate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
+  delete: (
+    id: number,
+    options?: DeleteOptions & WordPressRequestOverrides,
+  ) => Promise<WordPressDeleteResult>;
   /**
    * Returns a JSON Schema descriptor for this term resource.
    * @param options Optional request overrides
    */
-  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+  describe: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>;
+  item: (
+    idOrSlug: number | string,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource | undefined>;
+  list: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource[]>;
+  listAll: (
+    filter?: Omit<TFilter, "page">,
+    options?: WordPressRequestOverrides,
+    listOptions?: ListAllOptions,
+  ) => Promise<TResource[]>;
+  listPaginated: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<PaginatedResponse<TResource>>;
+  update: (
+    id: number,
+    input: TUpdate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
 }
 
 /**
@@ -142,23 +199,55 @@ export interface TermsResourceClient<
  */
 export interface MediaResourceClient<
   TResource extends WordPressMedia = WordPressMedia,
-  TFilter extends QueryParams & PaginationParams = QueryParams & PaginationParams,
+  TFilter extends QueryParams & PaginationParams = QueryParams &
+    PaginationParams,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > {
-  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
-  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides, listOptions?: ListAllOptions) => Promise<TResource[]>;
-  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
-  item: {
-    (id: number, options?: WordPressRequestOverrides): Promise<TResource | undefined>;
-    (slug: string, options?: WordPressRequestOverrides): Promise<TResource | undefined>;
-  };
-  create: (input: TCreate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  upload: (input: WordPressMediaUploadInput, options?: WordPressRequestOverrides) => Promise<TResource>;
-  update: (id: number, input: TUpdate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
+  create: (
+    input: TCreate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
+  delete: (
+    id: number,
+    options?: DeleteOptions & WordPressRequestOverrides,
+  ) => Promise<WordPressDeleteResult>;
+  describe: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>;
   getImageUrl: (media: TResource, size?: string) => string;
-  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+  item: {
+    (
+      id: number,
+      options?: WordPressRequestOverrides,
+    ): Promise<TResource | undefined>;
+    (
+      slug: string,
+      options?: WordPressRequestOverrides,
+    ): Promise<TResource | undefined>;
+  };
+  list: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource[]>;
+  listAll: (
+    filter?: Omit<TFilter, "page">,
+    options?: WordPressRequestOverrides,
+    listOptions?: ListAllOptions,
+  ) => Promise<TResource[]>;
+  listPaginated: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<PaginatedResponse<TResource>>;
+  update: (
+    id: number,
+    input: TUpdate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
+  upload: (
+    input: WordPressMediaUploadInput,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
 }
 
 /**
@@ -166,18 +255,44 @@ export interface MediaResourceClient<
  */
 export interface CommentsResourceClient<
   TResource extends WordPressComment = WordPressComment,
-  TFilter extends QueryParams & PaginationParams = QueryParams & PaginationParams,
+  TFilter extends QueryParams & PaginationParams = QueryParams &
+    PaginationParams,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > {
-  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
-  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides, listOptions?: ListAllOptions) => Promise<TResource[]>;
-  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
-  item: (id: number, options?: WordPressRequestOverrides) => Promise<TResource | undefined>;
-  create: (input: TCreate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  update: (id: number, input: TUpdate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  delete: (id: number, options?: DeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
-  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+  create: (
+    input: TCreate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
+  delete: (
+    id: number,
+    options?: DeleteOptions & WordPressRequestOverrides,
+  ) => Promise<WordPressDeleteResult>;
+  describe: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>;
+  item: (
+    id: number,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource | undefined>;
+  list: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource[]>;
+  listAll: (
+    filter?: Omit<TFilter, "page">,
+    options?: WordPressRequestOverrides,
+    listOptions?: ListAllOptions,
+  ) => Promise<TResource[]>;
+  listPaginated: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<PaginatedResponse<TResource>>;
+  update: (
+    id: number,
+    input: TUpdate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
 }
 
 /**
@@ -185,22 +300,51 @@ export interface CommentsResourceClient<
  */
 export interface UsersResourceClient<
   TResource extends WordPressAuthor = WordPressAuthor,
-  TFilter extends QueryParams & PaginationParams = QueryParams & PaginationParams,
+  TFilter extends QueryParams & PaginationParams = QueryParams &
+    PaginationParams,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > {
-  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
-  listAll: (filter?: Omit<TFilter, 'page'>, options?: WordPressRequestOverrides, listOptions?: ListAllOptions) => Promise<TResource[]>;
-  listPaginated: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<PaginatedResponse<TResource>>;
+  create: (
+    input: TCreate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
+  delete: (
+    id: number,
+    options?: UserDeleteOptions & WordPressRequestOverrides,
+  ) => Promise<WordPressDeleteResult>;
+  describe: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>;
   item: {
-    (id: number, options?: WordPressRequestOverrides): Promise<TResource | undefined>;
-    (slug: string, options?: WordPressRequestOverrides): Promise<TResource | undefined>;
+    (
+      id: number,
+      options?: WordPressRequestOverrides,
+    ): Promise<TResource | undefined>;
+    (
+      slug: string,
+      options?: WordPressRequestOverrides,
+    ): Promise<TResource | undefined>;
   };
+  list: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource[]>;
+  listAll: (
+    filter?: Omit<TFilter, "page">,
+    options?: WordPressRequestOverrides,
+    listOptions?: ListAllOptions,
+  ) => Promise<TResource[]>;
+  listPaginated: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<PaginatedResponse<TResource>>;
   me: (options?: WordPressRequestOverrides) => Promise<TResource>;
-  create: (input: TCreate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  update: (id: number, input: TUpdate, options?: WordPressRequestOverrides) => Promise<TResource>;
-  delete: (id: number, options?: UserDeleteOptions & WordPressRequestOverrides) => Promise<WordPressDeleteResult>;
-  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+  update: (
+    id: number,
+    input: TUpdate,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource>;
 }
 
 /**
@@ -209,12 +353,14 @@ export interface UsersResourceClient<
 export interface SettingsResourceClient<
   TResource extends WordPressSettings = WordPressSettings,
 > {
+  describe: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>;
   get: (options?: WordPressRequestOverrides) => Promise<TResource>;
   update: (
     input: Partial<WordPressSettings> & Record<string, unknown>,
     options?: WordPressRequestOverrides,
   ) => Promise<TResource>;
-  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
 }
 
 /**
@@ -224,15 +370,29 @@ export interface BlocksResourceClient<
   TResource extends WordPressBlockType = WordPressBlockType,
   TFilter extends QueryParams = QueryParams,
 > {
-  list: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<TResource[]>;
+  describe: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>;
   item: (
     name: string,
-    options?: WordPressRequestOverrides & { context?: 'view' | 'embed' | 'edit'; fields?: string[] },
+    options?: WordPressRequestOverrides & {
+      context?: "view" | "embed" | "edit";
+      fields?: string[];
+    },
   ) => Promise<TResource | undefined>;
+  list: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<TResource[]>;
   schema: (
     name: string,
-    options?: WordPressRequestOverrides & { context?: 'view' | 'embed' | 'edit'; fields?: string[] },
+    options?: WordPressRequestOverrides & {
+      context?: "view" | "embed" | "edit";
+      fields?: string[];
+    },
   ) => Promise<WordPressBlockJsonSchema | undefined>;
-  schemas: (filter?: TFilter, options?: WordPressRequestOverrides) => Promise<WordPressBlockJsonSchema[]>;
-  describe: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>;
+  schemas: (
+    filter?: TFilter,
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressBlockJsonSchema[]>;
 }

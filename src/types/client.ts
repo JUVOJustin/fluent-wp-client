@@ -3,12 +3,12 @@ import type {
   WordPressAuthHeaders,
   WordPressAuthHeadersProvider,
   WordPressAuthInput,
-} from '../auth.js';
+} from "../auth.js";
 
 /**
  * Callback invoked before each HTTP request to implement rate limiting or other custom logic.
  * Receives the request URL and init options. Can return a Promise for async operations.
- * 
+ *
  * @example
  * ```typescript
  * // Simple rate limiter with 100ms delay between requests
@@ -18,7 +18,7 @@ import type {
  *     await new Promise(resolve => setTimeout(resolve, 100));
  *   }
  * });
- * 
+ *
  * // Token bucket rate limiter
  * const client = new WordPressClient({
  *   baseUrl: 'https://example.com',
@@ -28,7 +28,10 @@ import type {
  * });
  * ```
  */
-export type WordPressRequestCallback = (url: string, init: RequestInit) => void | Promise<void>;
+export type WordPressRequestCallback = (
+  url: string,
+  init: RequestInit,
+) => void | Promise<void>;
 
 /**
  * WordPress client configuration.
@@ -41,13 +44,13 @@ export type WordPressRequestCallback = (url: string, init: RequestInit) => void 
  * `cookies` and `credentials` layer on top of these for cookie-based sessions.
  */
 export interface WordPressClientConfig {
-  baseUrl: string;
   /** Structured credentials. See {@link WordPressAuthConfig}. */
   auth?: WordPressAuthConfig;
   /** Raw `Authorization` header. Wins over `auth` when both are present. */
   authHeader?: string;
   /** Prebuilt header map or async provider merged onto every request. */
   authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+  baseUrl: string;
   cookies?: string;
   credentials?: RequestCredentials;
   fetch?: typeof fetch;
@@ -63,17 +66,17 @@ export interface WordPressClientConfig {
  * Low-level request options for direct calls to the WordPress REST API.
  */
 export interface WordPressRequestOptions {
-  endpoint: string;
-  method?: string;
-  params?: Record<string, string | string[]>;
-  body?: unknown;
-  rawBody?: BodyInit;
-  headers?: Record<string, string>;
   auth?: WordPressAuthInput;
   authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+  body?: unknown;
   cookies?: string;
   credentials?: RequestCredentials;
+  endpoint: string;
+  headers?: Record<string, string>;
+  method?: string;
   omitContentType?: boolean;
+  params?: Record<string, string | string[]>;
+  rawBody?: BodyInit;
 }
 
 /**
@@ -88,12 +91,12 @@ export interface WordPressRequestResult<T> {
  * Upload payload for the dedicated binary media helper.
  */
 export interface WordPressMediaUploadInput {
+  alt_text?: string;
+  caption?: string;
+  description?: string;
   file: Blob | ArrayBuffer | Uint8Array | string;
   filename: string;
   mimeType?: string;
+  status?: "publish" | "draft" | "private";
   title?: string;
-  caption?: string;
-  description?: string;
-  alt_text?: string;
-  status?: 'publish' | 'draft' | 'private';
 }

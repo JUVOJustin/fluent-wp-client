@@ -7,11 +7,11 @@ export type WordPressWritePayload = Record<string, unknown>;
  * Payload for creating/updating term resources.
  */
 export interface TermWriteInput {
-  name?: string;
-  slug?: string;
   description?: string;
-  parent?: number;
   meta?: Record<string, unknown>;
+  name?: string;
+  parent?: number;
+  slug?: string;
   [key: string]: unknown;
 }
 
@@ -19,16 +19,16 @@ export interface TermWriteInput {
  * Payload for creating/updating users.
  */
 export interface UserWriteInput {
-  username?: string;
+  description?: string;
   email?: string;
-  password?: string;
-  name?: string;
   first_name?: string;
   last_name?: string;
+  name?: string;
   nickname?: string;
-  description?: string;
+  password?: string;
   roles?: string[];
   url?: string;
+  username?: string;
   [key: string]: unknown;
 }
 

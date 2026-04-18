@@ -1,11 +1,14 @@
-import { WordPressClient } from '../../dist/index.js';
-import { withBlocks, type WordPressBlocksClient } from '../../dist/blocks-entry.js';
+import {
+  type WordPressBlocksClient,
+  withBlocks,
+} from "../../dist/blocks-entry.js";
+import { WordPressClient } from "../../dist/index.js";
 
 /**
  * Resolves the WP base URL from the integration test environment.
  */
 export function getBaseUrl(): string {
-  return process.env.WP_BASE_URL || 'http://localhost:8888';
+  return process.env.WP_BASE_URL || "http://localhost:8888";
 }
 
 /**
@@ -29,12 +32,12 @@ export function createAuthClient(): WordPressClient {
   const password = process.env.WP_APP_PASSWORD;
 
   if (!password) {
-    throw new Error('WP_APP_PASSWORD not set — did global-setup run?');
+    throw new Error("WP_APP_PASSWORD not set — did global-setup run?");
   }
 
   return new WordPressClient({
+    auth: { password, username: "admin" },
     baseUrl: getBaseUrl(),
-    auth: { username: 'admin', password },
   });
 }
 
@@ -52,12 +55,12 @@ export function createJwtAuthClient(): WordPressClient {
   const token = process.env.WP_JWT_TOKEN;
 
   if (!token) {
-    throw new Error('WP_JWT_TOKEN not set — did global-setup run?');
+    throw new Error("WP_JWT_TOKEN not set — did global-setup run?");
   }
 
   return new WordPressClient({
-    baseUrl: getBaseUrl(),
     auth: { token },
+    baseUrl: getBaseUrl(),
   });
 }
 
@@ -69,17 +72,17 @@ export function createCookieAuthClient(): WordPressClient {
   const cookieHeader = process.env.WP_COOKIE_AUTH_HEADER;
 
   if (!nonce) {
-    throw new Error('WP_REST_NONCE not set — did global-setup run?');
+    throw new Error("WP_REST_NONCE not set — did global-setup run?");
   }
 
   if (!cookieHeader) {
-    throw new Error('WP_COOKIE_AUTH_HEADER not set — did global-setup run?');
+    throw new Error("WP_COOKIE_AUTH_HEADER not set — did global-setup run?");
   }
 
   return new WordPressClient({
+    auth: { credentials: "include", nonce },
     baseUrl: getBaseUrl(),
-    auth: { nonce, credentials: 'include' },
-    credentials: 'include',
     cookies: cookieHeader,
+    credentials: "include",
   });
 }

@@ -1,28 +1,46 @@
-import { defineConfig } from 'vitest/config';
-import { fileURLToPath } from 'url';
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitest/config";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Vitest configuration for standalone wp-client integration coverage.
  */
 export default defineConfig({
-  root: fileURLToPath(new URL('.', import.meta.url)),
   resolve: {
-    alias: {
-      'fluent-wp-client/ai-sdk': fileURLToPath(new URL('./dist/ai-sdk/index.js', import.meta.url)),
-      'fluent-wp-client/blocks': fileURLToPath(new URL('./dist/blocks-entry.js', import.meta.url)),
-      'fluent-wp-client/blocks/zod': fileURLToPath(new URL('./dist/blocks-zod.js', import.meta.url)),
-      'fluent-wp-client/zod': fileURLToPath(new URL('./dist/zod.js', import.meta.url)),
-      'fluent-wp-client': fileURLToPath(new URL('./dist/index.js', import.meta.url)),
-    },
+    alias: [
+      {
+        find: /^fluent-wp-client\/ai-sdk$/,
+        replacement: resolve(__dirname, "./dist/ai-sdk/index.js"),
+      },
+      {
+        find: /^fluent-wp-client\/blocks\/zod$/,
+        replacement: resolve(__dirname, "./dist/blocks-zod.js"),
+      },
+      {
+        find: /^fluent-wp-client\/blocks$/,
+        replacement: resolve(__dirname, "./dist/blocks-entry.js"),
+      },
+      {
+        find: /^fluent-wp-client\/zod$/,
+        replacement: resolve(__dirname, "./dist/zod.js"),
+      },
+      {
+        find: /^fluent-wp-client$/,
+        replacement: resolve(__dirname, "./dist/index.js"),
+      },
+    ],
   },
+  root: __dirname,
   test: {
-    include: ['tests/integration/**/*.test.ts'],
-    environment: 'node',
-    globalSetup: './tests/setup/global-setup.ts',
-    setupFiles: ['./tests/setup/env-loader.ts'],
+    environment: "node",
     fileParallelism: false,
-    testTimeout: 30_000,
+    globalSetup: "./tests/setup/global-setup.ts",
     hookTimeout: 60_000,
-    reporters: ['verbose'],
+    include: ["tests/integration/**/*.test.ts"],
+    reporters: ["verbose"],
+    setupFiles: ["./tests/setup/env-loader.ts"],
+    testTimeout: 30_000,
   },
 });

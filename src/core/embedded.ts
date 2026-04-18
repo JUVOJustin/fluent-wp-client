@@ -5,7 +5,7 @@ import type {
   WordPressMedia,
   WordPressPostLike,
   WordPressTag,
-} from '../schemas.js';
+} from "../schemas.js";
 
 /**
  * Shape of a resource that may carry WordPress `_embedded` data.
@@ -22,10 +22,13 @@ interface EmbeddedSource {
 /**
  * Reads one `_embedded` key and returns its raw value.
  */
-export function getEmbeddedData(source: unknown, key: string): unknown | undefined {
+export function getEmbeddedData(
+  source: unknown,
+  key: string,
+): unknown | undefined {
   const embedded = (source as EmbeddedSource)?._embedded;
 
-  if (!embedded || typeof embedded !== 'object') {
+  if (!embedded || typeof embedded !== "object") {
     return undefined;
   }
 
@@ -43,7 +46,7 @@ function firstEmbeddedItem<T>(source: unknown, key: string): T | null {
   }
 
   const item = data[0];
-  return (item && typeof item === 'object' && 'id' in item) ? item as T : null;
+  return item && typeof item === "object" && "id" in item ? (item as T) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,23 +57,25 @@ function firstEmbeddedItem<T>(source: unknown, key: string): T | null {
  * Extracts the embedded author from `_embedded.author`.
  */
 export function getEmbeddedAuthor(source: unknown): WordPressAuthor | null {
-  return firstEmbeddedItem<WordPressAuthor>(source, 'author');
+  return firstEmbeddedItem<WordPressAuthor>(source, "author");
 }
 
 /**
  * Extracts the embedded featured media from `_embedded['wp:featuredmedia']`.
  */
-export function getEmbeddedFeaturedMedia(source: unknown): WordPressMedia | null {
-  return firstEmbeddedItem<WordPressMedia>(source, 'wp:featuredmedia');
+export function getEmbeddedFeaturedMedia(
+  source: unknown,
+): WordPressMedia | null {
+  return firstEmbeddedItem<WordPressMedia>(source, "wp:featuredmedia");
 }
 
 /**
  * Extracts the embedded parent resource from `_embedded.up`.
  */
-export function getEmbeddedParent<T extends WordPressPostLike = WordPressPostLike>(
-  source: unknown,
-): T | null {
-  return firstEmbeddedItem<T>(source, 'up');
+export function getEmbeddedParent<
+  T extends WordPressPostLike = WordPressPostLike,
+>(source: unknown): T | null {
+  return firstEmbeddedItem<T>(source, "up");
 }
 
 /**
@@ -82,11 +87,10 @@ export function getEmbeddedParent<T extends WordPressPostLike = WordPressPostLik
  * @param source  A resource with `_embedded` data.
  * @param taxonomy  When provided, only terms matching this taxonomy are returned.
  */
-export function getEmbeddedTerms<T extends { taxonomy?: string } = WordPressCategory | WordPressTag>(
-  source: unknown,
-  taxonomy?: string,
-): T[] {
-  const data = getEmbeddedData(source, 'wp:term');
+export function getEmbeddedTerms<
+  T extends { taxonomy?: string } = WordPressCategory | WordPressTag,
+>(source: unknown, taxonomy?: string): T[] {
+  const data = getEmbeddedData(source, "wp:term");
 
   if (!Array.isArray(data)) {
     return [];
@@ -100,7 +104,7 @@ export function getEmbeddedTerms<T extends { taxonomy?: string } = WordPressCate
     }
 
     for (const term of group) {
-      if (!term || typeof term !== 'object' || !('id' in term)) {
+      if (!term || typeof term !== "object" || !("id" in term)) {
         continue;
       }
 
@@ -119,7 +123,7 @@ export function getEmbeddedTerms<T extends { taxonomy?: string } = WordPressCate
  * Extracts embedded replies (comments) from `_embedded.replies`.
  */
 export function getEmbeddedReplies(source: unknown): WordPressComment[] {
-  const data = getEmbeddedData(source, 'replies');
+  const data = getEmbeddedData(source, "replies");
 
   if (!Array.isArray(data)) {
     return [];
@@ -129,7 +133,7 @@ export function getEmbeddedReplies(source: unknown): WordPressComment[] {
   const group = Array.isArray(data[0]) ? data[0] : data;
   return group.filter(
     (item: unknown): item is WordPressComment =>
-      !!item && typeof item === 'object' && 'id' in item,
+      !!item && typeof item === "object" && "id" in item,
   );
 }
 
@@ -140,12 +144,12 @@ export function getEmbeddedReplies(source: unknown): WordPressComment[] {
 /**
  * Default `_embedded` key used by ACF for post-type link relations.
  */
-export const ACF_POSTS_EMBED_KEY = 'acf:post';
+export const ACF_POSTS_EMBED_KEY = "acf:post";
 
 /**
  * Default `_embedded` key used by ACF for taxonomy link relations.
  */
-export const ACF_TERMS_EMBED_KEY = 'acf:term';
+export const ACF_TERMS_EMBED_KEY = "acf:term";
 
 /**
  * Extracts all ACF-embedded posts from `_embedded['acf:post']`.
@@ -159,10 +163,9 @@ export const ACF_TERMS_EMBED_KEY = 'acf:term';
  * const books = getAcfEmbeddedPosts<WPBook>(post, 'acf:post');
  * ```
  */
-export function getAcfEmbeddedPosts<T extends { id: number } = WordPressPostLike>(
-  source: unknown,
-  key = ACF_POSTS_EMBED_KEY,
-): T[] {
+export function getAcfEmbeddedPosts<
+  T extends { id: number } = WordPressPostLike,
+>(source: unknown, key = ACF_POSTS_EMBED_KEY): T[] {
   const data = getEmbeddedData(source, key);
 
   if (!Array.isArray(data)) {
@@ -171,17 +174,16 @@ export function getAcfEmbeddedPosts<T extends { id: number } = WordPressPostLike
 
   return data.filter(
     (item: unknown): item is T =>
-      !!item && typeof item === 'object' && 'id' in item,
+      !!item && typeof item === "object" && "id" in item,
   );
 }
 
 /**
  * Extracts all ACF-embedded terms from `_embedded['acf:term']`.
  */
-export function getAcfEmbeddedTerms<T extends { id: number } = WordPressCategory>(
-  source: unknown,
-  key = ACF_TERMS_EMBED_KEY,
-): T[] {
+export function getAcfEmbeddedTerms<
+  T extends { id: number } = WordPressCategory,
+>(source: unknown, key = ACF_TERMS_EMBED_KEY): T[] {
   const data = getEmbeddedData(source, key);
 
   if (!Array.isArray(data)) {
@@ -190,7 +192,7 @@ export function getAcfEmbeddedTerms<T extends { id: number } = WordPressCategory
 
   return data.filter(
     (item: unknown): item is T =>
-      !!item && typeof item === 'object' && 'id' in item,
+      !!item && typeof item === "object" && "id" in item,
   );
 }
 
@@ -293,7 +295,7 @@ export function getAcfFieldTerms<T extends { id: number } = WordPressCategory>(
 export function getAcfFieldIds(source: unknown, fieldName: string): number[] {
   const acf = (source as { acf?: Record<string, unknown> })?.acf;
 
-  if (!acf || typeof acf !== 'object') {
+  if (!acf || typeof acf !== "object") {
     return [];
   }
 
@@ -301,15 +303,15 @@ export function getAcfFieldIds(source: unknown, fieldName: string): number[] {
 
   if (Array.isArray(raw)) {
     return raw
-      .map((v) => typeof v === 'number' ? v : Number(v))
+      .map((v) => (typeof v === "number" ? v : Number(v)))
       .filter((v) => Number.isFinite(v) && v > 0);
   }
 
-  if (typeof raw === 'number' && raw > 0) {
+  if (typeof raw === "number" && raw > 0) {
     return [raw];
   }
 
-  if (typeof raw === 'string') {
+  if (typeof raw === "string") {
     const parsed = Number(raw);
     return Number.isFinite(parsed) && parsed > 0 ? [parsed] : [];
   }
@@ -320,7 +322,10 @@ export function getAcfFieldIds(source: unknown, fieldName: string): number[] {
 /**
  * Reads a single numeric ID from an ACF field value.
  */
-export function getAcfFieldId(source: unknown, fieldName: string): number | null {
+export function getAcfFieldId(
+  source: unknown,
+  fieldName: string,
+): number | null {
   const ids = getAcfFieldIds(source, fieldName);
   return ids.length > 0 ? ids[0] : null;
 }
@@ -333,8 +338,8 @@ export function getAcfFieldId(source: unknown, fieldName: string): number | null
  * Shape of one WordPress `_links` entry.
  */
 export interface WordPressLinkEntry {
-  href: string;
   embeddable?: boolean;
+  href: string;
   taxonomy?: string;
   [key: string]: unknown;
 }
@@ -342,15 +347,18 @@ export interface WordPressLinkEntry {
 /**
  * Returns all `_links` entries for a given link relation key.
  */
-export function getLinkEntries(source: unknown, key: string): WordPressLinkEntry[] {
+export function getLinkEntries(
+  source: unknown,
+  key: string,
+): WordPressLinkEntry[] {
   const links = (source as { _links?: Record<string, unknown> })?._links;
 
-  if (!links || typeof links !== 'object') {
+  if (!links || typeof links !== "object") {
     return [];
   }
 
   const entries = links[key];
-  return Array.isArray(entries) ? entries as WordPressLinkEntry[] : [];
+  return Array.isArray(entries) ? (entries as WordPressLinkEntry[]) : [];
 }
 
 /**
@@ -367,7 +375,7 @@ export function getLinkEntries(source: unknown, key: string): WordPressLinkEntry
 export function getEmbeddableLinkKeys(source: unknown): string[] {
   const links = (source as { _links?: Record<string, unknown> })?._links;
 
-  if (!links || typeof links !== 'object') {
+  if (!links || typeof links !== "object") {
     return [];
   }
 
@@ -380,7 +388,9 @@ export function getEmbeddableLinkKeys(source: unknown): string[] {
 
     const hasEmbeddable = entries.some(
       (entry: unknown) =>
-        !!entry && typeof entry === 'object' && (entry as { embeddable?: boolean }).embeddable === true,
+        !!entry &&
+        typeof entry === "object" &&
+        (entry as { embeddable?: boolean }).embeddable === true,
     );
 
     if (hasEmbeddable) {

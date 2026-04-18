@@ -1,29 +1,29 @@
-import type { WordPressRuntime } from '../core/transport.js';
-import type { WordPressPostLike, WordPressCategory } from '../schemas.js';
+import type { WordPressRuntime } from "../core/transport.js";
+import { createDiscoveryMethods, type DiscoveryMethods } from "../discovery.js";
+import type { WordPressCategory, WordPressPostLike } from "../schemas.js";
+import type {
+  TermWriteInput,
+  WordPressWritePayload,
+} from "../types/payloads.js";
 import type {
   ContentResourceClient,
   PaginationParams,
   QueryParams,
   TermsResourceClient,
-} from '../types/resources.js';
-import type { TermWriteInput, WordPressWritePayload } from '../types/payloads.js';
-import { createDiscoveryMethods, type DiscoveryMethods } from '../discovery.js';
+} from "../types/resources.js";
 import {
-  GenericContentResource,
   createContentClient,
+  GenericContentResource,
   knownContentDefaults,
-} from './content.js';
-import {
-  GenericTermResource,
-  createTermsClient,
-} from './terms.js';
+} from "./content.js";
+import { createTermsClient, GenericTermResource } from "./terms.js";
 
 /**
  * Runtime dependencies required for generic content and term resources.
  */
 export interface GenericResourceContext {
-  runtime: WordPressRuntime;
   discoveryMethods?: DiscoveryMethods;
+  runtime: WordPressRuntime;
 }
 
 /**
@@ -35,7 +35,8 @@ export class GenericResourceRegistry {
   private readonly discoveryMethods: ReturnType<typeof createDiscoveryMethods>;
 
   constructor(private readonly context: GenericResourceContext) {
-    this.discoveryMethods = context.discoveryMethods ?? createDiscoveryMethods(context.runtime);
+    this.discoveryMethods =
+      context.discoveryMethods ?? createDiscoveryMethods(context.runtime);
   }
 
   /**
@@ -43,18 +44,27 @@ export class GenericResourceRegistry {
    */
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-  ): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
+  ): ContentResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    WordPressWritePayload,
+    WordPressWritePayload
+  > {
     const cacheKey = `${resource}:raw`;
-    let baseResource = this.contentCache.get(cacheKey) as GenericContentResource<TResource> | undefined;
+    let baseResource = this.contentCache.get(cacheKey) as
+      | GenericContentResource<TResource>
+      | undefined;
 
     if (!baseResource) {
-      const defaults = knownContentDefaults[resource as keyof typeof knownContentDefaults];
+      const defaults =
+        knownContentDefaults[resource as keyof typeof knownContentDefaults];
 
       baseResource = new GenericContentResource<TResource>({
-        runtime: this.context.runtime,
         endpoint: `/${resource}`,
-        missingRawMessage: defaults?.missingRawMessage
-          ?? `Raw ${resource} content is unavailable. The current credentials may not have edit capabilities.`,
+        missingRawMessage:
+          defaults?.missingRawMessage ??
+          `Raw ${resource} content is unavailable. The current credentials may not have edit capabilities.`,
+        runtime: this.context.runtime,
       });
 
       this.contentCache.set(cacheKey, baseResource as GenericContentResource);
@@ -70,14 +80,21 @@ export class GenericResourceRegistry {
    */
   terms<TTerm = WordPressCategory>(
     resource: string,
-  ): TermsResourceClient<TTerm, QueryParams & PaginationParams, TermWriteInput, TermWriteInput> {
+  ): TermsResourceClient<
+    TTerm,
+    QueryParams & PaginationParams,
+    TermWriteInput,
+    TermWriteInput
+  > {
     const cacheKey = `${resource}:raw`;
-    let baseResource = this.termCache.get(cacheKey) as GenericTermResource<TTerm> | undefined;
+    let baseResource = this.termCache.get(cacheKey) as
+      | GenericTermResource<TTerm>
+      | undefined;
 
     if (!baseResource) {
       baseResource = new GenericTermResource<TTerm>({
-        runtime: this.context.runtime,
         endpoint: `/${resource}`,
+        runtime: this.context.runtime,
       });
 
       this.termCache.set(cacheKey, baseResource as GenericTermResource);

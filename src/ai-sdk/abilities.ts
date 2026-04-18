@@ -1,25 +1,33 @@
-import { tool } from 'ai';
-import { z } from 'zod';
-import type { WordPressClient } from '../client.js';
-import type { WordPressAbilityDescription } from '../types/discovery.js';
-import { zodSchemasFromDescription } from '../zod-helpers.js';
-import { mergeToolArgs } from './merge.js';
-import { asToolArgs, withToolErrorHandling } from './factories.js';
-import { createInvalidRequestError } from '../core/errors.js';
-import type { AbilityToolFactoryOptions, CreateAbilityToolsOptions, ToolFactoryOptions } from './types.js';
+import { tool } from "ai";
+import { z } from "zod";
+import type { WordPressClient } from "../client.js";
+import { createInvalidRequestError } from "../core/errors.js";
+import type { WordPressAbilityDescription } from "../types/discovery.js";
+import { zodSchemasFromDescription } from "../zod-helpers.js";
 import {
   createAbilityDeleteInputSchema,
   createAbilityGetInputSchema,
   createAbilityRunInputSchema,
-} from './catalog-schemas.js';
+} from "./catalog-schemas.js";
+import { asToolArgs, withToolErrorHandling } from "./factories.js";
+import { mergeToolArgs } from "./merge.js";
+import type {
+  AbilityToolFactoryOptions,
+  CreateAbilityToolsOptions,
+  ToolFactoryOptions,
+} from "./types.js";
 
 function resolveAbilityName(
   merged: Record<string, unknown>,
   options?: { abilityName?: string },
 ): string {
-  const abilityName = options?.abilityName ?? (typeof merged.name === 'string' ? merged.name : undefined);
+  const abilityName =
+    options?.abilityName ??
+    (typeof merged.name === "string" ? merged.name : undefined);
   if (!abilityName) {
-    throw createInvalidRequestError('ability name must be provided either in the tool config or the tool input.');
+    throw createInvalidRequestError(
+      "ability name must be provided either in the tool config or the tool input.",
+    );
   }
 
   return abilityName;
@@ -31,15 +39,17 @@ function resolveAbilityName(
 export const getAbilitiesTool = (
   client: WordPressClient,
   options?: ToolFactoryOptions<Record<string, unknown>>,
-) => tool({
-  description: options?.description ?? 'List all registered WordPress abilities',
-  strict: options?.strict,
-  needsApproval: options?.needsApproval,
-  inputSchema: z.object({}).describe('No input required'),
-  execute: withToolErrorHandling(async () => {
-    return client.getAbilities();
-  }),
-});
+) =>
+  tool({
+    description:
+      options?.description ?? "List all registered WordPress abilities",
+    execute: withToolErrorHandling(async () => {
+      return client.getAbilities();
+    }),
+    inputSchema: z.object({}).describe("No input required"),
+    needsApproval: options?.needsApproval,
+    strict: options?.strict,
+  });
 
 /**
  * AI SDK tool that fetches metadata for one WordPress ability.
@@ -48,20 +58,33 @@ export const getAbilityTool = (
   client: WordPressClient,
   options?: AbilityToolFactoryOptions<Record<string, unknown>>,
 ) => {
-  const resolvedOptions = { ...options, catalog: options?.catalog ?? client.getCachedCatalog() };
+  const _resolvedOptions = {
+    ...options,
+    catalog: options?.catalog ?? client.getCachedCatalog(),
+  };
   return tool({
-  description: options?.description ?? 'Get metadata for a WordPress ability',
-  strict: options?.strict,
-  needsApproval: options?.needsApproval as never,
-  inputSchema: (options?.inputSchema ?? (options?.abilityName
-    ? z.object({}).describe(`Ability metadata lookup for ${options.abilityName}`)
-    : z.object({
-      name: z.string().describe('Ability name in namespace/ability format'),
-    }).describe('Ability metadata lookup'))) as never,
-  execute: withToolErrorHandling(async (args: unknown) => {
-    const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
-    return client.getAbility(resolveAbilityName(merged, options));
-  }),
+    description: options?.description ?? "Get metadata for a WordPress ability",
+    execute: withToolErrorHandling(async (args: unknown) => {
+      const merged = mergeToolArgs(
+        asToolArgs(args as Record<string, unknown>),
+        options?.fixedArgs,
+      );
+      return client.getAbility(resolveAbilityName(merged, options));
+    }),
+    inputSchema: (options?.inputSchema ??
+      (options?.abilityName
+        ? z
+            .object({})
+            .describe(`Ability metadata lookup for ${options.abilityName}`)
+        : z
+            .object({
+              name: z
+                .string()
+                .describe("Ability name in namespace/ability format"),
+            })
+            .describe("Ability metadata lookup"))) as never,
+    needsApproval: options?.needsApproval as never,
+    strict: options?.strict,
   });
 };
 
@@ -72,16 +95,27 @@ export const executeGetAbilityTool = (
   client: WordPressClient,
   options?: AbilityToolFactoryOptions<Record<string, unknown>>,
 ) => {
-  const resolvedOptions = { ...options, catalog: options?.catalog ?? client.getCachedCatalog() };
+  const resolvedOptions = {
+    ...options,
+    catalog: options?.catalog ?? client.getCachedCatalog(),
+  };
   return tool({
-  description: options?.description ?? 'Execute a read-only WordPress ability via GET',
-  strict: options?.strict,
-  needsApproval: options?.needsApproval as never,
-  inputSchema: (options?.inputSchema ?? createAbilityGetInputSchema(resolvedOptions)) as never,
-  execute: withToolErrorHandling(async (args: unknown) => {
-    const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
-    return client.executeGetAbility(resolveAbilityName(merged, options), merged.input);
-  }),
+    description:
+      options?.description ?? "Execute a read-only WordPress ability via GET",
+    execute: withToolErrorHandling(async (args: unknown) => {
+      const merged = mergeToolArgs(
+        asToolArgs(args as Record<string, unknown>),
+        options?.fixedArgs,
+      );
+      return client.executeGetAbility(
+        resolveAbilityName(merged, options),
+        merged.input,
+      );
+    }),
+    inputSchema: (options?.inputSchema ??
+      createAbilityGetInputSchema(resolvedOptions)) as never,
+    needsApproval: options?.needsApproval as never,
+    strict: options?.strict,
   });
 };
 
@@ -92,16 +126,26 @@ export const executeRunAbilityTool = (
   client: WordPressClient,
   options?: AbilityToolFactoryOptions<Record<string, unknown>>,
 ) => {
-  const resolvedOptions = { ...options, catalog: options?.catalog ?? client.getCachedCatalog() };
+  const resolvedOptions = {
+    ...options,
+    catalog: options?.catalog ?? client.getCachedCatalog(),
+  };
   return tool({
-  description: options?.description ?? 'Execute a WordPress ability via POST',
-  strict: options?.strict,
-  needsApproval: options?.needsApproval as never,
-  inputSchema: (options?.inputSchema ?? createAbilityRunInputSchema(resolvedOptions)) as never,
-  execute: withToolErrorHandling(async (args: unknown) => {
-    const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
-    return client.executeRunAbility(resolveAbilityName(merged, options), merged.input);
-  }),
+    description: options?.description ?? "Execute a WordPress ability via POST",
+    execute: withToolErrorHandling(async (args: unknown) => {
+      const merged = mergeToolArgs(
+        asToolArgs(args as Record<string, unknown>),
+        options?.fixedArgs,
+      );
+      return client.executeRunAbility(
+        resolveAbilityName(merged, options),
+        merged.input,
+      );
+    }),
+    inputSchema: (options?.inputSchema ??
+      createAbilityRunInputSchema(resolvedOptions)) as never,
+    needsApproval: options?.needsApproval as never,
+    strict: options?.strict,
   });
 };
 
@@ -112,16 +156,28 @@ export const executeDeleteAbilityTool = (
   client: WordPressClient,
   options?: AbilityToolFactoryOptions<Record<string, unknown>>,
 ) => {
-  const resolvedOptions = { ...options, catalog: options?.catalog ?? client.getCachedCatalog() };
+  const resolvedOptions = {
+    ...options,
+    catalog: options?.catalog ?? client.getCachedCatalog(),
+  };
   return tool({
-  description: options?.description ?? 'Execute a destructive WordPress ability via DELETE',
-  strict: options?.strict,
-  needsApproval: options?.needsApproval as never,
-  inputSchema: (options?.inputSchema ?? createAbilityDeleteInputSchema(resolvedOptions)) as never,
-  execute: withToolErrorHandling(async (args: unknown) => {
-    const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
-    return client.executeDeleteAbility(resolveAbilityName(merged, options), merged.input);
-  }),
+    description:
+      options?.description ??
+      "Execute a destructive WordPress ability via DELETE",
+    execute: withToolErrorHandling(async (args: unknown) => {
+      const merged = mergeToolArgs(
+        asToolArgs(args as Record<string, unknown>),
+        options?.fixedArgs,
+      );
+      return client.executeDeleteAbility(
+        resolveAbilityName(merged, options),
+        merged.input,
+      );
+    }),
+    inputSchema: (options?.inputSchema ??
+      createAbilityDeleteInputSchema(resolvedOptions)) as never,
+    needsApproval: options?.needsApproval as never,
+    strict: options?.strict,
   });
 };
 
@@ -136,7 +192,7 @@ export const executeDeleteAbilityTool = (
  * that read naturally in AI SDK `tools` objects.
  */
 function defaultToolName(abilityName: string): string {
-  return abilityName.replace(/\//g, '_');
+  return abilityName.replace(/\//g, "_");
 }
 
 /**
@@ -145,14 +201,16 @@ function defaultToolName(abilityName: string): string {
  * Prefers `description`, enriched with `annotations.instructions` when
  * present. Falls back to `label` when no description is available.
  */
-function defaultToolDescription(abilityName: string, ability: WordPressAbilityDescription): string {
+function defaultToolDescription(
+  abilityName: string,
+  ability: WordPressAbilityDescription,
+): string {
   const raw = ability.raw as Record<string, unknown> | undefined;
-  const description = (raw?.description as string) || (raw?.label as string) || abilityName;
-  const instructions = (ability.annotations?.instructions as string) || '';
+  const description =
+    (raw?.description as string) || (raw?.label as string) || abilityName;
+  const instructions = (ability.annotations?.instructions as string) || "";
 
-  return instructions
-    ? `${description}\n\n${instructions}`
-    : description;
+  return instructions ? `${description}\n\n${instructions}` : description;
 }
 
 /**
@@ -168,10 +226,12 @@ function defaultNeedsApproval(ability: WordPressAbilityDescription): boolean {
  *
  * `readonly` → GET, `destructive` → DELETE, otherwise → POST.
  */
-function resolveMethod(ability: WordPressAbilityDescription): 'get' | 'run' | 'delete' {
-  if (ability.annotations?.readonly === true) return 'get';
-  if (ability.annotations?.destructive === true) return 'delete';
-  return 'run';
+function resolveMethod(
+  ability: WordPressAbilityDescription,
+): "get" | "run" | "delete" {
+  if (ability.annotations?.readonly === true) return "get";
+  if (ability.annotations?.destructive === true) return "delete";
+  return "run";
 }
 
 /**
@@ -180,19 +240,24 @@ function resolveMethod(ability: WordPressAbilityDescription): 'get' | 'run' | 'd
  * Uses the ability's `input_schema` from discovery when available,
  * falling back to `z.unknown().optional()` for abilities without input.
  */
-function buildAbilityInputSchema(ability: WordPressAbilityDescription): z.ZodType {
+function buildAbilityInputSchema(
+  ability: WordPressAbilityDescription,
+): z.ZodType {
   const schemas = zodSchemasFromDescription(ability);
 
   if (schemas.input) {
-    return z.object({
-      input: schemas.input.describe('Input for the ability'),
-    }).describe(`Execute the ${ability.name} WordPress ability`);
+    return z
+      .object({
+        input: schemas.input.describe("Input for the ability"),
+      })
+      .describe(`Execute the ${ability.name} WordPress ability`);
   }
 
-  return z.object({
-    input: z.unknown().optional()
-      .describe('Optional input for the ability'),
-  }).describe(`Execute the ${ability.name} WordPress ability`);
+  return z
+    .object({
+      input: z.unknown().optional().describe("Optional input for the ability"),
+    })
+    .describe(`Execute the ${ability.name} WordPress ability`);
 }
 
 /**
@@ -201,10 +266,10 @@ function buildAbilityInputSchema(ability: WordPressAbilityDescription): z.ZodTyp
 function resolveNeedsApproval(
   abilityName: string,
   ability: WordPressAbilityDescription,
-  option?: CreateAbilityToolsOptions['needsApproval'],
+  option?: CreateAbilityToolsOptions["needsApproval"],
 ): boolean | (() => boolean | Promise<boolean>) {
   if (option === undefined) return defaultNeedsApproval(ability);
-  if (typeof option === 'boolean') return option;
+  if (typeof option === "boolean") return option;
   return () => option(abilityName, ability);
 }
 
@@ -214,14 +279,15 @@ function resolveNeedsApproval(
 function buildExecute(
   client: WordPressClient,
   abilityName: string,
-  method: 'get' | 'run' | 'delete',
+  method: "get" | "run" | "delete",
 ): (args: unknown) => Promise<unknown> {
   return async (args: unknown) => {
     const parsed = args as Record<string, unknown>;
     const input = parsed.input;
 
-    if (method === 'get') return client.executeGetAbility(abilityName, input);
-    if (method === 'delete') return client.executeDeleteAbility(abilityName, input);
+    if (method === "get") return client.executeGetAbility(abilityName, input);
+    if (method === "delete")
+      return client.executeDeleteAbility(abilityName, input);
     return client.executeRunAbility(abilityName, input);
   };
 }
@@ -267,7 +333,7 @@ export function createAbilityTools(
 
   if (!catalog) {
     throw createInvalidRequestError(
-      'createAbilityTools() requires a discovery catalog. Call wp.explore() or wp.useCatalog() before generating ability tools.',
+      "createAbilityTools() requires a discovery catalog. Call wp.explore() or wp.useCatalog() before generating ability tools.",
     );
   }
 
@@ -291,14 +357,20 @@ export function createAbilityTools(
 
     const method = resolveMethod(ability);
     const inputSchema = buildAbilityInputSchema(ability);
-    const needsApproval = resolveNeedsApproval(abilityName, ability, options?.needsApproval);
+    const needsApproval = resolveNeedsApproval(
+      abilityName,
+      ability,
+      options?.needsApproval,
+    );
 
     tools[toolKey] = tool({
       description,
-      strict: options?.strict,
-      needsApproval: needsApproval as never,
+      execute: withToolErrorHandling(
+        buildExecute(client, abilityName, method),
+      ) as never,
       inputSchema: inputSchema as never,
-      execute: withToolErrorHandling(buildExecute(client, abilityName, method)) as never,
+      needsApproval: needsApproval as never,
+      strict: options?.strict,
     });
   }
 

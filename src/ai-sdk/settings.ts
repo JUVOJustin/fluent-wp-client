@@ -1,10 +1,13 @@
-import { tool } from 'ai';
-import { z } from 'zod';
-import type { WordPressClient } from '../client.js';
-import { mergeToolArgs, mergeMutationInput } from './merge.js';
-import { asToolArgs, withToolErrorHandling } from './factories.js';
-import type { ToolFactoryOptions, MutationToolFactoryOptions } from './types.js';
-import { settingsUpdateInputSchema } from './schemas.js';
+import { tool } from "ai";
+import { z } from "zod";
+import type { WordPressClient } from "../client.js";
+import { asToolArgs, withToolErrorHandling } from "./factories.js";
+import { mergeMutationInput, mergeToolArgs } from "./merge.js";
+import { settingsUpdateInputSchema } from "./schemas.js";
+import type {
+  MutationToolFactoryOptions,
+  ToolFactoryOptions,
+} from "./types.js";
 
 /**
  * AI SDK tool that fetches WordPress site settings.
@@ -12,15 +15,16 @@ import { settingsUpdateInputSchema } from './schemas.js';
 export const getSettingsTool = (
   client: WordPressClient,
   options?: ToolFactoryOptions<Record<string, unknown>>,
-) => tool({
-  description: options?.description ?? 'Get WordPress site settings',
-  strict: options?.strict,
-  needsApproval: options?.needsApproval,
-  inputSchema: z.object({}).describe('No input required'),
-  execute: withToolErrorHandling(async () => {
-    return client.settings().get();
-  }),
-});
+) =>
+  tool({
+    description: options?.description ?? "Get WordPress site settings",
+    execute: withToolErrorHandling(async () => {
+      return client.settings().get();
+    }),
+    inputSchema: z.object({}).describe("No input required"),
+    needsApproval: options?.needsApproval,
+    strict: options?.strict,
+  });
 
 /**
  * AI SDK tool that updates WordPress site settings.
@@ -28,14 +32,21 @@ export const getSettingsTool = (
 export const updateSettingsTool = (
   client: WordPressClient,
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
-) => tool({
-  description: options?.description ?? 'Update WordPress site settings',
-  strict: options?.strict,
-  needsApproval: options?.needsApproval,
-  inputSchema: settingsUpdateInputSchema,
-  execute: withToolErrorHandling(async (args) => {
-    const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
-    const withInput = mergeMutationInput(merged, options?.defaultInput, options?.fixedInput);
-    return client.settings().update(withInput.input as Record<string, unknown>);
-  }),
-});
+) =>
+  tool({
+    description: options?.description ?? "Update WordPress site settings",
+    execute: withToolErrorHandling(async (args) => {
+      const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);
+      const withInput = mergeMutationInput(
+        merged,
+        options?.defaultInput,
+        options?.fixedInput,
+      );
+      return client
+        .settings()
+        .update(withInput.input as Record<string, unknown>);
+    }),
+    inputSchema: settingsUpdateInputSchema,
+    needsApproval: options?.needsApproval,
+    strict: options?.strict,
+  });

@@ -1,16 +1,17 @@
-import type * as z from 'zod';
+import type * as z from "zod";
 import {
   zodDeleteAbilityInputSchema,
   zodGetAbilityInputSchema,
   zodRunAbilityInputSchema,
-} from './abilities.js';
+} from "./abilities.js";
+import type { WordPressStandardSchema } from "./core/validation.js";
 import {
   abilityAnnotationsSchema as zodAbilityAnnotationsSchema,
   abilityCategorySchema as zodAbilityCategorySchema,
   abilitySchema as zodAbilitySchema,
-  blockTypeSchema as zodBlockTypeSchema,
   authorSchema as zodAuthorSchema,
   baseWordPressSchema as zodBaseWordPressSchema,
+  blockTypeSchema as zodBlockTypeSchema,
   categorySchema as zodCategorySchema,
   commentSchema as zodCommentSchema,
   contentWordPressSchema as zodContentWordPressSchema,
@@ -29,8 +30,7 @@ import {
   tagSchema as zodTagSchema,
   updatePostFieldsSchema as zodUpdatePostFieldsSchema,
   wordPressErrorSchema as zodWordPressErrorSchema,
-} from './schemas.js';
-import type { WordPressStandardSchema } from './core/validation.js';
+} from "./schemas.js";
 
 /**
  * Narrows one Zod schema to the Standard Schema surface used by root exports.
@@ -38,7 +38,10 @@ import type { WordPressStandardSchema } from './core/validation.js';
 function asStandardSchema<TSchema extends z.ZodType>(
   schema: TSchema,
 ): WordPressStandardSchema<z.output<TSchema>, z.input<TSchema>> {
-  return schema as unknown as WordPressStandardSchema<z.output<TSchema>, z.input<TSchema>>;
+  return schema as unknown as WordPressStandardSchema<
+    z.output<TSchema>,
+    z.input<TSchema>
+  >;
 }
 
 /**
@@ -53,7 +56,10 @@ function toStandardSchemaMap<TSchemas extends Record<string, z.ZodType>>(
   >;
 } {
   return Object.fromEntries(
-    Object.entries(schemas).map(([name, schema]) => [name, asStandardSchema(schema)]),
+    Object.entries(schemas).map(([name, schema]) => [
+      name,
+      asStandardSchema(schema),
+    ]),
   ) as {
     [TKey in keyof TSchemas]: WordPressStandardSchema<
       z.output<TSchemas[TKey]>,
@@ -66,30 +72,30 @@ function toStandardSchemaMap<TSchemas extends Record<string, z.ZodType>>(
  * Standard Schema exports for WordPress core resource payloads.
  */
 const standardSchemas = toStandardSchemaMap({
-  baseWordPressSchema: zodBaseWordPressSchema,
-  postLikeWordPressSchema: zodPostLikeWordPressSchema,
-  contentWordPressSchema: zodContentWordPressSchema,
-  postSchema: zodPostSchema,
-  pageSchema: zodPageSchema,
-  mediaSchema: zodMediaSchema,
-  categorySchema: zodCategorySchema,
-  tagSchema: zodTagSchema,
-  embeddedMediaSchema: zodEmbeddedMediaSchema,
   abilityAnnotationsSchema: zodAbilityAnnotationsSchema,
-  abilitySchema: zodAbilitySchema,
   abilityCategorySchema: zodAbilityCategorySchema,
-  blockTypeSchema: zodBlockTypeSchema,
+  abilitySchema: zodAbilitySchema,
   authorSchema: zodAuthorSchema,
+  baseWordPressSchema: zodBaseWordPressSchema,
+  blockTypeSchema: zodBlockTypeSchema,
+  categorySchema: zodCategorySchema,
   commentSchema: zodCommentSchema,
-  updatePostFieldsSchema: zodUpdatePostFieldsSchema,
-  postWriteBaseSchema: zodPostWriteBaseSchema,
-  jwtAuthTokenResponseSchema: zodJwtAuthTokenResponseSchema,
+  contentWordPressSchema: zodContentWordPressSchema,
+  embeddedMediaSchema: zodEmbeddedMediaSchema,
   jwtAuthErrorResponseSchema: zodJwtAuthErrorResponseSchema,
+  jwtAuthTokenResponseSchema: zodJwtAuthTokenResponseSchema,
   jwtAuthValidationResponseSchema: zodJwtAuthValidationResponseSchema,
+  mediaSchema: zodMediaSchema,
+  pageSchema: zodPageSchema,
   parsedBlockSchema: zodParsedBlockSchema,
-  wordPressErrorSchema: zodWordPressErrorSchema,
-  settingsSchema: zodSettingsSchema,
+  postLikeWordPressSchema: zodPostLikeWordPressSchema,
+  postSchema: zodPostSchema,
+  postWriteBaseSchema: zodPostWriteBaseSchema,
   searchResultSchema: zodSearchResultSchema,
+  settingsSchema: zodSettingsSchema,
+  tagSchema: zodTagSchema,
+  updatePostFieldsSchema: zodUpdatePostFieldsSchema,
+  wordPressErrorSchema: zodWordPressErrorSchema,
 });
 
 export const {
@@ -123,9 +129,9 @@ export const {
  * Standard Schema exports for ability execution input wrappers.
  */
 const abilityInputSchemas = toStandardSchemaMap({
+  deleteAbilityInputSchema: zodDeleteAbilityInputSchema,
   getAbilityInputSchema: zodGetAbilityInputSchema,
   runAbilityInputSchema: zodRunAbilityInputSchema,
-  deleteAbilityInputSchema: zodDeleteAbilityInputSchema,
 });
 
 export const {

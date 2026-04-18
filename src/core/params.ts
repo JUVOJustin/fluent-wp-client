@@ -1,14 +1,14 @@
-import type { WordPressWritePayload } from '../types/payloads.js';
+import type { WordPressWritePayload } from "../types/payloads.js";
 import type {
-  QueryParamValue,
   QueryParams,
+  QueryParamValue,
   SerializedQueryParams,
   WordPressDeleteResult,
-} from '../types/resources.js';
+} from "../types/resources.js";
 
 interface EmbeddableQueryParams extends QueryParams {
-  embed?: boolean | string[];
   _embed?: QueryParamValue;
+  embed?: boolean | string[];
 }
 
 /**
@@ -29,14 +29,14 @@ export function resolveEmbedQueryParams(
   if (Array.isArray(embed) && embed.length > 0) {
     return {
       ...rest,
-      _embed: embed.join(','),
+      _embed: embed.join(","),
     };
   }
 
   if (embed === true) {
     return {
       ...rest,
-      _embed: 'true',
+      _embed: "true",
     };
   }
 
@@ -54,7 +54,7 @@ export function resolveEmbedQueryParams(
   if (defaultEmbed) {
     return {
       ...rest,
-      _embed: 'true',
+      _embed: "true",
     };
   }
 
@@ -78,15 +78,18 @@ export function filterToParams(
     }
 
     // `fields` maps to the WordPress `_fields` query parameter.
-    const apiKey = key === 'fields' ? '_fields' : key.replace(/([A-Z])/g, '_$1').toLowerCase();
+    const apiKey =
+      key === "fields"
+        ? "_fields"
+        : key.replace(/([A-Z])/g, "_$1").toLowerCase();
 
     if (Array.isArray(value)) {
       params[apiKey] = value.map((item) => String(item));
       continue;
     }
 
-    if (typeof value === 'boolean') {
-      params[apiKey] = value ? 'true' : 'false';
+    if (typeof value === "boolean") {
+      params[apiKey] = value ? "true" : "false";
       continue;
     }
 
@@ -94,7 +97,7 @@ export function filterToParams(
   }
 
   if (options.applyPerPageDefault !== false && params.per_page === undefined) {
-    params.per_page = '100';
+    params.per_page = "100";
   }
 
   return params;
@@ -107,21 +110,24 @@ export function filterToParams(
  * non-deleted object (or redirect) when the delete was conditional. This helper
  * centralizes that check so individual resource methods don't repeat it.
  */
-export function normalizeDeleteResult(id: number, data: unknown): WordPressDeleteResult {
+export function normalizeDeleteResult(
+  id: number,
+  data: unknown,
+): WordPressDeleteResult {
   if (
-    typeof data === 'object'
-    && data !== null
-    && 'deleted' in data
-    && (data as Record<string, unknown>).deleted === true
+    typeof data === "object" &&
+    data !== null &&
+    "deleted" in data &&
+    (data as Record<string, unknown>).deleted === true
   ) {
     return {
-      id,
       deleted: true,
+      id,
       previous: (data as Record<string, unknown>).previous,
     };
   }
 
-  return { id, deleted: false };
+  return { deleted: false, id };
 }
 
 /**

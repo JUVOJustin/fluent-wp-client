@@ -1,19 +1,16 @@
-import { ContentItemQuery } from '../builders/content-item-query.js';
-import {
-  BasePostLikeResource,
-  type PostLikeResourceContext,
-} from '../core/resource-base.js';
-import type { WordPressPostLike } from '../schemas.js';
+import { ContentItemQuery } from "../builders/content-item-query.js";
+import { BasePostLikeResource } from "../core/resource-base.js";
+import type { WordPressPostLike } from "../schemas.js";
+import type { WordPressResourceDescription } from "../types/discovery.js";
+import type { WordPressWritePayload } from "../types/payloads.js";
 import type {
   ContentResourceClient,
   PaginatedResponse,
   PaginationParams,
   QueryParams,
   WordPressRequestOverrides,
-} from '../types/resources.js';
-import type { WordPressWritePayload } from '../types/payloads.js';
-import type { WordPressResourceDescription } from '../types/discovery.js';
-import { describeUnavailable } from './describe.js';
+} from "../types/resources.js";
+import { describeUnavailable } from "./describe.js";
 
 /**
  * Ensures `_embedded` and `_links` are present in the `_fields` list when
@@ -29,16 +26,16 @@ function mergeRequestFields(
   }
 
   const merged = new Set(userFields);
-  merged.add('_embedded');
-  merged.add('_links');
+  merged.add("_embedded");
+  merged.add("_links");
   return Array.from(merged);
 }
 
 const missingRawPostMessage =
-  'Raw post content is unavailable. The current credentials may not have edit capabilities for this post.';
+  "Raw post content is unavailable. The current credentials may not have edit capabilities for this post.";
 
 const missingRawPageMessage =
-  'Raw page content is unavailable. The current credentials may not have edit capabilities for this page.';
+  "Raw page content is unavailable. The current credentials may not have edit capabilities for this page.";
 
 /**
  * Known raw-content error messages for built-in post-like resources.
@@ -59,9 +56,13 @@ export class GenericContentResource<
   TContent extends WordPressPostLike = WordPressPostLike,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
+> extends BasePostLikeResource<
   // @ts-expect-error - Type constraint complexity, safe at runtime
-> extends BasePostLikeResource<TContent, QueryParams & PaginationParams, TCreate, TUpdate> {
-
+  TContent,
+  QueryParams & PaginationParams,
+  TCreate,
+  TUpdate
+> {
   /**
    * Creates one awaitable single-item query.
    *
@@ -71,27 +72,67 @@ export class GenericContentResource<
    */
   itemQuery(
     idOrSlug: number | string,
-    options: (WordPressRequestOverrides & { embed?: boolean | string[]; fields?: string[] }) | undefined,
+    options:
+      | (WordPressRequestOverrides & {
+          embed?: boolean | string[];
+          fields?: string[];
+        })
+      | undefined,
   ): ContentItemQuery<TContent> {
     const { embed, fields, ...requestOverrides } = options ?? {};
-    const embedActive = embed === true || (Array.isArray(embed) && embed.length > 0);
+    const _embedActive =
+      embed === true || (Array.isArray(embed) && embed.length > 0);
 
     return new ContentItemQuery<TContent>(
-      typeof idOrSlug === 'number' ? { id: idOrSlug } : { slug: idOrSlug },
+      typeof idOrSlug === "number" ? { id: idOrSlug } : { slug: idOrSlug },
       (id, queryOptions) => {
         const resolvedEmbed = queryOptions?.embed ?? embed;
-        const resolvedFields = mergeRequestFields(fields, resolvedEmbed === true || (Array.isArray(resolvedEmbed) && resolvedEmbed.length > 0));
-        return this.fetchContentById(id, requestOverrides, undefined, resolvedEmbed, resolvedFields);
+        const resolvedFields = mergeRequestFields(
+          fields,
+          resolvedEmbed === true ||
+            (Array.isArray(resolvedEmbed) && resolvedEmbed.length > 0),
+        );
+        return this.fetchContentById(
+          id,
+          requestOverrides,
+          undefined,
+          resolvedEmbed,
+          resolvedFields,
+        );
       },
       (slug, queryOptions) => {
         const resolvedEmbed = queryOptions?.embed ?? embed;
-        const resolvedFields = mergeRequestFields(fields, resolvedEmbed === true || (Array.isArray(resolvedEmbed) && resolvedEmbed.length > 0));
-        return this.fetchContentBySlug(slug, requestOverrides, undefined, resolvedEmbed, resolvedFields);
+        const resolvedFields = mergeRequestFields(
+          fields,
+          resolvedEmbed === true ||
+            (Array.isArray(resolvedEmbed) && resolvedEmbed.length > 0),
+        );
+        return this.fetchContentBySlug(
+          slug,
+          requestOverrides,
+          undefined,
+          resolvedEmbed,
+          resolvedFields,
+        );
       },
       embed,
       {
-        getEditById: (id, editFields) => this.fetchContentById(id, requestOverrides, 'edit', false, editFields),
-        getEditBySlug: (slug, editFields) => this.fetchContentBySlug(slug, requestOverrides, 'edit', false, editFields),
+        getEditById: (id, editFields) =>
+          this.fetchContentById(
+            id,
+            requestOverrides,
+            "edit",
+            false,
+            editFields,
+          ),
+        getEditBySlug: (slug, editFields) =>
+          this.fetchContentBySlug(
+            slug,
+            requestOverrides,
+            "edit",
+            false,
+            editFields,
+          ),
         missingRawMessage: this.missingRawMessage,
       },
     );
@@ -103,16 +144,30 @@ export class GenericContentResource<
  */
 export function createContentClient<TResource extends WordPressPostLike>(
   resource: GenericContentResource<TResource>,
-  describeFn?: (options?: WordPressRequestOverrides) => Promise<WordPressResourceDescription>,
-): ContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
+  describeFn?: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressResourceDescription>,
+): ContentResourceClient<
+  TResource,
+  QueryParams & PaginationParams,
+  WordPressWritePayload,
+  WordPressWritePayload
+> {
   return {
-    list: (filter = {}, options) => resource.list(filter, options) as Promise<TResource[]>,
-    listAll: (filter = {}, options, listOptions) => resource.listAll(filter, options, listOptions) as Promise<TResource[]>,
-    listPaginated: (filter = {}, options) => resource.listPaginated(filter, options) as Promise<PaginatedResponse<TResource>>,
-    item: (idOrSlug, options) => resource.itemQuery(idOrSlug, options),
-    create: (input, options) => resource.create(input, options) as Promise<TResource>,
-    update: (id, input, options) => resource.update(id, input, options) as Promise<TResource>,
+    create: (input, options) =>
+      resource.create(input, options) as Promise<TResource>,
     delete: (id, options) => resource.delete(id, options),
     describe: describeFn ?? describeUnavailable,
+    item: (idOrSlug, options) => resource.itemQuery(idOrSlug, options),
+    list: (filter = {}, options) =>
+      resource.list(filter, options) as Promise<TResource[]>,
+    listAll: (filter = {}, options, listOptions) =>
+      resource.listAll(filter, options, listOptions) as Promise<TResource[]>,
+    listPaginated: (filter = {}, options) =>
+      resource.listPaginated(filter, options) as Promise<
+        PaginatedResponse<TResource>
+      >,
+    update: (id, input, options) =>
+      resource.update(id, input, options) as Promise<TResource>,
   };
 }

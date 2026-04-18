@@ -1,10 +1,13 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import { WordPressClientError } from './errors.js';
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+import { WordPressClientError } from "./errors.js";
 
 /**
  * Shared schema type accepted by client mutation helpers.
  */
-export type WordPressStandardSchema<TOutput = unknown, TInput = unknown> = StandardSchemaV1<TInput, TOutput>;
+export type WordPressStandardSchema<
+  TOutput = unknown,
+  TInput = unknown,
+> = StandardSchemaV1<TInput, TOutput>;
 
 /**
  * Validation issue shape returned by Standard Schema validators.
@@ -14,18 +17,20 @@ export type WordPressSchemaIssue = StandardSchemaV1.Issue;
 /**
  * Checks whether one unknown value exposes the Standard Schema API.
  */
-export function isStandardSchema(value: unknown): value is WordPressStandardSchema {
-  if (typeof value !== 'object' || value === null) {
+export function isStandardSchema(
+  value: unknown,
+): value is WordPressStandardSchema {
+  if (typeof value !== "object" || value === null) {
     return false;
   }
 
-  const standard = (value as Record<string, unknown>)['~standard'];
+  const standard = (value as Record<string, unknown>)["~standard"];
 
-  if (typeof standard !== 'object' || standard === null) {
+  if (typeof standard !== "object" || standard === null) {
     return false;
   }
 
-  return typeof (standard as { validate?: unknown }).validate === 'function';
+  return typeof (standard as { validate?: unknown }).validate === "function";
 }
 
 /**
@@ -33,18 +38,18 @@ export function isStandardSchema(value: unknown): value is WordPressStandardSche
  */
 function formatIssuePath(issue: WordPressSchemaIssue): string {
   if (!issue.path || issue.path.length === 0) {
-    return 'root';
+    return "root";
   }
 
   return issue.path
     .map((segment) => {
-      if (typeof segment === 'object' && segment !== null && 'key' in segment) {
+      if (typeof segment === "object" && segment !== null && "key" in segment) {
         return String(segment.key);
       }
 
       return String(segment);
     })
-    .join('.');
+    .join(".");
 }
 
 /**
@@ -53,7 +58,7 @@ function formatIssuePath(issue: WordPressSchemaIssue): string {
 function formatIssues(issues: readonly WordPressSchemaIssue[]): string {
   return issues
     .map((issue) => `${formatIssuePath(issue)}: ${issue.message}`)
-    .join('; ');
+    .join("; ");
 }
 
 /**
@@ -63,9 +68,9 @@ function formatIssues(issues: readonly WordPressSchemaIssue[]): string {
 export async function validateWithStandardSchema<TOutput>(
   schema: WordPressStandardSchema<TOutput>,
   value: unknown,
-  context = 'Schema validation failed',
+  context = "Schema validation failed",
 ): Promise<TOutput> {
-  let result = schema['~standard'].validate(value);
+  let result = schema["~standard"].validate(value);
 
   if (result instanceof Promise) {
     result = await result;
@@ -74,7 +79,7 @@ export async function validateWithStandardSchema<TOutput>(
   if (result.issues) {
     throw new WordPressClientError(
       `${context}: ${formatIssues(result.issues)}`,
-      'SCHEMA_VALIDATION_ERROR',
+      "SCHEMA_VALIDATION_ERROR",
       { retryable: false },
     );
   }

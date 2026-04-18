@@ -1,28 +1,31 @@
-import type { WordPressPostBase } from '../schemas.js';
+import type { WordPressPostBase } from "../schemas.js";
 import type {
-  WordPressRequestOverrides,
+  DeleteOptions,
+  WordPressWritePayload,
+} from "../types/payloads.js";
+import type {
   PaginatedResponse,
   PaginationParams,
   QueryParams,
   WordPressDeleteResult,
-} from '../types/resources.js';
-import type { WordPressWritePayload, DeleteOptions } from '../types/payloads.js';
-import type { WordPressRuntime } from './transport.js';
-import { createWordPressPaginator, type ListAllOptions } from './pagination.js';
+  WordPressRequestOverrides,
+} from "../types/resources.js";
+import { createWordPressPaginator, type ListAllOptions } from "./pagination.js";
 import {
-  filterToParams,
   compactPayload,
+  filterToParams,
   normalizeDeleteResult,
   resolveEmbedQueryParams,
-} from './params.js';
-import { applyRequestOverrides } from './request-overrides.js';
+} from "./params.js";
+import { applyRequestOverrides } from "./request-overrides.js";
+import type { WordPressRuntime } from "./transport.js";
 
 /**
  * Dependencies required for resource operations.
  */
 export interface ResourceContext {
-  runtime: WordPressRuntime;
   endpoint: string;
+  runtime: WordPressRuntime;
 }
 
 /**
@@ -40,7 +43,10 @@ export type CrudResourceContext = ResourceContext;
  * - getById
  * - getBySlug
  */
-export abstract class BaseCollectionResource<TResource, TFilter extends PaginationParams> {
+export abstract class BaseCollectionResource<
+  TResource,
+  TFilter extends PaginationParams,
+> {
   protected readonly runtime: WordPressRuntime;
   protected readonly endpoint: string;
 
@@ -53,7 +59,9 @@ export abstract class BaseCollectionResource<TResource, TFilter extends Paginati
    * Normalizes filter before applying to requests.
    * Override in subclasses to add default filters.
    */
-  protected normalizeFilter(filter: TFilter | Omit<TFilter, 'page'>): QueryParams {
+  protected normalizeFilter(
+    filter: TFilter | Omit<TFilter, "page">,
+  ): QueryParams {
     return filter as QueryParams;
   }
 
@@ -76,7 +84,10 @@ export abstract class BaseCollectionResource<TResource, TFilter extends Paginati
   /**
    * Lists one page of resources.
    */
-  async list(filter: TFilter = {} as TFilter, options?: WordPressRequestOverrides): Promise<TResource[]> {
+  async list(
+    filter: TFilter = {} as TFilter,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource[]> {
     const params = filterToParams(this.normalizeFilter(filter));
     return this.runtime.fetchAPI<TResource[]>(this.endpoint, params, options);
   }
@@ -85,7 +96,7 @@ export abstract class BaseCollectionResource<TResource, TFilter extends Paginati
    * Lists all resources using automatic pagination with parallel fetching.
    */
   async listAll(
-    filter: Omit<TFilter, 'page'> = {} as Omit<TFilter, 'page'>,
+    filter: Omit<TFilter, "page"> = {} as Omit<TFilter, "page">,
     options?: WordPressRequestOverrides,
     listOptions?: ListAllOptions,
   ): Promise<TResource[]> {
@@ -105,17 +116,35 @@ export abstract class BaseCollectionResource<TResource, TFilter extends Paginati
   /**
    * Gets one resource by ID.
    */
-  async getById(id: number, options?: WordPressRequestOverrides): Promise<TResource> {
-    const params = filterToParams(this.normalizeFilter({} as Omit<TFilter, 'page'>));
-    return this.runtime.fetchAPI<TResource>(`${this.endpoint}/${id}`, params, options);
+  async getById(
+    id: number,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource> {
+    const params = filterToParams(
+      this.normalizeFilter({} as Omit<TFilter, "page">),
+    );
+    return this.runtime.fetchAPI<TResource>(
+      `${this.endpoint}/${id}`,
+      params,
+      options,
+    );
   }
 
   /**
    * Gets one resource by slug.
    */
-  async getBySlug(slug: string, options?: WordPressRequestOverrides): Promise<TResource | undefined> {
-    const params = filterToParams(this.normalizeFilter({ slug } as unknown as TFilter));
-    const items = await this.runtime.fetchAPI<TResource[]>(this.endpoint, params, options);
+  async getBySlug(
+    slug: string,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource | undefined> {
+    const params = filterToParams(
+      this.normalizeFilter({ slug } as unknown as TFilter),
+    );
+    const items = await this.runtime.fetchAPI<TResource[]>(
+      this.endpoint,
+      params,
+      options,
+    );
     return items[0];
   }
 }
@@ -131,16 +160,12 @@ export abstract class BaseCrudResource<
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > extends BaseCollectionResource<TResource, TFilter> {
-  constructor(context: CrudResourceContext) {
-    super(context);
-  }
-
   /**
    * Executes a mutation request and returns the parsed response data.
    * Transport-level error handling (non-2xx, network, parse) is automatic.
    */
   protected async executeMutation<T = TResource>(
-    options: Parameters<WordPressRuntime['request']>[0],
+    options: Parameters<WordPressRuntime["request"]>[0],
   ): Promise<T> {
     const { data } = await this.runtime.request<unknown>(options);
     return data as T;
@@ -155,11 +180,14 @@ export abstract class BaseCrudResource<
     options?: WordPressRequestOverrides,
   ): Promise<TResource> {
     return this.executeMutation<TResource>(
-      applyRequestOverrides({
-        endpoint,
-        method: 'POST',
-        body: compactPayload(input),
-      }, options),
+      applyRequestOverrides(
+        {
+          body: compactPayload(input),
+          endpoint,
+          method: "POST",
+        },
+        options,
+      ),
     );
   }
 
@@ -187,13 +215,21 @@ export abstract class BaseCrudResource<
   /**
    * Deletes a resource.
    */
-  async delete(id: number, options: DeleteOptions & WordPressRequestOverrides = {}): Promise<WordPressDeleteResult> {
-    const params = options.force ? { force: 'true' } : undefined;
-    const { data } = await this.runtime.request<unknown>(applyRequestOverrides({
-      endpoint: `${this.endpoint}/${id}`,
-      method: 'DELETE',
-      params,
-    }, options));
+  async delete(
+    id: number,
+    options: DeleteOptions & WordPressRequestOverrides = {},
+  ): Promise<WordPressDeleteResult> {
+    const params = options.force ? { force: "true" } : undefined;
+    const { data } = await this.runtime.request<unknown>(
+      applyRequestOverrides(
+        {
+          endpoint: `${this.endpoint}/${id}`,
+          method: "DELETE",
+          params,
+        },
+        options,
+      ),
+    );
 
     return normalizeDeleteResult(id, data);
   }
@@ -202,8 +238,9 @@ export abstract class BaseCrudResource<
 /**
  * Configuration for post-like resources.
  */
-export interface PostLikeResourceContext<TContent extends WordPressPostBase = WordPressPostBase>
-  extends CrudResourceContext {
+export interface PostLikeResourceContext<
+  _TContent extends WordPressPostBase = WordPressPostBase,
+> extends CrudResourceContext {
   missingRawMessage: string;
 }
 
@@ -230,7 +267,9 @@ export abstract class BasePostLikeResource<
   /**
    * Normalizes public `embed` filters for post-like resources.
    */
-  protected override normalizeFilter(filter: TFilter | Omit<TFilter, 'page'>): QueryParams {
+  protected override normalizeFilter(
+    filter: TFilter | Omit<TFilter, "page">,
+  ): QueryParams {
     return resolveEmbedQueryParams(filter as QueryParams);
   }
 
@@ -240,12 +279,14 @@ export abstract class BasePostLikeResource<
   protected fetchContentById(
     id: number,
     options?: WordPressRequestOverrides,
-    context?: 'edit',
+    context?: "edit",
     embed: boolean | string[] = false,
     fields?: string[],
   ): Promise<TContent> {
     const params = filterToParams(
-      resolveEmbedQueryParams(context ? { context, embed, fields } : { embed, fields }),
+      resolveEmbedQueryParams(
+        context ? { context, embed, fields } : { embed, fields },
+      ),
       { applyPerPageDefault: false },
     );
 
@@ -262,12 +303,14 @@ export abstract class BasePostLikeResource<
   protected async fetchContentBySlug(
     slug: string,
     options?: WordPressRequestOverrides,
-    context?: 'edit',
+    context?: "edit",
     embed: boolean | string[] = false,
     fields?: string[],
   ): Promise<TContent | undefined> {
     const params = filterToParams(
-      resolveEmbedQueryParams(context ? { slug, context, embed, fields } : { slug, embed, fields }),
+      resolveEmbedQueryParams(
+        context ? { context, embed, fields, slug } : { embed, fields, slug },
+      ),
       { applyPerPageDefault: false },
     );
 

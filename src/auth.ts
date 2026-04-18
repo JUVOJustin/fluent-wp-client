@@ -1,11 +1,11 @@
-import { createConfigError } from './core/errors.js';
+import { createConfigError } from "./core/errors.js";
 
 /**
  * Basic authentication credentials for WordPress API calls.
  */
 export interface BasicAuthCredentials {
-  username: string;
   password: string;
+  username: string;
 }
 
 /**
@@ -26,16 +26,16 @@ export interface HeaderAuthCredentials {
  * Cookie + nonce authentication settings for browser-based WP REST requests.
  */
 export interface CookieNonceAuthCredentials {
-  nonce: string;
   credentials?: RequestCredentials;
+  nonce: string;
 }
 
 /**
  * Credentials used for exchanging username/password for a JWT token.
  */
 export interface JwtLoginCredentials {
-  username: string;
   password: string;
+  username: string;
 }
 
 /**
@@ -43,9 +43,9 @@ export interface JwtLoginCredentials {
  */
 export interface JwtAuthTokenResponse {
   token: string;
+  user_display_name?: string;
   user_email?: string;
   user_nicename?: string;
-  user_display_name?: string;
   [key: string]: unknown;
 }
 
@@ -88,8 +88,12 @@ export type WordPressAuthInput = WordPressAuthConfig | string;
  * Context-aware auth resolver for SSR and request-scoped auth handling.
  */
 export type WordPressAuthResolver<TContext = void> = (
-  context: TContext
-) => WordPressAuthInput | null | undefined | Promise<WordPressAuthInput | null | undefined>;
+  context: TContext,
+) =>
+  | WordPressAuthInput
+  | null
+  | undefined
+  | Promise<WordPressAuthInput | null | undefined>;
 
 /**
  * Auth value that can be static or resolved per request from context.
@@ -107,9 +111,9 @@ export type RequestAuthResolver = WordPressAuthResolver<Request>;
  * Normalized request details passed to advanced auth header providers.
  */
 export interface WordPressAuthRequest {
+  body?: BodyInit;
   method: string;
   url: URL;
-  body?: BodyInit;
 }
 
 /**
@@ -121,14 +125,14 @@ export type WordPressAuthHeaders = Record<string, string>;
  * Request-aware auth header provider for signature-based auth methods.
  */
 export type WordPressAuthHeadersProvider = (
-  request: WordPressAuthRequest
+  request: WordPressAuthRequest,
 ) => WordPressAuthHeaders | Promise<WordPressAuthHeaders>;
 
 /**
  * Creates a typed auth resolver while preserving context inference.
  */
 export function createAuthResolver<TContext>(
-  resolver: WordPressAuthResolver<TContext>
+  resolver: WordPressAuthResolver<TContext>,
 ): WordPressAuthResolver<TContext> {
   return resolver;
 }
@@ -136,29 +140,35 @@ export function createAuthResolver<TContext>(
 /**
  * Identifies basic auth credentials from a generic auth union.
  */
-function isBasicAuthCredentials(auth: WordPressAuthConfig): auth is BasicAuthCredentials {
-  return 'username' in auth && 'password' in auth;
+function isBasicAuthCredentials(
+  auth: WordPressAuthConfig,
+): auth is BasicAuthCredentials {
+  return "username" in auth && "password" in auth;
 }
 
 /**
  * Identifies JWT auth credentials from a generic auth union.
  */
-function isJwtAuthCredentials(auth: WordPressAuthConfig): auth is JwtAuthCredentials {
-  return 'token' in auth;
+function isJwtAuthCredentials(
+  auth: WordPressAuthConfig,
+): auth is JwtAuthCredentials {
+  return "token" in auth;
 }
 
 /**
  * Identifies cookie + nonce auth credentials from a generic auth union.
  */
-function isCookieNonceAuthCredentials(auth: WordPressAuthConfig): auth is CookieNonceAuthCredentials {
-  return 'nonce' in auth;
+function isCookieNonceAuthCredentials(
+  auth: WordPressAuthConfig,
+): auth is CookieNonceAuthCredentials {
+  return "nonce" in auth;
 }
 
 /**
  * Removes a bearer prefix from user-provided token values.
  */
 function normalizeJwtToken(token: string): string {
-  return token.trim().replace(/^Bearer\s+/i, '');
+  return token.trim().replace(/^Bearer\s+/i, "");
 }
 
 /**
@@ -166,7 +176,7 @@ function normalizeJwtToken(token: string): string {
  */
 function encodeBase64(input: string): string {
   const bytes = new TextEncoder().encode(input);
-  let binary = '';
+  let binary = "";
 
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
@@ -178,17 +188,19 @@ function encodeBase64(input: string): string {
 /**
  * Validates and normalizes custom headers returned by auth providers.
  */
-function normalizeAuthHeaders(headers: WordPressAuthHeaders): WordPressAuthHeaders {
+function normalizeAuthHeaders(
+  headers: WordPressAuthHeaders,
+): WordPressAuthHeaders {
   const normalizedHeaders: WordPressAuthHeaders = {};
 
   for (const [rawHeaderName, rawHeaderValue] of Object.entries(headers)) {
     const headerName = rawHeaderName.trim();
 
     if (!headerName) {
-      throw createConfigError('Auth header name must not be empty.');
+      throw createConfigError("Auth header name must not be empty.");
     }
 
-    if (typeof rawHeaderValue !== 'string') {
+    if (typeof rawHeaderValue !== "string") {
       throw createConfigError(`Auth header '${headerName}' must be a string.`);
     }
 
@@ -207,21 +219,30 @@ function normalizeAuthHeaders(headers: WordPressAuthHeaders): WordPressAuthHeade
 /**
  * Creates a Basic Auth header from username/password credentials.
  */
-export function createBasicAuthHeader(credentials: BasicAuthCredentials): string {
-  const encoded = encodeBase64(`${credentials.username}:${credentials.password}`);
+export function createBasicAuthHeader(
+  credentials: BasicAuthCredentials,
+): string {
+  const encoded = encodeBase64(
+    `${credentials.username}:${credentials.password}`,
+  );
   return `Basic ${encoded}`;
 }
 
 /**
  * Creates a Bearer Auth header from a WordPress JWT token.
  */
-export function createJwtAuthHeader(credentials: JwtAuthCredentials | string): string {
-  const token = typeof credentials === 'string'
-    ? normalizeJwtToken(credentials)
-    : normalizeJwtToken(credentials.token);
+export function createJwtAuthHeader(
+  credentials: JwtAuthCredentials | string,
+): string {
+  const token =
+    typeof credentials === "string"
+      ? normalizeJwtToken(credentials)
+      : normalizeJwtToken(credentials.token);
 
   if (!token) {
-    throw createConfigError('JWT token is required to build Authorization header.');
+    throw createConfigError(
+      "JWT token is required to build Authorization header.",
+    );
   }
 
   return `Bearer ${token}`;
@@ -230,12 +251,14 @@ export function createJwtAuthHeader(credentials: JwtAuthCredentials | string): s
 /**
  * Creates an Authorization header from any supported auth config shape.
  */
-export function createWordPressAuthHeader(auth: WordPressAuthorizationInput): string {
-  if (typeof auth === 'string') {
+export function createWordPressAuthHeader(
+  auth: WordPressAuthorizationInput,
+): string {
+  if (typeof auth === "string") {
     const header = auth.trim();
 
     if (!header) {
-      throw createConfigError('Authorization header must not be empty.');
+      throw createConfigError("Authorization header must not be empty.");
     }
 
     return header;
@@ -250,13 +273,15 @@ export function createWordPressAuthHeader(auth: WordPressAuthorizationInput): st
   }
 
   if (isCookieNonceAuthCredentials(auth)) {
-    throw createConfigError('Cookie nonce auth does not map to an Authorization header. Use resolveWordPressRequestHeaders instead.');
+    throw createConfigError(
+      "Cookie nonce auth does not map to an Authorization header. Use resolveWordPressRequestHeaders instead.",
+    );
   }
 
   const authorizationHeader = auth.authorization.trim();
 
   if (!authorizationHeader) {
-    throw createConfigError('Authorization header must not be empty.');
+    throw createConfigError("Authorization header must not be empty.");
   }
 
   return authorizationHeader;
@@ -273,7 +298,7 @@ export async function resolveWordPressAuth<TContext>(
     return null;
   }
 
-  if (typeof auth !== 'function') {
+  if (typeof auth !== "function") {
     return auth;
   }
 
@@ -297,14 +322,19 @@ export async function resolveWordPressRequestHeaders(config: {
   const resolvedHeaders: WordPressAuthHeaders = {};
 
   if (config.auth) {
-    if (typeof config.auth !== 'string' && isCookieNonceAuthCredentials(config.auth)) {
+    if (
+      typeof config.auth !== "string" &&
+      isCookieNonceAuthCredentials(config.auth)
+    ) {
       const nonce = config.auth.nonce.trim();
 
       if (!nonce) {
-        throw createConfigError('Cookie nonce auth requires a non-empty nonce value.');
+        throw createConfigError(
+          "Cookie nonce auth requires a non-empty nonce value.",
+        );
       }
 
-      resolvedHeaders['X-WP-Nonce'] = nonce;
+      resolvedHeaders["X-WP-Nonce"] = nonce;
     } else {
       resolvedHeaders.Authorization = createWordPressAuthHeader(config.auth);
     }
@@ -314,9 +344,10 @@ export async function resolveWordPressRequestHeaders(config: {
     return resolvedHeaders;
   }
 
-  const providedHeaders = typeof config.authHeaders === 'function'
-    ? await config.authHeaders(config.request)
-    : config.authHeaders;
+  const providedHeaders =
+    typeof config.authHeaders === "function"
+      ? await config.authHeaders(config.request)
+      : config.authHeaders;
 
   return {
     ...resolvedHeaders,
@@ -335,7 +366,7 @@ export function resolveWordPressRequestCredentials(config: {
     return config.credentials;
   }
 
-  if (!config.auth || typeof config.auth === 'string') {
+  if (!config.auth || typeof config.auth === "string") {
     return undefined;
   }
 
@@ -343,5 +374,5 @@ export function resolveWordPressRequestCredentials(config: {
     return undefined;
   }
 
-  return config.auth.credentials ?? 'include';
+  return config.auth.credentials ?? "include";
 }

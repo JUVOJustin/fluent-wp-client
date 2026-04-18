@@ -5,35 +5,34 @@
  * generation, and schema-aware integrations.
  */
 
+import { createDiscoveryError } from "./core/errors.js";
+import { applyRequestOverrides } from "./core/request-overrides.js";
+import type { WordPressRuntime } from "./core/transport.js";
+import type { WordPressAbility } from "./schemas.js";
 import type {
+  WordPressAbilityDescription,
+  WordPressAbilitySchemaSet,
   WordPressDiscoveryCatalog,
   WordPressDiscoveryOptions,
   WordPressDiscoveryWarning,
-  WordPressResourceDescription,
-  WordPressResourceCapabilities,
-  WordPressAbilityDescription,
-  WordPressTypesResponse,
-  WordPressTaxonomiesResponse,
   WordPressEndpointSchema,
+  WordPressResourceCapabilities,
+  WordPressResourceDescription,
   WordPressResourceSchemaSet,
-  WordPressAbilitySchemaSet,
-  WordPressJsonSchema,
-} from './types/discovery.js';
-import type { WordPressAbility } from './schemas.js';
-import { createDiscoveryError, type WordPressClientError } from './core/errors.js';
-import { applyRequestOverrides } from './core/request-overrides.js';
-import type { WordPressRuntime } from './core/transport.js';
-import type { WordPressRequestOverrides } from './types/resources.js';
+  WordPressTaxonomiesResponse,
+  WordPressTypesResponse,
+} from "./types/discovery.js";
+import type { WordPressRequestOverrides } from "./types/resources.js";
 
 /**
  * Cache for discovery results per client instance.
  */
 interface DiscoveryCache {
+  abilities: Map<string, WordPressAbilityDescription>;
   catalog?: WordPressDiscoveryCatalog;
   content: Map<string, WordPressResourceDescription>;
-  terms: Map<string, WordPressResourceDescription>;
   resources: Map<string, WordPressResourceDescription>;
-  abilities: Map<string, WordPressAbilityDescription>;
+  terms: Map<string, WordPressResourceDescription>;
 }
 
 /**
@@ -41,10 +40,10 @@ interface DiscoveryCache {
  */
 function createDiscoveryCache(): DiscoveryCache {
   return {
-    content: new Map(),
-    terms: new Map(),
-    resources: new Map(),
     abilities: new Map(),
+    content: new Map(),
+    resources: new Map(),
+    terms: new Map(),
   };
 }
 
@@ -68,23 +67,26 @@ async function runWithConcurrency<T>(
   async function worker(): Promise<void> {
     while (nextIndex < factories.length) {
       const index = nextIndex++;
-      results[index] = await factories[index]!();
+      results[index] = await factories[index]?.();
     }
   }
 
-  const workers = Array.from({ length: Math.min(concurrency, factories.length) }, () => worker());
+  const workers = Array.from(
+    { length: Math.min(concurrency, factories.length) },
+    () => worker(),
+  );
   await Promise.all(workers);
   return results;
 }
 
 type DiscoverySuccess<T> = {
-  type: 'success';
+  type: "success";
   key: string;
   value: T;
 };
 
 type DiscoveryFailure = {
-  type: 'error';
+  type: "error";
   key: string;
   message: string;
 };
@@ -92,13 +94,16 @@ type DiscoveryFailure = {
 async function collectDiscoveryResults<T>(
   factories: Array<() => Promise<DiscoverySuccess<T> | DiscoveryFailure>>,
   warningPrefix: string,
-): Promise<{ records: Record<string, T>; warnings: WordPressDiscoveryWarning[] }> {
+): Promise<{
+  records: Record<string, T>;
+  warnings: WordPressDiscoveryWarning[];
+}> {
   const records: Record<string, T> = {};
   const warnings: WordPressDiscoveryWarning[] = [];
   const results = await runWithConcurrency(factories);
 
   for (const result of results) {
-    if (result.type === 'success') {
+    if (result.type === "success") {
       records[result.key] = result.value;
       continue;
     }
@@ -142,7 +147,7 @@ function extractQueryParams(endpointSchema: WordPressEndpointSchema): string[] {
 
   if (Array.isArray(endpoints)) {
     const getEndpoint = endpoints.find(
-      (ep) => Array.isArray(ep.methods) && ep.methods.includes('GET'),
+      (ep) => Array.isArray(ep.methods) && ep.methods.includes("GET"),
     );
 
     if (getEndpoint?.args) {
@@ -163,14 +168,23 @@ function buildCapabilities(
   endpointSchema: WordPressEndpointSchema,
   schemas: WordPressResourceSchemaSet,
 ): WordPressResourceCapabilities {
-  const itemProperties = (schemas.item?.properties ?? {}) as Record<string, unknown>;
-  const createProperties = (schemas.create?.properties ?? {}) as Record<string, unknown>;
-  const updateProperties = (schemas.update?.properties ?? {}) as Record<string, unknown>;
+  const itemProperties = (schemas.item?.properties ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const createProperties = (schemas.create?.properties ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const updateProperties = (schemas.update?.properties ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   return {
+    createFields: Object.keys(createProperties),
     queryParams: extractQueryParams(endpointSchema),
     readFields: Object.keys(itemProperties),
-    createFields: Object.keys(createProperties),
     updateFields: Object.keys(updateProperties),
   };
 }
@@ -179,7 +193,7 @@ function buildCapabilities(
  * Builds one serializable resource description from one OPTIONS response.
  */
 function createResourceDescription(config: {
-  kind: WordPressResourceDescription['kind'];
+  kind: WordPressResourceDescription["kind"];
   resource: string;
   namespace: string;
   route: string;
@@ -189,28 +203,28 @@ function createResourceDescription(config: {
 }): WordPressResourceDescription {
   const itemSchema = config.endpointSchema.schema;
   const collectionSchema = itemSchema
-    ? { type: 'array', items: itemSchema }
+    ? { items: itemSchema, type: "array" }
     : undefined;
   const createSchema = buildCreateSchema(config.endpointSchema);
   const updateSchema = buildUpdateSchema(createSchema);
 
   const schemas = compactOptionalProperties({
-    item: itemSchema,
     collection: collectionSchema,
     create: createSchema,
+    item: itemSchema,
     update: updateSchema,
   }) as WordPressResourceSchemaSet;
 
   return {
+    capabilities: buildCapabilities(config.endpointSchema, schemas),
     kind: config.kind,
-    resource: config.resource,
-    slug: config.slug,
-    restBase: config.restBase,
     namespace: config.namespace,
+    raw: config.endpointSchema,
+    resource: config.resource,
+    restBase: config.restBase,
     route: config.route,
     schemas,
-    capabilities: buildCapabilities(config.endpointSchema, schemas),
-    raw: config.endpointSchema,
+    slug: config.slug,
   };
 }
 
@@ -223,7 +237,11 @@ function findContentTypeInfo(
 ): { slug: string; rest_base?: string; rest_namespace?: string } | undefined {
   for (const [slug, info] of Object.entries(types)) {
     if (info.rest_base === resource) {
-      return { slug, rest_base: info.rest_base, rest_namespace: info.rest_namespace };
+      return {
+        rest_base: info.rest_base,
+        rest_namespace: info.rest_namespace,
+        slug,
+      };
     }
   }
 
@@ -239,7 +257,11 @@ function findTaxonomyInfo(
 ): { slug: string; rest_base?: string; rest_namespace?: string } | undefined {
   for (const [slug, info] of Object.entries(taxonomies)) {
     if (info.rest_base === resource) {
-      return { slug, rest_base: info.rest_base, rest_namespace: info.rest_namespace };
+      return {
+        rest_base: info.rest_base,
+        rest_namespace: info.rest_namespace,
+        slug,
+      };
     }
   }
 
@@ -256,10 +278,15 @@ async function fetchEndpointSchema(
   options?: WordPressRequestOverrides,
 ): Promise<WordPressEndpointSchema | undefined> {
   try {
-    const result = await runtime.request<WordPressEndpointSchema>(applyRequestOverrides({
-      endpoint,
-      method: 'OPTIONS',
-    }, options));
+    const result = await runtime.request<WordPressEndpointSchema>(
+      applyRequestOverrides(
+        {
+          endpoint,
+          method: "OPTIONS",
+        },
+        options,
+      ),
+    );
 
     return result.data;
   } catch {
@@ -276,7 +303,7 @@ function argsToJsonSchemaProperties(
   const properties: Record<string, unknown> = {};
 
   for (const [key, arg] of Object.entries(args)) {
-    if (arg && typeof arg === 'object') {
+    if (arg && typeof arg === "object") {
       const argDef = arg as Record<string, unknown>;
       const schema: Record<string, unknown> = {};
 
@@ -306,13 +333,15 @@ function argsToJsonSchemaProperties(
 /**
  * Determines required fields from REST API args.
  */
-function getRequiredFields(
-  args: Record<string, unknown>,
-): string[] {
+function getRequiredFields(args: Record<string, unknown>): string[] {
   const required: string[] = [];
 
   for (const [key, arg] of Object.entries(args)) {
-    if (arg && typeof arg === 'object' && (arg as Record<string, unknown>).required === true) {
+    if (
+      arg &&
+      typeof arg === "object" &&
+      (arg as Record<string, unknown>).required === true
+    ) {
       required.push(key);
     }
   }
@@ -338,16 +367,16 @@ function extractCreateArgs(
     const postEndpoint = endpoints.find(
       (ep) =>
         Array.isArray(ep.methods) &&
-        ep.methods.some((m) => m === 'POST' || m === 'PUT' || m === 'PATCH'),
+        ep.methods.some((m) => m === "POST" || m === "PUT" || m === "PATCH"),
     );
 
-    if (postEndpoint?.args && typeof postEndpoint.args === 'object') {
+    if (postEndpoint?.args && typeof postEndpoint.args === "object") {
       return postEndpoint.args;
     }
   }
 
   // Fall back to top-level args for older or custom endpoint implementations.
-  return endpointSchema.args && typeof endpointSchema.args === 'object'
+  return endpointSchema.args && typeof endpointSchema.args === "object"
     ? (endpointSchema.args as Record<string, unknown>)
     : undefined;
 }
@@ -357,7 +386,7 @@ function extractCreateArgs(
  */
 function buildCreateSchema(
   endpointSchema: WordPressEndpointSchema,
-): WordPressResourceSchemaSet['create'] {
+): WordPressResourceSchemaSet["create"] {
   const args = extractCreateArgs(endpointSchema);
 
   if (!args) {
@@ -368,23 +397,23 @@ function buildCreateSchema(
   const required = getRequiredFields(args);
 
   const schema: Record<string, unknown> = {
-    type: 'object',
     properties,
+    type: "object",
   };
 
   if (required.length > 0) {
     schema.required = required;
   }
 
-  return schema as WordPressResourceSchemaSet['create'];
+  return schema as WordPressResourceSchemaSet["create"];
 }
 
 /**
  * Builds update schema from create schema (no required fields).
  */
 function buildUpdateSchema(
-  createSchema: WordPressResourceSchemaSet['create'],
-): WordPressResourceSchemaSet['update'] {
+  createSchema: WordPressResourceSchemaSet["create"],
+): WordPressResourceSchemaSet["update"] {
   if (!createSchema) {
     return undefined;
   }
@@ -392,7 +421,7 @@ function buildUpdateSchema(
   const update = { ...createSchema };
   delete update.required;
 
-  return update as WordPressResourceSchemaSet['update'];
+  return update as WordPressResourceSchemaSet["update"];
 }
 
 /**
@@ -403,17 +432,29 @@ async function discoverContentResource(
   resource: string,
   options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
-  const types = await runtime.fetchAPI<WordPressTypesResponse>('/wp-json/wp/v2/types', undefined, options);
+  const types = await runtime.fetchAPI<WordPressTypesResponse>(
+    "/wp-json/wp/v2/types",
+    undefined,
+    options,
+  );
   const typeInfo = findContentTypeInfo(types, resource);
 
   if (!typeInfo) {
     throw createDiscoveryError(
       `Content resource '${resource}' not found in WordPress types`,
-      { operation: 'discovery.describeResource', endpoint: '/wp-json/wp/v2/types' },
+      {
+        endpoint: "/wp-json/wp/v2/types",
+        operation: "discovery.describeResource",
+      },
     );
   }
 
-  return discoverContentResourceFromTypeInfo(runtime, resource, typeInfo, options);
+  return discoverContentResourceFromTypeInfo(
+    runtime,
+    resource,
+    typeInfo,
+    options,
+  );
 }
 
 /**
@@ -425,33 +466,28 @@ async function discoverContentResourceFromTypeInfo(
   typeInfo: { slug: string; rest_base?: string; rest_namespace?: string },
   options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
-  
-  const namespace = typeInfo.rest_namespace || 'wp/v2';
+  const namespace = typeInfo.rest_namespace || "wp/v2";
   const restBase = typeInfo.rest_base || resource;
   const route = `/wp-json/${namespace}/${restBase}`;
 
   // Step 2: Get OPTIONS from the collection endpoint
-  const endpointSchema = await fetchEndpointSchema(
-    runtime,
-    route,
-    options,
-  );
+  const endpointSchema = await fetchEndpointSchema(runtime, route, options);
 
   if (!endpointSchema) {
     throw createDiscoveryError(
       `Failed to fetch schema for content resource '${resource}'`,
-      { operation: 'discovery.describeResource', endpoint: route },
+      { endpoint: route, operation: "discovery.describeResource" },
     );
   }
 
   return createResourceDescription({
-    kind: 'content',
-    resource,
-    slug: typeInfo.slug,
-    restBase,
-    namespace,
-    route,
     endpointSchema,
+    kind: "content",
+    namespace,
+    resource,
+    restBase,
+    route,
+    slug: typeInfo.slug,
   });
 }
 
@@ -463,17 +499,29 @@ async function discoverTermResource(
   resource: string,
   options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
-  const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>('/wp-json/wp/v2/taxonomies', undefined, options);
+  const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>(
+    "/wp-json/wp/v2/taxonomies",
+    undefined,
+    options,
+  );
   const taxonomyInfo = findTaxonomyInfo(taxonomies, resource);
 
   if (!taxonomyInfo) {
     throw createDiscoveryError(
       `Term resource '${resource}' not found in WordPress taxonomies`,
-      { operation: 'discovery.describeResource', endpoint: '/wp-json/wp/v2/taxonomies' },
+      {
+        endpoint: "/wp-json/wp/v2/taxonomies",
+        operation: "discovery.describeResource",
+      },
     );
   }
 
-  return discoverTermResourceFromTypeInfo(runtime, resource, taxonomyInfo, options);
+  return discoverTermResourceFromTypeInfo(
+    runtime,
+    resource,
+    taxonomyInfo,
+    options,
+  );
 }
 
 /**
@@ -485,33 +533,28 @@ async function discoverTermResourceFromTypeInfo(
   taxonomyInfo: { slug: string; rest_base?: string; rest_namespace?: string },
   options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
-
-  const namespace = taxonomyInfo.rest_namespace || 'wp/v2';
+  const namespace = taxonomyInfo.rest_namespace || "wp/v2";
   const restBase = taxonomyInfo.rest_base || resource;
   const route = `/wp-json/${namespace}/${restBase}`;
 
   // Step 2: Get OPTIONS from the collection endpoint
-  const endpointSchema = await fetchEndpointSchema(
-    runtime,
-    route,
-    options,
-  );
+  const endpointSchema = await fetchEndpointSchema(runtime, route, options);
 
   if (!endpointSchema) {
     throw createDiscoveryError(
       `Failed to fetch schema for term resource '${resource}'`,
-      { operation: 'discovery.describeResource', endpoint: route },
+      { endpoint: route, operation: "discovery.describeResource" },
     );
   }
 
   return createResourceDescription({
-    kind: 'term',
-    resource,
-    slug: taxonomyInfo.slug,
-    restBase,
-    namespace,
-    route,
     endpointSchema,
+    kind: "term",
+    namespace,
+    resource,
+    restBase,
+    route,
+    slug: taxonomyInfo.slug,
   });
 }
 
@@ -524,29 +567,25 @@ async function discoverFirstClassResource(
   restBase: string,
   options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
-  const namespace = 'wp/v2';
+  const namespace = "wp/v2";
   const route = `/wp-json/${namespace}/${restBase}`;
 
-  const endpointSchema = await fetchEndpointSchema(
-    runtime,
-    route,
-    options,
-  );
+  const endpointSchema = await fetchEndpointSchema(runtime, route, options);
 
   if (!endpointSchema) {
     throw createDiscoveryError(
       `Failed to fetch schema for resource '${resource}'`,
-      { operation: 'discovery.describeResource', endpoint: route },
+      { endpoint: route, operation: "discovery.describeResource" },
     );
   }
 
   return createResourceDescription({
-    kind: 'resource',
+    endpointSchema,
+    kind: "resource",
+    namespace,
     resource,
     restBase,
-    namespace,
     route,
-    endpointSchema,
   });
 }
 
@@ -558,21 +597,27 @@ async function discoverAbility(
   name: string,
   options?: WordPressRequestOverrides,
 ): Promise<WordPressAbilityDescription> {
-  const ABILITIES_BASE_ENDPOINT = '/wp-json/wp-abilities/v1';
+  const ABILITIES_BASE_ENDPOINT = "/wp-json/wp-abilities/v1";
   const route = `${ABILITIES_BASE_ENDPOINT}/abilities/${name}`;
 
-  const ability = await runtime.fetchAPI<WordPressAbility>(route, undefined, options);
+  const ability = await runtime.fetchAPI<WordPressAbility>(
+    route,
+    undefined,
+    options,
+  );
 
   return {
-    kind: 'ability',
+    annotations: ability.meta?.annotations || {},
+    kind: "ability",
     name,
+    raw: ability,
     route,
     schemas: compactOptionalProperties({
-      input: ability.input_schema as WordPressAbilityDescription['schemas']['input'],
-      output: ability.output_schema as WordPressAbilityDescription['schemas']['output'],
+      input:
+        ability.input_schema as WordPressAbilityDescription["schemas"]["input"],
+      output:
+        ability.output_schema as WordPressAbilityDescription["schemas"]["output"],
     }) as WordPressAbilitySchemaSet,
-    annotations: ability.meta?.annotations || {},
-    raw: ability,
   };
 }
 
@@ -590,44 +635,58 @@ async function discoverAllContent(
   const warnings: WordPressDiscoveryWarning[] = [];
 
   try {
-    const types = await runtime.fetchAPI<WordPressTypesResponse>('/wp-json/wp/v2/types', undefined, options);
+    const types = await runtime.fetchAPI<WordPressTypesResponse>(
+      "/wp-json/wp/v2/types",
+      undefined,
+      options,
+    );
 
     // Prepare discovery factories for all content types; run with concurrency cap
     const discoveryFactories = Object.entries(types)
       .filter(([, info]) => info.rest_base)
       .map(([, info]) => async () => {
+        const restBase = info.rest_base as string;
         try {
           const description = await discoverContentResourceFromTypeInfo(
             runtime,
-            info.rest_base!,
+            restBase,
             {
-              slug: info.slug,
               rest_base: info.rest_base,
               rest_namespace: info.rest_namespace,
+              slug: info.slug,
             },
             options,
           );
           return {
-            type: 'success' as const,
-            key: info.rest_base!,
+            key: restBase,
+            type: "success" as const,
             value: description,
           };
         } catch (error) {
           return {
-            type: 'error' as const,
-            key: info.rest_base!,
-            message: error instanceof Error ? error.message : `Failed to discover content resource '${info.rest_base}'`,
+            key: restBase,
+            message:
+              error instanceof Error
+                ? error.message
+                : `Failed to discover content resource '${restBase}'`,
+            type: "error" as const,
           };
         }
       });
 
-    const collected = await collectDiscoveryResults(discoveryFactories, 'content');
+    const collected = await collectDiscoveryResults(
+      discoveryFactories,
+      "content",
+    );
     Object.assign(resources, collected.records);
     warnings.push(...collected.warnings);
   } catch (error) {
     warnings.push({
-      key: 'content:types',
-      message: error instanceof Error ? error.message : 'Failed to fetch content types',
+      key: "content:types",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch content types",
     });
   }
 
@@ -648,44 +707,56 @@ async function discoverAllTerms(
   const warnings: WordPressDiscoveryWarning[] = [];
 
   try {
-    const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>('/wp-json/wp/v2/taxonomies', undefined, options);
+    const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>(
+      "/wp-json/wp/v2/taxonomies",
+      undefined,
+      options,
+    );
 
     // Prepare discovery factories for all taxonomies; run with concurrency cap
     const discoveryFactories = Object.entries(taxonomies)
       .filter(([, info]) => info.rest_base)
       .map(([, info]) => async () => {
+        const restBase = info.rest_base as string;
         try {
           const description = await discoverTermResourceFromTypeInfo(
             runtime,
-            info.rest_base!,
+            restBase,
             {
-              slug: info.slug,
               rest_base: info.rest_base,
               rest_namespace: info.rest_namespace,
+              slug: info.slug,
             },
             options,
           );
           return {
-            type: 'success' as const,
-            key: info.rest_base!,
+            key: restBase,
+            type: "success" as const,
             value: description,
           };
         } catch (error) {
           return {
-            type: 'error' as const,
-            key: info.rest_base!,
-            message: error instanceof Error ? error.message : `Failed to discover term resource '${info.rest_base}'`,
+            key: restBase,
+            message:
+              error instanceof Error
+                ? error.message
+                : `Failed to discover term resource '${info.rest_base}'`,
+            type: "error" as const,
           };
         }
       });
 
-    const collected = await collectDiscoveryResults(discoveryFactories, 'terms');
+    const collected = await collectDiscoveryResults(
+      discoveryFactories,
+      "terms",
+    );
     Object.assign(resources, collected.records);
     warnings.push(...collected.warnings);
   } catch (error) {
     warnings.push({
-      key: 'terms:taxonomies',
-      message: error instanceof Error ? error.message : 'Failed to fetch taxonomies',
+      key: "terms:taxonomies",
+      message:
+        error instanceof Error ? error.message : "Failed to fetch taxonomies",
     });
   }
 
@@ -706,36 +777,45 @@ async function discoverFirstClassResources(
   const warnings: WordPressDiscoveryWarning[] = [];
 
   const firstClassEndpoints: Array<{ resource: string; restBase: string }> = [
-    { resource: 'media', restBase: 'media' },
-    { resource: 'users', restBase: 'users' },
-    { resource: 'comments', restBase: 'comments' },
-    { resource: 'settings', restBase: 'settings' },
+    { resource: "media", restBase: "media" },
+    { resource: "users", restBase: "users" },
+    { resource: "comments", restBase: "comments" },
+    { resource: "settings", restBase: "settings" },
   ];
 
   // Execute discoveries with concurrency cap (first-class resources are few, but consistent with other sites)
-  const discoveryFactories = firstClassEndpoints.map(({ resource, restBase }) => async () => {
-    try {
-      const description = await discoverFirstClassResource(
-        runtime,
-        resource,
-        restBase,
-        options,
-      );
-      return {
-        type: 'success' as const,
-        key: resource,
-        value: description,
-      };
-    } catch (error) {
-      return {
-        type: 'error' as const,
-        key: resource,
-        message: error instanceof Error ? error.message : `Failed to discover resource '${resource}'`,
-      };
-    }
-  });
+  const discoveryFactories = firstClassEndpoints.map(
+    ({ resource, restBase }) =>
+      async () => {
+        try {
+          const description = await discoverFirstClassResource(
+            runtime,
+            resource,
+            restBase,
+            options,
+          );
+          return {
+            key: resource,
+            type: "success" as const,
+            value: description,
+          };
+        } catch (error) {
+          return {
+            key: resource,
+            message:
+              error instanceof Error
+                ? error.message
+                : `Failed to discover resource '${resource}'`,
+            type: "error" as const,
+          };
+        }
+      },
+  );
 
-  const collected = await collectDiscoveryResults(discoveryFactories, 'resource');
+  const collected = await collectDiscoveryResults(
+    discoveryFactories,
+    "resource",
+  );
   Object.assign(resources, collected.records);
   warnings.push(...collected.warnings);
 
@@ -755,7 +835,7 @@ async function discoverAllAbilities(
   const abilities: Record<string, WordPressAbilityDescription> = {};
   const warnings: WordPressDiscoveryWarning[] = [];
 
-  const ABILITIES_BASE_ENDPOINT = '/wp-json/wp-abilities/v1';
+  const ABILITIES_BASE_ENDPOINT = "/wp-json/wp-abilities/v1";
 
   try {
     const abilityList = await runtime.fetchAPI<Array<{ name: string }>>(
@@ -773,26 +853,35 @@ async function discoverAllAbilities(
           options,
         );
         return {
-          type: 'success' as const,
           key: ability.name,
+          type: "success" as const,
           value: description,
         };
       } catch (error) {
         return {
-          type: 'error' as const,
           key: ability.name,
-          message: error instanceof Error ? error.message : `Failed to discover ability '${ability.name}'`,
+          message:
+            error instanceof Error
+              ? error.message
+              : `Failed to discover ability '${ability.name}'`,
+          type: "error" as const,
         };
       }
     });
 
-    const collected = await collectDiscoveryResults(discoveryFactories, 'ability');
+    const collected = await collectDiscoveryResults(
+      discoveryFactories,
+      "ability",
+    );
     Object.assign(abilities, collected.records);
     warnings.push(...collected.warnings);
   } catch (error) {
     warnings.push({
-      key: 'abilities:list',
-      message: error instanceof Error ? error.message : 'Failed to fetch abilities list',
+      key: "abilities:list",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch abilities list",
     });
   }
 
@@ -821,10 +910,10 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
     }
 
     return {
-      content: Object.fromEntries(cache.content),
-      terms: Object.fromEntries(cache.terms),
-      resources: Object.fromEntries(cache.resources),
       abilities: Object.fromEntries(cache.abilities),
+      content: Object.fromEntries(cache.content),
+      resources: Object.fromEntries(cache.resources),
+      terms: Object.fromEntries(cache.terms),
       warnings: undefined,
     };
   }
@@ -835,7 +924,9 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
     resources?: Record<string, WordPressResourceDescription>;
     abilities?: Record<string, WordPressAbilityDescription>;
   }): void {
-    for (const [resource, description] of Object.entries(catalog.content || {})) {
+    for (const [resource, description] of Object.entries(
+      catalog.content || {},
+    )) {
       cache.content.set(resource, description);
     }
 
@@ -843,7 +934,9 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       cache.terms.set(resource, description);
     }
 
-    for (const [resource, description] of Object.entries(catalog.resources || {})) {
+    for (const [resource, description] of Object.entries(
+      catalog.resources || {},
+    )) {
       cache.resources.set(resource, description);
     }
 
@@ -861,11 +954,16 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   ): Promise<WordPressResourceDescription> {
     const cacheKey = resource;
 
-    if (cache.content.has(cacheKey)) {
-      return cache.content.get(cacheKey)!;
+    const cached = cache.content.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
-    const description = await discoverContentResource(runtime, resource, options);
+    const description = await discoverContentResource(
+      runtime,
+      resource,
+      options,
+    );
     cache.content.set(cacheKey, description);
 
     return description;
@@ -880,8 +978,9 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   ): Promise<WordPressResourceDescription> {
     const cacheKey = resource;
 
-    if (cache.terms.has(cacheKey)) {
-      return cache.terms.get(cacheKey)!;
+    const cached = cache.terms.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     const description = await discoverTermResource(runtime, resource, options);
@@ -894,16 +993,22 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
    * Describes a first-class resource schema.
    */
   async function describeResource(
-    resource: 'media' | 'users' | 'comments' | 'settings' | 'block-types',
+    resource: "media" | "users" | "comments" | "settings" | "block-types",
     options?: WordPressRequestOverrides,
   ): Promise<WordPressResourceDescription> {
     const cacheKey = resource;
 
-    if (cache.resources.has(cacheKey)) {
-      return cache.resources.get(cacheKey)!;
+    const cached = cache.resources.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
-    const description = await discoverFirstClassResource(runtime, resource, resource, options);
+    const description = await discoverFirstClassResource(
+      runtime,
+      resource,
+      resource,
+      options,
+    );
     cache.resources.set(cacheKey, description);
 
     return description;
@@ -918,8 +1023,9 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   ): Promise<WordPressAbilityDescription> {
     const cacheKey = name;
 
-    if (cache.abilities.has(cacheKey)) {
-      return cache.abilities.get(cacheKey)!;
+    const cached = cache.abilities.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     const description = await discoverAbility(runtime, name, options);
@@ -946,13 +1052,18 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       cache.catalog = undefined;
     }
 
-    const includeKinds = include || ['content', 'terms', 'resources', 'abilities'];
+    const includeKinds = include || [
+      "content",
+      "terms",
+      "resources",
+      "abilities",
+    ];
 
     const catalog: WordPressDiscoveryCatalog = {
-      content: {},
-      terms: {},
-      resources: {},
       abilities: {},
+      content: {},
+      resources: {},
+      terms: {},
       warnings: [],
     };
 
@@ -960,50 +1071,62 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
     const discoveryPromises: Promise<void>[] = [];
 
     // Discover content resources
-    if (includeKinds.includes('content')) {
+    if (includeKinds.includes("content")) {
       discoveryPromises.push(
         (async () => {
-          const { resources, warnings } = await discoverAllContent(runtime, requestOptions);
+          const { resources, warnings } = await discoverAllContent(
+            runtime,
+            requestOptions,
+          );
           catalog.content = resources;
-          catalog.warnings!.push(...warnings);
+          catalog.warnings?.push(...warnings);
           cacheDescriptions({ content: resources });
-        })()
+        })(),
       );
     }
 
     // Discover term resources
-    if (includeKinds.includes('terms')) {
+    if (includeKinds.includes("terms")) {
       discoveryPromises.push(
         (async () => {
-          const { resources, warnings } = await discoverAllTerms(runtime, requestOptions);
+          const { resources, warnings } = await discoverAllTerms(
+            runtime,
+            requestOptions,
+          );
           catalog.terms = resources;
-          catalog.warnings!.push(...warnings);
+          catalog.warnings?.push(...warnings);
           cacheDescriptions({ terms: resources });
-        })()
+        })(),
       );
     }
 
     // Discover first-class resources
-    if (includeKinds.includes('resources')) {
+    if (includeKinds.includes("resources")) {
       discoveryPromises.push(
         (async () => {
-          const { resources, warnings } = await discoverFirstClassResources(runtime, requestOptions);
+          const { resources, warnings } = await discoverFirstClassResources(
+            runtime,
+            requestOptions,
+          );
           catalog.resources = resources;
-          catalog.warnings!.push(...warnings);
+          catalog.warnings?.push(...warnings);
           cacheDescriptions({ resources });
-        })()
+        })(),
       );
     }
 
     // Discover abilities
-    if (includeKinds.includes('abilities')) {
+    if (includeKinds.includes("abilities")) {
       discoveryPromises.push(
         (async () => {
-          const { abilities, warnings } = await discoverAllAbilities(runtime, requestOptions);
+          const { abilities, warnings } = await discoverAllAbilities(
+            runtime,
+            requestOptions,
+          );
           catalog.abilities = abilities;
-          catalog.warnings!.push(...warnings);
+          catalog.warnings?.push(...warnings);
           cacheDescriptions({ abilities });
-        })()
+        })(),
       );
     }
 
@@ -1022,17 +1145,17 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
    */
   function filterCatalog(
     catalog: WordPressDiscoveryCatalog,
-    include?: Array<'content' | 'terms' | 'resources' | 'abilities'>,
+    include?: Array<"content" | "terms" | "resources" | "abilities">,
   ): WordPressDiscoveryCatalog {
     if (!include || include.length === 4) {
       return catalog;
     }
 
     return {
-      content: include.includes('content') ? catalog.content : {},
-      terms: include.includes('terms') ? catalog.terms : {},
-      resources: include.includes('resources') ? catalog.resources : {},
-      abilities: include.includes('abilities') ? catalog.abilities : {},
+      abilities: include.includes("abilities") ? catalog.abilities : {},
+      content: include.includes("content") ? catalog.content : {},
+      resources: include.includes("resources") ? catalog.resources : {},
+      terms: include.includes("terms") ? catalog.terms : {},
       warnings: catalog.warnings,
     };
   }
@@ -1060,10 +1183,10 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
    */
   function seedCatalog(catalog: WordPressDiscoveryCatalog): void {
     cacheDescriptions({
-      content: catalog.content,
-      terms: catalog.terms,
-      resources: catalog.resources,
       abilities: catalog.abilities,
+      content: catalog.content,
+      resources: catalog.resources,
+      terms: catalog.terms,
     });
     cache.catalog = catalog;
   }
@@ -1080,14 +1203,14 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
   }
 
   return {
-    describeContent,
-    describeTerm,
-    describeResource,
+    clearCache,
     describeAbility,
+    describeContent,
+    describeResource,
+    describeTerm,
     explore,
     getCatalogSnapshot,
     seedCatalog,
-    clearCache,
   };
 }
 

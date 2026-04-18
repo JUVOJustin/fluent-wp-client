@@ -1,22 +1,36 @@
-import { ContentItemQuery } from './builders/content-item-query.js';
-import { WordPressClient } from './client.js';
-import { type WordPressRawContentResult } from './content-query.js';
-import { ExecutableQuery } from './core/query-base.js';
-import { createInvalidRequestError } from './core/errors.js';
-import type { WordPressRuntime } from './core/transport.js';
-import { BlockTypesResource, createBlocksClient } from './resources/block-types.js';
+import {
+  assertValidWordPressBlocks,
+  parseWordPressBlocks,
+  serializeWordPressBlocks,
+  type WordPressBlockJsonSchema,
+  type WordPressGetBlocksOptions,
+  type WordPressParsedBlock,
+  type WordPressSetBlocksOptions,
+} from "./blocks.js";
+import type { ContentItemQuery } from "./builders/content-item-query.js";
+import type { WordPressClient } from "./client.js";
+import type { WordPressRawContentResult } from "./content-query.js";
+import { createInvalidRequestError } from "./core/errors.js";
+import { ExecutableQuery } from "./core/query-base.js";
+import type { WordPressRuntime } from "./core/transport.js";
+import { createDiscoveryMethods } from "./discovery.js";
+import {
+  BlockTypesResource,
+  createBlocksClient,
+} from "./resources/block-types.js";
 import type {
   WordPressBlockType,
   WordPressPage,
   WordPressPost,
   WordPressPostLike,
   WordPressPostWriteBase,
-} from './schemas.js';
+} from "./schemas.js";
 import type {
   BlockTypesFilter,
   PagesFilter,
   PostsFilter,
-} from './types/filters.js';
+} from "./types/filters.js";
+import type { WordPressWritePayload } from "./types/payloads.js";
 import type {
   BlocksResourceClient,
   ContentResourceClient,
@@ -24,18 +38,7 @@ import type {
   PaginationParams,
   QueryParams,
   WordPressRequestOverrides,
-} from './types/resources.js';
-import type { WordPressWritePayload } from './types/payloads.js';
-import {
-  assertValidWordPressBlocks,
-  parseWordPressBlocks,
-  serializeWordPressBlocks,
-  type WordPressGetBlocksOptions,
-  type WordPressBlockJsonSchema,
-  type WordPressParsedBlock,
-  type WordPressSetBlocksOptions,
-} from './blocks.js';
-import { createDiscoveryMethods } from './discovery.js';
+} from "./types/resources.js";
 
 const blocksResourceCache = new WeakMap<WordPressClient, BlockTypesResource>();
 
@@ -45,9 +48,7 @@ const blocksResourceCache = new WeakMap<WordPressClient, BlockTypesResource>();
 function normalizeSetBlocksOptions(
   options?: WordPressBlockJsonSchema[] | WordPressSetBlocksOptions,
 ): WordPressSetBlocksOptions {
-  return Array.isArray(options)
-    ? { schemas: options }
-    : options ?? {};
+  return Array.isArray(options) ? { schemas: options } : (options ?? {});
 }
 
 /**
@@ -55,14 +56,20 @@ function normalizeSetBlocksOptions(
  */
 export class BlockContentItemQuery<
   TContent extends WordPressPostLike = WordPressPostLike,
-  TFilter extends QueryParams & PaginationParams = QueryParams & PaginationParams,
+  TFilter extends QueryParams & PaginationParams = QueryParams &
+    PaginationParams,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > extends ExecutableQuery<TContent | undefined> {
   constructor(
-    private readonly resource: string,
+    readonly _resource: string,
     private readonly selector: number | string,
-    private readonly contentClient: ContentResourceClient<TContent, TFilter, TCreate, TUpdate>,
+    private readonly contentClient: ContentResourceClient<
+      TContent,
+      TFilter,
+      TCreate,
+      TUpdate
+    >,
     private readonly baseQuery: ContentItemQuery<TContent>,
   ) {
     super();
@@ -80,7 +87,9 @@ export class BlockContentItemQuery<
    */
   blocks() {
     return {
-      get: async (options: WordPressGetBlocksOptions = {}): Promise<WordPressParsedBlock[] | undefined> => {
+      get: async (
+        options: WordPressGetBlocksOptions = {},
+      ): Promise<WordPressParsedBlock[] | undefined> => {
         const content = await this.baseQuery.getContent();
 
         if (!content) {
@@ -88,10 +97,14 @@ export class BlockContentItemQuery<
         }
 
         const blocks = await parseWordPressBlocks(content.raw, options.parser);
-        const shouldValidate = options.validate ?? options.schemas !== undefined;
+        const shouldValidate =
+          options.validate ?? options.schemas !== undefined;
 
         if (shouldValidate) {
-          await assertValidWordPressBlocks(blocks, { parser: options.parser, schemas: options.schemas });
+          await assertValidWordPressBlocks(blocks, {
+            parser: options.parser,
+            schemas: options.schemas,
+          });
         }
 
         return blocks;
@@ -105,8 +118,8 @@ export class BlockContentItemQuery<
 
         if (postId === undefined) {
           throw createInvalidRequestError(
-            'Cannot set blocks because the selected content item could not be found.',
-            { operation: 'content.blocks.set' },
+            "Cannot set blocks because the selected content item could not be found.",
+            { operation: "content.blocks.set" },
           );
         }
 
@@ -118,7 +131,9 @@ export class BlockContentItemQuery<
         }
 
         const content = serializeWordPressBlocks(blocks);
-        return this.contentClient.update(postId, { content } as unknown as TUpdate);
+        return this.contentClient.update(postId, {
+          content,
+        } as unknown as TUpdate);
       },
     };
   }
@@ -127,11 +142,13 @@ export class BlockContentItemQuery<
    * Resolves the selected content ID so block updates can target the correct REST item route.
    */
   private async resolveSelectedPostId(): Promise<number | undefined> {
-    if (typeof this.selector === 'number') {
+    if (typeof this.selector === "number") {
       return this.selector;
     }
 
-    const selected = await this.contentClient.item(this.selector, { fields: ['id'] });
+    const selected = await this.contentClient.item(this.selector, {
+      fields: ["id"],
+    });
     return selected?.id;
   }
 
@@ -151,10 +168,16 @@ export type BlockAwareContentResourceClient<
   TFilter extends QueryParams & PaginationParams,
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
-> = Omit<ContentResourceClient<TResource, TFilter, TCreate, TUpdate>, 'item'> & {
+> = Omit<
+  ContentResourceClient<TResource, TFilter, TCreate, TUpdate>,
+  "item"
+> & {
   item: (
     idOrSlug: number | string,
-    options?: WordPressRequestOverrides & { embed?: boolean | string[]; fields?: string[] },
+    options?: WordPressRequestOverrides & {
+      embed?: boolean | string[];
+      fields?: string[];
+    },
   ) => BlockContentItemQuery<TResource, TFilter, TCreate, TUpdate>;
 };
 
@@ -163,24 +186,43 @@ export type BlockAwareContentResourceClient<
  */
 export interface WordPressBlocksExtension {
   readonly baseClient: WordPressClient;
-  blocks(): BlocksResourceClient<WordPressBlockType, ExtensibleFilter<BlockTypesFilter>>;
+  blocks(): BlocksResourceClient<
+    WordPressBlockType,
+    ExtensibleFilter<BlockTypesFilter>
+  >;
   content(
-    resource: 'posts',
-  ): BlockAwareContentResourceClient<WordPressPost, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
+    resource: "posts",
+  ): BlockAwareContentResourceClient<
+    WordPressPost,
+    ExtensibleFilter<PostsFilter>,
+    WordPressPostWriteBase,
+    WordPressPostWriteBase
+  >;
   content(
-    resource: 'pages',
-  ): BlockAwareContentResourceClient<WordPressPage, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
+    resource: "pages",
+  ): BlockAwareContentResourceClient<
+    WordPressPage,
+    ExtensibleFilter<PagesFilter>,
+    WordPressPostWriteBase,
+    WordPressPostWriteBase
+  >;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-  ): BlockAwareContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload>;
+  ): BlockAwareContentResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    WordPressWritePayload,
+    WordPressWritePayload
+  >;
 }
 
 /**
  * Block-aware client type that preserves the base client API while overriding `content()` and adding `blocks()`.
  */
-export type WordPressBlocksClient<TClient extends WordPressClient = WordPressClient> = Omit<TClient, keyof WordPressBlocksExtension>
-  & WordPressBlocksExtension
-  & { readonly baseClient: TClient };
+export type WordPressBlocksClient<
+  TClient extends WordPressClient = WordPressClient,
+> = Omit<TClient, keyof WordPressBlocksExtension> &
+  WordPressBlocksExtension & { readonly baseClient: TClient };
 
 /**
  * Returns the client's internal runtime for use by block resource helpers.
@@ -199,16 +241,22 @@ function createBlockAwareContentClient<
   TUpdate extends WordPressWritePayload = TCreate,
 >(
   resource: string,
-  baseContentClient: ContentResourceClient<TResource, TFilter, TCreate, TUpdate>,
+  baseContentClient: ContentResourceClient<
+    TResource,
+    TFilter,
+    TCreate,
+    TUpdate
+  >,
 ): BlockAwareContentResourceClient<TResource, TFilter, TCreate, TUpdate> {
   return {
     ...baseContentClient,
-    item: (idOrSlug, options) => new BlockContentItemQuery(
-      resource,
-      idOrSlug,
-      baseContentClient,
-      baseContentClient.item(idOrSlug, options),
-    ),
+    item: (idOrSlug, options) =>
+      new BlockContentItemQuery(
+        resource,
+        idOrSlug,
+        baseContentClient,
+        baseContentClient.item(idOrSlug, options),
+      ),
   };
 }
 
@@ -222,7 +270,10 @@ class WordPressBlocksSupport {
     this.runtime = getClientRuntime(baseClient);
   }
 
-  blocks(): BlocksResourceClient<WordPressBlockType, ExtensibleFilter<BlockTypesFilter>> {
+  blocks(): BlocksResourceClient<
+    WordPressBlockType,
+    ExtensibleFilter<BlockTypesFilter>
+  > {
     const discoveryMethods = createDiscoveryMethods(this.runtime);
     const cachedResource = blocksResourceCache.get(this.baseClient);
     const resource = cachedResource ?? new BlockTypesResource(this.runtime);
@@ -231,24 +282,43 @@ class WordPressBlocksSupport {
       blocksResourceCache.set(this.baseClient, resource);
     }
 
-    return createBlocksClient(
-      resource,
-      (options) => discoveryMethods.describeResource('block-types', options),
+    return createBlocksClient(resource, (options) =>
+      discoveryMethods.describeResource("block-types", options),
     );
   }
 
   content(
-    resource: 'posts',
-  ): BlockAwareContentResourceClient<WordPressPost, ExtensibleFilter<PostsFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
+    resource: "posts",
+  ): BlockAwareContentResourceClient<
+    WordPressPost,
+    ExtensibleFilter<PostsFilter>,
+    WordPressPostWriteBase,
+    WordPressPostWriteBase
+  >;
   content(
-    resource: 'pages',
-  ): BlockAwareContentResourceClient<WordPressPage, ExtensibleFilter<PagesFilter>, WordPressPostWriteBase, WordPressPostWriteBase>;
+    resource: "pages",
+  ): BlockAwareContentResourceClient<
+    WordPressPage,
+    ExtensibleFilter<PagesFilter>,
+    WordPressPostWriteBase,
+    WordPressPostWriteBase
+  >;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-  ): BlockAwareContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload>;
+  ): BlockAwareContentResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    WordPressWritePayload,
+    WordPressWritePayload
+  >;
   content<TResource extends WordPressPostLike = WordPressPostLike>(
     resource: string,
-  ): BlockAwareContentResourceClient<TResource, QueryParams & PaginationParams, WordPressWritePayload, WordPressWritePayload> {
+  ): BlockAwareContentResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    WordPressWritePayload,
+    WordPressWritePayload
+  > {
     return createBlockAwareContentClient(
       resource,
       this.baseClient.content(resource) as any,
@@ -261,7 +331,9 @@ const blocksClientCache = new WeakMap<WordPressClient, WordPressBlocksClient>();
 /**
  * Wraps a core client instance with portable Gutenberg block helpers.
  */
-export function withBlocks<TClient extends WordPressClient>(client: TClient): WordPressBlocksClient<TClient> {
+export function withBlocks<TClient extends WordPressClient>(
+  client: TClient,
+): WordPressBlocksClient<TClient> {
   const cached = blocksClientCache.get(client);
 
   if (cached) {
@@ -272,20 +344,20 @@ export function withBlocks<TClient extends WordPressClient>(client: TClient): Wo
 
   const proxy = new Proxy(client as unknown as WordPressBlocksClient<TClient>, {
     get(target, property, receiver) {
-      if (property === 'baseClient') {
+      if (property === "baseClient") {
         return client;
       }
 
-      if (property === 'blocks') {
+      if (property === "blocks") {
         return support.blocks.bind(support);
       }
 
-      if (property === 'content') {
+      if (property === "content") {
         return support.content.bind(support);
       }
 
       const value = Reflect.get(target, property, receiver);
-      return typeof value === 'function' ? value.bind(target) : value;
+      return typeof value === "function" ? value.bind(target) : value;
     },
   });
 

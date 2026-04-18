@@ -1,80 +1,80 @@
 import {
-	createAbilityMethods,
-	type WordPressAbilityBuilder,
+  createAbilityMethods,
+  type WordPressAbilityBuilder,
 } from "./abilities.js";
 import type {
-	JwtAuthCredentials,
-	JwtAuthTokenResponse,
-	JwtAuthValidationResponse,
-	JwtLoginCredentials,
+  JwtAuthCredentials,
+  JwtAuthTokenResponse,
+  JwtAuthValidationResponse,
+  JwtLoginCredentials,
 } from "./auth.js";
 import { filterToParams } from "./core/params.js";
 import {
-	createRuntime,
-	type WordPressRuntime,
-	WordPressTransport,
+  createRuntime,
+  type WordPressRuntime,
+  WordPressTransport,
 } from "./core/transport.js";
 import { createDiscoveryMethods, type DiscoveryMethods } from "./discovery.js";
 import {
-	CommentsResource,
-	createCommentsClient,
+  CommentsResource,
+  createCommentsClient,
 } from "./resources/comments.js";
 import { createMediaClient, MediaResource } from "./resources/media.js";
 import { GenericResourceRegistry } from "./resources/registry.js";
 import {
-	createSettingsClient,
-	SettingsResource,
+  createSettingsClient,
+  SettingsResource,
 } from "./resources/settings.js";
 import { createUsersClient, UsersResource } from "./resources/users.js";
 import type {
-	WordPressAuthor,
-	WordPressCategory,
-	WordPressComment,
-	WordPressMedia,
-	WordPressPage,
-	WordPressPost,
-	WordPressPostLike,
-	WordPressPostWriteBase,
-	WordPressSearchResult,
-	WordPressSettings,
-	WordPressTag,
+  WordPressAuthor,
+  WordPressCategory,
+  WordPressComment,
+  WordPressMedia,
+  WordPressPage,
+  WordPressPost,
+  WordPressPostLike,
+  WordPressPostWriteBase,
+  WordPressSearchResult,
+  WordPressSettings,
+  WordPressTag,
 } from "./schemas.js";
 import type {
-	WordPressClientConfig,
-	WordPressRequestOptions,
-	WordPressRequestResult,
+  WordPressClientConfig,
+  WordPressRequestOptions,
+  WordPressRequestResult,
 } from "./types/client.js";
 import type {
-	WordPressDiscoveryCatalog,
-	WordPressDiscoveryOptions,
+  WordPressDiscoveryCatalog,
+  WordPressDiscoveryOptions,
 } from "./types/discovery.js";
 import type {
-	CategoriesFilter,
-	CommentsFilter,
-	MediaFilter,
-	PagesFilter,
-	PostsFilter,
-	SearchFilter,
-	TagsFilter,
-	UsersFilter,
+  CategoriesFilter,
+  CommentsFilter,
+  MediaFilter,
+  PagesFilter,
+  PostsFilter,
+  SearchFilter,
+  TagsFilter,
+  UsersFilter,
 } from "./types/filters.js";
 import type {
-	TermWriteInput,
-	UserWriteInput,
-	WordPressWritePayload,
+  TermWriteInput,
+  UserWriteInput,
+  WordPressWritePayload,
 } from "./types/payloads.js";
 import type {
-	WordPressRequestOverrides as _Overrides,
-	CommentsResourceClient,
-	ContentResourceClient,
-	ExtensibleFilter,
-	MediaResourceClient,
-	PaginationParams,
-	QueryParams,
-	SettingsResourceClient,
-	TermsResourceClient,
-	UsersResourceClient,
-	WordPressRequestOverrides,
+  WordPressRequestOverrides as _Overrides,
+  CommentsResourceClient,
+  ContentResourceClient,
+  ExtensibleFilter,
+  MediaResourceClient,
+  PaginationParams,
+  QueryParams,
+  SettingsResourceClient,
+  TermsResourceClient,
+  UsersResourceClient,
+  WordPressRequestOverrides,
 } from "./types/resources.js";
 
 /**
@@ -108,381 +108,381 @@ import type {
  * ```
  */
 export class WordPressClient {
-	private readonly transport: WordPressTransport;
-	private readonly runtime: WordPressRuntime;
+  private readonly transport: WordPressTransport;
+  private readonly runtime: WordPressRuntime;
 
-	// Resource instances (private to avoid naming conflicts with public methods)
-	private readonly mediaResource: MediaResource;
-	private readonly usersResource: UsersResource;
-	private readonly settingsResource: SettingsResource;
-	private readonly commentsResource: CommentsResource;
-	private readonly genericResourcesRegistry: GenericResourceRegistry;
-	private readonly abilityMethods: ReturnType<typeof createAbilityMethods>;
-	private readonly discoveryMethods: DiscoveryMethods;
+  // Resource instances (private to avoid naming conflicts with public methods)
+  private readonly mediaResource: MediaResource;
+  private readonly usersResource: UsersResource;
+  private readonly settingsResource: SettingsResource;
+  private readonly commentsResource: CommentsResource;
+  private readonly genericResourcesRegistry: GenericResourceRegistry;
+  private readonly abilityMethods: ReturnType<typeof createAbilityMethods>;
+  private readonly discoveryMethods: DiscoveryMethods;
 
-	/**
-	 * Creates a new WordPress API client.
-	 */
-	constructor(config: WordPressClientConfig) {
-		// Initialize transport layer
-		this.transport = new WordPressTransport({
-			baseUrl: config.baseUrl,
-			auth: config.authHeader ? config.authHeader : config.auth,
-			authHeaders: config.authHeaders,
-			cookies: config.cookies,
-			credentials: config.credentials,
-			fetch: config.fetch,
-			onRequest: config.onRequest,
-		});
+  /**
+   * Creates a new WordPress API client.
+   */
+  constructor(config: WordPressClientConfig) {
+    // Initialize transport layer
+    this.transport = new WordPressTransport({
+      auth: config.authHeader ? config.authHeader : config.auth,
+      authHeaders: config.authHeaders,
+      baseUrl: config.baseUrl,
+      cookies: config.cookies,
+      credentials: config.credentials,
+      fetch: config.fetch,
+      onRequest: config.onRequest,
+    });
 
-		// Create runtime interface
-		this.runtime = createRuntime(this.transport);
+    // Create runtime interface
+    this.runtime = createRuntime(this.transport);
 
-		// Initialize resource instances
-		this.mediaResource = MediaResource.create(this.runtime);
-		this.usersResource = UsersResource.create(this.runtime);
-		this.settingsResource = SettingsResource.create(this.runtime);
-		this.commentsResource = CommentsResource.create(this.runtime);
-		this.discoveryMethods = createDiscoveryMethods(this.runtime);
+    // Initialize resource instances
+    this.mediaResource = MediaResource.create(this.runtime);
+    this.usersResource = UsersResource.create(this.runtime);
+    this.settingsResource = SettingsResource.create(this.runtime);
+    this.commentsResource = CommentsResource.create(this.runtime);
+    this.discoveryMethods = createDiscoveryMethods(this.runtime);
 
-		this.genericResourcesRegistry = new GenericResourceRegistry({
-			runtime: this.runtime,
-			discoveryMethods: this.discoveryMethods,
-		});
-		this.abilityMethods = createAbilityMethods({
-			fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
-			request: this.runtime.request.bind(this.runtime),
-			describeAbility: (name, options) =>
-				this.discoveryMethods.describeAbility(name, options),
-		});
-	}
+    this.genericResourcesRegistry = new GenericResourceRegistry({
+      discoveryMethods: this.discoveryMethods,
+      runtime: this.runtime,
+    });
+    this.abilityMethods = createAbilityMethods({
+      describeAbility: (name, options) =>
+        this.discoveryMethods.describeAbility(name, options),
+      fetchAPI: this.runtime.fetchAPI.bind(this.runtime),
+      request: this.runtime.request.bind(this.runtime),
+    });
+  }
 
-	// ============= TRANSPORT FACADE =============
+  // ============= TRANSPORT FACADE =============
 
-	/**
-	 * Sets headers used by all subsequent requests from this client instance.
-	 */
-	setHeaders(name: string, value: string): this;
-	setHeaders(headers: Record<string, string>): this;
-	setHeaders(
-		nameOrHeaders: string | Record<string, string>,
-		value?: string,
-	): this {
-		if (typeof nameOrHeaders === "string") {
-			this.transport.setHeaders(nameOrHeaders, value ?? "");
-		} else {
-			this.transport.setHeaders(nameOrHeaders);
-		}
-		return this;
-	}
+  /**
+   * Sets headers used by all subsequent requests from this client instance.
+   */
+  setHeaders(name: string, value: string): this;
+  setHeaders(headers: Record<string, string>): this;
+  setHeaders(
+    nameOrHeaders: string | Record<string, string>,
+    value?: string,
+  ): this {
+    if (typeof nameOrHeaders === "string") {
+      this.transport.setHeaders(nameOrHeaders, value ?? "");
+    } else {
+      this.transport.setHeaders(nameOrHeaders);
+    }
+    return this;
+  }
 
-	/**
-	 * Returns whether authentication is configured on this client instance.
-	 */
-	hasAuth(): boolean {
-		return this.runtime.hasAuth();
-	}
+  /**
+   * Returns whether authentication is configured on this client instance.
+   */
+  hasAuth(): boolean {
+    return this.runtime.hasAuth();
+  }
 
-	/**
-	 * Returns the internal runtime interface for use by add-on subpackages.
-	 */
-	getRuntime(): WordPressRuntime {
-		return this.runtime;
-	}
+  /**
+   * Returns the internal runtime interface for use by add-on subpackages.
+   */
+  getRuntime(): WordPressRuntime {
+    return this.runtime;
+  }
 
-	/**
-	 * Executes one low-level WordPress request.
-	 */
-	request<T = unknown>(
-		options: WordPressRequestOptions,
-	): Promise<WordPressRequestResult<T>> {
-		return this.runtime.request(options);
-	}
+  /**
+   * Executes one low-level WordPress request.
+   */
+  request<T = unknown>(
+    options: WordPressRequestOptions,
+  ): Promise<WordPressRequestResult<T>> {
+    return this.runtime.request(options);
+  }
 
-	// ============= FIRST-CLASS RESOURCE API =============
+  // ============= FIRST-CLASS RESOURCE API =============
 
-	media(): MediaResourceClient<
-		WordPressMedia,
-		ExtensibleFilter<MediaFilter>,
-		WordPressWritePayload,
-		WordPressWritePayload
-	> {
-		return createMediaClient(this.mediaResource, (options) =>
-			this.discoveryMethods.describeResource("media", options),
-		);
-	}
+  media(): MediaResourceClient<
+    WordPressMedia,
+    ExtensibleFilter<MediaFilter>,
+    WordPressWritePayload,
+    WordPressWritePayload
+  > {
+    return createMediaClient(this.mediaResource, (options) =>
+      this.discoveryMethods.describeResource("media", options),
+    );
+  }
 
-	comments(): CommentsResourceClient<
-		WordPressComment,
-		ExtensibleFilter<CommentsFilter>,
-		WordPressWritePayload,
-		WordPressWritePayload
-	> {
-		return createCommentsClient(this.commentsResource, (options) =>
-			this.discoveryMethods.describeResource("comments", options),
-		);
-	}
+  comments(): CommentsResourceClient<
+    WordPressComment,
+    ExtensibleFilter<CommentsFilter>,
+    WordPressWritePayload,
+    WordPressWritePayload
+  > {
+    return createCommentsClient(this.commentsResource, (options) =>
+      this.discoveryMethods.describeResource("comments", options),
+    );
+  }
 
-	users(): UsersResourceClient<
-		WordPressAuthor,
-		ExtensibleFilter<UsersFilter>,
-		UserWriteInput,
-		UserWriteInput
-	> {
-		return createUsersClient(this.usersResource, (options) =>
-			this.discoveryMethods.describeResource("users", options),
-		);
-	}
+  users(): UsersResourceClient<
+    WordPressAuthor,
+    ExtensibleFilter<UsersFilter>,
+    UserWriteInput,
+    UserWriteInput
+  > {
+    return createUsersClient(this.usersResource, (options) =>
+      this.discoveryMethods.describeResource("users", options),
+    );
+  }
 
-	settings(): SettingsResourceClient<WordPressSettings> {
-		return createSettingsClient(this.settingsResource, (options) =>
-			this.discoveryMethods.describeResource("settings", options),
-		);
-	}
+  settings(): SettingsResourceClient<WordPressSettings> {
+    return createSettingsClient(this.settingsResource, (options) =>
+      this.discoveryMethods.describeResource("settings", options),
+    );
+  }
 
-	// ============= GENERIC CONTENT API =============
+  // ============= GENERIC CONTENT API =============
 
-	content(
-		resource: "posts",
-	): ContentResourceClient<
-		WordPressPost,
-		ExtensibleFilter<PostsFilter>,
-		WordPressPostWriteBase,
-		WordPressPostWriteBase
-	>;
-	content(
-		resource: "pages",
-	): ContentResourceClient<
-		WordPressPage,
-		ExtensibleFilter<PagesFilter>,
-		WordPressPostWriteBase,
-		WordPressPostWriteBase
-	>;
-	content<TResource extends WordPressPostLike = WordPressPostLike>(
-		resource: string,
-	): ContentResourceClient<
-		TResource,
-		QueryParams & PaginationParams,
-		WordPressWritePayload,
-		WordPressWritePayload
-	>;
-	content<TResource extends WordPressPostLike = WordPressPostLike>(
-		resource: string,
-	): ContentResourceClient<
-		TResource,
-		QueryParams & PaginationParams,
-		WordPressWritePayload,
-		WordPressWritePayload
-	> {
-		return this.genericResourcesRegistry.content(resource);
-	}
+  content(
+    resource: "posts",
+  ): ContentResourceClient<
+    WordPressPost,
+    ExtensibleFilter<PostsFilter>,
+    WordPressPostWriteBase,
+    WordPressPostWriteBase
+  >;
+  content(
+    resource: "pages",
+  ): ContentResourceClient<
+    WordPressPage,
+    ExtensibleFilter<PagesFilter>,
+    WordPressPostWriteBase,
+    WordPressPostWriteBase
+  >;
+  content<TResource extends WordPressPostLike = WordPressPostLike>(
+    resource: string,
+  ): ContentResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    WordPressWritePayload,
+    WordPressWritePayload
+  >;
+  content<TResource extends WordPressPostLike = WordPressPostLike>(
+    resource: string,
+  ): ContentResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    WordPressWritePayload,
+    WordPressWritePayload
+  > {
+    return this.genericResourcesRegistry.content(resource);
+  }
 
-	// ============= GENERIC TERMS API =============
+  // ============= GENERIC TERMS API =============
 
-	terms(
-		resource: "categories",
-	): TermsResourceClient<
-		WordPressCategory,
-		ExtensibleFilter<CategoriesFilter>,
-		TermWriteInput,
-		TermWriteInput
-	>;
-	terms(
-		resource: "tags",
-	): TermsResourceClient<
-		WordPressTag,
-		ExtensibleFilter<TagsFilter>,
-		TermWriteInput,
-		TermWriteInput
-	>;
-	terms<TResource = WordPressCategory>(
-		resource: string,
-	): TermsResourceClient<
-		TResource,
-		QueryParams & PaginationParams,
-		TermWriteInput,
-		TermWriteInput
-	>;
-	terms<TResource = WordPressCategory>(
-		resource: string,
-	): TermsResourceClient<
-		TResource,
-		QueryParams & PaginationParams,
-		TermWriteInput,
-		TermWriteInput
-	> {
-		return this.genericResourcesRegistry.terms(resource);
-	}
+  terms(
+    resource: "categories",
+  ): TermsResourceClient<
+    WordPressCategory,
+    ExtensibleFilter<CategoriesFilter>,
+    TermWriteInput,
+    TermWriteInput
+  >;
+  terms(
+    resource: "tags",
+  ): TermsResourceClient<
+    WordPressTag,
+    ExtensibleFilter<TagsFilter>,
+    TermWriteInput,
+    TermWriteInput
+  >;
+  terms<TResource = WordPressCategory>(
+    resource: string,
+  ): TermsResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    TermWriteInput,
+    TermWriteInput
+  >;
+  terms<TResource = WordPressCategory>(
+    resource: string,
+  ): TermsResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    TermWriteInput,
+    TermWriteInput
+  > {
+    return this.genericResourcesRegistry.terms(resource);
+  }
 
-	// ============= CROSS-RESOURCE SEARCH =============
+  // ============= CROSS-RESOURCE SEARCH =============
 
-	/**
-	 * Performs a typed cross-resource search against the /wp/v2/search endpoint.
-	 */
-	async searchContent<TResult = WordPressSearchResult>(
-		query: string,
-		filter?: Omit<SearchFilter, "search">,
-		options?: WordPressRequestOverrides,
-	): Promise<TResult[]> {
-		const params = filterToParams({ ...filter, search: query });
-		return this.runtime.fetchAPI<TResult[]>("/search", params, options);
-	}
+  /**
+   * Performs a typed cross-resource search against the /wp/v2/search endpoint.
+   */
+  async searchContent<TResult = WordPressSearchResult>(
+    query: string,
+    filter?: Omit<SearchFilter, "search">,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResult[]> {
+    const params = filterToParams({ ...filter, search: query });
+    return this.runtime.fetchAPI<TResult[]>("/search", params, options);
+  }
 
-	// ============= ABILITIES API =============
+  // ============= ABILITIES API =============
 
-	/**
-	 * Starts a fluent REST ability builder.
-	 */
-	ability<TInput = unknown, TOutput = unknown>(
-		name: string,
-	): WordPressAbilityBuilder<TInput, TOutput> {
-		return this.abilityMethods.ability<TInput, TOutput>(name);
-	}
+  /**
+   * Starts a fluent REST ability builder.
+   */
+  ability<TInput = unknown, TOutput = unknown>(
+    name: string,
+  ): WordPressAbilityBuilder<TInput, TOutput> {
+    return this.abilityMethods.ability<TInput, TOutput>(name);
+  }
 
-	/**
-	 * Lists all registered abilities exposed to the current caller.
-	 */
-	async getAbilities(options?: WordPressRequestOverrides) {
-		return this.abilityMethods.getAbilities(options);
-	}
+  /**
+   * Lists all registered abilities exposed to the current caller.
+   */
+  async getAbilities(options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbilities(options);
+  }
 
-	/**
-	 * Fetches metadata for one registered ability.
-	 */
-	async getAbility(name: string, options?: WordPressRequestOverrides) {
-		return this.abilityMethods.getAbility(name, options);
-	}
+  /**
+   * Fetches metadata for one registered ability.
+   */
+  async getAbility(name: string, options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbility(name, options);
+  }
 
-	/**
-	 * Lists all ability categories exposed to the current caller.
-	 */
-	async getAbilityCategories(options?: WordPressRequestOverrides) {
-		return this.abilityMethods.getAbilityCategories(options);
-	}
+  /**
+   * Lists all ability categories exposed to the current caller.
+   */
+  async getAbilityCategories(options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbilityCategories(options);
+  }
 
-	/**
-	 * Fetches one ability category by slug.
-	 */
-	async getAbilityCategory(slug: string, options?: WordPressRequestOverrides) {
-		return this.abilityMethods.getAbilityCategory(slug, options);
-	}
+  /**
+   * Fetches one ability category by slug.
+   */
+  async getAbilityCategory(slug: string, options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbilityCategory(slug, options);
+  }
 
-	/**
-	 * Executes one read-only ability through GET /run.
-	 */
-	async executeGetAbility<TOutput = unknown>(
-		name: string,
-		input?: unknown,
-		options?: WordPressRequestOverrides,
-	): Promise<TOutput> {
-		return this.abilityMethods.executeGetAbility(name, input, options);
-	}
+  /**
+   * Executes one read-only ability through GET /run.
+   */
+  async executeGetAbility<TOutput = unknown>(
+    name: string,
+    input?: unknown,
+    options?: WordPressRequestOverrides,
+  ): Promise<TOutput> {
+    return this.abilityMethods.executeGetAbility(name, input, options);
+  }
 
-	/**
-	 * Executes one regular ability through POST /run.
-	 */
-	async executeRunAbility<TOutput = unknown>(
-		name: string,
-		input?: unknown,
-		options?: WordPressRequestOverrides,
-	): Promise<TOutput> {
-		return this.abilityMethods.executeRunAbility(name, input, options);
-	}
+  /**
+   * Executes one regular ability through POST /run.
+   */
+  async executeRunAbility<TOutput = unknown>(
+    name: string,
+    input?: unknown,
+    options?: WordPressRequestOverrides,
+  ): Promise<TOutput> {
+    return this.abilityMethods.executeRunAbility(name, input, options);
+  }
 
-	/**
-	 * Executes one destructive ability through DELETE /run.
-	 */
-	async executeDeleteAbility<TOutput = unknown>(
-		name: string,
-		input?: unknown,
-		options?: WordPressRequestOverrides,
-	): Promise<TOutput> {
-		return this.abilityMethods.executeDeleteAbility(name, input, options);
-	}
+  /**
+   * Executes one destructive ability through DELETE /run.
+   */
+  async executeDeleteAbility<TOutput = unknown>(
+    name: string,
+    input?: unknown,
+    options?: WordPressRequestOverrides,
+  ): Promise<TOutput> {
+    return this.abilityMethods.executeDeleteAbility(name, input, options);
+  }
 
-	// ============= DISCOVERY API =============
+  // ============= DISCOVERY API =============
 
-	/**
-	 * Seeds the internal discovery cache from an externally supplied catalog.
-	 *
-	 * Enables a "explore once, store anywhere, restore later" pattern so
-	 * expensive `OPTIONS` discovery requests are only made when needed:
-	 *
-	 * ```typescript
-	 * // First run: explore and persist
-	 * const catalog = await wp.explore();
-	 * await kv.set('wp:catalog', JSON.stringify(catalog));
-	 *
-	 * // Subsequent runs: restore from storage
-	 * const stored = JSON.parse(await kv.get('wp:catalog') ?? 'null');
-	 * if (stored) wp.useCatalog(stored);
-	 *
-	 * // describe() now uses the seeded cache — no network round-trip needed
-	 * const desc = await wp.content('pages').describe();
-	 * console.log(desc.capabilities.queryParams); // ['page', 'per_page', 'lang', ...]
-	 * ```
-	 *
-	 * Returns `this` so the call can be chained after construction.
-	 */
-	useCatalog(catalog: WordPressDiscoveryCatalog): this {
-		this.discoveryMethods.seedCatalog(catalog);
-		return this;
-	}
+  /**
+   * Seeds the internal discovery cache from an externally supplied catalog.
+   *
+   * Enables a "explore once, store anywhere, restore later" pattern so
+   * expensive `OPTIONS` discovery requests are only made when needed:
+   *
+   * ```typescript
+   * // First run: explore and persist
+   * const catalog = await wp.explore();
+   * await kv.set('wp:catalog', JSON.stringify(catalog));
+   *
+   * // Subsequent runs: restore from storage
+   * const stored = JSON.parse(await kv.get('wp:catalog') ?? 'null');
+   * if (stored) wp.useCatalog(stored);
+   *
+   * // describe() now uses the seeded cache — no network round-trip needed
+   * const desc = await wp.content('pages').describe();
+   * console.log(desc.capabilities.queryParams); // ['page', 'per_page', 'lang', ...]
+   * ```
+   *
+   * Returns `this` so the call can be chained after construction.
+   */
+  useCatalog(catalog: WordPressDiscoveryCatalog): this {
+    this.discoveryMethods.seedCatalog(catalog);
+    return this;
+  }
 
-	/**
-	 * Returns the currently cached discovery catalog snapshot when available.
-	 *
-	 * This is synchronous and never performs network discovery. It returns the
-	 * full cached catalog when one exists, or a partial snapshot assembled from
-	 * previously described resources and abilities.
-	 */
-	getCachedCatalog(): WordPressDiscoveryCatalog | undefined {
-		return this.discoveryMethods.getCatalogSnapshot();
-	}
+  /**
+   * Returns the currently cached discovery catalog snapshot when available.
+   *
+   * This is synchronous and never performs network discovery. It returns the
+   * full cached catalog when one exists, or a partial snapshot assembled from
+   * previously described resources and abilities.
+   */
+  getCachedCatalog(): WordPressDiscoveryCatalog | undefined {
+    return this.discoveryMethods.getCatalogSnapshot();
+  }
 
-	/**
-	 * Explores and catalogs all discoverable resources and abilities.
-	 *
-	 * Discovery exposes JSON Schema shapes for upstream introspection,
-	 * AI/tool generation, and schema-aware integrations.
-	 *
-	 * @example
-	 * ```typescript
-	 * // Discover everything
-	 * const catalog = await wp.explore();
-	 *
-	 * // Force refresh
-	 * const fresh = await wp.explore({ refresh: true });
-	 *
-	 * // Limit to specific kinds
-	 * const contentOnly = await wp.explore({ include: ['content'] });
-	 * ```
-	 */
-	async explore(
-		options?: WordPressDiscoveryOptions & WordPressRequestOverrides,
-	): Promise<WordPressDiscoveryCatalog> {
-		return this.discoveryMethods.explore(options);
-	}
+  /**
+   * Explores and catalogs all discoverable resources and abilities.
+   *
+   * Discovery exposes JSON Schema shapes for upstream introspection,
+   * AI/tool generation, and schema-aware integrations.
+   *
+   * @example
+   * ```typescript
+   * // Discover everything
+   * const catalog = await wp.explore();
+   *
+   * // Force refresh
+   * const fresh = await wp.explore({ refresh: true });
+   *
+   * // Limit to specific kinds
+   * const contentOnly = await wp.explore({ include: ['content'] });
+   * ```
+   */
+  async explore(
+    options?: WordPressDiscoveryOptions & WordPressRequestOverrides,
+  ): Promise<WordPressDiscoveryCatalog> {
+    return this.discoveryMethods.explore(options);
+  }
 
-	// ============= AUTHENTICATION HELPERS =============
+  // ============= AUTHENTICATION HELPERS =============
 
-	/**
-	 * Performs username/password JWT login against the WP JWT plugin endpoint.
-	 */
-	async loginWithJwt(
-		credentials: JwtLoginCredentials,
-		options?: WordPressRequestOverrides,
-	): Promise<JwtAuthTokenResponse> {
-		return this.transport.loginWithJwt(credentials, options);
-	}
+  /**
+   * Performs username/password JWT login against the WP JWT plugin endpoint.
+   */
+  async loginWithJwt(
+    credentials: JwtLoginCredentials,
+    options?: WordPressRequestOverrides,
+  ): Promise<JwtAuthTokenResponse> {
+    return this.transport.loginWithJwt(credentials, options);
+  }
 
-	/**
-	 * Validates one JWT token with the WP JWT plugin endpoint.
-	 */
-	async validateJwtToken(
-		token?: string | JwtAuthCredentials,
-		options?: WordPressRequestOverrides,
-	): Promise<JwtAuthValidationResponse> {
-		return this.transport.validateJwtToken(token, options);
-	}
+  /**
+   * Validates one JWT token with the WP JWT plugin endpoint.
+   */
+  async validateJwtToken(
+    token?: string | JwtAuthCredentials,
+    options?: WordPressRequestOverrides,
+  ): Promise<JwtAuthValidationResponse> {
+    return this.transport.validateJwtToken(token, options);
+  }
 }

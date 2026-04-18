@@ -5,10 +5,10 @@ import type { WordPressRequestOverrides } from "../types/resources.js";
  * Fallback describe handler used when discovery wiring is unavailable.
  */
 export function describeUnavailable(
-	options?: WordPressRequestOverrides,
+  options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
-	void options;
-	return Promise.reject(
-		new Error("describe() not available for this resource"),
-	);
+  void options;
+  return Promise.reject(
+    new Error("describe() not available for this resource"),
+  );
 }

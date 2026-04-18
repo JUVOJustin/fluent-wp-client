@@ -1,6 +1,6 @@
 import {
-	resolveWordPressRawContent,
-	type WordPressRawContentResult,
+  resolveWordPressRawContent,
+  type WordPressRawContentResult,
 } from "../content-query.js";
 import { ExecutableQuery } from "../core/query-base.js";
 import type { WordPressPost, WordPressPostLike } from "../schemas.js";
@@ -9,7 +9,7 @@ import type { WordPressPost, WordPressPostLike } from "../schemas.js";
  * Options controlling how one content item is loaded.
  */
 interface ContentItemLoadOptions {
-	embed?: boolean | string[];
+  embed?: boolean | string[];
 }
 
 /**
@@ -34,122 +34,122 @@ interface ContentItemLoadOptions {
  * ```
  */
 export class ContentItemQuery<
-	TContent extends WordPressPostLike = WordPressPost,
+  TContent extends WordPressPostLike = WordPressPost,
 > extends ExecutableQuery<TContent | undefined> {
-	private readonly missingRawMessage: string;
-	private viewPromise: Promise<TContent | undefined> | undefined;
-	private editPromise: Promise<TContent | undefined> | undefined;
+  private readonly missingRawMessage: string;
+  private viewPromise: Promise<TContent | undefined> | undefined;
+  private editPromise: Promise<TContent | undefined> | undefined;
 
-	constructor(
-		private readonly selector: { id?: number; slug?: string },
-		private readonly getById: (
-			id: number,
-			options?: ContentItemLoadOptions,
-		) => PromiseLike<TContent>,
-		private readonly getBySlug: (
-			slug: string,
-			options?: ContentItemLoadOptions,
-		) => PromiseLike<TContent | undefined>,
-		private readonly embedOption: boolean | string[] | undefined,
-		private readonly editOptions?: {
-			getEditById?: (id: number, fields?: string[]) => PromiseLike<TContent>;
-			getEditBySlug?: (
-				slug: string,
-				fields?: string[],
-			) => PromiseLike<TContent | undefined>;
-			missingRawMessage?: string;
-		},
-	) {
-		super();
-		this.missingRawMessage =
-			editOptions?.missingRawMessage ??
-			"Raw content is unavailable. The current credentials may not have edit capabilities for this content item.";
-	}
+  constructor(
+    private readonly selector: { id?: number; slug?: string },
+    private readonly getById: (
+      id: number,
+      options?: ContentItemLoadOptions,
+    ) => PromiseLike<TContent>,
+    private readonly getBySlug: (
+      slug: string,
+      options?: ContentItemLoadOptions,
+    ) => PromiseLike<TContent | undefined>,
+    private readonly embedOption: boolean | string[] | undefined,
+    private readonly editOptions?: {
+      getEditById?: (id: number, fields?: string[]) => PromiseLike<TContent>;
+      getEditBySlug?: (
+        slug: string,
+        fields?: string[],
+      ) => PromiseLike<TContent | undefined>;
+      missingRawMessage?: string;
+    },
+  ) {
+    super();
+    this.missingRawMessage =
+      editOptions?.missingRawMessage ??
+      "Raw content is unavailable. The current credentials may not have edit capabilities for this content item.";
+  }
 
-	// ---------------------------------------------------------------------------
-	// View-context loading
-	// ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // View-context loading
+  // ---------------------------------------------------------------------------
 
-	private async loadItemOnce(): Promise<TContent | undefined> {
-		const opts: ContentItemLoadOptions | undefined =
-			this.embedOption !== undefined ? { embed: this.embedOption } : undefined;
+  private async loadItemOnce(): Promise<TContent | undefined> {
+    const opts: ContentItemLoadOptions | undefined =
+      this.embedOption !== undefined ? { embed: this.embedOption } : undefined;
 
-		if (typeof this.selector.id === "number") {
-			return this.getById(this.selector.id, opts);
-		}
+    if (typeof this.selector.id === "number") {
+      return this.getById(this.selector.id, opts);
+    }
 
-		if (typeof this.selector.slug === "string") {
-			return this.getBySlug(this.selector.slug, opts);
-		}
+    if (typeof this.selector.slug === "string") {
+      return this.getBySlug(this.selector.slug, opts);
+    }
 
-		return undefined;
-	}
+    return undefined;
+  }
 
-	private loadItem(): Promise<TContent | undefined> {
-		if (!this.viewPromise) {
-			this.viewPromise = this.loadItemOnce();
-		}
+  private loadItem(): Promise<TContent | undefined> {
+    if (!this.viewPromise) {
+      this.viewPromise = this.loadItemOnce();
+    }
 
-		return this.viewPromise;
-	}
+    return this.viewPromise;
+  }
 
-	// ---------------------------------------------------------------------------
-	// Edit-context loading (raw content)
-	// ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Edit-context loading (raw content)
+  // ---------------------------------------------------------------------------
 
-	private async loadEditableItemOnce(): Promise<TContent | undefined> {
-		if (typeof this.selector.id === "number" && this.editOptions?.getEditById) {
-			return this.editOptions.getEditById(this.selector.id, ["id", "content"]);
-		}
+  private async loadEditableItemOnce(): Promise<TContent | undefined> {
+    if (typeof this.selector.id === "number" && this.editOptions?.getEditById) {
+      return this.editOptions.getEditById(this.selector.id, ["id", "content"]);
+    }
 
-		if (
-			typeof this.selector.slug === "string" &&
-			this.editOptions?.getEditBySlug
-		) {
-			return this.editOptions.getEditBySlug(this.selector.slug, [
-				"id",
-				"content",
-			]);
-		}
+    if (
+      typeof this.selector.slug === "string" &&
+      this.editOptions?.getEditBySlug
+    ) {
+      return this.editOptions.getEditBySlug(this.selector.slug, [
+        "id",
+        "content",
+      ]);
+    }
 
-		return undefined;
-	}
+    return undefined;
+  }
 
-	private loadEditableItem(): Promise<TContent | undefined> {
-		if (!this.editPromise) {
-			this.editPromise = this.loadEditableItemOnce();
-		}
+  private loadEditableItem(): Promise<TContent | undefined> {
+    if (!this.editPromise) {
+      this.editPromise = this.loadEditableItemOnce();
+    }
 
-		return this.editPromise;
-	}
+    return this.editPromise;
+  }
 
-	// ---------------------------------------------------------------------------
-	// Public API
-	// ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
 
-	/**
-	 * Resolves raw and rendered content from an edit-context request.
-	 *
-	 * Requires authentication with edit capabilities. Used by the
-	 * `fluent-wp-client/blocks` add-on for Gutenberg block parsing.
-	 */
-	async getContent(): Promise<WordPressRawContentResult | undefined> {
-		const post = await this.loadEditableItem();
+  /**
+   * Resolves raw and rendered content from an edit-context request.
+   *
+   * Requires authentication with edit capabilities. Used by the
+   * `fluent-wp-client/blocks` add-on for Gutenberg block parsing.
+   */
+  async getContent(): Promise<WordPressRawContentResult | undefined> {
+    const post = await this.loadEditableItem();
 
-		if (!post) {
-			return undefined;
-		}
+    if (!post) {
+      return undefined;
+    }
 
-		return resolveWordPressRawContent(
-			post as WordPressPostLike,
-			this.missingRawMessage,
-		);
-	}
+    return resolveWordPressRawContent(
+      post as WordPressPostLike,
+      this.missingRawMessage,
+    );
+  }
 
-	/**
-	 * Executes the view-context query. Memoized for repeated awaits.
-	 */
-	protected execute(): Promise<TContent | undefined> {
-		return this.loadItem();
-	}
+  /**
+   * Executes the view-context query. Memoized for repeated awaits.
+   */
+  protected execute(): Promise<TContent | undefined> {
+    return this.loadItem();
+  }
 }

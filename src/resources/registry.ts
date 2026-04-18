@@ -2,19 +2,19 @@ import type { WordPressRuntime } from "../core/transport.js";
 import { createDiscoveryMethods, type DiscoveryMethods } from "../discovery.js";
 import type { WordPressCategory, WordPressPostLike } from "../schemas.js";
 import type {
-	TermWriteInput,
-	WordPressWritePayload,
+  TermWriteInput,
+  WordPressWritePayload,
 } from "../types/payloads.js";
 import type {
-	ContentResourceClient,
-	PaginationParams,
-	QueryParams,
-	TermsResourceClient,
+  ContentResourceClient,
+  PaginationParams,
+  QueryParams,
+  TermsResourceClient,
 } from "../types/resources.js";
 import {
-	createContentClient,
-	GenericContentResource,
-	knownContentDefaults,
+  createContentClient,
+  GenericContentResource,
+  knownContentDefaults,
 } from "./content.js";
 import { createTermsClient, GenericTermResource } from "./terms.js";
 
@@ -22,86 +22,86 @@ import { createTermsClient, GenericTermResource } from "./terms.js";
  * Runtime dependencies required for generic content and term resources.
  */
 export interface GenericResourceContext {
-	runtime: WordPressRuntime;
-	discoveryMethods?: DiscoveryMethods;
+  discoveryMethods?: DiscoveryMethods;
+  runtime: WordPressRuntime;
 }
 
 /**
  * Registry for managing generic content and term resources.
  */
 export class GenericResourceRegistry {
-	private readonly contentCache = new Map<string, GenericContentResource>();
-	private readonly termCache = new Map<string, GenericTermResource>();
-	private readonly discoveryMethods: ReturnType<typeof createDiscoveryMethods>;
+  private readonly contentCache = new Map<string, GenericContentResource>();
+  private readonly termCache = new Map<string, GenericTermResource>();
+  private readonly discoveryMethods: ReturnType<typeof createDiscoveryMethods>;
 
-	constructor(private readonly context: GenericResourceContext) {
-		this.discoveryMethods =
-			context.discoveryMethods ?? createDiscoveryMethods(context.runtime);
-	}
+  constructor(private readonly context: GenericResourceContext) {
+    this.discoveryMethods =
+      context.discoveryMethods ?? createDiscoveryMethods(context.runtime);
+  }
 
-	/**
-	 * Gets or creates one post-like content resource client.
-	 */
-	content<TResource extends WordPressPostLike = WordPressPostLike>(
-		resource: string,
-	): ContentResourceClient<
-		TResource,
-		QueryParams & PaginationParams,
-		WordPressWritePayload,
-		WordPressWritePayload
-	> {
-		const cacheKey = `${resource}:raw`;
-		let baseResource = this.contentCache.get(cacheKey) as
-			| GenericContentResource<TResource>
-			| undefined;
+  /**
+   * Gets or creates one post-like content resource client.
+   */
+  content<TResource extends WordPressPostLike = WordPressPostLike>(
+    resource: string,
+  ): ContentResourceClient<
+    TResource,
+    QueryParams & PaginationParams,
+    WordPressWritePayload,
+    WordPressWritePayload
+  > {
+    const cacheKey = `${resource}:raw`;
+    let baseResource = this.contentCache.get(cacheKey) as
+      | GenericContentResource<TResource>
+      | undefined;
 
-		if (!baseResource) {
-			const defaults =
-				knownContentDefaults[resource as keyof typeof knownContentDefaults];
+    if (!baseResource) {
+      const defaults =
+        knownContentDefaults[resource as keyof typeof knownContentDefaults];
 
-			baseResource = new GenericContentResource<TResource>({
-				runtime: this.context.runtime,
-				endpoint: `/${resource}`,
-				missingRawMessage:
-					defaults?.missingRawMessage ??
-					`Raw ${resource} content is unavailable. The current credentials may not have edit capabilities.`,
-			});
+      baseResource = new GenericContentResource<TResource>({
+        endpoint: `/${resource}`,
+        missingRawMessage:
+          defaults?.missingRawMessage ??
+          `Raw ${resource} content is unavailable. The current credentials may not have edit capabilities.`,
+        runtime: this.context.runtime,
+      });
 
-			this.contentCache.set(cacheKey, baseResource as GenericContentResource);
-		}
+      this.contentCache.set(cacheKey, baseResource as GenericContentResource);
+    }
 
-		return createContentClient(baseResource, (options) =>
-			this.discoveryMethods.describeContent(resource, options),
-		);
-	}
+    return createContentClient(baseResource, (options) =>
+      this.discoveryMethods.describeContent(resource, options),
+    );
+  }
 
-	/**
-	 * Gets or creates one generic term resource client.
-	 */
-	terms<TTerm = WordPressCategory>(
-		resource: string,
-	): TermsResourceClient<
-		TTerm,
-		QueryParams & PaginationParams,
-		TermWriteInput,
-		TermWriteInput
-	> {
-		const cacheKey = `${resource}:raw`;
-		let baseResource = this.termCache.get(cacheKey) as
-			| GenericTermResource<TTerm>
-			| undefined;
+  /**
+   * Gets or creates one generic term resource client.
+   */
+  terms<TTerm = WordPressCategory>(
+    resource: string,
+  ): TermsResourceClient<
+    TTerm,
+    QueryParams & PaginationParams,
+    TermWriteInput,
+    TermWriteInput
+  > {
+    const cacheKey = `${resource}:raw`;
+    let baseResource = this.termCache.get(cacheKey) as
+      | GenericTermResource<TTerm>
+      | undefined;
 
-		if (!baseResource) {
-			baseResource = new GenericTermResource<TTerm>({
-				runtime: this.context.runtime,
-				endpoint: `/${resource}`,
-			});
+    if (!baseResource) {
+      baseResource = new GenericTermResource<TTerm>({
+        endpoint: `/${resource}`,
+        runtime: this.context.runtime,
+      });
 
-			this.termCache.set(cacheKey, baseResource as GenericTermResource);
-		}
+      this.termCache.set(cacheKey, baseResource as GenericTermResource);
+    }
 
-		return createTermsClient(baseResource, (options) =>
-			this.discoveryMethods.describeTerm(resource, options),
-		);
-	}
+    return createTermsClient(baseResource, (options) =>
+      this.discoveryMethods.describeTerm(resource, options),
+    );
+  }
 }

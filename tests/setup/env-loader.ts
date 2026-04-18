@@ -8,12 +8,12 @@ import { readFileSync } from "fs";
 const envFile = new URL("../../.test-env.json", import.meta.url);
 
 try {
-	const raw = readFileSync(envFile, "utf-8");
-	const vars = JSON.parse(raw) as Record<string, string>;
-	Object.assign(process.env, vars);
+  const raw = readFileSync(envFile, "utf-8");
+  const vars = JSON.parse(raw) as Record<string, string>;
+  Object.assign(process.env, vars);
 } catch (err) {
-	// Only ignore missing file — all other errors (corrupt JSON, etc.) should surface
-	if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-		throw err;
-	}
+  // Only ignore missing file — all other errors (corrupt JSON, etc.) should surface
+  if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+    throw err;
+  }
 }

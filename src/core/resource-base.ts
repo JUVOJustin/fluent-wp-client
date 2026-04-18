@@ -1,21 +1,21 @@
 import type { WordPressPostBase } from "../schemas.js";
 import type {
-	DeleteOptions,
-	WordPressWritePayload,
+  DeleteOptions,
+  WordPressWritePayload,
 } from "../types/payloads.js";
 import type {
-	PaginatedResponse,
-	PaginationParams,
-	QueryParams,
-	WordPressDeleteResult,
-	WordPressRequestOverrides,
+  PaginatedResponse,
+  PaginationParams,
+  QueryParams,
+  WordPressDeleteResult,
+  WordPressRequestOverrides,
 } from "../types/resources.js";
 import { createWordPressPaginator, type ListAllOptions } from "./pagination.js";
 import {
-	compactPayload,
-	filterToParams,
-	normalizeDeleteResult,
-	resolveEmbedQueryParams,
+  compactPayload,
+  filterToParams,
+  normalizeDeleteResult,
+  resolveEmbedQueryParams,
 } from "./params.js";
 import { applyRequestOverrides } from "./request-overrides.js";
 import type { WordPressRuntime } from "./transport.js";
@@ -24,8 +24,8 @@ import type { WordPressRuntime } from "./transport.js";
  * Dependencies required for resource operations.
  */
 export interface ResourceContext {
-	runtime: WordPressRuntime;
-	endpoint: string;
+  endpoint: string;
+  runtime: WordPressRuntime;
 }
 
 /**
@@ -44,109 +44,109 @@ export type CrudResourceContext = ResourceContext;
  * - getBySlug
  */
 export abstract class BaseCollectionResource<
-	TResource,
-	TFilter extends PaginationParams,
+  TResource,
+  TFilter extends PaginationParams,
 > {
-	protected readonly runtime: WordPressRuntime;
-	protected readonly endpoint: string;
+  protected readonly runtime: WordPressRuntime;
+  protected readonly endpoint: string;
 
-	constructor(context: ResourceContext) {
-		this.runtime = context.runtime;
-		this.endpoint = context.endpoint;
-	}
+  constructor(context: ResourceContext) {
+    this.runtime = context.runtime;
+    this.endpoint = context.endpoint;
+  }
 
-	/**
-	 * Normalizes filter before applying to requests.
-	 * Override in subclasses to add default filters.
-	 */
-	protected normalizeFilter(
-		filter: TFilter | Omit<TFilter, "page">,
-	): QueryParams {
-		return filter as QueryParams;
-	}
+  /**
+   * Normalizes filter before applying to requests.
+   * Override in subclasses to add default filters.
+   */
+  protected normalizeFilter(
+    filter: TFilter | Omit<TFilter, "page">,
+  ): QueryParams {
+    return filter as QueryParams;
+  }
 
-	/**
-	 * Creates a paginator for this resource.
-	 */
-	protected createPaginator() {
-		return createWordPressPaginator<TFilter, TResource>({
-			fetchPage: (currentFilter, context) => {
-				const params = filterToParams(this.normalizeFilter(currentFilter));
-				return this.runtime.fetchAPIPaginated<TResource[]>(
-					this.endpoint,
-					params,
-					context as WordPressRequestOverrides | undefined,
-				);
-			},
-		});
-	}
+  /**
+   * Creates a paginator for this resource.
+   */
+  protected createPaginator() {
+    return createWordPressPaginator<TFilter, TResource>({
+      fetchPage: (currentFilter, context) => {
+        const params = filterToParams(this.normalizeFilter(currentFilter));
+        return this.runtime.fetchAPIPaginated<TResource[]>(
+          this.endpoint,
+          params,
+          context as WordPressRequestOverrides | undefined,
+        );
+      },
+    });
+  }
 
-	/**
-	 * Lists one page of resources.
-	 */
-	async list(
-		filter: TFilter = {} as TFilter,
-		options?: WordPressRequestOverrides,
-	): Promise<TResource[]> {
-		const params = filterToParams(this.normalizeFilter(filter));
-		return this.runtime.fetchAPI<TResource[]>(this.endpoint, params, options);
-	}
+  /**
+   * Lists one page of resources.
+   */
+  async list(
+    filter: TFilter = {} as TFilter,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource[]> {
+    const params = filterToParams(this.normalizeFilter(filter));
+    return this.runtime.fetchAPI<TResource[]>(this.endpoint, params, options);
+  }
 
-	/**
-	 * Lists all resources using automatic pagination with parallel fetching.
-	 */
-	async listAll(
-		filter: Omit<TFilter, "page"> = {} as Omit<TFilter, "page">,
-		options?: WordPressRequestOverrides,
-		listOptions?: ListAllOptions,
-	): Promise<TResource[]> {
-		return this.createPaginator().listAll(filter, options, listOptions);
-	}
+  /**
+   * Lists all resources using automatic pagination with parallel fetching.
+   */
+  async listAll(
+    filter: Omit<TFilter, "page"> = {} as Omit<TFilter, "page">,
+    options?: WordPressRequestOverrides,
+    listOptions?: ListAllOptions,
+  ): Promise<TResource[]> {
+    return this.createPaginator().listAll(filter, options, listOptions);
+  }
 
-	/**
-	 * Lists one page with pagination metadata.
-	 */
-	async listPaginated(
-		filter: TFilter = {} as TFilter,
-		options?: WordPressRequestOverrides,
-	): Promise<PaginatedResponse<TResource>> {
-		return this.createPaginator().listPaginated(filter, options);
-	}
+  /**
+   * Lists one page with pagination metadata.
+   */
+  async listPaginated(
+    filter: TFilter = {} as TFilter,
+    options?: WordPressRequestOverrides,
+  ): Promise<PaginatedResponse<TResource>> {
+    return this.createPaginator().listPaginated(filter, options);
+  }
 
-	/**
-	 * Gets one resource by ID.
-	 */
-	async getById(
-		id: number,
-		options?: WordPressRequestOverrides,
-	): Promise<TResource> {
-		const params = filterToParams(
-			this.normalizeFilter({} as Omit<TFilter, "page">),
-		);
-		return this.runtime.fetchAPI<TResource>(
-			`${this.endpoint}/${id}`,
-			params,
-			options,
-		);
-	}
+  /**
+   * Gets one resource by ID.
+   */
+  async getById(
+    id: number,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource> {
+    const params = filterToParams(
+      this.normalizeFilter({} as Omit<TFilter, "page">),
+    );
+    return this.runtime.fetchAPI<TResource>(
+      `${this.endpoint}/${id}`,
+      params,
+      options,
+    );
+  }
 
-	/**
-	 * Gets one resource by slug.
-	 */
-	async getBySlug(
-		slug: string,
-		options?: WordPressRequestOverrides,
-	): Promise<TResource | undefined> {
-		const params = filterToParams(
-			this.normalizeFilter({ slug } as unknown as TFilter),
-		);
-		const items = await this.runtime.fetchAPI<TResource[]>(
-			this.endpoint,
-			params,
-			options,
-		);
-		return items[0];
-	}
+  /**
+   * Gets one resource by slug.
+   */
+  async getBySlug(
+    slug: string,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource | undefined> {
+    const params = filterToParams(
+      this.normalizeFilter({ slug } as unknown as TFilter),
+    );
+    const items = await this.runtime.fetchAPI<TResource[]>(
+      this.endpoint,
+      params,
+      options,
+    );
+    return items[0];
+  }
 }
 
 /**
@@ -155,97 +155,97 @@ export abstract class BaseCollectionResource<
  * Extends BaseCollectionResource with create, update, and delete.
  */
 export abstract class BaseCrudResource<
-	TResource,
-	TFilter extends PaginationParams,
-	TCreate extends WordPressWritePayload,
-	TUpdate extends WordPressWritePayload = TCreate,
+  TResource,
+  TFilter extends PaginationParams,
+  TCreate extends WordPressWritePayload,
+  TUpdate extends WordPressWritePayload = TCreate,
 > extends BaseCollectionResource<TResource, TFilter> {
-	constructor(context: CrudResourceContext) {
-		super(context);
-	}
+  constructor(context: CrudResourceContext) {
+    super(context);
+  }
 
-	/**
-	 * Executes a mutation request and returns the parsed response data.
-	 * Transport-level error handling (non-2xx, network, parse) is automatic.
-	 */
-	protected async executeMutation<T = TResource>(
-		options: Parameters<WordPressRuntime["request"]>[0],
-	): Promise<T> {
-		const { data } = await this.runtime.request<unknown>(options);
-		return data as T;
-	}
+  /**
+   * Executes a mutation request and returns the parsed response data.
+   * Transport-level error handling (non-2xx, network, parse) is automatic.
+   */
+  protected async executeMutation<T = TResource>(
+    options: Parameters<WordPressRuntime["request"]>[0],
+  ): Promise<T> {
+    const { data } = await this.runtime.request<unknown>(options);
+    return data as T;
+  }
 
-	/**
-	 * Executes one create or update mutation.
-	 */
-	protected mutate(
-		endpoint: string,
-		input: TCreate | TUpdate,
-		options?: WordPressRequestOverrides,
-	): Promise<TResource> {
-		return this.executeMutation<TResource>(
-			applyRequestOverrides(
-				{
-					endpoint,
-					method: "POST",
-					body: compactPayload(input),
-				},
-				options,
-			),
-		);
-	}
+  /**
+   * Executes one create or update mutation.
+   */
+  protected mutate(
+    endpoint: string,
+    input: TCreate | TUpdate,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource> {
+    return this.executeMutation<TResource>(
+      applyRequestOverrides(
+        {
+          body: compactPayload(input),
+          endpoint,
+          method: "POST",
+        },
+        options,
+      ),
+    );
+  }
 
-	/**
-	 * Creates a new resource.
-	 */
-	async create(
-		input: TCreate,
-		options?: WordPressRequestOverrides,
-	): Promise<TResource> {
-		return this.mutate(this.endpoint, input, options);
-	}
+  /**
+   * Creates a new resource.
+   */
+  async create(
+    input: TCreate,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource> {
+    return this.mutate(this.endpoint, input, options);
+  }
 
-	/**
-	 * Updates an existing resource.
-	 */
-	async update(
-		id: number,
-		input: TUpdate,
-		options?: WordPressRequestOverrides,
-	): Promise<TResource> {
-		return this.mutate(`${this.endpoint}/${id}`, input, options);
-	}
+  /**
+   * Updates an existing resource.
+   */
+  async update(
+    id: number,
+    input: TUpdate,
+    options?: WordPressRequestOverrides,
+  ): Promise<TResource> {
+    return this.mutate(`${this.endpoint}/${id}`, input, options);
+  }
 
-	/**
-	 * Deletes a resource.
-	 */
-	async delete(
-		id: number,
-		options: DeleteOptions & WordPressRequestOverrides = {},
-	): Promise<WordPressDeleteResult> {
-		const params = options.force ? { force: "true" } : undefined;
-		const { data } = await this.runtime.request<unknown>(
-			applyRequestOverrides(
-				{
-					endpoint: `${this.endpoint}/${id}`,
-					method: "DELETE",
-					params,
-				},
-				options,
-			),
-		);
+  /**
+   * Deletes a resource.
+   */
+  async delete(
+    id: number,
+    options: DeleteOptions & WordPressRequestOverrides = {},
+  ): Promise<WordPressDeleteResult> {
+    const params = options.force ? { force: "true" } : undefined;
+    const { data } = await this.runtime.request<unknown>(
+      applyRequestOverrides(
+        {
+          endpoint: `${this.endpoint}/${id}`,
+          method: "DELETE",
+          params,
+        },
+        options,
+      ),
+    );
 
-		return normalizeDeleteResult(id, data);
-	}
+    return normalizeDeleteResult(id, data);
+  }
 }
 
 /**
  * Configuration for post-like resources.
  */
 export interface PostLikeResourceContext<
-	TContent extends WordPressPostBase = WordPressPostBase,
+  TContent extends WordPressPostBase = WordPressPostBase,
 > extends CrudResourceContext {
-	missingRawMessage: string;
+  missingRawMessage: string;
 }
 
 /**
@@ -256,74 +256,74 @@ export interface PostLikeResourceContext<
  * - Opt-in `_embed` handling for collection filters
  */
 export abstract class BasePostLikeResource<
-	TContent extends WordPressPostBase,
-	TFilter extends QueryParams & PaginationParams,
-	TCreate extends WordPressWritePayload,
-	TUpdate extends WordPressWritePayload = TCreate,
+  TContent extends WordPressPostBase,
+  TFilter extends QueryParams & PaginationParams,
+  TCreate extends WordPressWritePayload,
+  TUpdate extends WordPressWritePayload = TCreate,
 > extends BaseCrudResource<TContent, TFilter, TCreate, TUpdate> {
-	protected readonly missingRawMessage: string;
+  protected readonly missingRawMessage: string;
 
-	constructor(context: PostLikeResourceContext<TContent>) {
-		super(context);
-		this.missingRawMessage = context.missingRawMessage;
-	}
+  constructor(context: PostLikeResourceContext<TContent>) {
+    super(context);
+    this.missingRawMessage = context.missingRawMessage;
+  }
 
-	/**
-	 * Normalizes public `embed` filters for post-like resources.
-	 */
-	protected override normalizeFilter(
-		filter: TFilter | Omit<TFilter, "page">,
-	): QueryParams {
-		return resolveEmbedQueryParams(filter as QueryParams);
-	}
+  /**
+   * Normalizes public `embed` filters for post-like resources.
+   */
+  protected override normalizeFilter(
+    filter: TFilter | Omit<TFilter, "page">,
+  ): QueryParams {
+    return resolveEmbedQueryParams(filter as QueryParams);
+  }
 
-	/**
-	 * Fetches one post-like record by ID in view or edit context.
-	 */
-	protected fetchContentById(
-		id: number,
-		options?: WordPressRequestOverrides,
-		context?: "edit",
-		embed: boolean | string[] = false,
-		fields?: string[],
-	): Promise<TContent> {
-		const params = filterToParams(
-			resolveEmbedQueryParams(
-				context ? { context, embed, fields } : { embed, fields },
-			),
-			{ applyPerPageDefault: false },
-		);
+  /**
+   * Fetches one post-like record by ID in view or edit context.
+   */
+  protected fetchContentById(
+    id: number,
+    options?: WordPressRequestOverrides,
+    context?: "edit",
+    embed: boolean | string[] = false,
+    fields?: string[],
+  ): Promise<TContent> {
+    const params = filterToParams(
+      resolveEmbedQueryParams(
+        context ? { context, embed, fields } : { embed, fields },
+      ),
+      { applyPerPageDefault: false },
+    );
 
-		return this.runtime.fetchAPI<TContent>(
-			`${this.endpoint}/${id}`,
-			params,
-			options,
-		);
-	}
+    return this.runtime.fetchAPI<TContent>(
+      `${this.endpoint}/${id}`,
+      params,
+      options,
+    );
+  }
 
-	/**
-	 * Fetches the first post-like record matching one slug in view or edit context.
-	 */
-	protected async fetchContentBySlug(
-		slug: string,
-		options?: WordPressRequestOverrides,
-		context?: "edit",
-		embed: boolean | string[] = false,
-		fields?: string[],
-	): Promise<TContent | undefined> {
-		const params = filterToParams(
-			resolveEmbedQueryParams(
-				context ? { slug, context, embed, fields } : { slug, embed, fields },
-			),
-			{ applyPerPageDefault: false },
-		);
+  /**
+   * Fetches the first post-like record matching one slug in view or edit context.
+   */
+  protected async fetchContentBySlug(
+    slug: string,
+    options?: WordPressRequestOverrides,
+    context?: "edit",
+    embed: boolean | string[] = false,
+    fields?: string[],
+  ): Promise<TContent | undefined> {
+    const params = filterToParams(
+      resolveEmbedQueryParams(
+        context ? { context, embed, fields, slug } : { embed, fields, slug },
+      ),
+      { applyPerPageDefault: false },
+    );
 
-		const items = await this.runtime.fetchAPI<TContent[]>(
-			this.endpoint,
-			params,
-			options,
-		);
+    const items = await this.runtime.fetchAPI<TContent[]>(
+      this.endpoint,
+      params,
+      options,
+    );
 
-		return items[0];
-	}
+    return items[0];
+  }
 }

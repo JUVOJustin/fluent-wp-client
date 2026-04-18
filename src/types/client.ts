@@ -1,8 +1,8 @@
 import type {
-	WordPressAuthConfig,
-	WordPressAuthHeaders,
-	WordPressAuthHeadersProvider,
-	WordPressAuthInput,
+  WordPressAuthConfig,
+  WordPressAuthHeaders,
+  WordPressAuthHeadersProvider,
+  WordPressAuthInput,
 } from "../auth.js";
 
 /**
@@ -29,8 +29,8 @@ import type {
  * ```
  */
 export type WordPressRequestCallback = (
-	url: string,
-	init: RequestInit,
+  url: string,
+  init: RequestInit,
 ) => void | Promise<void>;
 
 /**
@@ -44,59 +44,59 @@ export type WordPressRequestCallback = (
  * `cookies` and `credentials` layer on top of these for cookie-based sessions.
  */
 export interface WordPressClientConfig {
-	baseUrl: string;
-	/** Structured credentials. See {@link WordPressAuthConfig}. */
-	auth?: WordPressAuthConfig;
-	/** Raw `Authorization` header. Wins over `auth` when both are present. */
-	authHeader?: string;
-	/** Prebuilt header map or async provider merged onto every request. */
-	authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
-	cookies?: string;
-	credentials?: RequestCredentials;
-	fetch?: typeof fetch;
-	/**
-	 * Callback invoked before each HTTP request. Use this for rate limiting, logging,
-	 * or other custom request processing. The callback receives the final URL and
-	 * RequestInit options that will be used for the fetch call.
-	 */
-	onRequest?: WordPressRequestCallback;
+  /** Structured credentials. See {@link WordPressAuthConfig}. */
+  auth?: WordPressAuthConfig;
+  /** Raw `Authorization` header. Wins over `auth` when both are present. */
+  authHeader?: string;
+  /** Prebuilt header map or async provider merged onto every request. */
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+  baseUrl: string;
+  cookies?: string;
+  credentials?: RequestCredentials;
+  fetch?: typeof fetch;
+  /**
+   * Callback invoked before each HTTP request. Use this for rate limiting, logging,
+   * or other custom request processing. The callback receives the final URL and
+   * RequestInit options that will be used for the fetch call.
+   */
+  onRequest?: WordPressRequestCallback;
 }
 
 /**
  * Low-level request options for direct calls to the WordPress REST API.
  */
 export interface WordPressRequestOptions {
-	endpoint: string;
-	method?: string;
-	params?: Record<string, string | string[]>;
-	body?: unknown;
-	rawBody?: BodyInit;
-	headers?: Record<string, string>;
-	auth?: WordPressAuthInput;
-	authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
-	cookies?: string;
-	credentials?: RequestCredentials;
-	omitContentType?: boolean;
+  auth?: WordPressAuthInput;
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+  body?: unknown;
+  cookies?: string;
+  credentials?: RequestCredentials;
+  endpoint: string;
+  headers?: Record<string, string>;
+  method?: string;
+  omitContentType?: boolean;
+  params?: Record<string, string | string[]>;
+  rawBody?: BodyInit;
 }
 
 /**
  * Low-level request result with parsed payload and original response metadata.
  */
 export interface WordPressRequestResult<T> {
-	data: T;
-	response: Response;
+  data: T;
+  response: Response;
 }
 
 /**
  * Upload payload for the dedicated binary media helper.
  */
 export interface WordPressMediaUploadInput {
-	file: Blob | ArrayBuffer | Uint8Array | string;
-	filename: string;
-	mimeType?: string;
-	title?: string;
-	caption?: string;
-	description?: string;
-	alt_text?: string;
-	status?: "publish" | "draft" | "private";
+  alt_text?: string;
+  caption?: string;
+  description?: string;
+  file: Blob | ArrayBuffer | Uint8Array | string;
+  filename: string;
+  mimeType?: string;
+  status?: "publish" | "draft" | "private";
+  title?: string;
 }

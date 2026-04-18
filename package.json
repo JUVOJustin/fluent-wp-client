@@ -1,92 +1,92 @@
 {
-	"name": "fluent-wp-client",
-	"version": "3.0.0-rc.1",
-	"description": "Runtime-agnostic TypeScript WordPress REST API client with typed CRUD, auth, abilities, relation helpers, and an optional Gutenberg block add-on",
-	"type": "module",
-	"repository": {
-		"type": "git",
-		"url": "git+ssh://git@github.com/JUVOJustin/fluent-wp-client.git"
-	},
-	"bugs": {
-		"url": "https://github.com/JUVOJustin/fluent-wp-client/issues"
-	},
-	"homepage": "https://github.com/JUVOJustin/fluent-wp-client#readme",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"bin": {
-		"fluent-wp-client": "./dist/cli/index.js"
-	},
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		},
-		"./ai-sdk": {
-			"types": "./dist/ai-sdk/index.d.ts",
-			"import": "./dist/ai-sdk/index.js"
-		},
-		"./blocks": {
-			"types": "./dist/blocks-entry.d.ts",
-			"import": "./dist/blocks-entry.js"
-		},
-		"./blocks/zod": {
-			"types": "./dist/blocks-zod.d.ts",
-			"import": "./dist/blocks-zod.js"
-		},
-		"./zod": {
-			"types": "./dist/zod.d.ts",
-			"import": "./dist/zod.js"
-		}
-	},
-	"files": [
-		"dist"
-	],
-	"scripts": {
-		"prepare": "npm run build",
-		"build": "rm -rf dist && tsc -p tsconfig.json",
-		"dev": "tsc -p tsconfig.json --watch",
-		"biome:check": "biome check .",
-		"biome:write": "biome check . --write",
-		"test": "npm run build && vitest run",
-		"test:watch": "npm run build && vitest",
-		"wp:start": "wp-env start --update",
-		"wp:stop": "wp-env stop",
-		"wp:clean": "wp-env clean all",
-		"wp:status": "wp-env status"
-	},
-	"keywords": [
-		"wordpress",
-		"wp-rest-api",
-		"headless",
-		"typescript",
-		"deno",
-		"bun",
-		"node",
-		"ai-sdk"
-	],
-	"license": "GPL-2.0-or-later",
-	"dependencies": {
-		"@standard-schema/spec": "^1.1.0",
-		"zod": "^4.3.6"
-	},
-	"peerDependencies": {
-		"ai": ">=5.0.0",
-		"@wordpress/block-serialization-default-parser": "^5.0.0"
-	},
-	"peerDependenciesMeta": {
-		"ai": {
-			"optional": true
-		},
-		"@wordpress/block-serialization-default-parser": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.2.6",
-		"@wordpress/block-serialization-default-parser": "^5.42.0",
-		"@wordpress/env": "^11.2.0",
-		"ai": "^6.0.141",
-		"typescript": "^6.0.2",
-		"vitest": "^4.1.2"
-	}
+  "bin": {
+    "fluent-wp-client": "./dist/cli/index.js"
+  },
+  "bugs": {
+    "url": "https://github.com/JUVOJustin/fluent-wp-client/issues"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "^1.1.0",
+    "zod": "^4.3.6"
+  },
+  "description": "Runtime-agnostic TypeScript WordPress REST API client with typed CRUD, auth, abilities, relation helpers, and an optional Gutenberg block add-on",
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.6",
+    "@wordpress/block-serialization-default-parser": "^5.42.0",
+    "@wordpress/env": "^11.2.0",
+    "ai": "^6.0.141",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./ai-sdk": {
+      "import": "./dist/ai-sdk/index.js",
+      "types": "./dist/ai-sdk/index.d.ts"
+    },
+    "./blocks": {
+      "import": "./dist/blocks-entry.js",
+      "types": "./dist/blocks-entry.d.ts"
+    },
+    "./blocks/zod": {
+      "import": "./dist/blocks-zod.js",
+      "types": "./dist/blocks-zod.d.ts"
+    },
+    "./zod": {
+      "import": "./dist/zod.js",
+      "types": "./dist/zod.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "homepage": "https://github.com/JUVOJustin/fluent-wp-client#readme",
+  "keywords": [
+    "wordpress",
+    "wp-rest-api",
+    "headless",
+    "typescript",
+    "deno",
+    "bun",
+    "node",
+    "ai-sdk"
+  ],
+  "license": "GPL-2.0-or-later",
+  "main": "./dist/index.js",
+  "name": "fluent-wp-client",
+  "peerDependencies": {
+    "@wordpress/block-serialization-default-parser": "^5.0.0",
+    "ai": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@wordpress/block-serialization-default-parser": {
+      "optional": true
+    },
+    "ai": {
+      "optional": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/JUVOJustin/fluent-wp-client.git"
+  },
+  "scripts": {
+    "biome:check": "biome check .",
+    "biome:write": "biome check . --write",
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "prepare": "npm run build",
+    "test": "npm run build && vitest run",
+    "test:watch": "npm run build && vitest",
+    "wp:clean": "wp-env clean all",
+    "wp:start": "wp-env start --update",
+    "wp:status": "wp-env status",
+    "wp:stop": "wp-env stop"
+  },
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "version": "3.0.0-rc.1"
 }

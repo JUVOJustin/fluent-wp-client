@@ -5,8 +5,8 @@ import { WordPressClientError } from "./errors.js";
  * Shared schema type accepted by client mutation helpers.
  */
 export type WordPressStandardSchema<
-	TOutput = unknown,
-	TInput = unknown,
+  TOutput = unknown,
+  TInput = unknown,
 > = StandardSchemaV1<TInput, TOutput>;
 
 /**
@@ -18,47 +18,47 @@ export type WordPressSchemaIssue = StandardSchemaV1.Issue;
  * Checks whether one unknown value exposes the Standard Schema API.
  */
 export function isStandardSchema(
-	value: unknown,
+  value: unknown,
 ): value is WordPressStandardSchema {
-	if (typeof value !== "object" || value === null) {
-		return false;
-	}
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
 
-	const standard = (value as Record<string, unknown>)["~standard"];
+  const standard = (value as Record<string, unknown>)["~standard"];
 
-	if (typeof standard !== "object" || standard === null) {
-		return false;
-	}
+  if (typeof standard !== "object" || standard === null) {
+    return false;
+  }
 
-	return typeof (standard as { validate?: unknown }).validate === "function";
+  return typeof (standard as { validate?: unknown }).validate === "function";
 }
 
 /**
  * Formats one issue path to keep validation error messages readable.
  */
 function formatIssuePath(issue: WordPressSchemaIssue): string {
-	if (!issue.path || issue.path.length === 0) {
-		return "root";
-	}
+  if (!issue.path || issue.path.length === 0) {
+    return "root";
+  }
 
-	return issue.path
-		.map((segment) => {
-			if (typeof segment === "object" && segment !== null && "key" in segment) {
-				return String(segment.key);
-			}
+  return issue.path
+    .map((segment) => {
+      if (typeof segment === "object" && segment !== null && "key" in segment) {
+        return String(segment.key);
+      }
 
-			return String(segment);
-		})
-		.join(".");
+      return String(segment);
+    })
+    .join(".");
 }
 
 /**
  * Converts validation issues into one concise, human-readable message.
  */
 function formatIssues(issues: readonly WordPressSchemaIssue[]): string {
-	return issues
-		.map((issue) => `${formatIssuePath(issue)}: ${issue.message}`)
-		.join("; ");
+  return issues
+    .map((issue) => `${formatIssuePath(issue)}: ${issue.message}`)
+    .join("; ");
 }
 
 /**
@@ -66,23 +66,23 @@ function formatIssues(issues: readonly WordPressSchemaIssue[]): string {
  * Throws `WordPressClientError` with `SCHEMA_VALIDATION_ERROR` kind on failure.
  */
 export async function validateWithStandardSchema<TOutput>(
-	schema: WordPressStandardSchema<TOutput>,
-	value: unknown,
-	context = "Schema validation failed",
+  schema: WordPressStandardSchema<TOutput>,
+  value: unknown,
+  context = "Schema validation failed",
 ): Promise<TOutput> {
-	let result = schema["~standard"].validate(value);
+  let result = schema["~standard"].validate(value);
 
-	if (result instanceof Promise) {
-		result = await result;
-	}
+  if (result instanceof Promise) {
+    result = await result;
+  }
 
-	if (result.issues) {
-		throw new WordPressClientError(
-			`${context}: ${formatIssues(result.issues)}`,
-			"SCHEMA_VALIDATION_ERROR",
-			{ retryable: false },
-		);
-	}
+  if (result.issues) {
+    throw new WordPressClientError(
+      `${context}: ${formatIssues(result.issues)}`,
+      "SCHEMA_VALIDATION_ERROR",
+      { retryable: false },
+    );
+  }
 
-	return result.value;
+  return result.value;
 }

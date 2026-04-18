@@ -3,25 +3,25 @@
  * values when `instanceof` is not available (e.g. serialized logs).
  */
 export type WordPressClientErrorKind =
-	| "CONFIG_ERROR"
-	| "NETWORK_ERROR"
-	| "TIMEOUT_ERROR"
-	| "AUTH_ERROR"
-	| "HTTP_ERROR"
-	| "WP_API_ERROR"
-	| "SCHEMA_VALIDATION_ERROR"
-	| "BLOCK_VALIDATION_ERROR"
-	| "PARSE_ERROR"
-	| "DISCOVERY_ERROR"
-	| "INVALID_REQUEST_ERROR"
-	| "UNKNOWN_ERROR";
+  | "CONFIG_ERROR"
+  | "NETWORK_ERROR"
+  | "TIMEOUT_ERROR"
+  | "AUTH_ERROR"
+  | "HTTP_ERROR"
+  | "WP_API_ERROR"
+  | "SCHEMA_VALIDATION_ERROR"
+  | "BLOCK_VALIDATION_ERROR"
+  | "PARSE_ERROR"
+  | "DISCOVERY_ERROR"
+  | "INVALID_REQUEST_ERROR"
+  | "UNKNOWN_ERROR";
 
 /**
  * Minimal shape for one schema validation issue.
  */
 export interface SchemaValidationIssue {
-	message: string;
-	path?: ReadonlyArray<string | number | { key: string | number }>;
+  message: string;
+  path?: ReadonlyArray<string | number | { key: string | number }>;
 }
 
 /**
@@ -31,14 +31,14 @@ export interface SchemaValidationIssue {
  * is never included.
  */
 export interface WordPressErrorContext {
-	/** High-level operation name, e.g. `content.list`, `auth.loginWithJwt`. */
-	operation?: string;
-	/** HTTP method used for the request. */
-	method?: string;
-	/** Endpoint path (no origin, no query string). */
-	endpoint?: string;
-	/** WordPress site base URL. */
-	baseUrl?: string;
+  /** WordPress site base URL. */
+  baseUrl?: string;
+  /** Endpoint path (no origin, no query string). */
+  endpoint?: string;
+  /** HTTP method used for the request. */
+  method?: string;
+  /** High-level operation name, e.g. `content.list`, `auth.loginWithJwt`. */
+  operation?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -53,45 +53,45 @@ export interface WordPressErrorContext {
  * available for serialization and logging.
  */
 export class WordPressClientError extends Error {
-	override readonly name: string = "WordPressClientError";
-	readonly kind: WordPressClientErrorKind;
-	readonly retryable: boolean;
-	readonly operation?: string;
-	readonly method?: string;
-	readonly endpoint?: string;
-	readonly baseUrl?: string;
+  override readonly name: string = "WordPressClientError";
+  readonly kind: WordPressClientErrorKind;
+  readonly retryable: boolean;
+  readonly operation?: string;
+  readonly method?: string;
+  readonly endpoint?: string;
+  readonly baseUrl?: string;
 
-	constructor(
-		message: string,
-		kind: WordPressClientErrorKind,
-		context?: WordPressErrorContext & { retryable?: boolean },
-		options?: { cause?: unknown },
-	) {
-		super(message, options);
-		this.kind = kind;
-		this.retryable = context?.retryable ?? false;
-		this.operation = context?.operation;
-		this.method = context?.method;
-		this.endpoint = context?.endpoint;
-		this.baseUrl = context?.baseUrl;
-	}
+  constructor(
+    message: string,
+    kind: WordPressClientErrorKind,
+    context?: WordPressErrorContext & { retryable?: boolean },
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+    this.kind = kind;
+    this.retryable = context?.retryable ?? false;
+    this.operation = context?.operation;
+    this.method = context?.method;
+    this.endpoint = context?.endpoint;
+    this.baseUrl = context?.baseUrl;
+  }
 
-	/**
-	 * Returns a plain serializable representation suitable for `JSON.stringify`,
-	 * structured logging, and cross-boundary error transport.
-	 */
-	toJSON(): Record<string, unknown> {
-		return {
-			name: this.name,
-			kind: this.kind,
-			message: this.message,
-			retryable: this.retryable,
-			...(this.operation !== undefined && { operation: this.operation }),
-			...(this.method !== undefined && { method: this.method }),
-			...(this.endpoint !== undefined && { endpoint: this.endpoint }),
-			...(this.baseUrl !== undefined && { baseUrl: this.baseUrl }),
-		};
-	}
+  /**
+   * Returns a plain serializable representation suitable for `JSON.stringify`,
+   * structured logging, and cross-boundary error transport.
+   */
+  toJSON(): Record<string, unknown> {
+    return {
+      kind: this.kind,
+      message: this.message,
+      name: this.name,
+      retryable: this.retryable,
+      ...(this.operation !== undefined && { operation: this.operation }),
+      ...(this.method !== undefined && { method: this.method }),
+      ...(this.endpoint !== undefined && { endpoint: this.endpoint }),
+      ...(this.baseUrl !== undefined && { baseUrl: this.baseUrl }),
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -102,9 +102,9 @@ export class WordPressClientError extends Error {
  * Narrows an unknown caught value to a `WordPressClientError`.
  */
 export function isWordPressClientError(
-	value: unknown,
+  value: unknown,
 ): value is WordPressClientError {
-	return value instanceof WordPressClientError;
+  return value instanceof WordPressClientError;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,44 +116,44 @@ export function isWordPressClientError(
  * empty auth tokens, malformed nonce values).
  */
 export class WordPressConfigError extends WordPressClientError {
-	override readonly name = "WordPressConfigError";
+  override readonly name = "WordPressConfigError";
 
-	constructor(message: string, context?: WordPressErrorContext) {
-		super(message, "CONFIG_ERROR", { ...context, retryable: false });
-	}
+  constructor(message: string, context?: WordPressErrorContext) {
+    super(message, "CONFIG_ERROR", { ...context, retryable: false });
+  }
 }
 
 /**
  * Network-level fetch failure (DNS resolution, connection refused, etc.).
  */
 export class WordPressNetworkError extends WordPressClientError {
-	override readonly name = "WordPressNetworkError";
+  override readonly name = "WordPressNetworkError";
 
-	constructor(cause: unknown, context?: WordPressErrorContext) {
-		const causeMessage = cause instanceof Error ? cause.message : String(cause);
-		super(
-			`WordPress request failed: ${causeMessage}`,
-			"NETWORK_ERROR",
-			{ ...context, retryable: true },
-			{ cause },
-		);
-	}
+  constructor(cause: unknown, context?: WordPressErrorContext) {
+    const causeMessage = cause instanceof Error ? cause.message : String(cause);
+    super(
+      `WordPress request failed: ${causeMessage}`,
+      "NETWORK_ERROR",
+      { ...context, retryable: true },
+      { cause },
+    );
+  }
 }
 
 /**
  * Request exceeded the configured timeout.
  */
 export class WordPressTimeoutError extends WordPressClientError {
-	override readonly name = "WordPressTimeoutError";
+  override readonly name = "WordPressTimeoutError";
 
-	constructor(cause: unknown, context?: WordPressErrorContext) {
-		super(
-			"WordPress request timed out.",
-			"TIMEOUT_ERROR",
-			{ ...context, retryable: true },
-			{ cause },
-		);
-	}
+  constructor(cause: unknown, context?: WordPressErrorContext) {
+    super(
+      "WordPress request timed out.",
+      "TIMEOUT_ERROR",
+      { ...context, retryable: true },
+      { cause },
+    );
+  }
 }
 
 /**
@@ -161,11 +161,11 @@ export class WordPressTimeoutError extends WordPressClientError {
  * the client detects that auth is required but not configured.
  */
 export class WordPressAuthError extends WordPressClientError {
-	override readonly name = "WordPressAuthError";
+  override readonly name = "WordPressAuthError";
 
-	constructor(message: string, context?: WordPressErrorContext) {
-		super(message, "AUTH_ERROR", { ...context, retryable: false });
-	}
+  constructor(message: string, context?: WordPressErrorContext) {
+    super(message, "AUTH_ERROR", { ...context, retryable: false });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -176,13 +176,13 @@ export class WordPressAuthError extends WordPressClientError {
  * Minimal shape for WordPress REST API error payloads.
  */
 export interface WordPressErrorPayload {
-	code?: string;
-	message?: string;
-	data?: {
-		status?: number;
-		[key: string]: unknown;
-	};
-	[key: string]: unknown;
+  code?: string;
+  data?: {
+    status?: number;
+    [key: string]: unknown;
+  };
+  message?: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -193,86 +193,86 @@ export interface WordPressErrorPayload {
  * is `HTTP_ERROR`.
  */
 export class WordPressHttpError extends WordPressClientError {
-	override readonly name = "WordPressHttpError";
-	readonly status: number;
-	readonly statusText: string;
-	readonly contentType?: string;
-	readonly wpCode?: string;
-	readonly wpMessage?: string;
-	readonly responseBody?: unknown;
+  override readonly name = "WordPressHttpError";
+  readonly status: number;
+  readonly statusText: string;
+  readonly contentType?: string;
+  readonly wpCode?: string;
+  readonly wpMessage?: string;
+  readonly responseBody?: unknown;
 
-	constructor(
-		message: string,
-		kind: "WP_API_ERROR" | "HTTP_ERROR",
-		fields: {
-			status: number;
-			statusText: string;
-			contentType?: string;
-			wpCode?: string;
-			wpMessage?: string;
-			responseBody?: unknown;
-			retryable?: boolean;
-		},
-		context?: WordPressErrorContext,
-	) {
-		super(message, kind, { ...context, retryable: fields.retryable });
-		this.status = fields.status;
-		this.statusText = fields.statusText;
-		this.contentType = fields.contentType;
-		this.wpCode = fields.wpCode;
-		this.wpMessage = fields.wpMessage;
-		this.responseBody = fields.responseBody;
-	}
+  constructor(
+    message: string,
+    kind: "WP_API_ERROR" | "HTTP_ERROR",
+    fields: {
+      status: number;
+      statusText: string;
+      contentType?: string;
+      wpCode?: string;
+      wpMessage?: string;
+      responseBody?: unknown;
+      retryable?: boolean;
+    },
+    context?: WordPressErrorContext,
+  ) {
+    super(message, kind, { ...context, retryable: fields.retryable });
+    this.status = fields.status;
+    this.statusText = fields.statusText;
+    this.contentType = fields.contentType;
+    this.wpCode = fields.wpCode;
+    this.wpMessage = fields.wpMessage;
+    this.responseBody = fields.responseBody;
+  }
 
-	override toJSON(): Record<string, unknown> {
-		return {
-			...super.toJSON(),
-			status: this.status,
-			statusText: this.statusText,
-			...(this.contentType !== undefined && { contentType: this.contentType }),
-			...(this.wpCode !== undefined && { wpCode: this.wpCode }),
-			...(this.wpMessage !== undefined && { wpMessage: this.wpMessage }),
-			...(this.responseBody !== undefined && {
-				responseBody: this.responseBody,
-			}),
-		};
-	}
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      status: this.status,
+      statusText: this.statusText,
+      ...(this.contentType !== undefined && { contentType: this.contentType }),
+      ...(this.wpCode !== undefined && { wpCode: this.wpCode }),
+      ...(this.wpMessage !== undefined && { wpMessage: this.wpMessage }),
+      ...(this.responseBody !== undefined && {
+        responseBody: this.responseBody,
+      }),
+    };
+  }
 }
 
 /**
  * Response body could not be parsed (invalid JSON, unexpected content type).
  */
 export class WordPressParseError extends WordPressClientError {
-	override readonly name = "WordPressParseError";
-	readonly status?: number;
-	readonly statusText?: string;
-	readonly contentType?: string;
+  override readonly name = "WordPressParseError";
+  readonly status?: number;
+  readonly statusText?: string;
+  readonly contentType?: string;
 
-	constructor(
-		cause: unknown,
-		fields?: { status?: number; statusText?: string; contentType?: string },
-		context?: WordPressErrorContext,
-	) {
-		const causeMessage = cause instanceof Error ? cause.message : String(cause);
-		super(
-			`Failed to parse WordPress response: ${causeMessage}`,
-			"PARSE_ERROR",
-			{ ...context, retryable: false },
-			{ cause },
-		);
-		this.status = fields?.status;
-		this.statusText = fields?.statusText;
-		this.contentType = fields?.contentType;
-	}
+  constructor(
+    cause: unknown,
+    fields?: { status?: number; statusText?: string; contentType?: string },
+    context?: WordPressErrorContext,
+  ) {
+    const causeMessage = cause instanceof Error ? cause.message : String(cause);
+    super(
+      `Failed to parse WordPress response: ${causeMessage}`,
+      "PARSE_ERROR",
+      { ...context, retryable: false },
+      { cause },
+    );
+    this.status = fields?.status;
+    this.statusText = fields?.statusText;
+    this.contentType = fields?.contentType;
+  }
 
-	override toJSON(): Record<string, unknown> {
-		return {
-			...super.toJSON(),
-			...(this.status !== undefined && { status: this.status }),
-			...(this.statusText !== undefined && { statusText: this.statusText }),
-			...(this.contentType !== undefined && { contentType: this.contentType }),
-		};
-	}
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      ...(this.status !== undefined && { status: this.status }),
+      ...(this.statusText !== undefined && { statusText: this.statusText }),
+      ...(this.contentType !== undefined && { contentType: this.contentType }),
+    };
+  }
 }
 
 /**
@@ -280,11 +280,11 @@ export class WordPressParseError extends WordPressClientError {
  * types/taxonomies, OPTIONS fetch failed, etc.).
  */
 export class WordPressDiscoveryError extends WordPressClientError {
-	override readonly name = "WordPressDiscoveryError";
+  override readonly name = "WordPressDiscoveryError";
 
-	constructor(message: string, context?: WordPressErrorContext) {
-		super(message, "DISCOVERY_ERROR", { ...context, retryable: false });
-	}
+  constructor(message: string, context?: WordPressErrorContext) {
+    super(message, "DISCOVERY_ERROR", { ...context, retryable: false });
+  }
 }
 
 /**
@@ -292,11 +292,11 @@ export class WordPressDiscoveryError extends WordPressClientError {
  * detected before a request is sent.
  */
 export class WordPressInvalidRequestError extends WordPressClientError {
-	override readonly name = "WordPressInvalidRequestError";
+  override readonly name = "WordPressInvalidRequestError";
 
-	constructor(message: string, context?: WordPressErrorContext) {
-		super(message, "INVALID_REQUEST_ERROR", { ...context, retryable: false });
-	}
+  constructor(message: string, context?: WordPressErrorContext) {
+    super(message, "INVALID_REQUEST_ERROR", { ...context, retryable: false });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -307,40 +307,40 @@ export class WordPressInvalidRequestError extends WordPressClientError {
  * Creates a `WordPressConfigError` for missing or invalid client configuration.
  */
 export function createConfigError(
-	message: string,
-	context?: WordPressErrorContext,
+  message: string,
+  context?: WordPressErrorContext,
 ): WordPressConfigError {
-	return new WordPressConfigError(message, context);
+  return new WordPressConfigError(message, context);
 }
 
 /**
  * Creates a `WordPressNetworkError` for network-level fetch failures.
  */
 export function createNetworkError(
-	cause: unknown,
-	context?: WordPressErrorContext,
+  cause: unknown,
+  context?: WordPressErrorContext,
 ): WordPressNetworkError {
-	return new WordPressNetworkError(cause, context);
+  return new WordPressNetworkError(cause, context);
 }
 
 /**
  * Creates a `WordPressTimeoutError` for request timeouts.
  */
 export function createTimeoutError(
-	cause: unknown,
-	context?: WordPressErrorContext,
+  cause: unknown,
+  context?: WordPressErrorContext,
 ): WordPressTimeoutError {
-	return new WordPressTimeoutError(cause, context);
+  return new WordPressTimeoutError(cause, context);
 }
 
 /**
  * Creates a `WordPressAuthError` for authentication precondition failures.
  */
 export function createAuthError(
-	message: string,
-	context?: WordPressErrorContext,
+  message: string,
+  context?: WordPressErrorContext,
 ): WordPressAuthError {
-	return new WordPressAuthError(message, context);
+  return new WordPressAuthError(message, context);
 }
 
 /**
@@ -350,64 +350,64 @@ export function createAuthError(
  * `HTTP_ERROR` based on the response body shape.
  */
 export function createHttpError(
-	response: Response,
-	payload: unknown,
-	context?: WordPressErrorContext,
+  response: Response,
+  payload: unknown,
+  context?: WordPressErrorContext,
 ): WordPressHttpError {
-	const wpError = toWordPressErrorPayload(payload);
-	const status = wpError?.data?.status ?? response.status;
-	const wpCode = typeof wpError?.code === "string" ? wpError.code : undefined;
-	const wpMessage =
-		typeof wpError?.message === "string" ? wpError.message : undefined;
-	const hasWpPayload = wpCode !== undefined || wpMessage !== undefined;
+  const wpError = toWordPressErrorPayload(payload);
+  const status = wpError?.data?.status ?? response.status;
+  const wpCode = typeof wpError?.code === "string" ? wpError.code : undefined;
+  const wpMessage =
+    typeof wpError?.message === "string" ? wpError.message : undefined;
+  const hasWpPayload = wpCode !== undefined || wpMessage !== undefined;
 
-	const message =
-		wpMessage ??
-		`WordPress API error: ${response.status} ${response.statusText}`;
+  const message =
+    wpMessage ??
+    `WordPress API error: ${response.status} ${response.statusText}`;
 
-	return new WordPressHttpError(
-		message,
-		hasWpPayload ? "WP_API_ERROR" : "HTTP_ERROR",
-		{
-			status,
-			statusText: response.statusText,
-			contentType: response.headers.get("Content-Type") ?? undefined,
-			wpCode,
-			wpMessage,
-			responseBody: payload,
-			retryable: status === 429 || status >= 500,
-		},
-		context,
-	);
+  return new WordPressHttpError(
+    message,
+    hasWpPayload ? "WP_API_ERROR" : "HTTP_ERROR",
+    {
+      contentType: response.headers.get("Content-Type") ?? undefined,
+      responseBody: payload,
+      retryable: status === 429 || status >= 500,
+      status,
+      statusText: response.statusText,
+      wpCode,
+      wpMessage,
+    },
+    context,
+  );
 }
 
 /**
  * Creates a `WordPressParseError` for response body parsing failures.
  */
 export function createParseError(
-	cause: unknown,
-	context?: WordPressErrorContext & {
-		status?: number;
-		statusText?: string;
-		contentType?: string;
-	},
+  cause: unknown,
+  context?: WordPressErrorContext & {
+    status?: number;
+    statusText?: string;
+    contentType?: string;
+  },
 ): WordPressParseError {
-	const { status, statusText, contentType, ...baseContext } = context ?? {};
-	return new WordPressParseError(
-		cause,
-		{ status, statusText, contentType },
-		baseContext,
-	);
+  const { status, statusText, contentType, ...baseContext } = context ?? {};
+  return new WordPressParseError(
+    cause,
+    { contentType, status, statusText },
+    baseContext,
+  );
 }
 
 /**
  * Creates a `WordPressDiscoveryError` for schema/resource discovery failures.
  */
 export function createDiscoveryError(
-	message: string,
-	context?: WordPressErrorContext,
+  message: string,
+  context?: WordPressErrorContext,
 ): WordPressDiscoveryError {
-	return new WordPressDiscoveryError(message, context);
+  return new WordPressDiscoveryError(message, context);
 }
 
 /**
@@ -415,10 +415,10 @@ export function createDiscoveryError(
  * violations.
  */
 export function createInvalidRequestError(
-	message: string,
-	context?: WordPressErrorContext,
+  message: string,
+  context?: WordPressErrorContext,
 ): WordPressInvalidRequestError {
-	return new WordPressInvalidRequestError(message, context);
+  return new WordPressInvalidRequestError(message, context);
 }
 
 /**
@@ -426,28 +426,28 @@ export function createInvalidRequestError(
  * Passes through values that are already `WordPressClientError`.
  */
 export function normalizeToClientError(
-	error: unknown,
-	context?: WordPressErrorContext,
+  error: unknown,
+  context?: WordPressErrorContext,
 ): WordPressClientError {
-	if (error instanceof WordPressClientError) {
-		return error;
-	}
+  if (error instanceof WordPressClientError) {
+    return error;
+  }
 
-	if (error instanceof Error) {
-		return new WordPressClientError(
-			error.message,
-			"UNKNOWN_ERROR",
-			{ ...context, retryable: false },
-			{ cause: error },
-		);
-	}
+  if (error instanceof Error) {
+    return new WordPressClientError(
+      error.message,
+      "UNKNOWN_ERROR",
+      { ...context, retryable: false },
+      { cause: error },
+    );
+  }
 
-	return new WordPressClientError(
-		typeof error === "string" ? error : "An unknown error occurred.",
-		"UNKNOWN_ERROR",
-		{ ...context, retryable: false },
-		{ cause: error },
-	);
+  return new WordPressClientError(
+    typeof error === "string" ? error : "An unknown error occurred.",
+    "UNKNOWN_ERROR",
+    { ...context, retryable: false },
+    { cause: error },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -459,15 +459,15 @@ export function normalizeToClientError(
  * Used by the transport layer as the single HTTP error boundary.
  */
 export function throwIfHttpError(
-	response: Response,
-	payload: unknown,
-	context?: WordPressErrorContext,
+  response: Response,
+  payload: unknown,
+  context?: WordPressErrorContext,
 ): void {
-	if (response.ok) {
-		return;
-	}
+  if (response.ok) {
+    return;
+  }
 
-	throw createHttpError(response, payload, context);
+  throw createHttpError(response, payload, context);
 }
 
 /**
@@ -478,25 +478,25 @@ export function throwIfHttpError(
  * as timeout signals.
  */
 export function classifyFetchError(
-	error: unknown,
-	context?: WordPressErrorContext,
+  error: unknown,
+  context?: WordPressErrorContext,
 ): WordPressTimeoutError | WordPressNetworkError {
-	if (
-		typeof DOMException !== "undefined" &&
-		error instanceof DOMException &&
-		error.name === "AbortError"
-	) {
-		return createTimeoutError(error, context);
-	}
+  if (
+    typeof DOMException !== "undefined" &&
+    error instanceof DOMException &&
+    error.name === "AbortError"
+  ) {
+    return createTimeoutError(error, context);
+  }
 
-	if (
-		error instanceof Error &&
-		(error.name === "TimeoutError" || error.name === "AbortError")
-	) {
-		return createTimeoutError(error, context);
-	}
+  if (
+    error instanceof Error &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
+  ) {
+    return createTimeoutError(error, context);
+  }
 
-	return createNetworkError(error, context);
+  return createNetworkError(error, context);
 }
 
 // ---------------------------------------------------------------------------
@@ -509,21 +509,21 @@ export function classifyFetchError(
  * standard WordPress error fields (`code` or `message`).
  */
 function toWordPressErrorPayload(
-	payload: unknown,
+  payload: unknown,
 ): WordPressErrorPayload | null {
-	if (
-		typeof payload !== "object" ||
-		payload === null ||
-		Array.isArray(payload)
-	) {
-		return null;
-	}
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
+    return null;
+  }
 
-	const record = payload as Record<string, unknown>;
+  const record = payload as Record<string, unknown>;
 
-	if (!("code" in record) && !("message" in record)) {
-		return null;
-	}
+  if (!("code" in record) && !("message" in record)) {
+    return null;
+  }
 
-	return record as WordPressErrorPayload;
+  return record as WordPressErrorPayload;
 }

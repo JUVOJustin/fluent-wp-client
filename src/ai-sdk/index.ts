@@ -16,65 +16,65 @@
 
 // Abilities
 export {
-	createAbilityTools,
-	executeDeleteAbilityTool,
-	executeGetAbilityTool,
-	executeRunAbilityTool,
-	getAbilitiesTool,
-	getAbilityTool,
+  createAbilityTools,
+  executeDeleteAbilityTool,
+  executeGetAbilityTool,
+  executeRunAbilityTool,
+  getAbilitiesTool,
+  getAbilityTool,
 } from "./abilities.js";
 // Gutenberg blocks — universal read/write for any post-like resource
 export {
-	getBlocksTool,
-	setBlocksTool,
+  getBlocksTool,
+  setBlocksTool,
 } from "./blocks.js";
 // Generic content
 export {
-	createContentTool,
-	deleteContentTool,
-	getContentCollectionTool,
-	getContentTool,
-	updateContentTool,
+  createContentTool,
+  deleteContentTool,
+  getContentCollectionTool,
+  getContentTool,
+  updateContentTool,
 } from "./content.js";
 export type {
-	ContentItemResult,
-	WordPressAIToolErrorResult,
+  ContentItemResult,
+  WordPressAIToolErrorResult,
 } from "./factories.js";
 // Generic first-class resources
 export {
-	createResourceTool,
-	deleteResourceTool,
-	getResourceCollectionTool,
-	getResourceTool,
-	type ResourceMutationToolFactoryOptions,
-	type ResourceToolFactoryOptions,
-	updateResourceTool,
+  createResourceTool,
+  deleteResourceTool,
+  getResourceCollectionTool,
+  getResourceTool,
+  type ResourceMutationToolFactoryOptions,
+  type ResourceToolFactoryOptions,
+  updateResourceTool,
 } from "./resources.js";
 // Singleton settings
 export {
-	getSettingsTool,
-	updateSettingsTool,
+  getSettingsTool,
+  updateSettingsTool,
 } from "./settings.js";
 // Generic taxonomies
 export {
-	createTermTool,
-	deleteTermTool,
-	getTermCollectionTool,
-	getTermTool,
-	updateTermTool,
+  createTermTool,
+  deleteTermTool,
+  getTermCollectionTool,
+  getTermTool,
+  updateTermTool,
 } from "./terms.js";
 // Types
 export type {
-	AbilityToolFactoryOptions,
-	CatalogMutationToolFactoryOptions,
-	CatalogToolFactoryOptions,
-	ContentMutationToolFactoryOptions,
-	ContentToolFactoryOptions,
-	CreateAbilityToolsOptions,
-	GenericMutationToolFactoryOptions,
-	GenericResourceToolFactoryOptions,
-	MutationToolFactoryOptions,
-	TermMutationToolFactoryOptions,
-	TermToolFactoryOptions,
-	ToolFactoryOptions,
+  AbilityToolFactoryOptions,
+  CatalogMutationToolFactoryOptions,
+  CatalogToolFactoryOptions,
+  ContentMutationToolFactoryOptions,
+  ContentToolFactoryOptions,
+  CreateAbilityToolsOptions,
+  GenericMutationToolFactoryOptions,
+  GenericResourceToolFactoryOptions,
+  MutationToolFactoryOptions,
+  TermMutationToolFactoryOptions,
+  TermToolFactoryOptions,
+  ToolFactoryOptions,
 } from "./types.js";

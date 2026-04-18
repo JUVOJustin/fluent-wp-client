@@ -1,38 +1,31 @@
-import { fileURLToPath } from "url";
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'url';
+import { resolve, dirname } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Vitest configuration for standalone wp-client integration coverage.
  */
 export default defineConfig({
+  root: __dirname,
   resolve: {
     alias: {
-      "fluent-wp-client": fileURLToPath(
-        new URL("./dist/index.js", import.meta.url),
-      ),
-      "fluent-wp-client/ai-sdk": fileURLToPath(
-        new URL("./dist/ai-sdk/index.js", import.meta.url),
-      ),
-      "fluent-wp-client/blocks": fileURLToPath(
-        new URL("./dist/blocks-entry.js", import.meta.url),
-      ),
-      "fluent-wp-client/blocks/zod": fileURLToPath(
-        new URL("./dist/blocks-zod.js", import.meta.url),
-      ),
-      "fluent-wp-client/zod": fileURLToPath(
-        new URL("./dist/zod.js", import.meta.url),
-      ),
+      'fluent-wp-client/ai-sdk': resolve(__dirname, './dist/ai-sdk/index.js'),
+      'fluent-wp-client/blocks': resolve(__dirname, './dist/blocks-entry.js'),
+      'fluent-wp-client/blocks/zod': resolve(__dirname, './dist/blocks-zod.js'),
+      'fluent-wp-client/zod': resolve(__dirname, './dist/zod.js'),
+      'fluent-wp-client': resolve(__dirname, './dist/index.js'),
     },
   },
-  root: fileURLToPath(new URL(".", import.meta.url)),
   test: {
-    environment: "node",
+    environment: 'node',
     fileParallelism: false,
-    globalSetup: "./tests/setup/global-setup.ts",
+    globalSetup: './tests/setup/global-setup.ts',
     hookTimeout: 60_000,
-    include: ["tests/integration/**/*.test.ts"],
-    reporters: ["verbose"],
-    setupFiles: ["./tests/setup/env-loader.ts"],
+    include: ['tests/integration/**/*.test.ts'],
+    reporters: ['verbose'],
+    setupFiles: ['./tests/setup/env-loader.ts'],
     testTimeout: 30_000,
   },
 });

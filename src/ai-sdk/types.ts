@@ -1,6 +1,63 @@
 import type { WordPressClient } from '../client.js';
 import type { WordPressAbilityDescription, WordPressDiscoveryCatalog } from '../types/discovery.js';
+import type { WordPressParsedBlock } from '../blocks.js';
 import type { ZodType } from 'zod';
+
+/**
+ * Optional read hooks for AI SDK tools.
+ *
+ * This is useful in environments where reads may already be cached or routed
+ * through another abstraction, such as Astro live loaders.
+ */
+export interface WordPressAIReadAdapter {
+  listContent?: (input: {
+    client: WordPressClient;
+    contentType: string;
+    filter: Record<string, unknown>;
+  }) => Promise<unknown>;
+  getContent?: (input: {
+    client: WordPressClient;
+    contentType: string;
+    id?: number;
+    slug?: string;
+    includeContent?: boolean;
+    includeBlocks?: boolean;
+  }) => Promise<unknown>;
+  listTerms?: (input: {
+    client: WordPressClient;
+    taxonomyType: string;
+    filter: Record<string, unknown>;
+  }) => Promise<unknown>;
+  getTerm?: (input: {
+    client: WordPressClient;
+    taxonomyType: string;
+    id?: number;
+    slug?: string;
+  }) => Promise<unknown>;
+  listResource?: (input: {
+    client: WordPressClient;
+    resourceType: 'media' | 'comments' | 'users';
+    filter: Record<string, unknown>;
+  }) => Promise<unknown>;
+  getResource?: (input: {
+    client: WordPressClient;
+    resourceType: 'media' | 'comments' | 'users';
+    id?: number;
+    slug?: string;
+  }) => Promise<unknown>;
+  getSettings?: (input: {
+    client: WordPressClient;
+  }) => Promise<unknown>;
+  getBlocks?: (input: {
+    client: WordPressClient;
+    contentType: string;
+    id: number;
+  }) => Promise<{
+    id: number;
+    contentType: string;
+    blocks: WordPressParsedBlock[];
+  }>;
+}
 
 /**
  * Shared configuration accepted by all AI SDK tool factories.
@@ -20,6 +77,8 @@ export interface ToolFactoryOptions<TArgs extends Record<string, unknown>> {
   needsApproval?: boolean | ((input: TArgs) => boolean | Promise<boolean>);
   /** Locked arguments that always override model-provided input. */
   fixedArgs?: Partial<TArgs>;
+  /** Optional read adapter for cached or framework-managed reads. */
+  readAdapter?: WordPressAIReadAdapter;
 }
 
 /**

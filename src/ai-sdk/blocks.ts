@@ -146,6 +146,10 @@ export const getBlocksTool = (
     const contentType = resolveContentType(merged, options);
     const id = merged.id as number;
 
+    if (options?.readAdapter?.getBlocks) {
+      return options.readAdapter.getBlocks({ client, contentType, id });
+    }
+
     const content = await client.content(contentType).item(id).getContent();
     const raw = content?.raw;
     if (!raw) {

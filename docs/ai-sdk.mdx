@@ -177,6 +177,7 @@ All generic tool factories accept the existing configuration model:
 - `strict` — Enable provider strict-mode tool calling
 - `needsApproval` — Require approval before executing this tool
 - `inputSchema` — Override the generated schema with custom Zod schema (supports `.default()`)
+- `readAdapter` — Optionally route AI read tools through cached or framework-managed reads such as Astro live loaders
 
 Example:
 
@@ -187,6 +188,32 @@ const publishPosts = updateContentTool(adminWp, {
   fixedInput: { status: 'publish' },
 });
 ```
+
+### Read adapters
+
+Read-only AI SDK tools can delegate to a custom `readAdapter` instead of calling the client resource directly. This is useful when your runtime already has a cached read path, such as Astro live loaders.
+
+```typescript
+const searchPosts = getContentCollectionTool(wp, {
+  contentType: 'posts',
+  readAdapter: {
+    async listContent({ contentType, filter }) {
+      return cachedLiveLoaderList(contentType, filter);
+    },
+  },
+});
+
+const readPost = getContentTool(wp, {
+  contentType: 'posts',
+  readAdapter: {
+    async getContent({ slug, includeContent }) {
+      return cachedLiveLoaderItem(slug!, { includeContent });
+    },
+  },
+});
+```
+
+Supported read hooks cover content, terms, resources, settings, and block reads. Mutation and ability execution tools continue to use the normal `WordPressClient` request flow.
 
 ### Default values with Zod schemas
 

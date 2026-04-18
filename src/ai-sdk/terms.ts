@@ -48,6 +48,10 @@ export const getTermCollectionTool = (
     const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
     const taxonomyType = resolveTaxonomyType(merged, options);
     const filter = prepareCollectionArgs(stripTaxonomyType(merged), options as ToolFactoryOptions<Record<string, unknown>>);
+    if (options?.readAdapter?.listTerms) {
+      return options.readAdapter.listTerms({ client, taxonomyType, filter });
+    }
+
     return client.terms(taxonomyType).list(filter as QueryParams);
   }),
   });
@@ -69,6 +73,15 @@ export const getTermTool = (
   execute: withToolErrorHandling(async (args: unknown) => {
     const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
     const taxonomyType = resolveTaxonomyType(merged, options);
+    if (options?.readAdapter?.getTerm) {
+      return options.readAdapter.getTerm({
+        client,
+        taxonomyType,
+        id: typeof merged.id === 'number' ? merged.id : undefined,
+        slug: typeof merged.slug === 'string' ? merged.slug : undefined,
+      });
+    }
+
     if (merged.id) return client.terms(taxonomyType).item(merged.id as number);
     if (merged.slug) return client.terms(taxonomyType).item(merged.slug as string);
     throw createInvalidRequestError('Either id or slug must be provided.');

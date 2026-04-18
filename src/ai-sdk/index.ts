@@ -16,6 +16,7 @@
 
 // Types
 export type {
+  WordPressAIReadAdapter,
   ToolFactoryOptions,
   MutationToolFactoryOptions,
   CatalogToolFactoryOptions,

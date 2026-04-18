@@ -24,6 +24,7 @@ import {
   setBlocksTool,
   updateContentTool,
   updateResourceTool,
+  type WordPressAIReadAdapter,
 } from 'fluent-wp-client/ai-sdk';
 
 async function run<T>(tool: { execute?: Function }, args: Record<string, unknown>): Promise<T> {
@@ -95,6 +96,34 @@ describe('AI SDK tool integration', () => {
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('getContentCollectionTool can use a read adapter for cached reads', async () => {
+      const readAdapter: WordPressAIReadAdapter = {
+        listContent: async ({ contentType, filter }) => [{ id: 999, contentType, filter }],
+      };
+
+      const tool = getContentCollectionTool(publicClient, {
+        contentType: 'posts',
+        readAdapter,
+      });
+      const result = await run<Array<{ id: number; contentType: string; filter: Record<string, unknown> }>>(tool, { perPage: 2 });
+
+      expect(result).toEqual([{ id: 999, contentType: 'posts', filter: { perPage: 2 } }]);
+    });
+
+    it('getTermCollectionTool can use a read adapter for cached reads', async () => {
+      const readAdapter: WordPressAIReadAdapter = {
+        listTerms: async ({ taxonomyType, filter }) => [{ id: 998, taxonomyType, filter }],
+      };
+
+      const tool = getTermCollectionTool(publicClient, {
+        taxonomyType: 'categories',
+        readAdapter,
+      });
+      const result = await run<Array<{ id: number; taxonomyType: string; filter: Record<string, unknown> }>>(tool, { perPage: 4 });
+
+      expect(result).toEqual([{ id: 998, taxonomyType: 'categories', filter: { perPage: 4 } }]);
     });
   });
 
@@ -183,6 +212,50 @@ describe('AI SDK tool integration', () => {
       const result = await run<{ title: string }>(tool, {});
 
       expect(result).toHaveProperty('title');
+    });
+
+    it('read-only tools can use a read adapter without changing their public shapes', async () => {
+      const readAdapter: WordPressAIReadAdapter = {
+        getContent: async ({ contentType, slug, includeContent }) => ({
+          item: { id: 321, slug, type: contentType },
+          content: includeContent ? { raw: '<p>cached</p>' } : undefined,
+        }),
+        getTerm: async ({ slug }) => ({ id: 11, slug }),
+        getResource: async ({ slug, resourceType }) => ({ id: 12, slug, resourceType }),
+        getSettings: async () => ({ title: 'Cached settings title' }),
+      };
+
+      const contentTool = getContentTool(publicClient, {
+        contentType: 'posts',
+        readAdapter,
+      });
+      const contentResult = await run<{ item: { slug: string; type: string }; content?: { raw: string } }>(contentTool, {
+        slug: 'cached-post',
+        includeContent: true,
+      });
+      expect(contentResult).toEqual({
+        item: { id: 321, slug: 'cached-post', type: 'posts' },
+        content: { raw: '<p>cached</p>' },
+      });
+
+      const termTool = getTermTool(publicClient, {
+        taxonomyType: 'categories',
+        readAdapter,
+      });
+      expect(await run<{ slug: string }>(termTool, { slug: 'cached-term' })).toEqual({ id: 11, slug: 'cached-term' });
+
+      const resourceTool = getResourceTool(authClient, {
+        resourceType: 'users',
+        readAdapter,
+      });
+      expect(await run<{ slug: string; resourceType: string }>(resourceTool, { slug: 'cached-user' })).toEqual({
+        id: 12,
+        slug: 'cached-user',
+        resourceType: 'users',
+      });
+
+      const settingsTool = getSettingsTool(authClient, { readAdapter });
+      expect(await run<{ title: string }>(settingsTool, {})).toEqual({ title: 'Cached settings title' });
     });
   });
 
@@ -420,6 +493,45 @@ describe('AI SDK tool integration', () => {
 
       expect(result).toHaveProperty('id', blockTestPostId);
       expect(result).toHaveProperty('contentType', 'posts');
+    });
+
+    it('getBlocksTool can use a read adapter for cached block reads', async () => {
+      const tool = getBlocksTool(authClient, {
+        contentType: 'posts',
+        readAdapter: {
+          getBlocks: async ({ contentType, id }) => ({
+            id,
+            contentType,
+            blocks: [
+              {
+                blockName: 'core/paragraph',
+                attrs: {},
+                innerBlocks: [],
+                innerHTML: '<p>Cached blocks</p>',
+                innerContent: ['<p>Cached blocks</p>'],
+              },
+            ],
+          }),
+        },
+      });
+
+      const result = await run<{ id: number; contentType: string; blocks: Array<{ blockName: string }> }>(tool, {
+        id: blockTestPostId,
+      });
+
+      expect(result).toEqual({
+        id: blockTestPostId,
+        contentType: 'posts',
+        blocks: [
+          {
+            blockName: 'core/paragraph',
+            attrs: {},
+            innerBlocks: [],
+            innerHTML: '<p>Cached blocks</p>',
+            innerContent: ['<p>Cached blocks</p>'],
+          },
+        ],
+      });
     });
 
     it('setBlocksTool with fixedArgs overrides model-provided contentType', async () => {

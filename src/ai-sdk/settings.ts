@@ -18,6 +18,10 @@ export const getSettingsTool = (
   needsApproval: options?.needsApproval,
   inputSchema: z.object({}).describe('No input required'),
   execute: withToolErrorHandling(async () => {
+    if (options?.readAdapter?.getSettings) {
+      return options.readAdapter.getSettings({ client });
+    }
+
     return client.settings().get();
   }),
 });

@@ -247,6 +247,10 @@ export const getResourceCollectionTool = (
     const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
     const resourceType = resolveResourceType(merged, options);
     const filter = prepareCollectionArgs(stripResourceType(merged), options as ToolFactoryOptions<Record<string, unknown>>);
+    if (options?.readAdapter?.listResource) {
+      return options.readAdapter.listResource({ client, resourceType, filter });
+    }
+
     return listResource(client, resourceType, filter);
   }),
   });
@@ -264,7 +268,17 @@ export const getResourceTool = (
   inputSchema: (options?.inputSchema ?? createGetInputSchema(resolvedOptions)) as never,
   execute: withToolErrorHandling(async (args: unknown) => {
     const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
-    return getResource(client, resolveResourceType(merged, options), merged);
+    const resourceType = resolveResourceType(merged, options);
+    if (options?.readAdapter?.getResource) {
+      return options.readAdapter.getResource({
+        client,
+        resourceType,
+        id: typeof merged.id === 'number' ? merged.id : undefined,
+        slug: typeof merged.slug === 'string' ? merged.slug : undefined,
+      });
+    }
+
+    return getResource(client, resourceType, merged);
   }),
   });
 };

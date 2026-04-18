@@ -49,6 +49,10 @@ export const getContentCollectionTool = (
     const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
     const contentType = resolveContentType(merged, options);
     const filter = prepareCollectionArgs(stripContentType(merged), options as ToolFactoryOptions<Record<string, unknown>>);
+    if (options?.readAdapter?.listContent) {
+      return options.readAdapter.listContent({ client, contentType, filter });
+    }
+
     return client.content(contentType).list(filter as QueryParams);
   }),
   });
@@ -71,6 +75,17 @@ export const getContentTool = (
     const merged = mergeToolArgs(asToolArgs(args as Record<string, unknown>), options?.fixedArgs);
     const contentType = resolveContentType(merged, options);
     const contentOpts = merged as { includeContent?: boolean; includeBlocks?: boolean };
+    if (options?.readAdapter?.getContent) {
+      return options.readAdapter.getContent({
+        client,
+        contentType,
+        id: typeof merged.id === 'number' ? merged.id : undefined,
+        slug: typeof merged.slug === 'string' ? merged.slug : undefined,
+        includeContent: contentOpts.includeContent,
+        includeBlocks: contentOpts.includeBlocks,
+      });
+    }
+
     if (merged.id) {
       return resolveContentQuery(
         client.content(contentType).item(merged.id as number) as unknown as ContentQueryLike<WordPressPostLike | undefined>,

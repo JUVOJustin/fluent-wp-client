@@ -9,13 +9,28 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 export default defineConfig({
   resolve: {
-    alias: {
-      "fluent-wp-client": resolve(__dirname, "./dist/index.js"),
-      "fluent-wp-client/ai-sdk": resolve(__dirname, "./dist/ai-sdk/index.js"),
-      "fluent-wp-client/blocks": resolve(__dirname, "./dist/blocks-entry.js"),
-      "fluent-wp-client/blocks/zod": resolve(__dirname, "./dist/blocks-zod.js"),
-      "fluent-wp-client/zod": resolve(__dirname, "./dist/zod.js"),
-    },
+    alias: [
+      {
+        find: /^fluent-wp-client\/ai-sdk$/,
+        replacement: resolve(__dirname, "./dist/ai-sdk/index.js"),
+      },
+      {
+        find: /^fluent-wp-client\/blocks\/zod$/,
+        replacement: resolve(__dirname, "./dist/blocks-zod.js"),
+      },
+      {
+        find: /^fluent-wp-client\/blocks$/,
+        replacement: resolve(__dirname, "./dist/blocks-entry.js"),
+      },
+      {
+        find: /^fluent-wp-client\/zod$/,
+        replacement: resolve(__dirname, "./dist/zod.js"),
+      },
+      {
+        find: /^fluent-wp-client$/,
+        replacement: resolve(__dirname, "./dist/index.js"),
+      },
+    ],
   },
   root: __dirname,
   test: {

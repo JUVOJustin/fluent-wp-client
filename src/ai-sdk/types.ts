@@ -10,92 +10,6 @@ import type { QueryParams } from "../types/resources.js";
 import type { ContentItemResult } from "./factories.js";
 
 /**
- * Optional read hooks that AI SDK read tools can delegate to instead of calling
- * the WordPress client directly.
- *
- * Use this to route reads through a cached integration layer such as Astro live
- * loaders, SWR, or a CDN-backed edge cache without changing write paths.
- *
- * Each hook receives only the resolved, normalized arguments the tool already
- * computed. The client instance is intentionally excluded — if the adapter
- * needs the client, it is not replacing the read path, it is wrapping it.
- */
-export interface WordPressAIReadAdapter {
-  /**
-   * Replaces the default `getBlocksTool` read.
-   * Must return `{ id, contentType, blocks }`.
-   */
-  getBlocks?: (input: { contentType: string; id: number }) => Promise<{
-    id: number;
-    contentType: string;
-    blocks: WordPressParsedBlock[];
-  }>;
-
-  /**
-   * Replaces the default `getContentTool` read.
-   * Must return a `ContentItemResult`-compatible shape.
-   */
-  getContent?: (input: {
-    contentType: string;
-    id?: number;
-    slug?: string;
-    includeContent?: boolean;
-    includeBlocks?: boolean;
-  }) => Promise<ContentItemResult<WordPressPostLike | undefined> | undefined>;
-
-  /**
-   * Replaces the default `getResourceTool` read for media, comments, or users.
-   * `resourceType` matches the REST base string (e.g. `"media"`, `"users"`).
-   */
-  getResource?: (input: {
-    resourceType: string;
-    id?: number;
-    slug?: string;
-  }) => Promise<Record<string, unknown>>;
-
-  /**
-   * Replaces the default `getSettingsTool` read.
-   */
-  getSettings?: () => Promise<Record<string, unknown>>;
-
-  /**
-   * Replaces the default `getTermTool` read.
-   */
-  getTerm?: (input: {
-    taxonomyType: string;
-    id?: number;
-    slug?: string;
-  }) => Promise<Record<string, unknown>>;
-
-  /**
-   * Replaces the default `getContentCollectionTool` read.
-   * Must return an array of post-like DTOs.
-   */
-  listContent?: (input: {
-    contentType: string;
-    filter: QueryParams;
-  }) => Promise<WordPressPostLike[]>;
-
-  /**
-   * Replaces the default `getResourceCollectionTool` read.
-   * `resourceType` matches the REST base string (e.g. `"media"`, `"users"`).
-   */
-  listResource?: (input: {
-    resourceType: string;
-    filter: QueryParams;
-  }) => Promise<Record<string, unknown>[]>;
-
-  /**
-   * Replaces the default `getTermCollectionTool` read.
-   * Must return an array of term DTOs.
-   */
-  listTerms?: (input: {
-    taxonomyType: string;
-    filter: QueryParams;
-  }) => Promise<Record<string, unknown>[]>;
-}
-
-/**
  * Shared configuration accepted by all AI SDK tool factories.
  *
  * Developers use these options to tailor tool descriptions and lock arguments
@@ -113,17 +27,6 @@ export interface ToolFactoryOptions<TArgs extends Record<string, unknown>> {
   needsApproval?: boolean | ((input: TArgs) => boolean | Promise<boolean>);
   /** Enable provider strict-mode tool calling when supported. */
   strict?: boolean;
-}
-
-/**
- * Mixin that adds an optional read adapter to read-only tool factory options.
- *
- * Only applied to read tool options — mutation tools do not accept a
- * `readAdapter` because it has no effect on their execution path.
- */
-export interface ReadAdapterOptions {
-  /** Route reads through a cached or framework-managed integration instead of the client. */
-  readAdapter?: WordPressAIReadAdapter;
 }
 
 /**
@@ -162,18 +65,71 @@ export interface CatalogMutationToolFactoryOptions<
 }
 
 /**
- * Generic content tool options for read operations.
+ * Options for `getContentCollectionTool`.
  *
- * `contentType` pins the tool to one resource and removes the selector field
- * from the model-facing input. Omit it to expose one tool across all content
- * resources, optionally enum-backed from the discovery catalog.
+ * `contentType` pins the tool to one resource and removes the selector from
+ * the model-facing input. `fetch` replaces the default client list call with a
+ * custom implementation — useful for routing through a cache or live loader.
+ */
+export interface ContentCollectionToolOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogToolFactoryOptions<TArgs> {
+  /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
+  contentType?: string;
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives the fully resolved `contentType` and normalised `filter` after
+   * `fixedArgs` and field-selection normalisation have been applied.
+   */
+  fetch?: (input: {
+    contentType: string;
+    filter: QueryParams;
+  }) => Promise<WordPressPostLike[]>;
+}
+
+/**
+ * Options for `getContentTool`.
+ *
+ * `fetch` replaces the default client item call. Receives the resolved
+ * `contentType`, the id or slug the model provided, and the content/block
+ * inclusion flags.
+ */
+export interface ContentGetToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
+  /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
+  contentType?: string;
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives resolved args after `fixedArgs` have been applied.
+   */
+  fetch?: (input: {
+    contentType: string;
+    id?: number;
+    slug?: string;
+    includeContent?: boolean;
+    includeBlocks?: boolean;
+  }) => Promise<ContentItemResult<WordPressPostLike | undefined> | undefined>;
+}
+
+/**
+ * Generic content tool options (collection + single-item read).
+ *
+ * Alias kept for backwards compatibility with existing code that passes the
+ * same options object to both `getContentCollectionTool` and `getContentTool`.
+ * Prefer the specific `ContentCollectionToolOptions` / `ContentGetToolOptions`
+ * when each tool's `fetch` callback needs a distinct type.
  */
 export interface ContentToolFactoryOptions<
   TArgs extends Record<string, unknown>,
-> extends CatalogToolFactoryOptions<TArgs>,
-    ReadAdapterOptions {
+> extends CatalogToolFactoryOptions<TArgs> {
   /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
   contentType?: string;
+  /**
+   * Replace the default client fetch. Shape must be compatible with both the
+   * collection and single-item call signatures; use the specific options types
+   * when the callbacks differ.
+   */
+  fetch?: (input: Record<string, unknown>) => Promise<unknown>;
 }
 
 /**
@@ -184,14 +140,59 @@ export interface ContentMutationToolFactoryOptions<
 > extends CatalogMutationToolFactoryOptions<TArgs> {
   /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
   contentType?: string;
+  /**
+   * Replace the default client mutation. Receives the resolved `contentType`
+   * and the merged `input` / `id` after `fixedInput` has been applied.
+   */
+  fetch?: (input: Record<string, unknown>) => Promise<unknown>;
 }
 
 /**
- * Generic taxonomy tool options for read operations.
+ * Options for `getTermCollectionTool`.
+ */
+export interface TermCollectionToolOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives the resolved `taxonomyType` and normalised `filter`.
+   */
+  fetch?: (input: {
+    taxonomyType: string;
+    filter: QueryParams;
+  }) => Promise<Record<string, unknown>[]>;
+  /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
+  taxonomyType?: string;
+}
+
+/**
+ * Options for `getTermTool`.
+ */
+export interface TermGetToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives resolved args after `fixedArgs` have been applied.
+   */
+  fetch?: (input: {
+    taxonomyType: string;
+    id?: number;
+    slug?: string;
+  }) => Promise<Record<string, unknown>>;
+  /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
+  taxonomyType?: string;
+}
+
+/**
+ * Generic taxonomy tool options (collection + single-item read).
+ *
+ * Alias kept for backwards compatibility. Prefer the specific options types
+ * when each tool's `fetch` callback needs a distinct type.
  */
 export interface TermToolFactoryOptions<TArgs extends Record<string, unknown>>
-  extends CatalogToolFactoryOptions<TArgs>,
-    ReadAdapterOptions {
+  extends CatalogToolFactoryOptions<TArgs> {
+  /** Replace the default client fetch. */
+  fetch?: (input: Record<string, unknown>) => Promise<unknown>;
   /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
   taxonomyType?: string;
 }
@@ -202,8 +203,97 @@ export interface TermToolFactoryOptions<TArgs extends Record<string, unknown>>
 export interface TermMutationToolFactoryOptions<
   TArgs extends Record<string, unknown>,
 > extends CatalogMutationToolFactoryOptions<TArgs> {
+  /** Replace the default client mutation. */
+  fetch?: (input: Record<string, unknown>) => Promise<unknown>;
   /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
   taxonomyType?: string;
+}
+
+/**
+ * Options for `getResourceCollectionTool`.
+ */
+export interface ResourceCollectionToolOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives the resolved `resourceType` and normalised `filter`.
+   */
+  fetch?: (input: {
+    resourceType: string;
+    filter: QueryParams;
+  }) => Promise<Record<string, unknown>[]>;
+  resourceType?: "media" | "comments" | "users";
+}
+
+/**
+ * Options for `getResourceTool`.
+ */
+export interface ResourceGetToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives resolved args after `fixedArgs` have been applied.
+   */
+  fetch?: (input: {
+    resourceType: string;
+    id?: number;
+    slug?: string;
+  }) => Promise<Record<string, unknown>>;
+  resourceType?: "media" | "comments" | "users";
+}
+
+/**
+ * Generic resource tool options (collection + single-item read).
+ *
+ * Alias kept for backwards compatibility with existing `ResourceToolFactoryOptions`
+ * usage. Prefer the specific options types when each tool's `fetch` needs a
+ * distinct type.
+ */
+export interface ResourceToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogToolFactoryOptions<TArgs> {
+  /** Replace the default client fetch. */
+  fetch?: (input: Record<string, unknown>) => Promise<unknown>;
+  resourceType?: "media" | "comments" | "users";
+}
+
+export interface ResourceMutationToolFactoryOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogMutationToolFactoryOptions<TArgs> {
+  /** Replace the default client mutation. */
+  fetch?: (input: Record<string, unknown>) => Promise<unknown>;
+  resourceType?: "media" | "comments" | "users";
+}
+
+/**
+ * Options for `getSettingsTool`.
+ */
+export interface SettingsGetToolOptions
+  extends ToolFactoryOptions<Record<string, unknown>> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Called with no arguments — settings are a singleton.
+   */
+  fetch?: () => Promise<Record<string, unknown>>;
+}
+
+/**
+ * Options for `getBlocksTool`.
+ */
+export interface BlocksGetToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
+  /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
+  contentType?: string;
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives the resolved `contentType` and numeric `id`.
+   */
+  fetch?: (input: { contentType: string; id: number }) => Promise<{
+    id: number;
+    contentType: string;
+    blocks: WordPressParsedBlock[];
+  }>;
 }
 
 /**
@@ -219,10 +309,6 @@ export interface AbilityToolFactoryOptions<
 /**
  * Options for `createAbilityTools()`, which generates one dedicated AI SDK
  * tool per discovered WordPress ability.
- *
- * Each generated tool receives the ability's own description as its tool
- * description, its `input_schema` converted to Zod as the typed input schema,
- * and auto-selects the HTTP method from the ability's annotations.
  */
 export interface CreateAbilityToolsOptions {
   /**
@@ -259,8 +345,9 @@ export interface CreateAbilityToolsOptions {
   /**
    * Override the AI-facing tool description for each ability.
    *
-   * Defaults to the ability's `description`, enriched with `annotations.instructions`
-   * when present. Falls back to the ability's `label`.
+   * Defaults to the ability's `description`, enriched with
+   * `annotations.instructions` when present. Falls back to the ability's
+   * `label`.
    */
   toolDescription?: (
     abilityName: string,
@@ -271,7 +358,8 @@ export interface CreateAbilityToolsOptions {
    * Override the tool key used for each ability.
    *
    * Receives the raw `namespace/ability` name and the description.
-   * Defaults to replacing `/` with `_` (e.g. `myapp/send_email` → `myapp_send_email`).
+   * Defaults to replacing `/` with `_` (e.g. `myapp/send_email` →
+   * `myapp_send_email`).
    */
   toolName?: (
     abilityName: string,
@@ -299,16 +387,6 @@ export interface GenericMutationToolFactoryOptions<
 > extends MutationToolFactoryOptions<TArgs> {
   /** REST base for the custom resource. */
   resource: string;
-}
-
-/**
- * Read-only resource tool options.
- */
-export interface ResourceReadToolFactoryOptions<
-  TArgs extends Record<string, unknown>,
-> extends CatalogToolFactoryOptions<TArgs>,
-    ReadAdapterOptions {
-  resourceType?: "media" | "comments" | "users";
 }
 
 /**

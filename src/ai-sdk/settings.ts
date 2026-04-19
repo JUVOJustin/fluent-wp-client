@@ -6,29 +6,24 @@ import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import { settingsUpdateInputSchema } from "./schemas.js";
 import type {
   MutationToolFactoryOptions,
-  ReadAdapterOptions,
-  ToolFactoryOptions,
+  SettingsGetToolOptions,
 } from "./types.js";
 
 /**
- * Read-only options for the settings tool, including an optional read adapter.
- */
-export interface SettingsReadToolFactoryOptions
-  extends ToolFactoryOptions<Record<string, unknown>>,
-    ReadAdapterOptions {}
-
-/**
  * AI SDK tool that fetches WordPress site settings.
+ *
+ * Provide `fetch` to replace the default client call — settings are a
+ * singleton so the callback receives no arguments.
  */
 export const getSettingsTool = (
   client: WordPressClient,
-  options?: SettingsReadToolFactoryOptions,
+  options?: SettingsGetToolOptions,
 ) =>
   tool({
     description: options?.description ?? "Get WordPress site settings",
     execute: withToolErrorHandling(async () => {
-      if (options?.readAdapter?.getSettings) {
-        return options.readAdapter.getSettings();
+      if (options?.fetch) {
+        return options.fetch();
       }
 
       return client.settings().get();
@@ -40,6 +35,9 @@ export const getSettingsTool = (
 
 /**
  * AI SDK tool that updates WordPress site settings.
+ *
+ * Provide `fetch` to replace the default client call. Receives the merged
+ * `input` after `fixedInput` has been applied.
  */
 export const updateSettingsTool = (
   client: WordPressClient,

@@ -12,9 +12,8 @@ import type { WordPressDiscoveryCatalog } from "../types/discovery.js";
 import { asToolArgs, withToolErrorHandling } from "./factories.js";
 import { mergeToolArgs } from "./merge.js";
 import type {
+  BlocksGetToolOptions,
   ContentMutationToolFactoryOptions,
-  ContentToolFactoryOptions,
-  WordPressAIReadAdapter,
 } from "./types.js";
 
 function createContentTypeSelector(catalog?: WordPressDiscoveryCatalog) {
@@ -175,45 +174,17 @@ function resolveContentType(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolves a blocks read through the adapter when one is provided,
- * otherwise fetches and parses the raw block markup via the client.
- */
-async function executeGetBlocks(
-  client: WordPressClient,
-  readAdapter: WordPressAIReadAdapter | undefined,
-  contentType: string,
-  id: number,
-): Promise<{
-  id: number;
-  contentType: string;
-  blocks: WordPressParsedBlock[];
-}> {
-  if (readAdapter?.getBlocks) {
-    return readAdapter.getBlocks({ contentType, id });
-  }
-
-  const content = await client.content(contentType).item(id).getContent();
-  const raw = content?.raw;
-  if (!raw) {
-    throw createInvalidRequestError(
-      `Raw content unavailable for ${contentType}/${id}. ` +
-        "Ensure the client is authenticated with edit capabilities for this item.",
-    );
-  }
-
-  const blocks = await parseWordPressBlocks(raw);
-  return { blocks, contentType, id };
-}
-
-/**
  * AI SDK tool that reads the parsed Gutenberg block structure of any post-like resource.
  *
  * Fetches the item with `context=edit` (requires auth) and parses the raw
  * block markup into a structured block tree.
+ *
+ * Provide `fetch` to replace the default client call. Receives the resolved
+ * `contentType` and numeric `id` after `fixedArgs` have been applied.
  */
 export const getBlocksTool = (
   client: WordPressClient,
-  options?: ContentToolFactoryOptions<Record<string, unknown>>,
+  options?: BlocksGetToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -230,7 +201,22 @@ export const getBlocksTool = (
       );
       const contentType = resolveContentType(merged, options);
       const id = merged.id as number;
-      return executeGetBlocks(client, options?.readAdapter, contentType, id);
+
+      if (options?.fetch) {
+        return options.fetch({ contentType, id });
+      }
+
+      const content = await client.content(contentType).item(id).getContent();
+      const raw = content?.raw;
+      if (!raw) {
+        throw createInvalidRequestError(
+          `Raw content unavailable for ${contentType}/${id}. ` +
+            "Ensure the client is authenticated with edit capabilities for this item.",
+        );
+      }
+
+      const blocks = await parseWordPressBlocks(raw);
+      return { blocks, contentType, id };
     }),
     inputSchema: (options?.inputSchema ??
       createBlocksReadInputSchema(resolvedOptions)) as never,

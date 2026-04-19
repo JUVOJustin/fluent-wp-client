@@ -19,10 +19,10 @@ import {
 } from "./factories.js";
 import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import type {
+  ContentCollectionToolOptions,
+  ContentGetToolOptions,
   ContentMutationToolFactoryOptions,
-  ContentToolFactoryOptions,
   ToolFactoryOptions,
-  WordPressAIReadAdapter,
 } from "./types.js";
 
 function resolveContentType(
@@ -49,76 +49,16 @@ function stripContentType(
 }
 
 /**
- * Resolves a content collection read through the adapter when one is provided,
- * otherwise falls through to the client.
- */
-async function executeListContent(
-  client: WordPressClient,
-  readAdapter: WordPressAIReadAdapter | undefined,
-  contentType: string,
-  filter: QueryParams,
-): Promise<unknown> {
-  if (readAdapter?.listContent) {
-    return readAdapter.listContent({ contentType, filter });
-  }
-
-  return client.content(contentType).list(filter);
-}
-
-/**
- * Resolves a single content item read through the adapter when one is
- * provided, otherwise falls through to the client query path.
- */
-async function executeGetContent(
-  client: WordPressClient,
-  readAdapter: WordPressAIReadAdapter | undefined,
-  contentType: string,
-  merged: Record<string, unknown>,
-): Promise<unknown> {
-  const contentOpts = merged as {
-    includeContent?: boolean;
-    includeBlocks?: boolean;
-  };
-  const id = typeof merged.id === "number" ? merged.id : undefined;
-  const slug = typeof merged.slug === "string" ? merged.slug : undefined;
-
-  if (readAdapter?.getContent) {
-    return readAdapter.getContent({
-      contentType,
-      id,
-      includeBlocks: contentOpts.includeBlocks,
-      includeContent: contentOpts.includeContent,
-      slug,
-    });
-  }
-
-  if (id !== undefined) {
-    return resolveContentQuery(
-      client.content(contentType).item(id) as unknown as ContentQueryLike<
-        WordPressPostLike | undefined
-      >,
-      contentOpts,
-    );
-  }
-
-  if (slug !== undefined) {
-    return resolveContentQuery(
-      client.content(contentType).item(slug) as unknown as ContentQueryLike<
-        WordPressPostLike | undefined
-      >,
-      contentOpts,
-    );
-  }
-
-  throw createInvalidRequestError("Either id or slug must be provided.");
-}
-
-/**
  * AI SDK tool that lists items from a custom content resource.
+ *
+ * Provide `fetch` to replace the default client call — useful for routing
+ * through a cache, live loader, or any custom fetch layer. The callback
+ * receives the fully resolved `contentType` and normalised `filter` after
+ * `fixedArgs` and field-selection normalisation have already been applied.
  */
 export const getContentCollectionTool = (
   client: WordPressClient,
-  options?: ContentToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentCollectionToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -136,12 +76,11 @@ export const getContentCollectionTool = (
         stripContentType(merged),
         options as ToolFactoryOptions<Record<string, unknown>>,
       );
-      return executeListContent(
-        client,
-        options?.readAdapter,
-        contentType,
-        filter as QueryParams,
-      );
+      if (options?.fetch) {
+        return options.fetch({ contentType, filter: filter as QueryParams });
+      }
+
+      return client.content(contentType).list(filter as QueryParams);
     }),
     inputSchema: (options?.inputSchema ??
       createContentCollectionInputSchema(resolvedOptions)) as never,
@@ -152,10 +91,14 @@ export const getContentCollectionTool = (
 
 /**
  * AI SDK tool that fetches a single custom content item by ID or slug.
+ *
+ * Provide `fetch` to replace the default client call. The callback receives
+ * the resolved `contentType`, normalised `id` or `slug`, and the
+ * `includeContent` / `includeBlocks` flags after `fixedArgs` have been applied.
  */
 export const getContentTool = (
   client: WordPressClient,
-  options?: ContentToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentGetToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -171,12 +114,42 @@ export const getContentTool = (
         options?.fixedArgs,
       );
       const contentType = resolveContentType(merged, options);
-      return executeGetContent(
-        client,
-        options?.readAdapter,
-        contentType,
-        merged,
-      );
+      const id = typeof merged.id === "number" ? merged.id : undefined;
+      const slug = typeof merged.slug === "string" ? merged.slug : undefined;
+      const contentOpts = merged as {
+        includeContent?: boolean;
+        includeBlocks?: boolean;
+      };
+
+      if (options?.fetch) {
+        return options.fetch({
+          contentType,
+          id,
+          includeBlocks: contentOpts.includeBlocks,
+          includeContent: contentOpts.includeContent,
+          slug,
+        });
+      }
+
+      if (id !== undefined) {
+        return resolveContentQuery(
+          client.content(contentType).item(id) as unknown as ContentQueryLike<
+            WordPressPostLike | undefined
+          >,
+          contentOpts,
+        );
+      }
+
+      if (slug !== undefined) {
+        return resolveContentQuery(
+          client.content(contentType).item(slug) as unknown as ContentQueryLike<
+            WordPressPostLike | undefined
+          >,
+          contentOpts,
+        );
+      }
+
+      throw createInvalidRequestError("Either id or slug must be provided.");
     }),
     inputSchema: (options?.inputSchema ??
       createContentGetInputSchema(resolvedOptions)) as never,
@@ -187,6 +160,10 @@ export const getContentTool = (
 
 /**
  * AI SDK tool that creates a new custom content item.
+ *
+ * Provide `fetch` to replace the default client call. The callback receives
+ * the resolved `contentType` and merged `input` after `fixedInput` has been
+ * applied — useful for routing through a proxy, audit log, or queue.
  */
 export const createContentTool = (
   client: WordPressClient,
@@ -209,6 +186,14 @@ export const createContentTool = (
         options?.defaultInput,
         options?.fixedInput,
       );
+
+      if (options?.fetch) {
+        return options.fetch({
+          contentType,
+          input: withInput.input,
+        });
+      }
+
       return client
         .content(contentType)
         .create(withInput.input as Record<string, unknown>);
@@ -222,6 +207,10 @@ export const createContentTool = (
 
 /**
  * AI SDK tool that updates an existing custom content item.
+ *
+ * Provide `fetch` to replace the default client call. The callback receives
+ * the resolved `contentType`, `id`, and merged `input` after `fixedInput`
+ * has been applied.
  */
 export const updateContentTool = (
   client: WordPressClient,
@@ -245,6 +234,15 @@ export const updateContentTool = (
         options?.defaultInput,
         options?.fixedInput,
       );
+
+      if (options?.fetch) {
+        return options.fetch({
+          contentType,
+          id: withInput.id,
+          input: withInput.input,
+        });
+      }
+
       return client
         .content(contentType)
         .update(
@@ -261,6 +259,9 @@ export const updateContentTool = (
 
 /**
  * AI SDK tool that deletes a custom content item.
+ *
+ * Provide `fetch` to replace the default client call. The callback receives
+ * the resolved `contentType`, `id`, and optional `force` flag.
  */
 export const deleteContentTool = (
   client: WordPressClient,
@@ -278,6 +279,15 @@ export const deleteContentTool = (
         options?.fixedArgs,
       );
       const contentType = resolveContentType(merged, options);
+
+      if (options?.fetch) {
+        return options.fetch({
+          contentType,
+          force: merged.force,
+          id: merged.id,
+        });
+      }
+
       return client.content(contentType).delete(merged.id as number, {
         force: merged.force as boolean | undefined,
       });

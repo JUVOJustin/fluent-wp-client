@@ -20,7 +20,6 @@ import {
   setBlocksTool,
   updateContentTool,
   updateResourceTool,
-  type WordPressAIReadAdapter,
 } from "fluent-wp-client/ai-sdk";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -111,63 +110,48 @@ describe("AI SDK tool integration", () => {
       expect(result.length).toBeGreaterThan(0);
     });
 
-    it("getContentCollectionTool delegates to readAdapter with resolved contentType and normalized filter", async () => {
-      // Verify the adapter receives correctly resolved args after the tool's
-      // own argument merging runs — the real posts slug must be returned by WP
-      // but the collection is entirely routed through the adapter.
+    it("getContentCollectionTool delegates to fetch with resolved contentType and normalized filter", async () => {
+      // fixedArgs must win over model input before reaching the fetch callback
       const capturedInput: {
         contentType: string;
         filter: Record<string, unknown>;
       }[] = [];
-      const readAdapter: WordPressAIReadAdapter = {
-        listContent: async (input) => {
+
+      const tool = getContentCollectionTool(publicClient, {
+        contentType: "posts",
+        fetch: async (input) => {
           capturedInput.push({
             contentType: input.contentType,
             filter: input.filter as Record<string, unknown>,
           });
-          // Fall through to the real client so the test still hits WP
-          return publicClient
-            .content(input.contentType)
-            .list(input.filter as never);
+          return publicClient.content(input.contentType).list(input.filter);
         },
-      };
-
-      const tool = getContentCollectionTool(publicClient, {
-        contentType: "posts",
         fixedArgs: { perPage: 2 },
-        readAdapter,
       });
       const result = await run<Array<{ slug: string }>>(tool, { perPage: 10 });
 
-      // fixedArgs win, so perPage must be 2 in the adapter input
       expect(capturedInput).toHaveLength(1);
       expect(capturedInput[0].contentType).toBe("posts");
       expect(capturedInput[0].filter).toHaveProperty("perPage", 2);
-      // Result is real WP data routed via adapter
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeLessThanOrEqual(2);
     });
 
-    it("getTermCollectionTool delegates to readAdapter with resolved taxonomyType and normalized filter", async () => {
+    it("getTermCollectionTool delegates to fetch with resolved taxonomyType and normalized filter", async () => {
       const capturedInput: {
         taxonomyType: string;
         filter: Record<string, unknown>;
       }[] = [];
-      const readAdapter: WordPressAIReadAdapter = {
-        listTerms: async (input) => {
+
+      const tool = getTermCollectionTool(publicClient, {
+        fetch: async (input) => {
           capturedInput.push({
             filter: input.filter as Record<string, unknown>,
             taxonomyType: input.taxonomyType,
           });
-          return publicClient
-            .terms(input.taxonomyType)
-            .list(input.filter as never);
+          return publicClient.terms(input.taxonomyType).list(input.filter);
         },
-      };
-
-      const tool = getTermCollectionTool(publicClient, {
         fixedArgs: { perPage: 3 },
-        readAdapter,
         taxonomyType: "categories",
       });
       const result = await run<Array<{ slug: string }>>(tool, { perPage: 10 });
@@ -179,24 +163,21 @@ describe("AI SDK tool integration", () => {
       expect(result.length).toBeGreaterThan(0);
     });
 
-    it("getResourceCollectionTool delegates to readAdapter with resolved resourceType and normalized filter", async () => {
+    it("getResourceCollectionTool delegates to fetch with resolved resourceType and normalized filter", async () => {
       const capturedInput: {
         resourceType: string;
         filter: Record<string, unknown>;
       }[] = [];
-      const readAdapter: WordPressAIReadAdapter = {
-        listResource: async (input) => {
+
+      const tool = getResourceCollectionTool(authClient, {
+        fetch: async (input) => {
           capturedInput.push({
             filter: input.filter as Record<string, unknown>,
             resourceType: input.resourceType,
           });
-          return authClient.users().list(input.filter as never);
+          return authClient.users().list(input.filter);
         },
-      };
-
-      const tool = getResourceCollectionTool(authClient, {
         fixedArgs: { perPage: 2 },
-        readAdapter,
         resourceType: "users",
       });
       const result = await run<Array<{ slug: string }>>(tool, { perPage: 10 });
@@ -299,31 +280,27 @@ describe("AI SDK tool integration", () => {
       expect(result).toHaveProperty("title");
     });
 
-    it("getContentTool delegates to readAdapter with resolved contentType, slug, and options", async () => {
+    it("getContentTool delegates to fetch with resolved contentType, slug, and options", async () => {
       const captured: {
         contentType: string;
         slug?: string;
         includeContent?: boolean;
       }[] = [];
-      const readAdapter: WordPressAIReadAdapter = {
-        getContent: async (input) => {
+
+      const tool = getContentTool(publicClient, {
+        contentType: "posts",
+        fetch: async (input) => {
           captured.push({
             contentType: input.contentType,
             includeContent: input.includeContent,
             slug: input.slug,
           });
-          // Delegate to real WP so the result shape is validated end-to-end
           if (!input.slug) throw new Error("slug required");
           const item = await publicClient
             .content(input.contentType)
             .item(input.slug);
           return item ? { content: undefined, item } : undefined;
         },
-      };
-
-      const tool = getContentTool(publicClient, {
-        contentType: "posts",
-        readAdapter,
       });
       const result = await run<{ item: { slug: string } }>(tool, {
         includeContent: true,
@@ -337,18 +314,15 @@ describe("AI SDK tool integration", () => {
       expect(result).toHaveProperty("item.slug", "test-post-001");
     });
 
-    it("getTermTool delegates to readAdapter with resolved taxonomyType and slug", async () => {
+    it("getTermTool delegates to fetch with resolved taxonomyType and slug", async () => {
       const captured: { taxonomyType: string; slug?: string }[] = [];
-      const readAdapter: WordPressAIReadAdapter = {
-        getTerm: async (input) => {
+
+      const tool = getTermTool(publicClient, {
+        fetch: async (input) => {
           captured.push({ slug: input.slug, taxonomyType: input.taxonomyType });
           if (!input.slug) throw new Error("slug required");
           return publicClient.terms(input.taxonomyType).item(input.slug);
         },
-      };
-
-      const tool = getTermTool(publicClient, {
-        readAdapter,
         taxonomyType: "categories",
       });
       const result = await run<{ slug: string }>(tool, { slug: "technology" });
@@ -359,19 +333,16 @@ describe("AI SDK tool integration", () => {
       expect(result).toHaveProperty("slug", "technology");
     });
 
-    it("getResourceTool delegates to readAdapter with resolved resourceType and slug", async () => {
+    it("getResourceTool delegates to fetch with resolved resourceType and slug", async () => {
       const user = (await authClient.users().list({ perPage: 1 }))[0];
       const captured: { resourceType: string; slug?: string }[] = [];
-      const readAdapter: WordPressAIReadAdapter = {
-        getResource: async (input) => {
+
+      const tool = getResourceTool(authClient, {
+        fetch: async (input) => {
           captured.push({ resourceType: input.resourceType, slug: input.slug });
           if (!input.slug) throw new Error("slug required");
           return authClient.users().item(input.slug);
         },
-      };
-
-      const tool = getResourceTool(authClient, {
-        readAdapter,
         resourceType: "users",
       });
       const result = await run<{ slug: string }>(tool, { slug: user.slug });
@@ -382,20 +353,18 @@ describe("AI SDK tool integration", () => {
       expect(result).toHaveProperty("slug", user.slug);
     });
 
-    it("getSettingsTool delegates to readAdapter and bypasses the client read", async () => {
-      let adapterCalled = false;
-      const readAdapter: WordPressAIReadAdapter = {
-        getSettings: async () => {
-          adapterCalled = true;
-          // Return a real settings fetch so the response shape is valid
+    it("getSettingsTool delegates to fetch and bypasses the client read", async () => {
+      let fetchCalled = false;
+
+      const tool = getSettingsTool(authClient, {
+        fetch: async () => {
+          fetchCalled = true;
           return authClient.settings().get();
         },
-      };
-
-      const tool = getSettingsTool(authClient, { readAdapter });
+      });
       const result = await run<{ title: string }>(tool, {});
 
-      expect(adapterCalled).toBe(true);
+      expect(fetchCalled).toBe(true);
       expect(result).toHaveProperty("title");
     });
   });
@@ -687,12 +656,13 @@ describe("AI SDK tool integration", () => {
       expect(result).toHaveProperty("contentType", "posts");
     });
 
-    it("getBlocksTool delegates to readAdapter with resolved contentType and id", async () => {
+    it("getBlocksTool delegates to fetch with resolved contentType and id", async () => {
       const captured: { contentType: string; id: number }[] = [];
-      const readAdapter: WordPressAIReadAdapter = {
-        getBlocks: async (input) => {
+
+      const tool = getBlocksTool(authClient, {
+        contentType: "posts",
+        fetch: async (input) => {
           captured.push({ contentType: input.contentType, id: input.id });
-          // Delegate to the real client so the blocks shape is validated
           const content = await authClient
             .content(input.contentType)
             .item(input.id)
@@ -705,11 +675,6 @@ describe("AI SDK tool integration", () => {
             : [];
           return { blocks, contentType: input.contentType, id: input.id };
         },
-      };
-
-      const tool = getBlocksTool(authClient, {
-        contentType: "posts",
-        readAdapter,
       });
 
       const result = await run<{

@@ -177,7 +177,7 @@ All generic tool factories accept the existing configuration model:
 - `strict` — Enable provider strict-mode tool calling
 - `needsApproval` — Require approval before executing this tool
 - `inputSchema` — Override the generated schema with custom Zod schema (supports `.default()`)
-- `readAdapter` — Optionally route AI read tools through cached or framework-managed reads such as Astro live loaders
+- `fetch` — Replace the default WordPress client call with a custom implementation
 
 Example:
 
@@ -189,37 +189,41 @@ const publishPosts = updateContentTool(adminWp, {
 });
 ```
 
-### Read adapters
+### Custom fetch callbacks
 
-Read-only AI SDK tools accept an optional `readAdapter` to delegate reads to a cached or framework-managed integration instead of calling the WordPress client directly. This is useful when your runtime already has a cached read path, such as Astro live loaders.
+Every tool factory accepts an optional `fetch` callback that replaces the default WordPress client call. The callback receives the fully resolved, normalised arguments after `fixedArgs` and schema defaults have been applied — the tool's own argument merging always runs first.
 
-The adapter receives only the resolved, normalized arguments the tool already computed — not the client instance. Write paths (create, update, delete, ability execution) always use the normal `WordPressClient` request flow and do not accept a `readAdapter`.
+This works for reads **and** writes, making it the single extension point for caches, live loaders, proxies, audit logs, or any custom request pipeline.
 
 ```typescript
+// Route a read through Astro live loaders
 const searchPosts = getContentCollectionTool(wp, {
   contentType: 'posts',
-  readAdapter: {
-    async listContent({ contentType, filter }) {
-      return cachedLiveLoaderList(contentType, filter);
-    },
+  fetch: async ({ contentType, filter }) => {
+    return getLiveCollection(contentType, filter);
   },
 });
 
-const readPost = getContentTool(wp, {
+// Route a single-item read through a CDN cache
+const getPost = getContentTool(wp, {
   contentType: 'posts',
-  readAdapter: {
-    async getContent({ contentType, slug, includeContent }) {
-      if (!slug) {
-        throw new Error('This read adapter requires a slug.');
-      }
+  fetch: async ({ contentType, slug, includeContent }) => {
+    if (!slug) throw new Error('slug required');
+    return myEdgeCache.get(contentType, slug, { includeContent });
+  },
+});
 
-      return cachedLiveLoaderItem(contentType, slug, { includeContent });
-    },
+// Route a mutation through an audit log
+const createPost = createContentTool(wp, {
+  contentType: 'posts',
+  fetch: async ({ contentType, input }) => {
+    await auditLog.record('create', contentType, input);
+    return wp.content(contentType).create(input as never);
   },
 });
 ```
 
-Supported read hooks: `listContent`, `getContent`, `listTerms`, `getTerm`, `listResource`, `getResource`, `getSettings`, `getBlocks`. The full interface is exported as `WordPressAIReadAdapter` from `fluent-wp-client/ai-sdk`.
+The `fetch` callback is typed specifically to the tool it is passed to, so TypeScript knows exactly which arguments are available.
 
 ### Default values with Zod schemas
 

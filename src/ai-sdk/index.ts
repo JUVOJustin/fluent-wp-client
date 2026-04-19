@@ -12,6 +12,12 @@
  * - **One single-getter tool** accepts either `id` or `slug` and, for
  *   post-like resources, can optionally expand raw content and blocks.
  * - **Mutation tools** (create, update, delete) map 1:1 to write operations.
+ *
+ * Every tool factory accepts an optional `fetch` callback that replaces the
+ * default WordPress client call. The callback receives the fully resolved,
+ * normalised arguments after `fixedArgs` and schema defaults have been applied.
+ * This is the extension point for caches, live loaders, proxies, and custom
+ * request pipelines — for both reads and writes.
  */
 
 // Abilities
@@ -24,10 +30,7 @@ export {
   getAbilityTool,
 } from "./abilities.js";
 // Gutenberg blocks — universal read/write for any post-like resource
-export {
-  getBlocksTool,
-  setBlocksTool,
-} from "./blocks.js";
+export { getBlocksTool, setBlocksTool } from "./blocks.js";
 // Generic content
 export {
   createContentTool,
@@ -46,16 +49,10 @@ export {
   deleteResourceTool,
   getResourceCollectionTool,
   getResourceTool,
-  type ResourceMutationToolFactoryOptions,
-  type ResourceToolFactoryOptions,
   updateResourceTool,
 } from "./resources.js";
 // Singleton settings
-export {
-  getSettingsTool,
-  type SettingsReadToolFactoryOptions,
-  updateSettingsTool,
-} from "./settings.js";
+export { getSettingsTool, updateSettingsTool } from "./settings.js";
 // Generic taxonomies
 export {
   createTermTool,
@@ -67,18 +64,25 @@ export {
 // Types
 export type {
   AbilityToolFactoryOptions,
+  BlocksGetToolOptions,
   CatalogMutationToolFactoryOptions,
   CatalogToolFactoryOptions,
+  ContentCollectionToolOptions,
+  ContentGetToolOptions,
   ContentMutationToolFactoryOptions,
   ContentToolFactoryOptions,
   CreateAbilityToolsOptions,
   GenericMutationToolFactoryOptions,
   GenericResourceToolFactoryOptions,
   MutationToolFactoryOptions,
-  ReadAdapterOptions,
-  ResourceReadToolFactoryOptions,
+  ResourceCollectionToolOptions,
+  ResourceGetToolOptions,
+  ResourceMutationToolFactoryOptions,
+  ResourceToolFactoryOptions,
+  SettingsGetToolOptions,
+  TermCollectionToolOptions,
+  TermGetToolOptions,
   TermMutationToolFactoryOptions,
   TermToolFactoryOptions,
   ToolFactoryOptions,
-  WordPressAIReadAdapter,
 } from "./types.js";

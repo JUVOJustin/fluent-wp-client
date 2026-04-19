@@ -20,8 +20,10 @@ import {
 import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import type {
   ContentCollectionToolOptions,
+  ContentCreateToolOptions,
+  ContentDeleteToolOptions,
   ContentGetToolOptions,
-  ContentMutationToolFactoryOptions,
+  ContentUpdateToolOptions,
   ToolFactoryOptions,
 } from "./types.js";
 
@@ -167,7 +169,7 @@ export const getContentTool = (
  */
 export const createContentTool = (
   client: WordPressClient,
-  options?: ContentMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentCreateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -190,7 +192,7 @@ export const createContentTool = (
       if (options?.fetch) {
         return options.fetch({
           contentType,
-          input: withInput.input,
+          input: withInput.input as Record<string, unknown>,
         });
       }
 
@@ -214,7 +216,7 @@ export const createContentTool = (
  */
 export const updateContentTool = (
   client: WordPressClient,
-  options?: ContentMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentUpdateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -238,8 +240,8 @@ export const updateContentTool = (
       if (options?.fetch) {
         return options.fetch({
           contentType,
-          id: withInput.id,
-          input: withInput.input,
+          id: withInput.id as number,
+          input: withInput.input as Record<string, unknown>,
         });
       }
 
@@ -265,7 +267,7 @@ export const updateContentTool = (
  */
 export const deleteContentTool = (
   client: WordPressClient,
-  options?: ContentMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentDeleteToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -283,8 +285,8 @@ export const deleteContentTool = (
       if (options?.fetch) {
         return options.fetch({
           contentType,
-          force: merged.force,
-          id: merged.id,
+          force: merged.force as boolean | undefined,
+          id: merged.id as number,
         });
       }
 

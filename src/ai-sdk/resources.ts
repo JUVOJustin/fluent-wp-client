@@ -34,8 +34,10 @@ import {
 } from "./schemas.js";
 import type {
   ResourceCollectionToolOptions,
+  ResourceCreateToolOptions,
+  ResourceDeleteToolOptions,
   ResourceGetToolOptions,
-  ResourceMutationToolFactoryOptions,
+  ResourceUpdateToolOptions,
   ToolFactoryOptions,
 } from "./types.js";
 
@@ -413,7 +415,7 @@ export const getResourceTool = (
  */
 export const createResourceTool = (
   client: WordPressClient,
-  options?: ResourceMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceCreateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -434,7 +436,10 @@ export const createResourceTool = (
       );
 
       if (options?.fetch) {
-        return options.fetch({ input: withInput.input, resourceType });
+        return options.fetch({
+          input: withInput.input as Record<string, unknown>,
+          resourceType,
+        });
       }
 
       return createResource(
@@ -458,7 +463,7 @@ export const createResourceTool = (
  */
 export const updateResourceTool = (
   client: WordPressClient,
-  options?: ResourceMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceUpdateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -480,8 +485,8 @@ export const updateResourceTool = (
 
       if (options?.fetch) {
         return options.fetch({
-          id: withInput.id,
-          input: withInput.input,
+          id: withInput.id as number,
+          input: withInput.input as Record<string, unknown>,
           resourceType,
         });
       }
@@ -508,7 +513,7 @@ export const updateResourceTool = (
  */
 export const deleteResourceTool = (
   client: WordPressClient,
-  options?: ResourceMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceDeleteToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -526,9 +531,9 @@ export const deleteResourceTool = (
 
       if (options?.fetch) {
         return options.fetch({
-          force: merged.force,
-          id: merged.id,
-          reassign: merged.reassign,
+          force: merged.force as boolean | undefined,
+          id: merged.id as number,
+          reassign: merged.reassign as number | undefined,
           resourceType,
         });
       }

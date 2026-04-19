@@ -17,8 +17,10 @@ import {
 import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import type {
   TermCollectionToolOptions,
+  TermCreateToolOptions,
+  TermDeleteToolOptions,
   TermGetToolOptions,
-  TermMutationToolFactoryOptions,
+  TermUpdateToolOptions,
   ToolFactoryOptions,
 } from "./types.js";
 
@@ -136,7 +138,7 @@ export const getTermTool = (
  */
 export const createTermTool = (
   client: WordPressClient,
-  options?: TermMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: TermCreateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -157,7 +159,10 @@ export const createTermTool = (
       );
 
       if (options?.fetch) {
-        return options.fetch({ input: withInput.input, taxonomyType });
+        return options.fetch({
+          input: withInput.input as Record<string, unknown>,
+          taxonomyType,
+        });
       }
 
       return client
@@ -179,7 +184,7 @@ export const createTermTool = (
  */
 export const updateTermTool = (
   client: WordPressClient,
-  options?: TermMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: TermUpdateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -201,8 +206,8 @@ export const updateTermTool = (
 
       if (options?.fetch) {
         return options.fetch({
-          id: withInput.id,
-          input: withInput.input,
+          id: withInput.id as number,
+          input: withInput.input as Record<string, unknown>,
           taxonomyType,
         });
       }
@@ -229,7 +234,7 @@ export const updateTermTool = (
  */
 export const deleteTermTool = (
   client: WordPressClient,
-  options?: TermMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: TermDeleteToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -246,8 +251,8 @@ export const deleteTermTool = (
 
       if (options?.fetch) {
         return options.fetch({
-          force: merged.force,
-          id: merged.id,
+          force: merged.force as boolean | undefined,
+          id: merged.id as number,
           taxonomyType,
         });
       }

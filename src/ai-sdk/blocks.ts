@@ -11,10 +11,7 @@ import { createInvalidRequestError } from "../core/errors.js";
 import type { WordPressDiscoveryCatalog } from "../types/discovery.js";
 import { asToolArgs, withToolErrorHandling } from "./factories.js";
 import { mergeToolArgs } from "./merge.js";
-import type {
-  BlocksGetToolOptions,
-  ContentMutationToolFactoryOptions,
-} from "./types.js";
+import type { BlocksGetToolOptions, BlocksSetToolOptions } from "./types.js";
 
 function createContentTypeSelector(catalog?: WordPressDiscoveryCatalog) {
   const contentTypes = Object.keys(catalog?.content ?? {});
@@ -234,7 +231,7 @@ export const getBlocksTool = (
  */
 export const setBlocksTool = (
   client: WordPressClient,
-  options?: ContentMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: BlocksSetToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -254,6 +251,10 @@ export const setBlocksTool = (
       const blocks = merged.blocks as WordPressParsedBlock[];
 
       await assertValidWordPressBlocks(blocks);
+
+      if (options?.fetch) {
+        return options.fetch({ blocks, contentType, id });
+      }
 
       const rawContent = serializeWordPressBlocks(blocks);
 

@@ -33,8 +33,11 @@ import {
   userUpdateInputSchema,
 } from "./schemas.js";
 import type {
-  CatalogMutationToolFactoryOptions,
-  CatalogToolFactoryOptions,
+  ResourceCollectionToolOptions,
+  ResourceCreateToolOptions,
+  ResourceDeleteToolOptions,
+  ResourceGetToolOptions,
+  ResourceUpdateToolOptions,
   ToolFactoryOptions,
 } from "./types.js";
 
@@ -321,21 +324,15 @@ async function deleteResource(
       });
 }
 
-export interface ResourceToolFactoryOptions<
-  TArgs extends Record<string, unknown>,
-> extends CatalogToolFactoryOptions<TArgs> {
-  resourceType?: SupportedResourceType;
-}
-
-export interface ResourceMutationToolFactoryOptions<
-  TArgs extends Record<string, unknown>,
-> extends CatalogMutationToolFactoryOptions<TArgs> {
-  resourceType?: SupportedResourceType;
-}
-
+/**
+ * AI SDK tool that lists media, comments, or users.
+ *
+ * Provide `fetch` to replace the default client call. Receives the resolved
+ * `resourceType` and normalised `filter` after `fixedArgs` have been applied.
+ */
 export const getResourceCollectionTool = (
   client: WordPressClient,
-  options?: ResourceToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceCollectionToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -355,6 +352,11 @@ export const getResourceCollectionTool = (
         stripResourceType(merged),
         options as ToolFactoryOptions<Record<string, unknown>>,
       );
+
+      if (options?.fetch) {
+        return options.fetch({ filter: filter as QueryParams, resourceType });
+      }
+
       return listResource(client, resourceType, filter);
     }),
     inputSchema: (options?.inputSchema ??
@@ -364,9 +366,16 @@ export const getResourceCollectionTool = (
   });
 };
 
+/**
+ * AI SDK tool that fetches a single media item, comment, or user.
+ *
+ * Provide `fetch` to replace the default client call. Receives the resolved
+ * `resourceType` and normalised `id` or `slug` after `fixedArgs` have been
+ * applied.
+ */
 export const getResourceTool = (
   client: WordPressClient,
-  options?: ResourceToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceGetToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -381,7 +390,15 @@ export const getResourceTool = (
         asToolArgs(args as Record<string, unknown>),
         options?.fixedArgs,
       );
-      return getResource(client, resolveResourceType(merged, options), merged);
+      const resourceType = resolveResourceType(merged, options);
+      const id = typeof merged.id === "number" ? merged.id : undefined;
+      const slug = typeof merged.slug === "string" ? merged.slug : undefined;
+
+      if (options?.fetch) {
+        return options.fetch({ id, resourceType, slug });
+      }
+
+      return getResource(client, resourceType, merged);
     }),
     inputSchema: (options?.inputSchema ??
       createGetInputSchema(resolvedOptions)) as never,
@@ -390,9 +407,15 @@ export const getResourceTool = (
   });
 };
 
+/**
+ * AI SDK tool that creates a WordPress comment or user.
+ *
+ * Provide `fetch` to replace the default client call. Receives the resolved
+ * `resourceType` and merged `input` after `fixedInput` has been applied.
+ */
 export const createResourceTool = (
   client: WordPressClient,
-  options?: ResourceMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceCreateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -405,14 +428,23 @@ export const createResourceTool = (
         asToolArgs(args as Record<string, unknown>),
         options?.fixedArgs,
       );
+      const resourceType = resolveResourceType(merged, options);
       const withInput = mergeMutationInput(
         merged,
         options?.defaultInput,
         options?.fixedInput,
       );
+
+      if (options?.fetch) {
+        return options.fetch({
+          input: withInput.input as Record<string, unknown>,
+          resourceType,
+        });
+      }
+
       return createResource(
         client,
-        resolveResourceType(merged, options),
+        resourceType,
         withInput.input as Record<string, unknown>,
       );
     }),
@@ -423,9 +455,15 @@ export const createResourceTool = (
   });
 };
 
+/**
+ * AI SDK tool that updates a WordPress comment or user.
+ *
+ * Provide `fetch` to replace the default client call. Receives the resolved
+ * `resourceType`, `id`, and merged `input` after `fixedInput` has been applied.
+ */
 export const updateResourceTool = (
   client: WordPressClient,
-  options?: ResourceMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceUpdateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -438,14 +476,24 @@ export const updateResourceTool = (
         asToolArgs(args as Record<string, unknown>),
         options?.fixedArgs,
       );
+      const resourceType = resolveResourceType(merged, options);
       const withInput = mergeMutationInput(
         merged,
         options?.defaultInput,
         options?.fixedInput,
       );
+
+      if (options?.fetch) {
+        return options.fetch({
+          id: withInput.id as number,
+          input: withInput.input as Record<string, unknown>,
+          resourceType,
+        });
+      }
+
       return updateResource(
         client,
-        resolveResourceType(merged, options),
+        resourceType,
         withInput.id as number,
         withInput.input as Record<string, unknown>,
       );
@@ -457,9 +505,15 @@ export const updateResourceTool = (
   });
 };
 
+/**
+ * AI SDK tool that deletes a WordPress media item, comment, or user.
+ *
+ * Provide `fetch` to replace the default client call. Receives the resolved
+ * `resourceType`, `id`, and optional `force` / `reassign` flags.
+ */
 export const deleteResourceTool = (
   client: WordPressClient,
-  options?: ResourceToolFactoryOptions<Record<string, unknown>>,
+  options?: ResourceDeleteToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -473,11 +527,18 @@ export const deleteResourceTool = (
         asToolArgs(args as Record<string, unknown>),
         options?.fixedArgs,
       );
-      return deleteResource(
-        client,
-        resolveResourceType(merged, options),
-        merged,
-      );
+      const resourceType = resolveResourceType(merged, options);
+
+      if (options?.fetch) {
+        return options.fetch({
+          force: merged.force as boolean | undefined,
+          id: merged.id as number,
+          reassign: merged.reassign as number | undefined,
+          resourceType,
+        });
+      }
+
+      return deleteResource(client, resourceType, merged);
     }),
     inputSchema: (options?.inputSchema ??
       createDeleteInputSchema(resolvedOptions)) as never,

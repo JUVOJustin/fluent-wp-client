@@ -71,28 +71,35 @@ const { text } = await generateText({
 
 ```typescript
 import {
+  // Content (posts, pages, custom post types)
   getContentCollectionTool,
   getContentTool,
   createContentTool,
   updateContentTool,
   deleteContentTool,
+  // Terms (categories, tags, custom taxonomies)
   getTermCollectionTool,
   getTermTool,
   createTermTool,
   updateTermTool,
   deleteTermTool,
+  // First-class resources (media, comments, users)
   getResourceCollectionTool,
   getResourceTool,
   createResourceTool,
   updateResourceTool,
   deleteResourceTool,
+  // Abilities
   getAbilitiesTool,
   getAbilityTool,
   executeGetAbilityTool,
   executeRunAbilityTool,
   executeDeleteAbilityTool,
+  createAbilityTools,
+  // Gutenberg blocks
   getBlocksTool,
   setBlocksTool,
+  // Settings
   getSettingsTool,
   updateSettingsTool,
 } from 'fluent-wp-client/ai-sdk';
@@ -177,6 +184,7 @@ All generic tool factories accept the existing configuration model:
 - `strict` — Enable provider strict-mode tool calling
 - `needsApproval` — Require approval before executing this tool
 - `inputSchema` — Override the generated schema with custom Zod schema (supports `.default()`)
+- `fetch` — Replace the default WordPress client call with a custom implementation
 
 Example:
 
@@ -187,6 +195,50 @@ const publishPosts = updateContentTool(adminWp, {
   fixedInput: { status: 'publish' },
 });
 ```
+
+### Custom fetch callbacks
+
+Every tool factory accepts an optional `fetch` callback that replaces the default WordPress client call. The callback receives the fully resolved, normalised arguments after `fixedArgs` and schema defaults have been applied — the tool's own argument merging always runs first.
+
+This works for reads **and** writes, making it the single extension point for caches, live loaders, proxies, audit logs, or any custom request pipeline.
+
+```typescript
+// Route a read through Astro live loaders
+const searchPosts = getContentCollectionTool(wp, {
+  contentType: 'posts',
+  fetch: async ({ contentType, filter }) => {
+    return getLiveCollection(contentType, filter);
+  },
+});
+
+// Route a single-item read through a CDN cache
+const getPost = getContentTool(wp, {
+  contentType: 'posts',
+  fetch: async ({ contentType, slug, includeContent }) => {
+    if (!slug) throw new Error('slug required');
+    return myEdgeCache.get(contentType, slug, { includeContent });
+  },
+});
+
+// Route a create mutation through an audit log before writing
+const createPost = createContentTool(wp, {
+  contentType: 'posts',
+  fetch: async ({ contentType, input }) => {
+    await auditLog.record('create', contentType, input);
+    return wp.content(contentType).create(input as never);
+  },
+});
+
+// Route an update through a staging proxy
+const updatePost = updateContentTool(wp, {
+  contentType: 'posts',
+  fetch: async ({ contentType, id, input }) => {
+    return stagingProxy.patch(contentType, id, input);
+  },
+});
+```
+
+The `fetch` callback is typed specifically to the tool it is passed to, so TypeScript knows exactly which arguments are available. For collection tools the input is `{ contentType, filter }` or `{ taxonomyType, filter }`. For single-item reads it adds `id?` and `slug?`. For mutations it adds `id` and `input`.
 
 ### Default values with Zod schemas
 
@@ -289,9 +341,30 @@ const runCalculator = executeRunAbilityTool(adminWp, {
 
 With a cached catalog, the generic execution tools can expose real ability-name enums and the discovered input schema for each ability.
 
+### Generating one tool per ability
+
+`createAbilityTools` reads the cached catalog and returns a record of AI SDK tools, one per discovered ability. The tool key is the ability name with `/` replaced by `_`.
+
+```typescript
+import { createAbilityTools } from 'fluent-wp-client/ai-sdk';
+
+const catalog = await adminWp.explore();
+adminWp.useCatalog(catalog);
+
+const abilityTools = createAbilityTools(adminWp, {
+  // Only expose safe read abilities to the model
+  include: ['acme/get-stats', 'acme/search-products'],
+  needsApproval: (name, ability) => ability.annotations?.destructive === true,
+});
+
+// { acme_get-stats: Tool, acme_search-products: Tool }
+```
+
+Pass `exclude` to remove specific abilities, or omit both to expose all discovered abilities.
+
 ## Gutenberg blocks
 
-Block tools use the same `contentType` selector model as content tools.
+Block tools use the same `contentType` selector model as content tools. Both require edit-level authentication.
 
 ```typescript
 const getBlocks = getBlocksTool(adminWp, {
@@ -305,6 +378,17 @@ const setBlocks = setBlocksTool(adminWp, {
 
 When the tool is not pinned, the model supplies `contentType` at runtime.
 
+`getBlocksTool` also accepts a `fetch` callback to replace the default client read — useful when block content is already available from a cache:
+
+```typescript
+const getBlocks = getBlocksTool(adminWp, {
+  contentType: 'posts',
+  fetch: async ({ contentType, id }) => {
+    return blockCache.get(contentType, id);
+  },
+});
+```
+
 ## Settings
 
 Settings remain a singleton endpoint:
@@ -314,6 +398,14 @@ const tools = {
   getSettings: getSettingsTool(adminWp),
   updateSettings: updateSettingsTool(adminWp),
 };
+```
+
+`getSettingsTool` accepts a `fetch` callback for cached reads. Because settings are a singleton the callback receives no arguments:
+
+```typescript
+const getSettings = getSettingsTool(adminWp, {
+  fetch: async () => settingsCache.get(),
+});
 ```
 
 ## Field selection

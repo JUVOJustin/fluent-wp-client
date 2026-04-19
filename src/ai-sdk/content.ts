@@ -19,8 +19,11 @@ import {
 } from "./factories.js";
 import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import type {
-  ContentMutationToolFactoryOptions,
-  ContentToolFactoryOptions,
+  ContentCollectionToolOptions,
+  ContentCreateToolOptions,
+  ContentDeleteToolOptions,
+  ContentGetToolOptions,
+  ContentUpdateToolOptions,
   ToolFactoryOptions,
 } from "./types.js";
 
@@ -49,10 +52,15 @@ function stripContentType(
 
 /**
  * AI SDK tool that lists items from a custom content resource.
+ *
+ * Provide `fetch` to replace the default client call — useful for routing
+ * through a cache, live loader, or any custom fetch layer. The callback
+ * receives the fully resolved `contentType` and normalised `filter` after
+ * `fixedArgs` and field-selection normalisation have already been applied.
  */
 export const getContentCollectionTool = (
   client: WordPressClient,
-  options?: ContentToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentCollectionToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -70,6 +78,10 @@ export const getContentCollectionTool = (
         stripContentType(merged),
         options as ToolFactoryOptions<Record<string, unknown>>,
       );
+      if (options?.fetch) {
+        return options.fetch({ contentType, filter: filter as QueryParams });
+      }
+
       return client.content(contentType).list(filter as QueryParams);
     }),
     inputSchema: (options?.inputSchema ??
@@ -81,10 +93,14 @@ export const getContentCollectionTool = (
 
 /**
  * AI SDK tool that fetches a single custom content item by ID or slug.
+ *
+ * Provide `fetch` to replace the default client call. The callback receives
+ * the resolved `contentType`, normalised `id` or `slug`, and the
+ * `includeContent` / `includeBlocks` flags after `fixedArgs` have been applied.
  */
 export const getContentTool = (
   client: WordPressClient,
-  options?: ContentToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentGetToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -100,30 +116,41 @@ export const getContentTool = (
         options?.fixedArgs,
       );
       const contentType = resolveContentType(merged, options);
+      const id = typeof merged.id === "number" ? merged.id : undefined;
+      const slug = typeof merged.slug === "string" ? merged.slug : undefined;
       const contentOpts = merged as {
         includeContent?: boolean;
         includeBlocks?: boolean;
       };
-      if (merged.id) {
+
+      if (options?.fetch) {
+        return options.fetch({
+          contentType,
+          id,
+          includeBlocks: contentOpts.includeBlocks,
+          includeContent: contentOpts.includeContent,
+          slug,
+        });
+      }
+
+      if (id !== undefined) {
         return resolveContentQuery(
-          client
-            .content(contentType)
-            .item(merged.id as number) as unknown as ContentQueryLike<
+          client.content(contentType).item(id) as unknown as ContentQueryLike<
             WordPressPostLike | undefined
           >,
           contentOpts,
         );
       }
-      if (merged.slug) {
+
+      if (slug !== undefined) {
         return resolveContentQuery(
-          client
-            .content(contentType)
-            .item(merged.slug as string) as unknown as ContentQueryLike<
+          client.content(contentType).item(slug) as unknown as ContentQueryLike<
             WordPressPostLike | undefined
           >,
           contentOpts,
         );
       }
+
       throw createInvalidRequestError("Either id or slug must be provided.");
     }),
     inputSchema: (options?.inputSchema ??
@@ -135,10 +162,14 @@ export const getContentTool = (
 
 /**
  * AI SDK tool that creates a new custom content item.
+ *
+ * Provide `fetch` to replace the default client call. The callback receives
+ * the resolved `contentType` and merged `input` after `fixedInput` has been
+ * applied — useful for routing through a proxy, audit log, or queue.
  */
 export const createContentTool = (
   client: WordPressClient,
-  options?: ContentMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentCreateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -157,6 +188,14 @@ export const createContentTool = (
         options?.defaultInput,
         options?.fixedInput,
       );
+
+      if (options?.fetch) {
+        return options.fetch({
+          contentType,
+          input: withInput.input as Record<string, unknown>,
+        });
+      }
+
       return client
         .content(contentType)
         .create(withInput.input as Record<string, unknown>);
@@ -170,10 +209,14 @@ export const createContentTool = (
 
 /**
  * AI SDK tool that updates an existing custom content item.
+ *
+ * Provide `fetch` to replace the default client call. The callback receives
+ * the resolved `contentType`, `id`, and merged `input` after `fixedInput`
+ * has been applied.
  */
 export const updateContentTool = (
   client: WordPressClient,
-  options?: ContentMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentUpdateToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -193,6 +236,15 @@ export const updateContentTool = (
         options?.defaultInput,
         options?.fixedInput,
       );
+
+      if (options?.fetch) {
+        return options.fetch({
+          contentType,
+          id: withInput.id as number,
+          input: withInput.input as Record<string, unknown>,
+        });
+      }
+
       return client
         .content(contentType)
         .update(
@@ -209,10 +261,13 @@ export const updateContentTool = (
 
 /**
  * AI SDK tool that deletes a custom content item.
+ *
+ * Provide `fetch` to replace the default client call. The callback receives
+ * the resolved `contentType`, `id`, and optional `force` flag.
  */
 export const deleteContentTool = (
   client: WordPressClient,
-  options?: ContentToolFactoryOptions<Record<string, unknown>>,
+  options?: ContentDeleteToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -226,6 +281,15 @@ export const deleteContentTool = (
         options?.fixedArgs,
       );
       const contentType = resolveContentType(merged, options);
+
+      if (options?.fetch) {
+        return options.fetch({
+          contentType,
+          force: merged.force as boolean | undefined,
+          id: merged.id as number,
+        });
+      }
+
       return client.content(contentType).delete(merged.id as number, {
         force: merged.force as boolean | undefined,
       });

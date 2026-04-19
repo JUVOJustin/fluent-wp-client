@@ -6,19 +6,26 @@ import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import { settingsUpdateInputSchema } from "./schemas.js";
 import type {
   MutationToolFactoryOptions,
-  ToolFactoryOptions,
+  SettingsGetToolOptions,
 } from "./types.js";
 
 /**
  * AI SDK tool that fetches WordPress site settings.
+ *
+ * Provide `fetch` to replace the default client call — settings are a
+ * singleton so the callback receives no arguments.
  */
 export const getSettingsTool = (
   client: WordPressClient,
-  options?: ToolFactoryOptions<Record<string, unknown>>,
+  options?: SettingsGetToolOptions,
 ) =>
   tool({
     description: options?.description ?? "Get WordPress site settings",
     execute: withToolErrorHandling(async () => {
+      if (options?.fetch) {
+        return options.fetch();
+      }
+
       return client.settings().get();
     }),
     inputSchema: z.object({}).describe("No input required"),
@@ -28,6 +35,9 @@ export const getSettingsTool = (
 
 /**
  * AI SDK tool that updates WordPress site settings.
+ *
+ * Provide `fetch` to replace the default client call. Receives the merged
+ * `input` after `fixedInput` has been applied.
  */
 export const updateSettingsTool = (
   client: WordPressClient,

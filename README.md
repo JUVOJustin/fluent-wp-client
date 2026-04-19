@@ -145,6 +145,8 @@ const tools = {
 };
 ```
 
+Every tool factory accepts an optional `fetch` callback that replaces the default WordPress client call with a custom implementation — useful for caches, live loaders, proxies, or custom request pipelines. Works for reads and writes alike.
+
 See `docs/ai-sdk.mdx` for the full tool catalog and configuration model.
 
 ## CLI

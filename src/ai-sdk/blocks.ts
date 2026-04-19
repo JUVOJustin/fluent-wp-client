@@ -11,10 +11,7 @@ import { createInvalidRequestError } from "../core/errors.js";
 import type { WordPressDiscoveryCatalog } from "../types/discovery.js";
 import { asToolArgs, withToolErrorHandling } from "./factories.js";
 import { mergeToolArgs } from "./merge.js";
-import type {
-  ContentMutationToolFactoryOptions,
-  ContentToolFactoryOptions,
-} from "./types.js";
+import type { BlocksGetToolOptions, BlocksSetToolOptions } from "./types.js";
 
 function createContentTypeSelector(catalog?: WordPressDiscoveryCatalog) {
   const contentTypes = Object.keys(catalog?.content ?? {});
@@ -178,10 +175,13 @@ function resolveContentType(
  *
  * Fetches the item with `context=edit` (requires auth) and parses the raw
  * block markup into a structured block tree.
+ *
+ * Provide `fetch` to replace the default client call. Receives the resolved
+ * `contentType` and numeric `id` after `fixedArgs` have been applied.
  */
 export const getBlocksTool = (
   client: WordPressClient,
-  options?: ContentToolFactoryOptions<Record<string, unknown>>,
+  options?: BlocksGetToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -198,6 +198,10 @@ export const getBlocksTool = (
       );
       const contentType = resolveContentType(merged, options);
       const id = merged.id as number;
+
+      if (options?.fetch) {
+        return options.fetch({ contentType, id });
+      }
 
       const content = await client.content(contentType).item(id).getContent();
       const raw = content?.raw;
@@ -227,7 +231,7 @@ export const getBlocksTool = (
  */
 export const setBlocksTool = (
   client: WordPressClient,
-  options?: ContentMutationToolFactoryOptions<Record<string, unknown>>,
+  options?: BlocksSetToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -247,6 +251,10 @@ export const setBlocksTool = (
       const blocks = merged.blocks as WordPressParsedBlock[];
 
       await assertValidWordPressBlocks(blocks);
+
+      if (options?.fetch) {
+        return options.fetch({ blocks, contentType, id });
+      }
 
       const rawContent = serializeWordPressBlocks(blocks);
 

@@ -109,6 +109,85 @@ describe("AI SDK tool integration", () => {
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
     });
+
+    it("getContentCollectionTool delegates to fetch with resolved contentType and normalized filter", async () => {
+      // fixedArgs must win over model input before reaching the fetch callback
+      const capturedInput: {
+        contentType: string;
+        filter: Record<string, unknown>;
+      }[] = [];
+
+      const tool = getContentCollectionTool(publicClient, {
+        contentType: "posts",
+        fetch: async (input) => {
+          capturedInput.push({
+            contentType: input.contentType,
+            filter: input.filter as Record<string, unknown>,
+          });
+          return publicClient.content(input.contentType).list(input.filter);
+        },
+        fixedArgs: { perPage: 2 },
+      });
+      const result = await run<Array<{ slug: string }>>(tool, { perPage: 10 });
+
+      expect(capturedInput).toHaveLength(1);
+      expect(capturedInput[0].contentType).toBe("posts");
+      expect(capturedInput[0].filter).toHaveProperty("perPage", 2);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBeLessThanOrEqual(2);
+    });
+
+    it("getTermCollectionTool delegates to fetch with resolved taxonomyType and normalized filter", async () => {
+      const capturedInput: {
+        taxonomyType: string;
+        filter: Record<string, unknown>;
+      }[] = [];
+
+      const tool = getTermCollectionTool(publicClient, {
+        fetch: async (input) => {
+          capturedInput.push({
+            filter: input.filter as Record<string, unknown>,
+            taxonomyType: input.taxonomyType,
+          });
+          return publicClient.terms(input.taxonomyType).list(input.filter);
+        },
+        fixedArgs: { perPage: 3 },
+        taxonomyType: "categories",
+      });
+      const result = await run<Array<{ slug: string }>>(tool, { perPage: 10 });
+
+      expect(capturedInput).toHaveLength(1);
+      expect(capturedInput[0].taxonomyType).toBe("categories");
+      expect(capturedInput[0].filter).toHaveProperty("perPage", 3);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("getResourceCollectionTool delegates to fetch with resolved resourceType and normalized filter", async () => {
+      const capturedInput: {
+        resourceType: string;
+        filter: Record<string, unknown>;
+      }[] = [];
+
+      const tool = getResourceCollectionTool(authClient, {
+        fetch: async (input) => {
+          capturedInput.push({
+            filter: input.filter as Record<string, unknown>,
+            resourceType: input.resourceType,
+          });
+          return authClient.users().list(input.filter);
+        },
+        fixedArgs: { perPage: 2 },
+        resourceType: "users",
+      });
+      const result = await run<Array<{ slug: string }>>(tool, { perPage: 10 });
+
+      expect(capturedInput).toHaveLength(1);
+      expect(capturedInput[0].resourceType).toBe("users");
+      expect(capturedInput[0].filter).toHaveProperty("perPage", 2);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBeGreaterThan(0);
+    });
   });
 
   describe("generic single-item tools", () => {
@@ -198,6 +277,94 @@ describe("AI SDK tool integration", () => {
       const tool = getSettingsTool(authClient);
       const result = await run<{ title: string }>(tool, {});
 
+      expect(result).toHaveProperty("title");
+    });
+
+    it("getContentTool delegates to fetch with resolved contentType, slug, and options", async () => {
+      const captured: {
+        contentType: string;
+        slug?: string;
+        includeContent?: boolean;
+      }[] = [];
+
+      const tool = getContentTool(publicClient, {
+        contentType: "posts",
+        fetch: async (input) => {
+          captured.push({
+            contentType: input.contentType,
+            includeContent: input.includeContent,
+            slug: input.slug,
+          });
+          if (!input.slug) throw new Error("slug required");
+          const item = await publicClient
+            .content(input.contentType)
+            .item(input.slug);
+          return item ? { content: undefined, item } : undefined;
+        },
+      });
+      const result = await run<{ item: { slug: string } }>(tool, {
+        includeContent: true,
+        slug: "test-post-001",
+      });
+
+      expect(captured).toHaveLength(1);
+      expect(captured[0].contentType).toBe("posts");
+      expect(captured[0].slug).toBe("test-post-001");
+      expect(captured[0].includeContent).toBe(true);
+      expect(result).toHaveProperty("item.slug", "test-post-001");
+    });
+
+    it("getTermTool delegates to fetch with resolved taxonomyType and slug", async () => {
+      const captured: { taxonomyType: string; slug?: string }[] = [];
+
+      const tool = getTermTool(publicClient, {
+        fetch: async (input) => {
+          captured.push({ slug: input.slug, taxonomyType: input.taxonomyType });
+          if (!input.slug) throw new Error("slug required");
+          return publicClient.terms(input.taxonomyType).item(input.slug);
+        },
+        taxonomyType: "categories",
+      });
+      const result = await run<{ slug: string }>(tool, { slug: "technology" });
+
+      expect(captured).toHaveLength(1);
+      expect(captured[0].taxonomyType).toBe("categories");
+      expect(captured[0].slug).toBe("technology");
+      expect(result).toHaveProperty("slug", "technology");
+    });
+
+    it("getResourceTool delegates to fetch with resolved resourceType and slug", async () => {
+      const user = (await authClient.users().list({ perPage: 1 }))[0];
+      const captured: { resourceType: string; slug?: string }[] = [];
+
+      const tool = getResourceTool(authClient, {
+        fetch: async (input) => {
+          captured.push({ resourceType: input.resourceType, slug: input.slug });
+          if (!input.slug) throw new Error("slug required");
+          return authClient.users().item(input.slug);
+        },
+        resourceType: "users",
+      });
+      const result = await run<{ slug: string }>(tool, { slug: user.slug });
+
+      expect(captured).toHaveLength(1);
+      expect(captured[0].resourceType).toBe("users");
+      expect(captured[0].slug).toBe(user.slug);
+      expect(result).toHaveProperty("slug", user.slug);
+    });
+
+    it("getSettingsTool delegates to fetch and bypasses the client read", async () => {
+      let fetchCalled = false;
+
+      const tool = getSettingsTool(authClient, {
+        fetch: async () => {
+          fetchCalled = true;
+          return authClient.settings().get();
+        },
+      });
+      const result = await run<{ title: string }>(tool, {});
+
+      expect(fetchCalled).toBe(true);
       expect(result).toHaveProperty("title");
     });
   });
@@ -487,6 +654,43 @@ describe("AI SDK tool integration", () => {
 
       expect(result).toHaveProperty("id", blockTestPostId);
       expect(result).toHaveProperty("contentType", "posts");
+    });
+
+    it("getBlocksTool delegates to fetch with resolved contentType and id", async () => {
+      const captured: { contentType: string; id: number }[] = [];
+
+      const tool = getBlocksTool(authClient, {
+        contentType: "posts",
+        fetch: async (input) => {
+          captured.push({ contentType: input.contentType, id: input.id });
+          const content = await authClient
+            .content(input.contentType)
+            .item(input.id)
+            .getContent();
+          const { parseWordPressBlocks } = await import(
+            "fluent-wp-client/blocks"
+          );
+          const blocks = content?.raw
+            ? await parseWordPressBlocks(content.raw)
+            : [];
+          return { blocks, contentType: input.contentType, id: input.id };
+        },
+      });
+
+      const result = await run<{
+        id: number;
+        contentType: string;
+        blocks: Array<{ blockName: string }>;
+      }>(tool, {
+        id: blockTestPostId,
+      });
+
+      expect(captured).toHaveLength(1);
+      expect(captured[0].contentType).toBe("posts");
+      expect(captured[0].id).toBe(blockTestPostId);
+      expect(result).toHaveProperty("id", blockTestPostId);
+      expect(result).toHaveProperty("contentType", "posts");
+      expect(Array.isArray(result.blocks)).toBe(true);
     });
 
     it("setBlocksTool with fixedArgs overrides model-provided contentType", async () => {

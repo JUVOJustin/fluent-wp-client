@@ -1,9 +1,12 @@
 import type { ZodType } from "zod";
-import type { WordPressClient } from "../client.js";
+import type { WordPressParsedBlock } from "../blocks.js";
+import type { WordPressPostLike } from "../schemas.js";
 import type {
   WordPressAbilityDescription,
   WordPressDiscoveryCatalog,
 } from "../types/discovery.js";
+import type { QueryParams } from "../types/resources.js";
+import type { ContentItemResult } from "./factories.js";
 
 /**
  * Shared configuration accepted by all AI SDK tool factories.
@@ -61,46 +64,328 @@ export interface CatalogMutationToolFactoryOptions<
 }
 
 /**
- * Generic content tool options.
+ * Options for `getContentCollectionTool`.
  *
- * `contentType` pins the tool to one resource and removes the selector field
- * from the model-facing input. Omit it to expose one tool across all content
- * resources, optionally enum-backed from the discovery catalog.
+ * `contentType` pins the tool to one resource and removes the selector from
+ * the model-facing input. `fetch` replaces the default client list call with a
+ * custom implementation — useful for routing through a cache or live loader.
  */
-export interface ContentToolFactoryOptions<
+export interface ContentCollectionToolOptions<
   TArgs extends Record<string, unknown>,
 > extends CatalogToolFactoryOptions<TArgs> {
   /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
   contentType?: string;
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives the fully resolved `contentType` and normalised `filter` after
+   * `fixedArgs` and field-selection normalisation have been applied.
+   */
+  fetch?: (input: {
+    contentType: string;
+    filter: QueryParams;
+  }) => Promise<WordPressPostLike[]>;
 }
 
 /**
- * Generic content mutation tool options.
+ * Options for `getContentTool`.
+ *
+ * `fetch` replaces the default client item call. Receives the resolved
+ * `contentType`, the id or slug the model provided, and the content/block
+ * inclusion flags.
  */
-export interface ContentMutationToolFactoryOptions<
-  TArgs extends Record<string, unknown>,
-> extends CatalogMutationToolFactoryOptions<TArgs> {
+export interface ContentGetToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
   /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
   contentType?: string;
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives resolved args after `fixedArgs` have been applied.
+   */
+  fetch?: (input: {
+    contentType: string;
+    id?: number;
+    slug?: string;
+    includeContent?: boolean;
+    includeBlocks?: boolean;
+  }) => Promise<ContentItemResult<WordPressPostLike | undefined> | undefined>;
 }
 
 /**
- * Generic taxonomy tool options.
+ * Options for `createContentTool`.
  */
-export interface TermToolFactoryOptions<TArgs extends Record<string, unknown>>
-  extends CatalogToolFactoryOptions<TArgs> {
+export interface ContentCreateToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogMutationToolFactoryOptions<TArgs> {
+  /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
+  contentType?: string;
+  /**
+   * Replace the default client call. Receives the resolved `contentType`
+   * and merged `input` after `fixedInput` has been applied.
+   */
+  fetch?: (input: {
+    contentType: string;
+    input: Record<string, unknown>;
+  }) => Promise<unknown>;
+}
+
+/**
+ * Options for `updateContentTool`.
+ */
+export interface ContentUpdateToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogMutationToolFactoryOptions<TArgs> {
+  /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
+  contentType?: string;
+  /**
+   * Replace the default client call. Receives the resolved `contentType`,
+   * `id`, and merged `input` after `fixedInput` has been applied.
+   */
+  fetch?: (input: {
+    contentType: string;
+    id: number;
+    input: Record<string, unknown>;
+  }) => Promise<unknown>;
+}
+
+/**
+ * Options for `deleteContentTool`.
+ */
+export interface ContentDeleteToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogMutationToolFactoryOptions<TArgs> {
+  /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
+  contentType?: string;
+  /**
+   * Replace the default client call. Receives the resolved `contentType`,
+   * `id`, and optional `force` flag.
+   */
+  fetch?: (input: {
+    contentType: string;
+    id: number;
+    force?: boolean;
+  }) => Promise<unknown>;
+}
+
+/**
+ * Options for `getTermCollectionTool`.
+ */
+export interface TermCollectionToolOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives the resolved `taxonomyType` and normalised `filter`.
+   */
+  fetch?: (input: {
+    taxonomyType: string;
+    filter: QueryParams;
+  }) => Promise<Record<string, unknown>[]>;
   /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
   taxonomyType?: string;
 }
 
 /**
- * Generic taxonomy mutation tool options.
+ * Options for `getTermTool`.
  */
-export interface TermMutationToolFactoryOptions<
+export interface TermGetToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives resolved args after `fixedArgs` have been applied.
+   */
+  fetch?: (input: {
+    taxonomyType: string;
+    id?: number;
+    slug?: string;
+  }) => Promise<Record<string, unknown>>;
+  /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
+  taxonomyType?: string;
+}
+
+/**
+ * Options for `createTermTool`.
+ */
+export interface TermCreateToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogMutationToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client call. Receives the resolved `taxonomyType`
+   * and merged `input` after `fixedInput` has been applied.
+   */
+  fetch?: (input: {
+    taxonomyType: string;
+    input: Record<string, unknown>;
+  }) => Promise<unknown>;
+  /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
+  taxonomyType?: string;
+}
+
+/**
+ * Options for `updateTermTool`.
+ */
+export interface TermUpdateToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogMutationToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client call. Receives the resolved `taxonomyType`,
+   * `id`, and merged `input` after `fixedInput` has been applied.
+   */
+  fetch?: (input: {
+    taxonomyType: string;
+    id: number;
+    input: Record<string, unknown>;
+  }) => Promise<unknown>;
+  /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
+  taxonomyType?: string;
+}
+
+/**
+ * Options for `deleteTermTool`.
+ */
+export interface TermDeleteToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogMutationToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client call. Receives the resolved `taxonomyType`,
+   * `id`, and optional `force` flag.
+   */
+  fetch?: (input: {
+    taxonomyType: string;
+    id: number;
+    force?: boolean;
+  }) => Promise<unknown>;
+  /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
+  taxonomyType?: string;
+}
+
+/**
+ * Options for `getResourceCollectionTool`.
+ */
+export interface ResourceCollectionToolOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives the resolved `resourceType` and normalised `filter`.
+   */
+  fetch?: (input: {
+    resourceType: string;
+    filter: QueryParams;
+  }) => Promise<Record<string, unknown>[]>;
+  resourceType?: "media" | "comments" | "users";
+}
+
+/**
+ * Options for `getResourceTool`.
+ */
+export interface ResourceGetToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives resolved args after `fixedArgs` have been applied.
+   */
+  fetch?: (input: {
+    resourceType: string;
+    id?: number;
+    slug?: string;
+  }) => Promise<Record<string, unknown>>;
+  resourceType?: "media" | "comments" | "users";
+}
+
+/**
+ * Options for `createResourceTool`.
+ */
+export interface ResourceCreateToolOptions<
   TArgs extends Record<string, unknown>,
 > extends CatalogMutationToolFactoryOptions<TArgs> {
-  /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
-  taxonomyType?: string;
+  /**
+   * Replace the default client call. Receives the resolved `resourceType`
+   * and merged `input` after `fixedInput` has been applied.
+   */
+  fetch?: (input: {
+    resourceType: string;
+    input: Record<string, unknown>;
+  }) => Promise<unknown>;
+  resourceType?: "media" | "comments" | "users";
+}
+
+/**
+ * Options for `updateResourceTool`.
+ */
+export interface ResourceUpdateToolOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogMutationToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client call. Receives the resolved `resourceType`,
+   * `id`, and merged `input` after `fixedInput` has been applied.
+   */
+  fetch?: (input: {
+    resourceType: string;
+    id: number;
+    input: Record<string, unknown>;
+  }) => Promise<unknown>;
+  resourceType?: "media" | "comments" | "users";
+}
+
+/**
+ * Options for `deleteResourceTool`.
+ */
+export interface ResourceDeleteToolOptions<
+  TArgs extends Record<string, unknown>,
+> extends CatalogMutationToolFactoryOptions<TArgs> {
+  /**
+   * Replace the default client call. Receives the resolved `resourceType`,
+   * `id`, and optional `force` / `reassign` flags.
+   */
+  fetch?: (input: {
+    resourceType: string;
+    id: number;
+    force?: boolean;
+    reassign?: number;
+  }) => Promise<unknown>;
+  resourceType?: "media" | "comments" | "users";
+}
+
+/**
+ * Options for `getSettingsTool`.
+ */
+export interface SettingsGetToolOptions
+  extends ToolFactoryOptions<Record<string, unknown>> {
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Called with no arguments — settings are a singleton.
+   */
+  fetch?: () => Promise<Record<string, unknown>>;
+}
+
+/**
+ * Options for `setBlocksTool`.
+ */
+export interface BlocksSetToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
+  /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
+  contentType?: string;
+  /**
+   * Replace the default client call. Receives the resolved `contentType`,
+   * numeric `id`, and the validated blocks array.
+   */
+  fetch?: (input: {
+    contentType: string;
+    id: number;
+    blocks: WordPressParsedBlock[];
+  }) => Promise<unknown>;
+}
+
+/**
+ * Options for `getBlocksTool`.
+ */
+export interface BlocksGetToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogToolFactoryOptions<TArgs> {
+  /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
+  contentType?: string;
+  /**
+   * Replace the default client fetch with a custom implementation.
+   * Receives the resolved `contentType` and numeric `id`.
+   */
+  fetch?: (input: { contentType: string; id: number }) => Promise<{
+    id: number;
+    contentType: string;
+    blocks: WordPressParsedBlock[];
+  }>;
 }
 
 /**
@@ -116,10 +401,6 @@ export interface AbilityToolFactoryOptions<
 /**
  * Options for `createAbilityTools()`, which generates one dedicated AI SDK
  * tool per discovered WordPress ability.
- *
- * Each generated tool receives the ability's own description as its tool
- * description, its `input_schema` converted to Zod as the typed input schema,
- * and auto-selects the HTTP method from the ability's annotations.
  */
 export interface CreateAbilityToolsOptions {
   /**
@@ -156,8 +437,9 @@ export interface CreateAbilityToolsOptions {
   /**
    * Override the AI-facing tool description for each ability.
    *
-   * Defaults to the ability's `description`, enriched with `annotations.instructions`
-   * when present. Falls back to the ability's `label`.
+   * Defaults to the ability's `description`, enriched with
+   * `annotations.instructions` when present. Falls back to the ability's
+   * `label`.
    */
   toolDescription?: (
     abilityName: string,
@@ -168,7 +450,8 @@ export interface CreateAbilityToolsOptions {
    * Override the tool key used for each ability.
    *
    * Receives the raw `namespace/ability` name and the description.
-   * Defaults to replacing `/` with `_` (e.g. `myapp/send_email` → `myapp_send_email`).
+   * Defaults to replacing `/` with `_` (e.g. `myapp/send_email` →
+   * `myapp_send_email`).
    */
   toolName?: (
     abilityName: string,
@@ -197,8 +480,3 @@ export interface GenericMutationToolFactoryOptions<
   /** REST base for the custom resource. */
   resource: string;
 }
-
-/**
- * Internal tool factory runtime that carries a client reference.
- */
-export type ToolClient = WordPressClient;

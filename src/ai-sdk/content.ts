@@ -95,7 +95,8 @@ export const getContentCollectionTool = (
  *
  * Provide `fetch` to replace the default client call. The callback receives
  * the resolved `contentType`, normalised `id` or `slug`, and the
- * `includeContent` / `includeBlocks` flags after `fixedArgs` have been applied.
+ * `includeContent` / `includeBlocks` flags plus any `_fields` selection after
+ * `fixedArgs` have been applied.
  */
 export const getContentTool = (
   client: WordPressClient,
@@ -130,6 +131,7 @@ export const getContentTool = (
       if (options?.fetch) {
         return options.fetch({
           contentType,
+          fields: itemOptions.fields,
           id,
           includeBlocks: contentOpts.includeBlocks,
           includeContent: contentOpts.includeContent,

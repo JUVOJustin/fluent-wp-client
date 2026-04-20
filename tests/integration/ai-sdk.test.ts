@@ -279,9 +279,10 @@ describe("AI SDK tool integration", () => {
       expect(result).toHaveProperty("title");
     });
 
-    it("getContentTool delegates to fetch with resolved contentType, slug, and options", async () => {
+    it("getContentTool delegates to fetch with resolved contentType, slug, fields, and options", async () => {
       const captured: {
         contentType: string;
+        fields?: string[];
         slug?: string;
         includeContent?: boolean;
       }[] = [];
@@ -291,62 +292,91 @@ describe("AI SDK tool integration", () => {
         fetch: async (input) => {
           captured.push({
             contentType: input.contentType,
+            fields: input.fields,
             includeContent: input.includeContent,
             slug: input.slug,
           });
           if (!input.slug) throw new Error("slug required");
           const item = await publicClient
             .content(input.contentType)
-            .item(input.slug);
+            .item(input.slug, { fields: input.fields });
           return item ? { content: undefined, item } : undefined;
         },
       });
       const result = await run<{ item: { slug: string } }>(tool, {
+        fields: ["id", "slug"],
         includeContent: true,
         slug: "test-post-001",
       });
 
       expect(captured).toHaveLength(1);
       expect(captured[0].contentType).toBe("posts");
+      expect(captured[0].fields).toEqual(["id", "slug"]);
       expect(captured[0].slug).toBe("test-post-001");
       expect(captured[0].includeContent).toBe(true);
       expect(result).toHaveProperty("item.slug", "test-post-001");
     });
 
-    it("getTermTool delegates to fetch with resolved taxonomyType and slug", async () => {
-      const captured: { taxonomyType: string; slug?: string }[] = [];
+    it("getTermTool delegates to fetch with resolved taxonomyType, slug, and fields", async () => {
+      const captured: {
+        taxonomyType: string;
+        fields?: string[];
+        slug?: string;
+      }[] = [];
 
       const tool = getTermTool(publicClient, {
         fetch: async (input) => {
-          captured.push({ slug: input.slug, taxonomyType: input.taxonomyType });
+          captured.push({
+            fields: input.fields,
+            slug: input.slug,
+            taxonomyType: input.taxonomyType,
+          });
           if (!input.slug) throw new Error("slug required");
-          return publicClient.terms(input.taxonomyType).item(input.slug);
+          return publicClient
+            .terms(input.taxonomyType)
+            .item(input.slug, { fields: input.fields });
         },
         taxonomyType: "categories",
       });
-      const result = await run<{ slug: string }>(tool, { slug: "technology" });
+      const result = await run<{ slug: string }>(tool, {
+        fields: ["id", "slug"],
+        slug: "technology",
+      });
 
       expect(captured).toHaveLength(1);
+      expect(captured[0].fields).toEqual(["id", "slug"]);
       expect(captured[0].taxonomyType).toBe("categories");
       expect(captured[0].slug).toBe("technology");
       expect(result).toHaveProperty("slug", "technology");
     });
 
-    it("getResourceTool delegates to fetch with resolved resourceType and slug", async () => {
+    it("getResourceTool delegates to fetch with resolved resourceType, slug, and fields", async () => {
       const user = (await authClient.users().list({ perPage: 1 }))[0];
-      const captured: { resourceType: string; slug?: string }[] = [];
+      const captured: {
+        resourceType: string;
+        fields?: string[];
+        slug?: string;
+      }[] = [];
 
       const tool = getResourceTool(authClient, {
         fetch: async (input) => {
-          captured.push({ resourceType: input.resourceType, slug: input.slug });
+          captured.push({
+            fields: input.fields,
+            resourceType: input.resourceType,
+            slug: input.slug,
+          });
           if (!input.slug) throw new Error("slug required");
-          return authClient.users().item(input.slug);
+          return authClient.users().item(input.slug, { fields: input.fields });
         },
         resourceType: "users",
       });
-      const result = await run<{ slug: string }>(tool, { slug: user.slug });
+      const result = await run<{ slug: string }>(tool, {
+        fields: ["id", "slug"],
+        slug: user.slug,
+      });
 
       expect(captured).toHaveLength(1);
+      expect(captured[0].fields).toEqual(["id", "slug"]);
       expect(captured[0].resourceType).toBe("users");
       expect(captured[0].slug).toBe(user.slug);
       expect(result).toHaveProperty("slug", user.slug);

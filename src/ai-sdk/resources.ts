@@ -405,8 +405,8 @@ export const getResourceCollectionTool = (
  * AI SDK tool that fetches a single media item, comment, or user.
  *
  * Provide `fetch` to replace the default client call. Receives the resolved
- * `resourceType` and normalised `id` or `slug` after `fixedArgs` have been
- * applied.
+ * `resourceType`, normalised `id` or `slug`, and any `_fields` selection
+ * after `fixedArgs` have been applied.
  */
 export const getResourceTool = (
   client: WordPressClient,
@@ -430,9 +430,10 @@ export const getResourceTool = (
       const resourceType = resolveResourceType(merged, options);
       const id = typeof merged.id === "number" ? merged.id : undefined;
       const slug = typeof merged.slug === "string" ? merged.slug : undefined;
+      const fields = merged.fields as string[] | undefined;
 
       if (options?.fetch) {
-        return options.fetch({ id, resourceType, slug });
+        return options.fetch({ fields, id, resourceType, slug });
       }
 
       return getResource(client, resourceType, merged);

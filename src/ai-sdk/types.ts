@@ -91,7 +91,7 @@ export interface ContentCollectionToolOptions<
  *
  * `fetch` replaces the default client item call. Receives the resolved
  * `contentType`, the id or slug the model provided, and the content/block
- * inclusion flags.
+ * inclusion flags plus any field-selection override.
  */
 export interface ContentGetToolOptions<TArgs extends Record<string, unknown>>
   extends CatalogToolFactoryOptions<TArgs> {
@@ -103,6 +103,7 @@ export interface ContentGetToolOptions<TArgs extends Record<string, unknown>>
    */
   fetch?: (input: {
     contentType: string;
+    fields?: string[];
     id?: number;
     slug?: string;
     includeContent?: boolean;
@@ -179,6 +180,7 @@ export interface TermGetToolOptions<TArgs extends Record<string, unknown>>
    */
   fetch?: (input: {
     taxonomyType: string;
+    fields?: string[];
     id?: number;
     slug?: string;
   }) => Promise<Record<string, unknown>>;
@@ -254,6 +256,7 @@ export interface ResourceGetToolOptions<TArgs extends Record<string, unknown>>
    */
   fetch?: (input: {
     resourceType: string;
+    fields?: string[];
     id?: number;
     slug?: string;
   }) => Promise<Record<string, unknown>>;

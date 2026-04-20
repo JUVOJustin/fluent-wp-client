@@ -411,17 +411,25 @@ export function createTermSaveInputSchema(config: {
   }
 
   return z
-    .object({
-      id: termUpdateInputSchema.shape.id
-        .optional()
-        .describe(SAVE_ID_DESCRIPTION),
-      input: termCreateInputSchema.shape.input,
-      taxonomyType: z
-        .string()
-        .describe(
-          "Taxonomy resource to write, such as categories, tags, or genre",
-        ),
-    })
+    .union([
+      z.object({
+        input: termCreateInputSchema.shape.input,
+        taxonomyType: z
+          .string()
+          .describe(
+            "Taxonomy resource to write, such as categories, tags, or genre",
+          ),
+      }),
+      z.object({
+        id: termUpdateInputSchema.shape.id.describe(SAVE_ID_DESCRIPTION),
+        input: termUpdateInputSchema.shape.input,
+        taxonomyType: z
+          .string()
+          .describe(
+            "Taxonomy resource to write, such as categories, tags, or genre",
+          ),
+      }),
+    ])
     .describe("Create or update a WordPress term");
 }
 

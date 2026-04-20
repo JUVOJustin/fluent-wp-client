@@ -91,8 +91,8 @@ export const getTermCollectionTool = (
  * AI SDK tool that fetches a single term by ID or slug.
  *
  * Provide `fetch` to replace the default client call. Receives the resolved
- * `taxonomyType` and normalised `id` or `slug` after `fixedArgs` have been
- * applied.
+ * `taxonomyType`, normalised `id` or `slug`, and any `_fields` selection after
+ * `fixedArgs` have been applied.
  */
 export const getTermTool = (
   client: WordPressClient,
@@ -118,7 +118,12 @@ export const getTermTool = (
       const itemOptions = { fields: merged.fields as string[] | undefined };
 
       if (options?.fetch) {
-        return options.fetch({ id, slug, taxonomyType });
+        return options.fetch({
+          fields: itemOptions.fields,
+          id,
+          slug,
+          taxonomyType,
+        });
       }
 
       if (id !== undefined) {

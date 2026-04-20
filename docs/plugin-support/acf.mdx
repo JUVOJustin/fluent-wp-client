@@ -74,14 +74,14 @@ Discovery now surfaces:
 - `description` for every ACF property that defines one — both at the field group level and per field
 - a `choices` array on each choice-backed field containing the `{ value, label }` pairs exactly as configured in ACF, alongside ACF’s own `items.enum` entries
 
-`WordPressResourceDescription.schemas.item.properties.acf.properties.*` carries that information. You do not need to consume it directly: the AI SDK read tools pick it up automatically.
+`WordPressResourceDescription.schemas.item.properties.acf.properties.*` carries that discovery metadata. You generally do not need to consume it directly: `describeResourceTool` is the supported way to access those descriptions and choice labels, while AI SDK read tools use the discovered field paths for validation.
 
 ## What the AI SDK does with it
 
 When a `WordPressDiscoveryCatalog` is available, content and term read tools:
 
 - emit a literal union for `fields` that includes every discovered property path, including nested ACF paths such as `acf.acf_priority_score`
-- carry the discovered description through to each literal’s `.describe(...)`, so the AI reads the same text you saw in the ACF settings
+- surface field meaning through `describeResourceTool`, which reads the discovered schema metadata when describing the resource tool
 - keep the original REST `enum` on each choice-backed field, so tool arguments that target those fields are validated against the concrete slugs without extra configuration
 
 There is no extra configuration on the TypeScript side. If the PHP snippet is missing, the fields still work but the descriptions and choice labels will be empty.

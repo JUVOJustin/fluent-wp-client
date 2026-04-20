@@ -126,6 +126,7 @@ export abstract class BaseCollectionResource<
     const { fields, ...requestOverrides } = options ?? {};
     const params = filterToParams(
       this.normalizeFilter({ fields } as unknown as Omit<TFilter, "page">),
+      { applyPerPageDefault: false },
     );
     return this.runtime.fetchAPI<TResource>(
       `${this.endpoint}/${id}`,
@@ -147,6 +148,7 @@ export abstract class BaseCollectionResource<
     const { fields, ...requestOverrides } = options ?? {};
     const params = filterToParams(
       this.normalizeFilter({ fields, slug } as unknown as TFilter),
+      { applyPerPageDefault: false },
     );
     const items = await this.runtime.fetchAPI<TResource[]>(
       this.endpoint,

@@ -16,14 +16,20 @@ import type {
 // ---------------------------------------------------------------------------
 
 /**
- * Strips `format: "date-time"` from all properties recursively.
+ * Normalizes WordPress-specific JSON Schema quirks recursively so Zod v4's
+ * strict JSON Schema importer accepts the live REST schemas WordPress emits.
  *
- * WordPress REST schemas mark date fields as `{ type: "string", format: "date-time" }`
- * but WordPress itself returns dates without a trailing `Z` (e.g. `2025-01-01T12:00:00`),
- * which fails Zod v4's strict ISO 8601 datetime validation. Stripping the format
- * makes these fields validate as plain strings while preserving every other constraint.
+ * Two fixes are applied:
+ *
+ * - `format: "date-time"` is stripped because WordPress omits the trailing
+ *   `Z` on datetime values (e.g. `2025-01-01T12:00:00`), which fails Zod's
+ *   strict ISO 8601 validation while providing no real value at runtime.
+ * - `type: "int"` is rewritten to `type: "integer"`, both as a scalar value
+ *   and inside union arrays such as `["string", "array", "int", "null"]`.
+ *   ACF's `get_rest_schema()` on choice fields emits the non-standard `int`
+ *   alias, which Zod rejects outright.
  */
-export function stripDateTimeFormats(
+export function normalizeWordPressJsonSchema(
   schema: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -33,12 +39,17 @@ export function stripDateTimeFormats(
       continue;
     }
 
+    if (key === "type") {
+      out[key] = normalizeSchemaType(value);
+      continue;
+    }
+
     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-      out[key] = stripDateTimeFormats(value as Record<string, unknown>);
+      out[key] = normalizeWordPressJsonSchema(value as Record<string, unknown>);
     } else if (Array.isArray(value)) {
       out[key] = value.map((item) =>
         typeof item === "object" && item !== null
-          ? stripDateTimeFormats(item as Record<string, unknown>)
+          ? normalizeWordPressJsonSchema(item as Record<string, unknown>)
           : item,
       );
     } else {
@@ -47,6 +58,25 @@ export function stripDateTimeFormats(
   }
 
   return out;
+}
+
+/**
+ * @deprecated Renamed to `normalizeWordPressJsonSchema` to reflect its
+ * broader scope (date-time stripping plus ACF `int` type rewriting). This
+ * alias is preserved for backwards compatibility and forwards directly to
+ * `normalizeWordPressJsonSchema`.
+ */
+export const stripDateTimeFormats = normalizeWordPressJsonSchema;
+
+/**
+ * Rewrites the non-standard `int` type alias produced by ACF's REST schemas.
+ */
+function normalizeSchemaType(value: unknown): unknown {
+  if (value === "int") return "integer";
+  if (Array.isArray(value)) {
+    return value.map((entry) => (entry === "int" ? "integer" : entry));
+  }
+  return value;
 }
 
 // ---------------------------------------------------------------------------

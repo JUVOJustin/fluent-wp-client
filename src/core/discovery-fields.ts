@@ -4,30 +4,12 @@ import type {
 } from "../types/discovery.js";
 
 /**
- * Normalized field descriptor derived from a discovered resource schema.
- *
- * This powers catalog-aware field selection without exposing raw JSON Schema
- * traversal to higher-level integrations such as the AI SDK.
- */
-export interface WordPressDiscoveredField {
-  description?: string;
-  name: string;
-}
-
-/**
  * One schema mode that can expose field names.
  */
 export type WordPressResourceFieldMode = "read" | "create" | "update";
 
 interface SchemaPropertyNode {
-  description?: unknown;
   properties?: Record<string, SchemaPropertyNode>;
-}
-
-function normalizeDescription(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 /**
@@ -54,23 +36,31 @@ function fallbackFieldNames(
 /**
  * Flattens nested JSON Schema object properties into dot-separated field paths.
  */
-function collectSchemaFields(
+function collectSchemaFieldNames(
   properties: Record<string, SchemaPropertyNode>,
   prefix?: string,
-): WordPressDiscoveredField[] {
-  const fields: WordPressDiscoveredField[] = [];
+): string[] {
+  const names: string[] = [];
 
   for (const [name, property] of Object.entries(properties)) {
     const fieldName = prefix ? `${prefix}.${name}` : name;
-    const description = normalizeDescription(property.description);
-    fields.push({ description, name: fieldName });
+    names.push(fieldName);
 
     if (property.properties && typeof property.properties === "object") {
-      fields.push(...collectSchemaFields(property.properties, fieldName));
+      names.push(...collectSchemaFieldNames(property.properties, fieldName));
     }
   }
 
-  return fields;
+  return names;
+}
+
+/**
+ * A single discovered field, represented as a normalized descriptor so that
+ * callers can evolve the shape without breaking the API surface. The name
+ * path is the only field consumed today.
+ */
+export interface WordPressDiscoveredField {
+  name: string;
 }
 
 /**
@@ -78,7 +68,8 @@ function collectSchemaFields(
  *
  * The result includes top-level fields plus nested object fields such as
  * `title.rendered`, `acf.acf_subtitle`, and `meta.test_string_meta` when the
- * discovery schema exposes them.
+ * discovery schema exposes them. Duplicates are collapsed so a nested field
+ * path always appears once.
  */
 export function getDiscoveredResourceFields(
   description: WordPressResourceDescription,
@@ -87,32 +78,19 @@ export function getDiscoveredResourceFields(
   const schema = schemaForMode(description, mode);
   const properties = schema?.properties;
 
-  if (!properties || typeof properties !== "object") {
-    return fallbackFieldNames(description, mode).map((name) => ({ name }));
-  }
+  const names = new Set<string>();
 
-  const discovered = collectSchemaFields(
-    properties as Record<string, SchemaPropertyNode>,
-  );
-  const deduped = new Map<string, WordPressDiscoveredField>();
-
-  for (const field of discovered) {
-    if (!deduped.has(field.name)) {
-      deduped.set(field.name, field);
-      continue;
-    }
-
-    const existing = deduped.get(field.name)!;
-    if (!existing.description && field.description) {
-      deduped.set(field.name, field);
+  if (properties && typeof properties === "object") {
+    for (const name of collectSchemaFieldNames(
+      properties as Record<string, SchemaPropertyNode>,
+    )) {
+      names.add(name);
     }
   }
 
   for (const name of fallbackFieldNames(description, mode)) {
-    if (!deduped.has(name)) {
-      deduped.set(name, { name });
-    }
+    names.add(name);
   }
 
-  return Array.from(deduped.values());
+  return Array.from(names, (name) => ({ name }));
 }

@@ -164,7 +164,7 @@ Use `fluent-wp-client schemas` when your app connects to one known WordPress ins
 - Full compile-time type safety via `z.infer`
 - Must regenerate when WordPress schema changes
 
-Both approaches produce the same Zod validators from the same JSON Schema source. The CLI uses the same `stripDateTimeFormats` normalization internally.
+Both approaches produce the same Zod validators from the same JSON Schema source. The CLI uses the same `normalizeWordPressJsonSchema` normalization internally.
 
 ## Astro example
 
@@ -268,7 +268,7 @@ import type {
 import {
   zodFromJsonSchema,
   zodSchemasFromDescription,
-  stripDateTimeFormats,
+  normalizeWordPressJsonSchema,
   type ResourceZodSchemas,
   type AbilityZodSchemas,
 } from 'fluent-wp-client/zod';

@@ -172,7 +172,7 @@ export interface TermsResourceClient<
   ) => Promise<WordPressResourceDescription>;
   item: (
     idOrSlug: number | string,
-    options?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides & { fields?: string[] },
   ) => Promise<TResource | undefined>;
   list: (
     filter?: TFilter,
@@ -219,11 +219,11 @@ export interface MediaResourceClient<
   item: {
     (
       id: number,
-      options?: WordPressRequestOverrides,
+      options?: WordPressRequestOverrides & { fields?: string[] },
     ): Promise<TResource | undefined>;
     (
       slug: string,
-      options?: WordPressRequestOverrides,
+      options?: WordPressRequestOverrides & { fields?: string[] },
     ): Promise<TResource | undefined>;
   };
   list: (
@@ -273,7 +273,7 @@ export interface CommentsResourceClient<
   ) => Promise<WordPressResourceDescription>;
   item: (
     id: number,
-    options?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides & { fields?: string[] },
   ) => Promise<TResource | undefined>;
   list: (
     filter?: TFilter,
@@ -319,11 +319,11 @@ export interface UsersResourceClient<
   item: {
     (
       id: number,
-      options?: WordPressRequestOverrides,
+      options?: WordPressRequestOverrides & { fields?: string[] },
     ): Promise<TResource | undefined>;
     (
       slug: string,
-      options?: WordPressRequestOverrides,
+      options?: WordPressRequestOverrides & { fields?: string[] },
     ): Promise<TResource | undefined>;
   };
   list: (

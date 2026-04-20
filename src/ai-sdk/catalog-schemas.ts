@@ -6,6 +6,7 @@ import type {
   WordPressResourceDescription,
 } from "../types/discovery.js";
 import { zodSchemasFromDescription } from "../zod-helpers.js";
+import { createFieldSelectionShape } from "./field-schemas.js";
 import {
   abilityDeleteInputSchema,
   abilityGetInputSchema,
@@ -124,45 +125,116 @@ function buildDiscriminatedUnion(
   );
 }
 
+/**
+ * Builds a catalog-aware read input schema for content, terms, or first-class
+ * resources.
+ *
+ * Centralizes the three branches that every read helper used to repeat:
+ *
+ * 1. one resource is pinned at the tool level — return the base schema plus
+ *    catalog-backed field literals for that resource
+ * 2. no resource is pinned but the catalog knows multiple variants — build a
+ *    discriminated union so the model picks exactly one resource
+ * 3. no catalog is available — fall back to the base schema with a plain
+ *    selector for the missing discriminator
+ */
+function buildCatalogReadSchema(config: {
+  baseSchema: z.ZodObject<ZodShape>;
+  description: string;
+  discriminator: string;
+  entries: Array<[string, WordPressResourceDescription]>;
+  fixedDescription: WordPressResourceDescription | undefined;
+  fixedValue: string | undefined;
+  selectorDescription: string;
+}): ZodType {
+  const {
+    baseSchema,
+    description,
+    discriminator,
+    entries,
+    fixedDescription,
+    fixedValue,
+    selectorDescription,
+  } = config;
+
+  if (fixedValue) {
+    return baseSchema
+      .extend(createFieldSelectionShape(fixedDescription, "read"))
+      .describe(description);
+  }
+
+  if (entries.length > 0) {
+    const variants = entries.map(([value, variantDescription]) =>
+      baseSchema.extend({
+        [discriminator]: z.literal(value),
+        ...createFieldSelectionShape(variantDescription, "read"),
+      }),
+    );
+    return buildDiscriminatedUnion(discriminator, variants).describe(
+      description,
+    );
+  }
+
+  return baseSchema
+    .extend({
+      [discriminator]: createSelectorSchema(
+        entries.map(([value]) => value),
+        selectorDescription,
+      ),
+    })
+    .describe(description);
+}
+
 export function createContentCollectionInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   contentType?: string;
 }): ZodType {
-  if (config.contentType) {
-    return contentCollectionInputSchema;
-  }
-
-  const values = getContentDescriptions(config.catalog).map(
-    ([contentType]) => contentType,
-  );
-  return extendObjectSchema(contentCollectionInputSchema, {
-    contentType: createSelectorSchema(
-      values,
-      "Post-like resource to query, such as posts, pages, or books",
+  return buildCatalogReadSchema({
+    baseSchema: contentCollectionInputSchema,
+    description: "Search and filter WordPress content",
+    discriminator: "contentType",
+    entries: getContentDescriptions(config.catalog),
+    fixedDescription: findContentDescription(
+      config.catalog,
+      config.contentType,
     ),
-  }).describe("Search and filter WordPress content");
+    fixedValue: config.contentType,
+    selectorDescription:
+      "Post-like resource to query, such as posts, pages, or books",
+  });
 }
 
 export function createContentGetInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   contentType?: string;
 }): ZodType {
-  if (config.contentType) {
-    return contentGetInputSchema;
-  }
-
-  const values = getContentDescriptions(config.catalog).map(
-    ([contentType]) => contentType,
-  );
-  return extendObjectSchema(contentGetInputSchema, {
-    contentType: createSelectorSchema(
-      values,
-      "Post-like resource to read, such as posts, pages, or books",
+  return buildCatalogReadSchema({
+    baseSchema: contentGetInputSchema,
+    description: "Get one WordPress content item by ID or slug",
+    discriminator: "contentType",
+    entries: getContentDescriptions(config.catalog),
+    fixedDescription: findContentDescription(
+      config.catalog,
+      config.contentType,
     ),
-  }).describe("Get one WordPress content item by ID or slug");
+    fixedValue: config.contentType,
+    selectorDescription:
+      "Post-like resource to read, such as posts, pages, or books",
+  });
 }
 
-export function createContentCreateInputSchema(config: {
+const SAVE_ID_DESCRIPTION =
+  "Resource ID to update. Omit to create a new item instead.";
+
+/**
+ * Builds a unified save input schema that covers both create and update for
+ * one content type by making `id` optional. When the model omits `id` the
+ * execution layer routes to `.create()`; when it is present it routes to
+ * `.update(id, input)`. Discovery-derived create and update schemas are
+ * merged with update's relaxed required constraints so a single payload
+ * shape works for both modes.
+ */
+export function createContentSaveInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   contentType?: string;
 }): ZodType {
@@ -175,76 +247,20 @@ export function createContentCreateInputSchema(config: {
       ? zodSchemasFromDescription(fixedDescription)
       : undefined;
     const input = getObjectSchema(
-      schemas?.create,
-      contentCreateInputSchema.shape.input,
-    );
-    return z
-      .object({
-        input: withOptionalDescription(
-          input,
-          `Fields to set on the ${config.contentType} item`,
-        ),
-      })
-      .describe(`Create a new WordPress ${config.contentType} item`);
-  }
-
-  const variants = getContentDescriptions(config.catalog).map(
-    ([contentType, description]) => {
-      const schemas = zodSchemasFromDescription(description);
-      return z.object({
-        contentType: z.literal(contentType),
-        input: withOptionalDescription(
-          getObjectSchema(schemas.create, contentCreateInputSchema.shape.input),
-          `Fields to set on the ${contentType} item`,
-        ),
-      });
-    },
-  );
-
-  if (variants.length > 0) {
-    return withOptionalDescription(
-      buildDiscriminatedUnion("contentType", variants),
-      "Create a new WordPress content item",
-    );
-  }
-
-  return z
-    .object({
-      contentType: z
-        .string()
-        .describe(
-          "Post-like resource to create, such as posts, pages, or books",
-        ),
-      input: contentCreateInputSchema.shape.input,
-    })
-    .describe("Create a new WordPress content item");
-}
-
-export function createContentUpdateInputSchema(config: {
-  catalog?: WordPressDiscoveryCatalog;
-  contentType?: string;
-}): ZodType {
-  const fixedDescription = findContentDescription(
-    config.catalog,
-    config.contentType,
-  );
-  if (config.contentType) {
-    const schemas = fixedDescription
-      ? zodSchemasFromDescription(fixedDescription)
-      : undefined;
-    const input = getObjectSchema(
-      schemas?.update,
+      schemas?.update ?? schemas?.create,
       contentUpdateInputSchema.shape.input,
     );
     return z
       .object({
-        id: contentUpdateInputSchema.shape.id,
+        id: contentUpdateInputSchema.shape.id
+          .optional()
+          .describe(SAVE_ID_DESCRIPTION),
         input: withOptionalDescription(
           input,
-          `Fields to update on the ${config.contentType} item`,
+          `Fields to set on the ${config.contentType} item. When updating, omit fields you do not want to change.`,
         ),
       })
-      .describe(`Update an existing WordPress ${config.contentType} item`);
+      .describe(`Create or update a WordPress ${config.contentType} item`);
   }
 
   const variants = getContentDescriptions(config.catalog).map(
@@ -252,10 +268,15 @@ export function createContentUpdateInputSchema(config: {
       const schemas = zodSchemasFromDescription(description);
       return z.object({
         contentType: z.literal(contentType),
-        id: contentUpdateInputSchema.shape.id,
+        id: contentUpdateInputSchema.shape.id
+          .optional()
+          .describe(SAVE_ID_DESCRIPTION),
         input: withOptionalDescription(
-          getObjectSchema(schemas.update, contentUpdateInputSchema.shape.input),
-          `Fields to update on the ${contentType} item`,
+          getObjectSchema(
+            schemas.update ?? schemas.create,
+            contentUpdateInputSchema.shape.input,
+          ),
+          `Fields to set on the ${contentType} item. When updating, omit fields you do not want to change.`,
         ),
       });
     },
@@ -264,7 +285,7 @@ export function createContentUpdateInputSchema(config: {
   if (variants.length > 0) {
     return withOptionalDescription(
       buildDiscriminatedUnion("contentType", variants),
-      "Update an existing WordPress content item",
+      "Create or update a WordPress content item",
     );
   }
 
@@ -273,12 +294,14 @@ export function createContentUpdateInputSchema(config: {
       contentType: z
         .string()
         .describe(
-          "Post-like resource to update, such as posts, pages, or books",
+          "Post-like resource to write, such as posts, pages, or books",
         ),
-      id: contentUpdateInputSchema.shape.id,
-      input: contentUpdateInputSchema.shape.input,
+      id: contentUpdateInputSchema.shape.id
+        .optional()
+        .describe(SAVE_ID_DESCRIPTION),
+      input: contentCreateInputSchema.shape.input,
     })
-    .describe("Update an existing WordPress content item");
+    .describe("Create or update a WordPress content item");
 }
 
 export function createContentDeleteInputSchema(config: {
@@ -304,41 +327,35 @@ export function createTermCollectionInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   taxonomyType?: string;
 }): ZodType {
-  if (config.taxonomyType) {
-    return termCollectionInputSchema;
-  }
-
-  const values = getTermDescriptions(config.catalog).map(
-    ([taxonomyType]) => taxonomyType,
-  );
-  return extendObjectSchema(termCollectionInputSchema, {
-    taxonomyType: createSelectorSchema(
-      values,
+  return buildCatalogReadSchema({
+    baseSchema: termCollectionInputSchema,
+    description: "Search and filter WordPress terms",
+    discriminator: "taxonomyType",
+    entries: getTermDescriptions(config.catalog),
+    fixedDescription: findTermDescription(config.catalog, config.taxonomyType),
+    fixedValue: config.taxonomyType,
+    selectorDescription:
       "Taxonomy resource to query, such as categories, tags, or genre",
-    ),
-  }).describe("Search and filter WordPress terms");
+  });
 }
 
 export function createTermGetInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   taxonomyType?: string;
 }): ZodType {
-  if (config.taxonomyType) {
-    return simpleGetInputSchema;
-  }
-
-  const values = getTermDescriptions(config.catalog).map(
-    ([taxonomyType]) => taxonomyType,
-  );
-  return extendObjectSchema(simpleGetInputSchema, {
-    taxonomyType: createSelectorSchema(
-      values,
+  return buildCatalogReadSchema({
+    baseSchema: simpleGetInputSchema,
+    description: "Get one WordPress term by ID or slug",
+    discriminator: "taxonomyType",
+    entries: getTermDescriptions(config.catalog),
+    fixedDescription: findTermDescription(config.catalog, config.taxonomyType),
+    fixedValue: config.taxonomyType,
+    selectorDescription:
       "Taxonomy resource to read, such as categories, tags, or genre",
-    ),
-  }).describe("Get one WordPress term by ID or slug");
+  });
 }
 
-export function createTermCreateInputSchema(config: {
+export function createTermSaveInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   taxonomyType?: string;
 }): ZodType {
@@ -351,86 +368,35 @@ export function createTermCreateInputSchema(config: {
       ? zodSchemasFromDescription(fixedDescription)
       : undefined;
     const input = getObjectSchema(
-      schemas?.create,
-      termCreateInputSchema.shape.input,
-    );
-    return z
-      .object({
-        input: withOptionalDescription(
-          input,
-          `Fields to set on the ${config.taxonomyType} term`,
-        ),
-      })
-      .describe(`Create a new WordPress ${config.taxonomyType} term`);
-  }
-
-  const variants = getTermDescriptions(config.catalog).map(
-    ([taxonomyType, description]) => {
-      const schemas = zodSchemasFromDescription(description);
-      return z.object({
-        input: withOptionalDescription(
-          getObjectSchema(schemas.create, termCreateInputSchema.shape.input),
-          `Fields to set on the ${taxonomyType} term`,
-        ),
-        taxonomyType: z.literal(taxonomyType),
-      });
-    },
-  );
-
-  if (variants.length > 0) {
-    return withOptionalDescription(
-      buildDiscriminatedUnion("taxonomyType", variants),
-      "Create a new WordPress term",
-    );
-  }
-
-  return z
-    .object({
-      input: termCreateInputSchema.shape.input,
-      taxonomyType: z
-        .string()
-        .describe(
-          "Taxonomy resource to create in, such as categories, tags, or genre",
-        ),
-    })
-    .describe("Create a new WordPress term");
-}
-
-export function createTermUpdateInputSchema(config: {
-  catalog?: WordPressDiscoveryCatalog;
-  taxonomyType?: string;
-}): ZodType {
-  const fixedDescription = findTermDescription(
-    config.catalog,
-    config.taxonomyType,
-  );
-  if (config.taxonomyType) {
-    const schemas = fixedDescription
-      ? zodSchemasFromDescription(fixedDescription)
-      : undefined;
-    const input = getObjectSchema(
-      schemas?.update,
+      schemas?.update ?? schemas?.create,
       termUpdateInputSchema.shape.input,
     );
     return z
       .object({
-        id: termUpdateInputSchema.shape.id,
+        id: termUpdateInputSchema.shape.id
+          .optional()
+          .describe(SAVE_ID_DESCRIPTION),
         input: withOptionalDescription(
           input,
-          `Fields to update on the ${config.taxonomyType} term`,
+          `Fields to set on the ${config.taxonomyType} term. When updating, omit fields you do not want to change.`,
         ),
       })
-      .describe(`Update an existing WordPress ${config.taxonomyType} term`);
+      .describe(`Create or update a WordPress ${config.taxonomyType} term`);
   }
 
   const variants = getTermDescriptions(config.catalog).map(
     ([taxonomyType, description]) => {
       const schemas = zodSchemasFromDescription(description);
       return z.object({
-        id: termUpdateInputSchema.shape.id,
+        id: termUpdateInputSchema.shape.id
+          .optional()
+          .describe(SAVE_ID_DESCRIPTION),
         input: withOptionalDescription(
-          getObjectSchema(schemas.update, termUpdateInputSchema.shape.input),
-          `Fields to update on the ${taxonomyType} term`,
+          getObjectSchema(
+            schemas.update ?? schemas.create,
+            termUpdateInputSchema.shape.input,
+          ),
+          `Fields to set on the ${taxonomyType} term. When updating, omit fields you do not want to change.`,
         ),
         taxonomyType: z.literal(taxonomyType),
       });
@@ -440,21 +406,23 @@ export function createTermUpdateInputSchema(config: {
   if (variants.length > 0) {
     return withOptionalDescription(
       buildDiscriminatedUnion("taxonomyType", variants),
-      "Update an existing WordPress term",
+      "Create or update a WordPress term",
     );
   }
 
   return z
     .object({
-      id: termUpdateInputSchema.shape.id,
-      input: termUpdateInputSchema.shape.input,
+      id: termUpdateInputSchema.shape.id
+        .optional()
+        .describe(SAVE_ID_DESCRIPTION),
+      input: termCreateInputSchema.shape.input,
       taxonomyType: z
         .string()
         .describe(
-          "Taxonomy resource to update, such as categories, tags, or genre",
+          "Taxonomy resource to write, such as categories, tags, or genre",
         ),
     })
-    .describe("Update an existing WordPress term");
+    .describe("Create or update a WordPress term");
 }
 
 export function createTermDeleteInputSchema(config: {

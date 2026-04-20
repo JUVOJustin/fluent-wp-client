@@ -30,7 +30,7 @@ import { WordPressClient } from 'fluent-wp-client';
 import {
   getContentCollectionTool,
   getContentTool,
-  createContentTool,
+  saveContentTool,
 } from 'fluent-wp-client/ai-sdk';
 
 const wp = new WordPressClient({
@@ -47,7 +47,7 @@ const tools = {
     fixedArgs: { status: 'publish', fields: ['id', 'slug', 'title', 'excerpt', 'link'] },
   }),
   readContent: getContentTool(wp),
-  draftPost: createContentTool(wp, {
+  writePost: saveContentTool(wp, {
     contentType: 'posts',
     fixedInput: { status: 'draft' },
   }),
@@ -74,20 +74,17 @@ import {
   // Content (posts, pages, custom post types)
   getContentCollectionTool,
   getContentTool,
-  createContentTool,
-  updateContentTool,
+  saveContentTool,
   deleteContentTool,
   // Terms (categories, tags, custom taxonomies)
   getTermCollectionTool,
   getTermTool,
-  createTermTool,
-  updateTermTool,
+  saveTermTool,
   deleteTermTool,
   // First-class resources (media, comments, users)
   getResourceCollectionTool,
   getResourceTool,
-  createResourceTool,
-  updateResourceTool,
+  saveResourceTool,
   deleteResourceTool,
   // Abilities
   getAbilitiesTool,
@@ -102,8 +99,12 @@ import {
   // Settings
   getSettingsTool,
   updateSettingsTool,
+  // Schema introspection
+  describeResourceTool,
 } from 'fluent-wp-client/ai-sdk';
 ```
+
+Each resource family exposes a single `save*Tool` that routes to create or update based on whether the model provides an `id` — this matches the WordPress REST API, which uses POST for both operations.
 
 ## Fixed vs dynamic selectors
 
@@ -139,7 +140,7 @@ Populate the client cache with `wp.explore()` or `wp.useCatalog()` when you want
 const catalog = await wp.explore();
 wp.useCatalog(catalog);
 
-const createBook = createContentTool(wp, {
+const writeBook = saveContentTool(wp, {
   contentType: 'books',
 });
 ```
@@ -147,9 +148,12 @@ const createBook = createContentTool(wp, {
 With a cached catalog on the client:
 
 - selector fields become enums when they are model-facing
-- fixed-resource content and term mutations use the live discovered create/update schema when available
-- dynamic content and term mutations become discriminated unions keyed by `contentType` or `taxonomyType`
+- `fields` / `_fields` on read tools narrow to discovered field paths (including nested `acf.*` and `meta.*` entries) so bad field names are rejected locally
+- fixed-resource content and term save tools use the live discovered update schema (or create schema as fallback) so one payload shape covers both modes
+- dynamic content and term save tools become discriminated unions keyed by `contentType` or `taxonomyType`
 - ability execution tools can expose real ability-name enums and discovered input schemas
+
+Field _meaning_ (descriptions, choice labels, plugin-specific keywords) is intentionally not bundled into the tool schemas. Use [`describeResourceTool`](#schema-introspection) whenever the model needs to understand what a field is for — it returns the raw discovery DTO, including any plugin-added keywords such as ACF's `description` or the custom `choices` keyword documented in [Plugin support → ACF](./plugin-support/acf.mdx).
 
 This is especially useful for custom post types, ACF fields, plugin taxonomies, and plugin-added ability endpoints.
 
@@ -160,9 +164,10 @@ If you do not want to run discovery, pass `inputSchema` directly to the tool fac
 ```typescript
 import { z } from 'zod';
 
-const createBook = createContentTool(wp, {
+const writeBook = saveContentTool(wp, {
   contentType: 'books',
   inputSchema: z.object({
+    id: z.number().int().optional(),
     input: z.object({
       title: z.string(),
       isbn: z.string(),
@@ -172,7 +177,7 @@ const createBook = createContentTool(wp, {
 });
 ```
 
-This overrides the generated AI-facing schema without changing tool execution.
+This overrides the generated AI-facing schema without changing tool execution. Keep `id` optional in custom schemas so the save tool can still distinguish create from update.
 
 ## Configuration options
 
@@ -189,9 +194,9 @@ All generic tool factories accept the existing configuration model:
 Example:
 
 ```typescript
-const publishPosts = updateContentTool(adminWp, {
+const publishPosts = saveContentTool(adminWp, {
   contentType: 'posts',
-  description: 'Publish an existing draft blog post.',
+  description: 'Publish a draft blog post by id.',
   fixedInput: { status: 'publish' },
 });
 ```
@@ -220,25 +225,18 @@ const getPost = getContentTool(wp, {
   },
 });
 
-// Route a create mutation through an audit log before writing
-const createPost = createContentTool(wp, {
-  contentType: 'posts',
-  fetch: async ({ contentType, input }) => {
-    await auditLog.record('create', contentType, input);
-    return wp.content(contentType).create(input as never);
-  },
-});
-
-// Route an update through a staging proxy
-const updatePost = updateContentTool(wp, {
+// Route save mutations through an audit log before writing
+const savePost = saveContentTool(wp, {
   contentType: 'posts',
   fetch: async ({ contentType, id, input }) => {
-    return stagingProxy.patch(contentType, id, input);
+    await auditLog.record(id === undefined ? 'create' : 'update', contentType, input);
+    const resource = wp.content(contentType);
+    return id === undefined ? resource.create(input as never) : resource.update(id, input as never);
   },
 });
 ```
 
-The `fetch` callback is typed specifically to the tool it is passed to, so TypeScript knows exactly which arguments are available. For collection tools the input is `{ contentType, filter }` or `{ taxonomyType, filter }`. For single-item reads it adds `id?` and `slug?`. For mutations it adds `id` and `input`.
+The `fetch` callback is typed specifically to the tool it is passed to, so TypeScript knows exactly which arguments are available. For collection tools the input is `{ contentType, filter }` or `{ taxonomyType, filter }`. For single-item reads it adds `id?` and `slug?`. For save mutations it carries an optional `id` plus `input`.
 
 ### Default values with Zod schemas
 
@@ -270,7 +268,7 @@ Use `contentType` for posts, pages, and custom post types.
 const tools = {
   searchContent: getContentCollectionTool(wp),
   readContent: getContentTool(wp),
-  createContent: createContentTool(adminWp),
+  writeContent: saveContentTool(adminWp),
 };
 ```
 
@@ -279,7 +277,12 @@ Model-facing examples:
 ```typescript
 { contentType: 'posts', search: 'release notes', perPage: 5 }
 { contentType: 'pages', slug: 'about' }
+
+// Create a new book — no id.
 { contentType: 'books', input: { title: 'New Book', status: 'draft' } }
+
+// Update an existing book — id is present.
+{ contentType: 'books', id: 42, input: { status: 'publish' } }
 ```
 
 Single-item content reads return a content envelope:
@@ -300,7 +303,7 @@ Use `taxonomyType` for categories, tags, and custom taxonomies.
 
 ```typescript
 const listTerms = getTermCollectionTool(wp);
-const createGenre = createTermTool(adminWp, {
+const writeGenre = saveTermTool(adminWp, {
   taxonomyType: 'genre',
 });
 ```
@@ -318,14 +321,18 @@ const listUsers = getResourceCollectionTool(adminWp, {
   resourceType: 'users',
 });
 
+const writeUser = saveResourceTool(adminWp, {
+  resourceType: 'users',
+});
+
 const deleteComment = deleteResourceTool(adminWp, {
   resourceType: 'comments',
 });
 ```
 
-`createResourceTool` and `updateResourceTool` support `comments` and `users`.
+`saveResourceTool` supports `comments` and `users`. It creates when `id` is absent and updates when `id` is provided.
 
-Media uploads are not wrapped by the generic AI SDK resource tool because they require file transport details. Use `client.media().upload()` directly when you need uploads.
+Media writes are not wrapped because uploads require file transport details. Use `client.media().upload()` directly when you need uploads.
 
 ## Abilities
 
@@ -361,6 +368,63 @@ const abilityTools = createAbilityTools(adminWp, {
 ```
 
 Pass `exclude` to remove specific abilities, or omit both to expose all discovered abilities.
+
+## Schema introspection
+
+`describeResourceTool` gives the model one generic way to introspect the live WordPress schema for any discoverable resource or ability. It does not summarize, remap, or reshape the schema — it returns the raw `WordPressResourceDescription` or `WordPressAbilityDescription` straight from the catalog, including any plugin-added keywords such as ACF `description` or the custom `choices` keyword documented in [Plugin support → ACF](./plugin-support/acf.mdx).
+
+Use it as the canonical way to teach the model about unfamiliar resources before it composes calls to other tools. With a cached catalog, repeated describe calls resolve from memory.
+
+```typescript
+import { describeResourceTool } from 'fluent-wp-client/ai-sdk';
+
+const tools = {
+  describeResource: describeResourceTool(wp),
+};
+```
+
+Model-facing inputs:
+
+```typescript
+{ kind: 'content', name: 'books' }
+{ kind: 'term', name: 'categories' }
+{ kind: 'resource', name: 'users' }
+{ kind: 'ability', name: 'acme/send-email' }
+```
+
+### Limiting the exposed surface
+
+Pass `include` to constrain which kinds and names the model can request. Any kind that is omitted from `include` is removed from the tool schema entirely — the Zod enum will not even contain its discriminator, and runtime requests against that kind return a structured error envelope.
+
+```typescript
+const describe = describeResourceTool(wp, {
+  include: {
+    content: ['posts', 'books'],
+    term: ['categories', 'genre'],
+    // `resource` and `ability` omitted → not exposed to the model
+  },
+});
+```
+
+An explicit empty array also disables the kind, which is useful if you want to keep the field in the config for clarity without letting the model use it.
+
+When no catalog is available and `include` is not provided, `kind` remains unconstrained — helpful for agents that talk to arbitrary WordPress installs without running discovery first.
+
+### Error envelope
+
+Runtime validation failures (for example, a `name` that slips past Zod because `include` is enforced only at execution time, or a kind that was disabled via `include`) return the same structured envelope the rest of the AI SDK tools use instead of throwing:
+
+```typescript
+{
+  ok: false,
+  error: {
+    kind: 'invalid_request',
+    message: "describeResourceTool(): 'posts' is not available for kind 'content'. Allowed values: books.",
+  },
+}
+```
+
+HTTP-level failures from the underlying describe call (network errors, auth issues, unknown resource types) are surfaced through the same envelope, with the originating error's `kind`, `status`, and `statusText` carried through when available.
 
 ## Gutenberg blocks
 
@@ -420,62 +484,3 @@ const searchPosts = getContentCollectionTool(wp, {
 ```
 
 Both `fields` and `_fields` are accepted.
-
-## Full example
-
-```typescript title="wordpress-agent.ts"
-import { generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
-import { WordPressClient } from 'fluent-wp-client';
-import {
-  getContentCollectionTool,
-  getContentTool,
-  getTermCollectionTool,
-  createContentTool,
-  updateContentTool,
-} from 'fluent-wp-client/ai-sdk';
-
-const publicWp = new WordPressClient({
-  baseUrl: 'https://blog.example.com',
-});
-
-const adminWp = new WordPressClient({
-  baseUrl: 'https://blog.example.com',
-  auth: { username: 'editor', password: 'xxxx xxxx xxxx xxxx' },
-});
-
-const catalog = await adminWp.explore();
-publicWp.useCatalog(catalog);
-
-const tools = {
-  searchPosts: getContentCollectionTool(publicWp, {
-    contentType: 'posts',
-    description: 'Search published blog posts by keyword, category, or tag.',
-    fixedArgs: { status: 'publish', fields: ['id', 'slug', 'title', 'excerpt', 'link', 'categories'] },
-  }),
-  readContent: getContentTool(publicWp, {
-    description: 'Read a post, page, or custom content item by ID or slug.',
-  }),
-  listCategories: getTermCollectionTool(publicWp, {
-    taxonomyType: 'categories',
-    description: 'List all blog categories.',
-  }),
-  draftPost: createContentTool(adminWp, {
-    contentType: 'posts',
-    description: 'Create a new draft blog post for editorial review.',
-    fixedInput: { status: 'draft' },
-  }),
-  publishPost: updateContentTool(adminWp, {
-    contentType: 'posts',
-    description: 'Publish an existing draft post.',
-    fixedInput: { status: 'publish' },
-  }),
-};
-
-const { text } = await generateText({
-  model: openai('gpt-4o'),
-  tools,
-  maxSteps: 10,
-  prompt: 'Find all posts about TypeScript in the Technology category, then draft a summary post.',
-});
-```

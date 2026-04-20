@@ -1,4 +1,4 @@
-import { stripDateTimeFormats } from "../zod-helpers.js";
+import { normalizeWordPressJsonSchema } from "../zod-helpers.js";
 import type {
   DiscoveredResource,
   WPRouteSchema,
@@ -48,7 +48,7 @@ function buildNormalizedJsonSchema(
     type: "object",
   };
 
-  return stripDateTimeFormats(jsonSchema);
+  return normalizeWordPressJsonSchema(jsonSchema);
 }
 
 // ---------------------------------------------------------------------------

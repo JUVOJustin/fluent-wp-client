@@ -4,10 +4,9 @@ import type {
 } from "fluent-wp-client";
 import {
   createAbilityTools,
-  createContentTool,
-  createResourceTool,
   deleteContentTool,
   deleteResourceTool,
+  describeResourceTool,
   executeRunAbilityTool,
   getBlocksTool,
   getContentCollectionTool,
@@ -17,9 +16,9 @@ import {
   getSettingsTool,
   getTermCollectionTool,
   getTermTool,
+  saveContentTool,
+  saveResourceTool,
   setBlocksTool,
-  updateContentTool,
-  updateResourceTool,
 } from "fluent-wp-client/ai-sdk";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -387,8 +386,8 @@ describe("AI SDK tool integration", () => {
       }
     });
 
-    it("createContentTool creates a draft post", async () => {
-      const tool = createContentTool(authClient, {
+    it("saveContentTool creates a draft post when id is omitted", async () => {
+      const tool = saveContentTool(authClient, {
         contentType: "posts",
         fixedInput: { status: "draft" },
       });
@@ -404,13 +403,13 @@ describe("AI SDK tool integration", () => {
       postCleanupIds.push(result.id);
     });
 
-    it("updateContentTool updates a post", async () => {
+    it("saveContentTool updates an existing post when id is provided", async () => {
       const created = await authClient
         .content("posts")
         .create({ status: "draft", title: "Update Target" });
       postCleanupIds.push(created.id);
 
-      const tool = updateContentTool(authClient, { contentType: "posts" });
+      const tool = saveContentTool(authClient, { contentType: "posts" });
       const result = await run<{ id: number }>(tool, {
         id: created.id,
         input: { title: "Updated Generic Title" },
@@ -432,8 +431,8 @@ describe("AI SDK tool integration", () => {
       expect(result).toHaveProperty("deleted", true);
     });
 
-    it("createResourceTool creates a user", async () => {
-      const tool = createResourceTool(authClient, { resourceType: "users" });
+    it("saveResourceTool creates a user when id is omitted", async () => {
+      const tool = saveResourceTool(authClient, { resourceType: "users" });
       const unique = Date.now();
       const result = await run<{ id: number }>(tool, {
         input: {
@@ -448,7 +447,7 @@ describe("AI SDK tool integration", () => {
       userCleanupIds.push(result.id);
     });
 
-    it("updateResourceTool updates a user", async () => {
+    it("saveResourceTool updates a user when id is provided", async () => {
       const unique = Date.now();
       const created = await authClient.users().create({
         email: `ai-sdk-update-${unique}@example.com`,
@@ -457,7 +456,7 @@ describe("AI SDK tool integration", () => {
       });
       userCleanupIds.push(created.id);
 
-      const tool = updateResourceTool(authClient, { resourceType: "users" });
+      const tool = saveResourceTool(authClient, { resourceType: "users" });
       const result = await run<{ id: number }>(tool, {
         id: created.id,
         input: { name: "Updated AI SDK User" },
@@ -485,7 +484,7 @@ describe("AI SDK tool integration", () => {
     });
 
     it("returns structured tool errors instead of throwing raw exceptions", async () => {
-      const tool = createContentTool(publicClient, { contentType: "posts" });
+      const tool = saveContentTool(publicClient, { contentType: "posts" });
       const result = await run<{
         ok: false;
         error: { kind: string; message: string; status?: number };
@@ -513,7 +512,7 @@ describe("AI SDK tool integration", () => {
     });
 
     it("fixed content tools remove contentType from the input shape", () => {
-      const tool = createContentTool(authClient, { contentType: "posts" });
+      const tool = saveContentTool(authClient, { contentType: "posts" });
       const schema = tool.inputSchema as {
         safeParse: (input: unknown) => { success: boolean };
       };
@@ -539,8 +538,79 @@ describe("AI SDK tool integration", () => {
       expect(schema.safeParse({ name: "missing/ability" }).success).toBe(false);
     });
 
+    it("content read tools narrow `fields` to discovered ACF paths without leaking per-field meaning", () => {
+      const tool = getContentTool(publicClient, { contentType: "books" });
+      const schema = tool.inputSchema as {
+        safeParse: (input: unknown) => { success: boolean };
+      };
+
+      // Catalog-known nested ACF path is accepted
+      expect(
+        schema.safeParse({
+          fields: ["acf.acf_priority_score"],
+          slug: "test-book-001",
+        }).success,
+      ).toBe(true);
+      // Invented paths are rejected at validation time
+      expect(
+        schema.safeParse({
+          fields: ["acf.not_a_field"],
+          slug: "test-book-001",
+        }).success,
+      ).toBe(false);
+
+      // The field enum must not carry per-field `.describe(...)` text —
+      // field semantics are learned through `describeResourceTool`.
+      const jsonSchema = z.toJSONSchema(tool.inputSchema);
+      const fieldsItems = (
+        jsonSchema as {
+          properties?: { fields?: { items?: Record<string, unknown> } };
+        }
+      ).properties?.fields?.items;
+
+      expect(fieldsItems).toBeDefined();
+      expect(fieldsItems).not.toHaveProperty("anyOf");
+      expect(fieldsItems).not.toHaveProperty("description");
+    });
+
+    it("describeResourceTool returns raw plugin-added values of any type for ACF fields", async () => {
+      const tool = describeResourceTool(authClient);
+
+      const description = await run<{
+        schemas: {
+          item?: {
+            properties?: {
+              acf?: {
+                properties?: Record<string, Record<string, unknown>>;
+              };
+            };
+          };
+        };
+      }>(tool, { kind: "content", name: "books" });
+
+      const acfProperties =
+        description.schemas.item?.properties?.acf?.properties ?? {};
+
+      // Scalar ACF field — `description` keyword is forwarded verbatim.
+      expect(acfProperties.acf_priority_score).toMatchObject({
+        description:
+          "Editorial priority score from 0 to 100 used to rank featured content.",
+      });
+
+      // Choice ACF field — both the custom `choices` array (plugin extension)
+      // and the native REST `items.enum` are surfaced as-is.
+      expect(acfProperties.acf_status).toMatchObject({
+        choices: [
+          { label: "Draft", value: "draft" },
+          { label: "Ready for review", value: "ready" },
+          { label: "Queued for publish", value: "queued" },
+        ],
+        items: { enum: ["draft", "ready", "queued"] },
+      });
+    });
+
     it("manual inputSchema overrides generated schemas when no catalog is provided", () => {
-      const tool = createContentTool(authClient, {
+      const tool = saveContentTool(authClient, {
         contentType: "posts",
         inputSchema: z.object({
           input: z.object({
@@ -855,6 +925,117 @@ describe("AI SDK tool integration", () => {
       expect(Object.keys(tools).length).toBe(
         Object.keys(catalog.abilities).length,
       );
+    });
+  });
+
+  describe("describeResourceTool", () => {
+    type DescribeSchema = {
+      safeParse: (input: unknown) => { success: boolean };
+    };
+
+    it("describes content, term, resource, and ability kinds against the cached catalog", async () => {
+      const tool = describeResourceTool(authClient);
+
+      const post = await run<{ kind: string; resource: string }>(tool, {
+        kind: "content",
+        name: "posts",
+      });
+      expect(post).toMatchObject({ kind: "content", resource: "posts" });
+
+      const category = await run<{ kind: string; resource: string }>(tool, {
+        kind: "term",
+        name: "categories",
+      });
+      expect(category).toMatchObject({
+        kind: "term",
+        resource: "categories",
+      });
+
+      const users = await run<{ kind: string; resource: string }>(tool, {
+        kind: "resource",
+        name: "users",
+      });
+      expect(users).toMatchObject({ kind: "resource", resource: "users" });
+
+      const settings = await run<{ kind: string; resource: string }>(tool, {
+        kind: "resource",
+        name: "settings",
+      });
+      expect(settings).toMatchObject({
+        kind: "resource",
+        resource: "settings",
+      });
+
+      const abilityName = Object.keys(catalog.abilities)[0];
+      if (abilityName) {
+        const ability = await run<{ kind: string; name: string }>(tool, {
+          kind: "ability",
+          name: abilityName,
+        });
+        expect(ability).toMatchObject({ kind: "ability", name: abilityName });
+      }
+    });
+
+    it("narrows the input enum and rejects disallowed names at runtime when include is provided", async () => {
+      const tool = describeResourceTool(authClient, {
+        include: {
+          content: ["books"],
+          resource: ["users"],
+        },
+      });
+      const schema = tool.inputSchema as DescribeSchema;
+
+      expect(schema.safeParse({ kind: "content", name: "books" }).success).toBe(
+        true,
+      );
+      expect(schema.safeParse({ kind: "content", name: "posts" }).success).toBe(
+        false,
+      );
+      expect(
+        schema.safeParse({ kind: "term", name: "categories" }).success,
+      ).toBe(false);
+
+      const result = await run<{ resource: string }>(tool, {
+        kind: "content",
+        name: "books",
+      });
+      expect(result.resource).toBe("books");
+    });
+
+    it("returns a structured error envelope when an include-filtered name slips past the Zod layer", async () => {
+      const tool = describeResourceTool(authClient, {
+        include: { content: ["books"] },
+      });
+
+      const result = await run<{ ok: false; error: { kind: string } }>(tool, {
+        kind: "content",
+        name: "posts",
+      });
+
+      expect(result).toHaveProperty("ok", false);
+      expect(result.error.message).toContain(
+        "not available for kind 'content'",
+      );
+    });
+
+    it("remains usable without a catalog and accepts arbitrary names", async () => {
+      const freshClient = createPublicClient();
+      const tool = describeResourceTool(freshClient);
+
+      const result = await run<{ kind: string; resource: string }>(tool, {
+        kind: "content",
+        name: "posts",
+      });
+
+      expect(result).toMatchObject({ kind: "content", resource: "posts" });
+    });
+
+    it("throws during factory construction when every kind has been filtered out", () => {
+      expect(() =>
+        describeResourceTool(authClient, {
+          include: { ability: [], content: [], resource: [], term: [] },
+        }),
+      ).toThrow(/include filter removed every available kind/);
     });
   });
 });

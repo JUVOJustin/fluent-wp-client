@@ -98,7 +98,7 @@ export function createUsersClient(
 > {
   const item = ((
     idOrSlug: number | string,
-    options?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides & { fields?: string[] },
   ): Promise<WordPressAuthor | undefined> => {
     return typeof idOrSlug === "number"
       ? resource.getById(idOrSlug, options)

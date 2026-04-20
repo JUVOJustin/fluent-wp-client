@@ -33,33 +33,37 @@ export {
 export { getBlocksTool, setBlocksTool } from "./blocks.js";
 // Generic content
 export {
-  createContentTool,
   deleteContentTool,
   getContentCollectionTool,
   getContentTool,
-  updateContentTool,
+  saveContentTool,
 } from "./content.js";
+// Schema introspection
+export {
+  type DescribeResourceResourceKind,
+  type DescribeResourceToolInclude,
+  type DescribeResourceToolOptions,
+  describeResourceTool,
+} from "./describe.js";
 export type {
   ContentItemResult,
   WordPressAIToolErrorResult,
 } from "./factories.js";
 // Generic first-class resources
 export {
-  createResourceTool,
   deleteResourceTool,
   getResourceCollectionTool,
   getResourceTool,
-  updateResourceTool,
+  saveResourceTool,
 } from "./resources.js";
 // Singleton settings
 export { getSettingsTool, updateSettingsTool } from "./settings.js";
 // Generic taxonomies
 export {
-  createTermTool,
   deleteTermTool,
   getTermCollectionTool,
   getTermTool,
-  updateTermTool,
+  saveTermTool,
 } from "./terms.js";
 // Types
 export type {
@@ -69,24 +73,21 @@ export type {
   CatalogMutationToolFactoryOptions,
   CatalogToolFactoryOptions,
   ContentCollectionToolOptions,
-  ContentCreateToolOptions,
   ContentDeleteToolOptions,
   ContentGetToolOptions,
-  ContentUpdateToolOptions,
+  ContentSaveToolOptions,
   CreateAbilityToolsOptions,
   GenericMutationToolFactoryOptions,
   GenericResourceToolFactoryOptions,
   MutationToolFactoryOptions,
   ResourceCollectionToolOptions,
-  ResourceCreateToolOptions,
   ResourceDeleteToolOptions,
   ResourceGetToolOptions,
-  ResourceUpdateToolOptions,
+  ResourceSaveToolOptions,
   SettingsGetToolOptions,
   TermCollectionToolOptions,
-  TermCreateToolOptions,
   TermDeleteToolOptions,
   TermGetToolOptions,
-  TermUpdateToolOptions,
+  TermSaveToolOptions,
   ToolFactoryOptions,
 } from "./types.js";

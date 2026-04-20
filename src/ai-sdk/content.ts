@@ -5,14 +5,14 @@ import type { WordPressPostLike } from "../schemas.js";
 import type { QueryParams } from "../types/resources.js";
 import {
   createContentCollectionInputSchema,
-  createContentCreateInputSchema,
   createContentDeleteInputSchema,
   createContentGetInputSchema,
-  createContentUpdateInputSchema,
+  createContentSaveInputSchema,
 } from "./catalog-schemas.js";
 import {
   asToolArgs,
   type ContentQueryLike,
+  normalizeFieldSelection,
   prepareCollectionArgs,
   resolveContentQuery,
   withToolErrorHandling,
@@ -20,10 +20,9 @@ import {
 import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import type {
   ContentCollectionToolOptions,
-  ContentCreateToolOptions,
   ContentDeleteToolOptions,
   ContentGetToolOptions,
-  ContentUpdateToolOptions,
+  ContentSaveToolOptions,
   ToolFactoryOptions,
 } from "./types.js";
 
@@ -111,9 +110,11 @@ export const getContentTool = (
       options?.description ??
       "Get a single WordPress content item by ID or slug",
     execute: withToolErrorHandling(async (args: unknown) => {
-      const merged = mergeToolArgs(
-        asToolArgs(args as Record<string, unknown>),
-        options?.fixedArgs,
+      const merged = normalizeFieldSelection(
+        mergeToolArgs(
+          asToolArgs(args as Record<string, unknown>),
+          options?.fixedArgs,
+        ),
       );
       const contentType = resolveContentType(merged, options);
       const id = typeof merged.id === "number" ? merged.id : undefined;
@@ -121,6 +122,9 @@ export const getContentTool = (
       const contentOpts = merged as {
         includeContent?: boolean;
         includeBlocks?: boolean;
+      };
+      const itemOptions = {
+        fields: merged.fields as string[] | undefined,
       };
 
       if (options?.fetch) {
@@ -135,7 +139,9 @@ export const getContentTool = (
 
       if (id !== undefined) {
         return resolveContentQuery(
-          client.content(contentType).item(id) as unknown as ContentQueryLike<
+          client
+            .content(contentType)
+            .item(id, itemOptions) as unknown as ContentQueryLike<
             WordPressPostLike | undefined
           >,
           contentOpts,
@@ -144,7 +150,9 @@ export const getContentTool = (
 
       if (slug !== undefined) {
         return resolveContentQuery(
-          client.content(contentType).item(slug) as unknown as ContentQueryLike<
+          client
+            .content(contentType)
+            .item(slug, itemOptions) as unknown as ContentQueryLike<
             WordPressPostLike | undefined
           >,
           contentOpts,
@@ -161,62 +169,20 @@ export const getContentTool = (
 };
 
 /**
- * AI SDK tool that creates a new custom content item.
+ * AI SDK tool that creates or updates a custom content item.
+ *
+ * Presence of `id` in the model input switches to an update call; omitting
+ * `id` routes to a create call. One tool covers both WordPress write modes
+ * so the model only sees a single mutation surface.
  *
  * Provide `fetch` to replace the default client call. The callback receives
- * the resolved `contentType` and merged `input` after `fixedInput` has been
- * applied — useful for routing through a proxy, audit log, or queue.
+ * the resolved `contentType`, optional `id`, and merged `input` after
+ * `fixedInput` has been applied — useful for routing through a proxy, audit
+ * log, or queue.
  */
-export const createContentTool = (
+export const saveContentTool = (
   client: WordPressClient,
-  options?: ContentCreateToolOptions<Record<string, unknown>>,
-) => {
-  const resolvedOptions = {
-    ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
-  };
-  return tool({
-    description: options?.description ?? "Create a new WordPress content item",
-    execute: withToolErrorHandling(async (args: unknown) => {
-      const merged = mergeToolArgs(
-        asToolArgs(args as Record<string, unknown>),
-        options?.fixedArgs,
-      );
-      const contentType = resolveContentType(merged, options);
-      const withInput = mergeMutationInput(
-        merged,
-        options?.defaultInput,
-        options?.fixedInput,
-      );
-
-      if (options?.fetch) {
-        return options.fetch({
-          contentType,
-          input: withInput.input as Record<string, unknown>,
-        });
-      }
-
-      return client
-        .content(contentType)
-        .create(withInput.input as Record<string, unknown>);
-    }),
-    inputSchema: (options?.inputSchema ??
-      createContentCreateInputSchema(resolvedOptions)) as never,
-    needsApproval: options?.needsApproval as never,
-    strict: options?.strict,
-  });
-};
-
-/**
- * AI SDK tool that updates an existing custom content item.
- *
- * Provide `fetch` to replace the default client call. The callback receives
- * the resolved `contentType`, `id`, and merged `input` after `fixedInput`
- * has been applied.
- */
-export const updateContentTool = (
-  client: WordPressClient,
-  options?: ContentUpdateToolOptions<Record<string, unknown>>,
+  options?: ContentSaveToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
@@ -224,7 +190,7 @@ export const updateContentTool = (
   };
   return tool({
     description:
-      options?.description ?? "Update an existing WordPress content item",
+      options?.description ?? "Create or update a WordPress content item",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(
         asToolArgs(args as Record<string, unknown>),
@@ -236,24 +202,21 @@ export const updateContentTool = (
         options?.defaultInput,
         options?.fixedInput,
       );
+      const id =
+        typeof withInput.id === "number" ? (withInput.id as number) : undefined;
+      const input = withInput.input as Record<string, unknown>;
 
       if (options?.fetch) {
-        return options.fetch({
-          contentType,
-          id: withInput.id as number,
-          input: withInput.input as Record<string, unknown>,
-        });
+        return options.fetch({ contentType, id, input });
       }
 
-      return client
-        .content(contentType)
-        .update(
-          withInput.id as number,
-          withInput.input as Record<string, unknown>,
-        );
+      const resource = client.content(contentType);
+      return id === undefined
+        ? resource.create(input)
+        : resource.update(id, input);
     }),
     inputSchema: (options?.inputSchema ??
-      createContentUpdateInputSchema(resolvedOptions)) as never,
+      createContentSaveInputSchema(resolvedOptions)) as never,
     needsApproval: options?.needsApproval as never,
     strict: options?.strict,
   });

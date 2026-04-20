@@ -115,35 +115,43 @@ export abstract class BaseCollectionResource<
 
   /**
    * Gets one resource by ID.
+   *
+   * Accepts an optional `fields` override so single-item reads can narrow
+   * the REST `_fields` payload without going through a collection filter.
    */
   async getById(
     id: number,
-    options?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides & { fields?: string[] },
   ): Promise<TResource> {
+    const { fields, ...requestOverrides } = options ?? {};
     const params = filterToParams(
-      this.normalizeFilter({} as Omit<TFilter, "page">),
+      this.normalizeFilter({ fields } as unknown as Omit<TFilter, "page">),
     );
     return this.runtime.fetchAPI<TResource>(
       `${this.endpoint}/${id}`,
       params,
-      options,
+      requestOverrides,
     );
   }
 
   /**
    * Gets one resource by slug.
+   *
+   * Accepts an optional `fields` override so single-item reads can narrow
+   * the REST `_fields` payload returned by the collection lookup.
    */
   async getBySlug(
     slug: string,
-    options?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides & { fields?: string[] },
   ): Promise<TResource | undefined> {
+    const { fields, ...requestOverrides } = options ?? {};
     const params = filterToParams(
-      this.normalizeFilter({ slug } as unknown as TFilter),
+      this.normalizeFilter({ fields, slug } as unknown as TFilter),
     );
     const items = await this.runtime.fetchAPI<TResource[]>(
       this.endpoint,
       params,
-      options,
+      requestOverrides,
     );
     return items[0];
   }

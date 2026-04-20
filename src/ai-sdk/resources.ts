@@ -15,29 +15,28 @@ import type { QueryParams } from "../types/resources.js";
 import { zodSchemasFromDescription } from "../zod-helpers.js";
 import {
   asToolArgs,
+  normalizeFieldSelection,
   prepareCollectionArgs,
   withToolErrorHandling,
 } from "./factories.js";
+import { createFieldSelectionShape } from "./field-schemas.js";
 import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import {
-  commentCreateInputSchema,
   commentsCollectionInputSchema,
   commentUpdateInputSchema,
   deleteInputSchema,
   idOnlyGetInputSchema,
   mediaCollectionInputSchema,
   simpleGetInputSchema,
-  userCreateInputSchema,
   userDeleteInputSchema,
   usersCollectionInputSchema,
   userUpdateInputSchema,
 } from "./schemas.js";
 import type {
   ResourceCollectionToolOptions,
-  ResourceCreateToolOptions,
   ResourceDeleteToolOptions,
   ResourceGetToolOptions,
-  ResourceUpdateToolOptions,
+  ResourceSaveToolOptions,
   ToolFactoryOptions,
 } from "./types.js";
 
@@ -100,68 +99,136 @@ function stripResourceType(
   return rest;
 }
 
+/**
+ * Base schemas per supported resource, split by read shape.
+ *
+ * Comments only accept numeric IDs on single-item reads, while media and
+ * users accept either an ID or a slug.
+ */
+const RESOURCE_READ_SCHEMAS: Record<
+  SupportedResourceType,
+  {
+    collection: z.ZodObject<z.ZodRawShape>;
+    get: z.ZodObject<z.ZodRawShape>;
+  }
+> = {
+  comments: {
+    collection: commentsCollectionInputSchema,
+    get: idOnlyGetInputSchema,
+  },
+  media: {
+    collection: mediaCollectionInputSchema,
+    get: simpleGetInputSchema,
+  },
+  users: {
+    collection: usersCollectionInputSchema,
+    get: simpleGetInputSchema,
+  },
+};
+
+/**
+ * Builds a catalog-aware read input schema for one resource family.
+ *
+ * Mirrors `buildCatalogReadSchema` over in `catalog-schemas.ts` but for the
+ * fixed `media` / `comments` / `users` set. When no `resourceType` is pinned
+ * the model picks one through a discriminated union.
+ */
+function buildCatalogResourceReadSchema(
+  catalog: WordPressDiscoveryCatalog | undefined,
+  resourceType: SupportedResourceType | undefined,
+  mode: "collection" | "get",
+  unionDescription: string,
+  variantDescription: (resourceType: SupportedResourceType) => string,
+): ZodType {
+  if (resourceType) {
+    return RESOURCE_READ_SCHEMAS[resourceType][mode]
+      .extend(
+        createFieldSelectionShape(
+          getResourceDescription(catalog, resourceType),
+          "read",
+        ),
+      )
+      .describe(variantDescription(resourceType));
+  }
+
+  const variants = SUPPORTED_RESOURCE_TYPES.map((variant) =>
+    RESOURCE_READ_SCHEMAS[variant][mode].extend({
+      resourceType: z.literal(variant),
+      ...createFieldSelectionShape(
+        getResourceDescription(catalog, variant),
+        "read",
+      ),
+    }),
+  );
+
+  return buildResourceUnion("resourceType", variants).describe(
+    unionDescription,
+  );
+}
+
 function createCollectionInputSchema(options?: {
   resourceType?: SupportedResourceType;
   catalog?: WordPressDiscoveryCatalog;
 }): ZodType {
-  if (options?.resourceType === "media") return mediaCollectionInputSchema;
-  if (options?.resourceType === "comments")
-    return commentsCollectionInputSchema;
-  if (options?.resourceType === "users") return usersCollectionInputSchema;
-
-  return buildResourceUnion("resourceType", [
-    mediaCollectionInputSchema.extend({ resourceType: z.literal("media") }),
-    commentsCollectionInputSchema.extend({
-      resourceType: z.literal("comments"),
-    }),
-    usersCollectionInputSchema.extend({ resourceType: z.literal("users") }),
-  ]).describe("Search and filter WordPress media, comments, or users");
+  return buildCatalogResourceReadSchema(
+    options?.catalog,
+    options?.resourceType,
+    "collection",
+    "Search and filter WordPress media, comments, or users",
+    (resourceType) => `Search and filter WordPress ${resourceType}`,
+  );
 }
 
 function createGetInputSchema(options?: {
   resourceType?: SupportedResourceType;
   catalog?: WordPressDiscoveryCatalog;
 }): ZodType {
-  if (options?.resourceType === "comments") return idOnlyGetInputSchema;
-  if (options?.resourceType === "media" || options?.resourceType === "users")
-    return simpleGetInputSchema;
-
-  return buildResourceUnion("resourceType", [
-    simpleGetInputSchema.extend({ resourceType: z.literal("media") }),
-    idOnlyGetInputSchema.extend({ resourceType: z.literal("comments") }),
-    simpleGetInputSchema.extend({ resourceType: z.literal("users") }),
-  ]).describe("Get one WordPress media item, comment, or user");
+  return buildCatalogResourceReadSchema(
+    options?.catalog,
+    options?.resourceType,
+    "get",
+    "Get one WordPress media item, comment, or user",
+    (resourceType) =>
+      resourceType === "comments"
+        ? "Get one WordPress comment"
+        : resourceType === "media"
+          ? "Get one WordPress media item"
+          : "Get one WordPress user",
+  );
 }
 
-function createMutationSchema(
-  resourceType: SupportedResourceType,
+/**
+ * Builds a unified save input schema for one resource type.
+ *
+ * Mirrors content/term save schemas: the schema validates against the
+ * discovered update payload when available (which has no required fields)
+ * so the same payload can drive both create and update calls. Presence of
+ * `id` at runtime routes the request to the correct client method.
+ */
+function createResourceSaveVariantSchema(
+  resourceType: "comments" | "users",
   description: WordPressResourceDescription | undefined,
-  mode: "create" | "update",
-): ZodType {
+): z.ZodObject<z.ZodRawShape> {
   const schemas = description
     ? zodSchemasFromDescription(description)
     : undefined;
-  const dynamic = mode === "create" ? schemas?.create : schemas?.update;
-
-  if (mode === "create") {
-    const fallback =
-      resourceType === "comments"
-        ? commentCreateInputSchema.shape.input
-        : userCreateInputSchema.shape.input;
-    return z.object({ input: (dynamic ?? fallback) as never });
-  }
-
   const fallback =
     resourceType === "comments"
       ? commentUpdateInputSchema.shape.input
       : userUpdateInputSchema.shape.input;
+  const input = (schemas?.update ?? schemas?.create ?? fallback) as ZodType;
+
   return z.object({
-    id: z.number().int(),
-    input: (dynamic ?? fallback) as never,
+    id: z
+      .number()
+      .int()
+      .optional()
+      .describe("Resource ID to update. Omit to create a new item instead."),
+    input: input as never,
   });
 }
 
-function createCreateInputSchema(options?: {
+function createSaveInputSchema(options?: {
   resourceType?: SupportedResourceType;
   catalog?: WordPressDiscoveryCatalog;
 }): ZodType {
@@ -169,7 +236,7 @@ function createCreateInputSchema(options?: {
     return z
       .object({})
       .describe(
-        "Media upload is not supported by the AI SDK resource tool. Use the client upload API directly.",
+        "Media writes are not exposed by this AI SDK resource tool. Use client.media().upload() for uploads.",
       );
   }
 
@@ -177,44 +244,26 @@ function createCreateInputSchema(options?: {
     options?.resourceType === "comments" ||
     options?.resourceType === "users"
   ) {
-    return createMutationSchema(
+    return createResourceSaveVariantSchema(
       options.resourceType,
       getResourceDescription(options.catalog, options.resourceType),
-      "create",
+    ).describe(
+      options.resourceType === "comments"
+        ? "Create or update a WordPress comment"
+        : "Create or update a WordPress user",
     );
   }
 
   return buildResourceUnion("resourceType", [
-    commentCreateInputSchema.extend({ resourceType: z.literal("comments") }),
-    userCreateInputSchema.extend({ resourceType: z.literal("users") }),
-  ]).describe("Create a WordPress comment or user");
-}
-
-function createUpdateInputSchema(options?: {
-  resourceType?: SupportedResourceType;
-  catalog?: WordPressDiscoveryCatalog;
-}): ZodType {
-  if (options?.resourceType === "media") {
-    return z
-      .object({})
-      .describe("Media updates are not exposed by this AI SDK resource tool.");
-  }
-
-  if (
-    options?.resourceType === "comments" ||
-    options?.resourceType === "users"
-  ) {
-    return createMutationSchema(
-      options.resourceType,
-      getResourceDescription(options.catalog, options.resourceType),
-      "update",
-    );
-  }
-
-  return buildResourceUnion("resourceType", [
-    commentUpdateInputSchema.extend({ resourceType: z.literal("comments") }),
-    userUpdateInputSchema.extend({ resourceType: z.literal("users") }),
-  ]).describe("Update a WordPress comment or user");
+    createResourceSaveVariantSchema(
+      "comments",
+      getResourceDescription(options?.catalog, "comments"),
+    ).extend({ resourceType: z.literal("comments") }),
+    createResourceSaveVariantSchema(
+      "users",
+      getResourceDescription(options?.catalog, "users"),
+    ).extend({ resourceType: z.literal("users") }),
+  ]).describe("Create or update a WordPress comment or user");
 }
 
 function createDeleteInputSchema(options?: {
@@ -249,20 +298,22 @@ async function getResource(
   resourceType: SupportedResourceType,
   merged: Record<string, unknown>,
 ) {
+  const itemOptions = { fields: merged.fields as string[] | undefined };
+
   if (resourceType === "comments") {
-    return client.comments().item(merged.id as number);
+    return client.comments().item(merged.id as number, itemOptions);
   }
 
   if (merged.id) {
     return resourceType === "media"
-      ? client.media().item(merged.id as number)
-      : client.users().item(merged.id as number);
+      ? client.media().item(merged.id as number, itemOptions)
+      : client.users().item(merged.id as number, itemOptions);
   }
 
   if (merged.slug) {
     return resourceType === "media"
-      ? client.media().item(merged.slug as string)
-      : client.users().item(merged.slug as string);
+      ? client.media().item(merged.slug as string, itemOptions)
+      : client.users().item(merged.slug as string, itemOptions);
   }
 
   throw createInvalidRequestError(
@@ -270,37 +321,21 @@ async function getResource(
   );
 }
 
-async function createResource(
+async function saveResource(
   client: WordPressClient,
   resourceType: SupportedResourceType,
+  id: number | undefined,
   input: Record<string, unknown>,
 ) {
   if (resourceType === "media") {
     throw createInvalidRequestError(
-      "Media upload is not supported by the generic AI SDK resource tool. Use client.media().upload().",
+      "Media writes are not supported by the generic AI SDK resource tool. Use client.media().upload() for uploads.",
     );
   }
 
-  return resourceType === "comments"
-    ? client.comments().create(input)
-    : client.users().create(input);
-}
-
-async function updateResource(
-  client: WordPressClient,
-  resourceType: SupportedResourceType,
-  id: number,
-  input: Record<string, unknown>,
-) {
-  if (resourceType === "media") {
-    throw createInvalidRequestError(
-      "Media updates are not supported by the generic AI SDK resource tool.",
-    );
-  }
-
-  return resourceType === "comments"
-    ? client.comments().update(id, input)
-    : client.users().update(id, input);
+  const resource =
+    resourceType === "comments" ? client.comments() : client.users();
+  return id === undefined ? resource.create(input) : resource.update(id, input);
 }
 
 async function deleteResource(
@@ -370,8 +405,8 @@ export const getResourceCollectionTool = (
  * AI SDK tool that fetches a single media item, comment, or user.
  *
  * Provide `fetch` to replace the default client call. Receives the resolved
- * `resourceType` and normalised `id` or `slug` after `fixedArgs` have been
- * applied.
+ * `resourceType`, normalised `id` or `slug`, and any `_fields` selection
+ * after `fixedArgs` have been applied.
  */
 export const getResourceTool = (
   client: WordPressClient,
@@ -386,16 +421,19 @@ export const getResourceTool = (
       options?.description ??
       "Get a single WordPress media item, comment, or user",
     execute: withToolErrorHandling(async (args: unknown) => {
-      const merged = mergeToolArgs(
-        asToolArgs(args as Record<string, unknown>),
-        options?.fixedArgs,
+      const merged = normalizeFieldSelection(
+        mergeToolArgs(
+          asToolArgs(args as Record<string, unknown>),
+          options?.fixedArgs,
+        ),
       );
       const resourceType = resolveResourceType(merged, options);
       const id = typeof merged.id === "number" ? merged.id : undefined;
       const slug = typeof merged.slug === "string" ? merged.slug : undefined;
+      const fields = merged.fields as string[] | undefined;
 
       if (options?.fetch) {
-        return options.fetch({ id, resourceType, slug });
+        return options.fetch({ fields, id, resourceType, slug });
       }
 
       return getResource(client, resourceType, merged);
@@ -408,21 +446,27 @@ export const getResourceTool = (
 };
 
 /**
- * AI SDK tool that creates a WordPress comment or user.
+ * AI SDK tool that creates or updates a WordPress comment or user.
+ *
+ * Presence of `id` in the model input switches to an update call; omitting
+ * `id` routes to a create call. One tool covers both mutation modes so the
+ * model only sees a single mutation surface.
  *
  * Provide `fetch` to replace the default client call. Receives the resolved
- * `resourceType` and merged `input` after `fixedInput` has been applied.
+ * `resourceType`, optional `id`, and merged `input` after `fixedInput` has
+ * been applied.
  */
-export const createResourceTool = (
+export const saveResourceTool = (
   client: WordPressClient,
-  options?: ResourceCreateToolOptions<Record<string, unknown>>,
+  options?: ResourceSaveToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
-    description: options?.description ?? "Create a WordPress comment or user",
+    description:
+      options?.description ?? "Create or update a WordPress comment or user",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(
         asToolArgs(args as Record<string, unknown>),
@@ -434,72 +478,18 @@ export const createResourceTool = (
         options?.defaultInput,
         options?.fixedInput,
       );
+      const id =
+        typeof withInput.id === "number" ? (withInput.id as number) : undefined;
+      const input = withInput.input as Record<string, unknown>;
 
       if (options?.fetch) {
-        return options.fetch({
-          input: withInput.input as Record<string, unknown>,
-          resourceType,
-        });
+        return options.fetch({ id, input, resourceType });
       }
 
-      return createResource(
-        client,
-        resourceType,
-        withInput.input as Record<string, unknown>,
-      );
+      return saveResource(client, resourceType, id, input);
     }),
     inputSchema: (options?.inputSchema ??
-      createCreateInputSchema(resolvedOptions)) as never,
-    needsApproval: options?.needsApproval as never,
-    strict: options?.strict,
-  });
-};
-
-/**
- * AI SDK tool that updates a WordPress comment or user.
- *
- * Provide `fetch` to replace the default client call. Receives the resolved
- * `resourceType`, `id`, and merged `input` after `fixedInput` has been applied.
- */
-export const updateResourceTool = (
-  client: WordPressClient,
-  options?: ResourceUpdateToolOptions<Record<string, unknown>>,
-) => {
-  const resolvedOptions = {
-    ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
-  };
-  return tool({
-    description: options?.description ?? "Update a WordPress comment or user",
-    execute: withToolErrorHandling(async (args: unknown) => {
-      const merged = mergeToolArgs(
-        asToolArgs(args as Record<string, unknown>),
-        options?.fixedArgs,
-      );
-      const resourceType = resolveResourceType(merged, options);
-      const withInput = mergeMutationInput(
-        merged,
-        options?.defaultInput,
-        options?.fixedInput,
-      );
-
-      if (options?.fetch) {
-        return options.fetch({
-          id: withInput.id as number,
-          input: withInput.input as Record<string, unknown>,
-          resourceType,
-        });
-      }
-
-      return updateResource(
-        client,
-        resourceType,
-        withInput.id as number,
-        withInput.input as Record<string, unknown>,
-      );
-    }),
-    inputSchema: (options?.inputSchema ??
-      createUpdateInputSchema(resolvedOptions)) as never,
+      createSaveInputSchema(resolvedOptions)) as never,
     needsApproval: options?.needsApproval as never,
     strict: options?.strict,
   });

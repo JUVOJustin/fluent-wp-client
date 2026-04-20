@@ -91,7 +91,7 @@ export interface ContentCollectionToolOptions<
  *
  * `fetch` replaces the default client item call. Receives the resolved
  * `contentType`, the id or slug the model provided, and the content/block
- * inclusion flags.
+ * inclusion flags plus any field-selection override.
  */
 export interface ContentGetToolOptions<TArgs extends Record<string, unknown>>
   extends CatalogToolFactoryOptions<TArgs> {
@@ -103,6 +103,7 @@ export interface ContentGetToolOptions<TArgs extends Record<string, unknown>>
    */
   fetch?: (input: {
     contentType: string;
+    fields?: string[];
     id?: number;
     slug?: string;
     includeContent?: boolean;
@@ -111,36 +112,23 @@ export interface ContentGetToolOptions<TArgs extends Record<string, unknown>>
 }
 
 /**
- * Options for `createContentTool`.
+ * Options for `saveContentTool`.
+ *
+ * One unified write tool covers both create and update. Presence of `id` at
+ * runtime switches the client call to an update; omitting `id` creates a new
+ * item.
  */
-export interface ContentCreateToolOptions<TArgs extends Record<string, unknown>>
-  extends CatalogMutationToolFactoryOptions<TArgs> {
-  /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
-  contentType?: string;
-  /**
-   * Replace the default client call. Receives the resolved `contentType`
-   * and merged `input` after `fixedInput` has been applied.
-   */
-  fetch?: (input: {
-    contentType: string;
-    input: Record<string, unknown>;
-  }) => Promise<unknown>;
-}
-
-/**
- * Options for `updateContentTool`.
- */
-export interface ContentUpdateToolOptions<TArgs extends Record<string, unknown>>
+export interface ContentSaveToolOptions<TArgs extends Record<string, unknown>>
   extends CatalogMutationToolFactoryOptions<TArgs> {
   /** Fixed post-like REST base such as `posts`, `pages`, or `books`. */
   contentType?: string;
   /**
    * Replace the default client call. Receives the resolved `contentType`,
-   * `id`, and merged `input` after `fixedInput` has been applied.
+   * optional `id`, and merged `input` after `fixedInput` has been applied.
    */
   fetch?: (input: {
     contentType: string;
-    id: number;
+    id?: number;
     input: Record<string, unknown>;
   }) => Promise<unknown>;
 }
@@ -192,6 +180,7 @@ export interface TermGetToolOptions<TArgs extends Record<string, unknown>>
    */
   fetch?: (input: {
     taxonomyType: string;
+    fields?: string[];
     id?: number;
     slug?: string;
   }) => Promise<Record<string, unknown>>;
@@ -200,34 +189,21 @@ export interface TermGetToolOptions<TArgs extends Record<string, unknown>>
 }
 
 /**
- * Options for `createTermTool`.
+ * Options for `saveTermTool`.
+ *
+ * One unified write tool covers both create and update. Presence of `id` at
+ * runtime switches the client call to an update; omitting `id` creates a
+ * new term.
  */
-export interface TermCreateToolOptions<TArgs extends Record<string, unknown>>
-  extends CatalogMutationToolFactoryOptions<TArgs> {
-  /**
-   * Replace the default client call. Receives the resolved `taxonomyType`
-   * and merged `input` after `fixedInput` has been applied.
-   */
-  fetch?: (input: {
-    taxonomyType: string;
-    input: Record<string, unknown>;
-  }) => Promise<unknown>;
-  /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
-  taxonomyType?: string;
-}
-
-/**
- * Options for `updateTermTool`.
- */
-export interface TermUpdateToolOptions<TArgs extends Record<string, unknown>>
+export interface TermSaveToolOptions<TArgs extends Record<string, unknown>>
   extends CatalogMutationToolFactoryOptions<TArgs> {
   /**
    * Replace the default client call. Receives the resolved `taxonomyType`,
-   * `id`, and merged `input` after `fixedInput` has been applied.
+   * optional `id`, and merged `input` after `fixedInput` has been applied.
    */
   fetch?: (input: {
     taxonomyType: string;
-    id: number;
+    id?: number;
     input: Record<string, unknown>;
   }) => Promise<unknown>;
   /** Fixed taxonomy REST base such as `categories`, `tags`, or `genre`. */
@@ -280,6 +256,7 @@ export interface ResourceGetToolOptions<TArgs extends Record<string, unknown>>
    */
   fetch?: (input: {
     resourceType: string;
+    fields?: string[];
     id?: number;
     slug?: string;
   }) => Promise<Record<string, unknown>>;
@@ -287,35 +264,22 @@ export interface ResourceGetToolOptions<TArgs extends Record<string, unknown>>
 }
 
 /**
- * Options for `createResourceTool`.
+ * Options for `saveResourceTool`.
+ *
+ * One unified write tool covers both create and update. Presence of `id` at
+ * runtime switches the client call to an update; omitting `id` creates a
+ * new resource. Media writes remain unsupported — use
+ * `client.media().upload()` directly.
  */
-export interface ResourceCreateToolOptions<
-  TArgs extends Record<string, unknown>,
-> extends CatalogMutationToolFactoryOptions<TArgs> {
-  /**
-   * Replace the default client call. Receives the resolved `resourceType`
-   * and merged `input` after `fixedInput` has been applied.
-   */
-  fetch?: (input: {
-    resourceType: string;
-    input: Record<string, unknown>;
-  }) => Promise<unknown>;
-  resourceType?: "media" | "comments" | "users";
-}
-
-/**
- * Options for `updateResourceTool`.
- */
-export interface ResourceUpdateToolOptions<
-  TArgs extends Record<string, unknown>,
-> extends CatalogMutationToolFactoryOptions<TArgs> {
+export interface ResourceSaveToolOptions<TArgs extends Record<string, unknown>>
+  extends CatalogMutationToolFactoryOptions<TArgs> {
   /**
    * Replace the default client call. Receives the resolved `resourceType`,
-   * `id`, and merged `input` after `fixedInput` has been applied.
+   * optional `id`, and merged `input` after `fixedInput` has been applied.
    */
   fetch?: (input: {
     resourceType: string;
-    id: number;
+    id?: number;
     input: Record<string, unknown>;
   }) => Promise<unknown>;
   resourceType?: "media" | "comments" | "users";

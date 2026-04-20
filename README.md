@@ -122,7 +122,7 @@ import { WordPressClient } from 'fluent-wp-client';
 import {
   getContentCollectionTool,
   getContentTool,
-  createContentTool,
+  saveContentTool,
 } from 'fluent-wp-client/ai-sdk';
 
 const wp = new WordPressClient({
@@ -138,12 +138,14 @@ const tools = {
     fixedArgs: { perPage: 5, status: 'publish' },
   }),
   readContent: getContentTool(wp),
-  draftPost: createContentTool(wp, {
+  writePost: saveContentTool(wp, {
     contentType: 'posts',
     fixedInput: { status: 'draft' },
   }),
 };
 ```
+
+`saveContentTool` handles both create and update — call it without `id` to create, or with `id` to update. One tool surface, one mental model.
 
 Every tool factory accepts an optional `fetch` callback that replaces the default WordPress client call with a custom implementation — useful for caches, live loaders, proxies, or custom request pipelines. Works for reads and writes alike.
 

@@ -1,0 +1,107 @@
+---
+title: Advanced Custom Fields (ACF)
+short_title: ACF
+description: Expose ACF field descriptions and choice labels to the fluent-wp-client discovery catalog and AI SDK tool schemas through a small PHP snippet.
+sidebar:
+  order: 1
+---
+
+## Overview
+
+`fluent-wp-client` derives its discovery catalog and AI SDK tool schemas from the REST schema returned by `OPTIONS` requests. By default, ACF does not expose two pieces of metadata we care about in the `acf` object of that schema:
+
+- the **field description** configured on each ACF field
+- the **choice labels** for `select`, `radio`, `checkbox`, and `button_group` fields
+
+Both can be opted into with a single PHP filter on the `acf/rest/get_field_schema` hook. This is a custom integration: ACF itself does not ship this behavior, and the snippet below must live in your theme, mu-plugin, or site plugin.
+
+:::caution[Custom integration]
+This is a custom-built feature. The snippet alters the REST schema that ACF emits and must be added manually in PHP. Without it, `fluent-wp-client` has no way to discover ACF field descriptions or choice labels, and AI SDK read tools will only see the field paths.
+:::
+
+## Minimal PHP snippet
+
+Drop this into a mu-plugin, site plugin, or theme `functions.php`. It runs after ACF registers its REST schema and augments the entries the package already reads through discovery.
+
+```php title="mu-plugins/fluent-wp-client-acf-support.php"
+<?php
+/**
+ * Mirrors ACF field descriptions and choice labels into the REST schema so
+ * fluent-wp-client discovery and AI SDK tools can see them.
+ */
+add_filter(
+    'acf/rest/get_field_schema',
+    static function ( array $schema, array $field ): array {
+        if ( ! empty( $field['description'] ) ) {
+            $schema['description'] = $field['description'];
+        }
+
+        $choice_field_types = [ 'select', 'radio', 'checkbox', 'button_group' ];
+
+        if (
+            isset( $field['type'], $field['choices'] )
+            && in_array( $field['type'], $choice_field_types, true )
+            && is_array( $field['choices'] )
+            && ! empty( $field['choices'] )
+        ) {
+            $schema['choices'] = array_map(
+                static fn ( $value, $label ): array => [
+                    'value' => (string) $value,
+                    'label' => (string) $label,
+                ],
+                array_keys( $field['choices'] ),
+                array_values( $field['choices'] )
+            );
+        }
+
+        return $schema;
+    },
+    10,
+    2
+);
+```
+
+The snippet is intentionally minimal:
+
+- it never touches fields without a description or choices
+- it reuses the field’s own `description` as the source of truth (no lookup table)
+- it writes a generic `choices` keyword on each choice-backed field, so consumers outside `fluent-wp-client` can reuse the same convention
+
+## What changes in the catalog
+
+Discovery now surfaces:
+
+- `description` for every ACF property that defines one — both at the field group level and per field
+- a `choices` array on each choice-backed field containing the `{ value, label }` pairs exactly as configured in ACF, alongside ACF’s own `items.enum` entries
+
+`WordPressResourceDescription.schemas.item.properties.acf.properties.*` carries that discovery metadata. You generally do not need to consume it directly: `describeResourceTool` is the supported way to access those descriptions and choice labels, while AI SDK read tools use the discovered field paths for validation.
+
+## What the AI SDK does with it
+
+When a `WordPressDiscoveryCatalog` is available, content and term read tools:
+
+- emit a literal union for `fields` that includes every discovered property path, including nested ACF paths such as `acf.acf_priority_score`
+- surface field meaning through `describeResourceTool`, which reads the discovered schema metadata when describing the resource tool
+- keep the original REST `enum` on each choice-backed field, so tool arguments that target those fields are validated against the concrete slugs without extra configuration
+
+There is no extra configuration on the TypeScript side. If the PHP snippet is missing, the fields still work but the descriptions and choice labels will be empty.
+
+## Verifying
+
+Run one `OPTIONS` request against a post-like endpoint that hosts the ACF field group and inspect the `acf` schema object. Each ACF property with a description should have one, and every select / radio / checkbox / button-group field should include a `choices` array:
+
+```bash title="Verifying the REST schema"
+curl -s -X OPTIONS https://example.com/wp-json/wp/v2/books \
+  | jq '.schema.properties.acf.properties'
+```
+
+## Scope
+
+The snippet handles the four core ACF choice field types:
+
+- `select`
+- `radio`
+- `checkbox`
+- `button_group`
+
+Native WordPress REST schemas do not expose labeled choice fields, so the `choices` keyword is primarily relevant for plugins that register their own choice fields. If you use a third-party field library with the same concept, copy the same pattern and reuse the `choices` keyword so the catalog treats the fields consistently.

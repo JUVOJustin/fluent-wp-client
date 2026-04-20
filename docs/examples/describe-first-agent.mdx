@@ -1,0 +1,92 @@
+---
+title: Describe-first AI agent
+description: An AI SDK agent that always introspects a content type with describeResourceTool before it reads or writes. Minimal, catalog-backed, and production-safe.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+A small Vercel AI SDK agent that is instructed to first call `describeResourceTool` whenever it meets an unfamiliar content type, then use the resulting schema to decide what to read or write. The pattern keeps the library thin: the model reasons about field meaning from the live schema instead of the AI SDK having to pre-digest it.
+
+## What the pattern looks like
+
+<Steps>
+1. **Load the catalog once.** `wp.explore()` caches every content type, taxonomy, resource, and ability. Subsequent `describeResourceTool` calls resolve from memory.
+
+2. **Tell the model the rule.** A system prompt instructs the agent to describe unfamiliar resources before touching them.
+
+3. **Expose three tools.** `describeResourceTool` for introspection, `getContentTool` for reads, `saveContentTool` for writes. Create vs update is decided by whether the model includes `id`.
+</Steps>
+
+## Example
+
+```ts title="describe-first-agent.ts"
+import { generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { WordPressClient } from 'fluent-wp-client';
+import {
+  describeResourceTool,
+  getContentTool,
+  saveContentTool,
+} from 'fluent-wp-client/ai-sdk';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://blog.example.com',
+  auth: {
+    username: 'editor',
+    password: process.env.WP_APP_PASSWORD!,
+  },
+});
+
+// Seed the catalog once. Every describe call below is served from memory.
+await wp.explore();
+
+const tools = {
+  describeResource: describeResourceTool(wp),
+  readContent: getContentTool(wp),
+  writeContent: saveContentTool(wp, { contentType: 'posts' }),
+};
+
+const system = `
+You are an editorial assistant for a WordPress site.
+
+Before reading or writing any content type for the first time, ALWAYS call
+"describeResource" with the matching kind and name (e.g. { kind: 'content',
+name: 'posts' }). Use its schema to decide which fields to request on reads
+and which fields to set on writes.
+
+"writeContent" covers both creating and updating posts. Call it without "id"
+to create a new post, or with "id" to update an existing one. Only use it
+after you have described "posts" in the current session.
+`.trim();
+
+const { text } = await generateText({
+  model: openai('gpt-4o'),
+  tools,
+  maxSteps: 8,
+  system,
+  prompt: 'Draft a short announcement post introducing our new product launch, then publish it.',
+});
+```
+
+## Why this shape
+
+- **One describe tool.** `describeResourceTool` covers `content`, `term`, `resource`, and `ability`. The system prompt does not need to enumerate per-kind introspection helpers.
+- **Cached for free.** `wp.explore()` fills the client's catalog cache. Because `describeResourceTool` delegates to `wp.content(name).describe()` (and its sibling methods), repeat calls are synchronous in-memory lookups.
+- **No library-side field digestion.** Field descriptions, ACF choice labels, and plugin-added keywords travel through verbatim. The AI SDK schemas only constrain enum-like values (`contentType`, `taxonomyType`, `resourceType`, `fields`) so bad calls are rejected locally before any HTTP round-trip.
+
+## Narrowing the introspection surface
+
+`describeResourceTool` accepts an `include` allowlist to restrict which kinds and names the model can describe. Any kind not listed in `include` disappears from the tool schema entirely.
+
+```ts
+const describe = describeResourceTool(wp, {
+  include: {
+    // Only expose two content types and one resource.
+    content: ['posts', 'books'],
+    resource: ['users'],
+    // `term` and `ability` are omitted → removed from the tool's input schema.
+  },
+});
+```
+
+See the [AI SDK guide](../ai-sdk.mdx#schema-introspection) for the full describe tool reference, including the error envelope returned on runtime validation failures.

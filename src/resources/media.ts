@@ -116,7 +116,7 @@ export function createMediaClient(
 > {
   const item = ((
     idOrSlug: number | string,
-    options?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides & { fields?: string[] },
   ): Promise<WordPressMedia | undefined> => {
     return typeof idOrSlug === "number"
       ? resource.getById(idOrSlug, options)

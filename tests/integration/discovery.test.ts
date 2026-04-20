@@ -1,6 +1,6 @@
 import { WordPressClient } from "fluent-wp-client";
+import { zodFromJsonSchema } from "fluent-wp-client/zod";
 import { beforeAll, describe, expect, it } from "vitest";
-import { z } from "zod";
 import {
   createAuthClient,
   createPublicClient,
@@ -380,13 +380,13 @@ describe("Discovery APIs", () => {
 
       // If create schema is available, it should be convertible to Zod
       if (description.schemas.create) {
-        const createSchema = z.fromJSONSchema(description.schemas.create);
+        const createSchema = zodFromJsonSchema(description.schemas.create);
         expect(createSchema).toBeDefined();
       }
 
       // If item schema is available, it should be convertible to Zod
       if (description.schemas.item) {
-        const itemSchema = z.fromJSONSchema(description.schemas.item);
+        const itemSchema = zodFromJsonSchema(description.schemas.item);
         expect(itemSchema).toBeDefined();
       }
     });
@@ -400,7 +400,7 @@ describe("Discovery APIs", () => {
         // create schema is always present now that endpoint arg discovery is correct
         expect(description.schemas.create).toBeDefined();
 
-        const createSchema = z.fromJSONSchema(description.schemas.create!);
+        const createSchema = zodFromJsonSchema(description.schemas.create!);
 
         // Valid create request should succeed
         const book = (await authClient.content("books").create(

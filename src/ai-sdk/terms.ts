@@ -4,23 +4,22 @@ import { createInvalidRequestError } from "../core/errors.js";
 import type { QueryParams } from "../types/resources.js";
 import {
   createTermCollectionInputSchema,
-  createTermCreateInputSchema,
   createTermDeleteInputSchema,
   createTermGetInputSchema,
-  createTermUpdateInputSchema,
+  createTermSaveInputSchema,
 } from "./catalog-schemas.js";
 import {
   asToolArgs,
+  normalizeFieldSelection,
   prepareCollectionArgs,
   withToolErrorHandling,
 } from "./factories.js";
 import { mergeMutationInput, mergeToolArgs } from "./merge.js";
 import type {
   TermCollectionToolOptions,
-  TermCreateToolOptions,
   TermDeleteToolOptions,
   TermGetToolOptions,
-  TermUpdateToolOptions,
+  TermSaveToolOptions,
   ToolFactoryOptions,
 } from "./types.js";
 
@@ -92,8 +91,8 @@ export const getTermCollectionTool = (
  * AI SDK tool that fetches a single term by ID or slug.
  *
  * Provide `fetch` to replace the default client call. Receives the resolved
- * `taxonomyType` and normalised `id` or `slug` after `fixedArgs` have been
- * applied.
+ * `taxonomyType`, normalised `id` or `slug`, and any `_fields` selection after
+ * `fixedArgs` have been applied.
  */
 export const getTermTool = (
   client: WordPressClient,
@@ -107,20 +106,32 @@ export const getTermTool = (
     description:
       options?.description ?? "Get a single WordPress term by ID or slug",
     execute: withToolErrorHandling(async (args: unknown) => {
-      const merged = mergeToolArgs(
-        asToolArgs(args as Record<string, unknown>),
-        options?.fixedArgs,
+      const merged = normalizeFieldSelection(
+        mergeToolArgs(
+          asToolArgs(args as Record<string, unknown>),
+          options?.fixedArgs,
+        ),
       );
       const taxonomyType = resolveTaxonomyType(merged, options);
       const id = typeof merged.id === "number" ? merged.id : undefined;
       const slug = typeof merged.slug === "string" ? merged.slug : undefined;
+      const itemOptions = { fields: merged.fields as string[] | undefined };
 
       if (options?.fetch) {
-        return options.fetch({ id, slug, taxonomyType });
+        return options.fetch({
+          fields: itemOptions.fields,
+          id,
+          slug,
+          taxonomyType,
+        });
       }
 
-      if (id !== undefined) return client.terms(taxonomyType).item(id);
-      if (slug !== undefined) return client.terms(taxonomyType).item(slug);
+      if (id !== undefined) {
+        return client.terms(taxonomyType).item(id, itemOptions);
+      }
+      if (slug !== undefined) {
+        return client.terms(taxonomyType).item(slug, itemOptions);
+      }
       throw createInvalidRequestError("Either id or slug must be provided.");
     }),
     inputSchema: (options?.inputSchema ??
@@ -131,21 +142,25 @@ export const getTermTool = (
 };
 
 /**
- * AI SDK tool that creates a new term.
+ * AI SDK tool that creates or updates a term.
+ *
+ * Presence of `id` in the model input switches to an update call; omitting
+ * `id` routes to a create call. One tool covers both WordPress write modes.
  *
  * Provide `fetch` to replace the default client call. Receives the resolved
- * `taxonomyType` and merged `input` after `fixedInput` has been applied.
+ * `taxonomyType`, optional `id`, and merged `input` after `fixedInput` has
+ * been applied.
  */
-export const createTermTool = (
+export const saveTermTool = (
   client: WordPressClient,
-  options?: TermCreateToolOptions<Record<string, unknown>>,
+  options?: TermSaveToolOptions<Record<string, unknown>>,
 ) => {
   const resolvedOptions = {
     ...options,
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
-    description: options?.description ?? "Create a new WordPress term",
+    description: options?.description ?? "Create or update a WordPress term",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(
         asToolArgs(args as Record<string, unknown>),
@@ -157,70 +172,21 @@ export const createTermTool = (
         options?.defaultInput,
         options?.fixedInput,
       );
+      const id =
+        typeof withInput.id === "number" ? (withInput.id as number) : undefined;
+      const input = withInput.input as Record<string, unknown>;
 
       if (options?.fetch) {
-        return options.fetch({
-          input: withInput.input as Record<string, unknown>,
-          taxonomyType,
-        });
+        return options.fetch({ id, input, taxonomyType });
       }
 
-      return client
-        .terms(taxonomyType)
-        .create(withInput.input as Record<string, unknown>);
+      const resource = client.terms(taxonomyType);
+      return id === undefined
+        ? resource.create(input)
+        : resource.update(id, input);
     }),
     inputSchema: (options?.inputSchema ??
-      createTermCreateInputSchema(resolvedOptions)) as never,
-    needsApproval: options?.needsApproval as never,
-    strict: options?.strict,
-  });
-};
-
-/**
- * AI SDK tool that updates an existing term.
- *
- * Provide `fetch` to replace the default client call. Receives the resolved
- * `taxonomyType`, `id`, and merged `input` after `fixedInput` has been applied.
- */
-export const updateTermTool = (
-  client: WordPressClient,
-  options?: TermUpdateToolOptions<Record<string, unknown>>,
-) => {
-  const resolvedOptions = {
-    ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
-  };
-  return tool({
-    description: options?.description ?? "Update an existing WordPress term",
-    execute: withToolErrorHandling(async (args: unknown) => {
-      const merged = mergeToolArgs(
-        asToolArgs(args as Record<string, unknown>),
-        options?.fixedArgs,
-      );
-      const taxonomyType = resolveTaxonomyType(merged, options);
-      const withInput = mergeMutationInput(
-        merged,
-        options?.defaultInput,
-        options?.fixedInput,
-      );
-
-      if (options?.fetch) {
-        return options.fetch({
-          id: withInput.id as number,
-          input: withInput.input as Record<string, unknown>,
-          taxonomyType,
-        });
-      }
-
-      return client
-        .terms(taxonomyType)
-        .update(
-          withInput.id as number,
-          withInput.input as Record<string, unknown>,
-        );
-    }),
-    inputSchema: (options?.inputSchema ??
-      createTermUpdateInputSchema(resolvedOptions)) as never,
+      createTermSaveInputSchema(resolvedOptions)) as never,
     needsApproval: options?.needsApproval as never,
     strict: options?.strict,
   });

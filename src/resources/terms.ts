@@ -32,7 +32,7 @@ export class GenericTermResource<
    */
   async item(
     idOrSlug: number | string,
-    options?: WordPressRequestOverrides,
+    options?: WordPressRequestOverrides & { fields?: string[] },
   ): Promise<TTerm | undefined> {
     return typeof idOrSlug === "number"
       ? this.getById(idOrSlug, options)

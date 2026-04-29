@@ -25,6 +25,19 @@ export interface WordPressRequestOverrides {
 }
 
 /**
+ * Resource schema variant used by discovery-backed schema value lookups.
+ */
+export type WordPressResourceSchemaName =
+  keyof WordPressResourceDescription["schemas"];
+
+/**
+ * Options for reading one value from a discovered resource schema.
+ */
+export interface WordPressSchemaValueOptions extends WordPressRequestOverrides {
+  schema?: WordPressResourceSchemaName;
+}
+
+/**
  * Primitive value supported for query-string conversion.
  */
 export type QueryParamPrimitive = string | number | boolean;
@@ -119,6 +132,10 @@ export interface ContentResourceClient<
   describe: (
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>;
+  getSchemaValue: <T = unknown>(
+    path: string,
+    options?: WordPressSchemaValueOptions,
+  ) => Promise<T | undefined>;
   item: (
     idOrSlug: number | string,
     options?: WordPressRequestOverrides & {
@@ -170,6 +187,10 @@ export interface TermsResourceClient<
   describe: (
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>;
+  getSchemaValue: <T = unknown>(
+    path: string,
+    options?: WordPressSchemaValueOptions,
+  ) => Promise<T | undefined>;
   item: (
     idOrSlug: number | string,
     options?: WordPressRequestOverrides & { fields?: string[] },
@@ -216,6 +237,10 @@ export interface MediaResourceClient<
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>;
   getImageUrl: (media: TResource, size?: string) => string;
+  getSchemaValue: <T = unknown>(
+    path: string,
+    options?: WordPressSchemaValueOptions,
+  ) => Promise<T | undefined>;
   item: {
     (
       id: number,
@@ -271,6 +296,10 @@ export interface CommentsResourceClient<
   describe: (
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>;
+  getSchemaValue: <T = unknown>(
+    path: string,
+    options?: WordPressSchemaValueOptions,
+  ) => Promise<T | undefined>;
   item: (
     id: number,
     options?: WordPressRequestOverrides & { fields?: string[] },
@@ -316,6 +345,10 @@ export interface UsersResourceClient<
   describe: (
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>;
+  getSchemaValue: <T = unknown>(
+    path: string,
+    options?: WordPressSchemaValueOptions,
+  ) => Promise<T | undefined>;
   item: {
     (
       id: number,
@@ -357,6 +390,10 @@ export interface SettingsResourceClient<
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>;
   get: (options?: WordPressRequestOverrides) => Promise<TResource>;
+  getSchemaValue: <T = unknown>(
+    path: string,
+    options?: WordPressSchemaValueOptions,
+  ) => Promise<T | undefined>;
   update: (
     input: Partial<WordPressSettings> & Record<string, unknown>,
     options?: WordPressRequestOverrides,
@@ -373,6 +410,10 @@ export interface BlocksResourceClient<
   describe: (
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>;
+  getSchemaValue: <T = unknown>(
+    path: string,
+    options?: WordPressSchemaValueOptions,
+  ) => Promise<T | undefined>;
   item: (
     name: string,
     options?: WordPressRequestOverrides & {

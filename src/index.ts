@@ -232,5 +232,7 @@ export type {
   WordPressRequestOptions,
   WordPressRequestOverrides,
   WordPressRequestResult,
+  WordPressResourceSchemaName,
+  WordPressSchemaValueOptions,
   WordPressWritePayload,
 } from "./types.js";

@@ -74,7 +74,60 @@ Discovery now surfaces:
 - `description` for every ACF property that defines one — both at the field group level and per field
 - a `choices` array on each choice-backed field containing the `{ value, label }` pairs exactly as configured in ACF, alongside ACF’s own `items.enum` entries
 
-`WordPressResourceDescription.schemas.item.properties.acf.properties.*` carries that discovery metadata. You generally do not need to consume it directly: `describeResourceTool` is the supported way to access those descriptions and choice labels, while AI SDK read tools use the discovered field paths for validation.
+`WordPressResourceDescription.schemas.item.properties.acf.properties.*` carries that discovery metadata. For UI code that does not know each field type ahead of time, fetch the full ACF schema field map once and build a reusable choice-label lookup.
+
+```ts title="Building a choice-label lookup for all ACF fields"
+type AcfChoice = {
+  label: string;
+  value: string;
+};
+
+type AcfSchemaField = {
+  choices?: AcfChoice[];
+};
+
+const acfFields = await wp.content("posts").getSchemaValue<
+  Record<string, AcfSchemaField>
+>(
+  "properties.acf.properties",
+);
+
+const choiceLabels = new Map<string, Map<string, string>>();
+
+for (const [fieldName, fieldSchema] of Object.entries(acfFields ?? {})) {
+  if (!Array.isArray(fieldSchema.choices)) continue;
+
+  choiceLabels.set(
+    fieldName,
+    new Map(
+      fieldSchema.choices.map((choice) => [choice.value, choice.label]),
+    ),
+  );
+}
+```
+
+Use that lookup while rendering ACF values. Fields without `choices` automatically fall back to their raw value.
+
+```ts title="Rendering ACF values with labels when available"
+function getAcfDisplayValue(fieldName: string, value: unknown): string {
+  if (typeof value === "string") {
+    return choiceLabels.get(fieldName)?.get(value) ?? value;
+  }
+
+  return String(value);
+}
+
+const post = await wp.content("posts").item("test-post-001");
+const acf = post.acf && typeof post.acf === "object" ? post.acf : {};
+
+const renderedFields = Object.entries(acf).map(([fieldName, value]) => ({
+  fieldName,
+  value,
+  label: getAcfDisplayValue(fieldName, value),
+}));
+```
+
+AI SDK integrations can still use `describeResourceTool` to expose the same descriptions and choice labels to a model, while read tools use the discovered field paths for validation.
 
 ## What the AI SDK does with it
 

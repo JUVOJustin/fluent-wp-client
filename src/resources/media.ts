@@ -11,7 +11,7 @@ import type {
   MediaResourceClient,
   WordPressRequestOverrides,
 } from "../types/resources.js";
-import { describeUnavailable } from "./describe.js";
+import { createSchemaValueGetter, describeUnavailable } from "./describe.js";
 
 /**
  * WordPress media resource with CRUD operations and binary uploads.
@@ -128,11 +128,14 @@ export function createMediaClient(
     WordPressWritePayload
   >["item"];
 
+  const describe = describeFn ?? describeUnavailable;
+
   return {
     create: (input, options) => resource.create(input, options),
     delete: (id, options) => resource.delete(id, options),
-    describe: describeFn ?? describeUnavailable,
+    describe,
     getImageUrl: (media, size) => resource.getImageUrl(media, size),
+    getSchemaValue: createSchemaValueGetter(describe),
     item,
     list: (filter = {}, options) => resource.list(filter, options),
     listAll: (filter = {}, options, listOptions) =>

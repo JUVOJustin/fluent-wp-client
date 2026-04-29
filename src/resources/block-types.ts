@@ -16,7 +16,7 @@ import type {
   QueryParams,
   WordPressRequestOverrides,
 } from "../types/resources.js";
-import { describeUnavailable } from "./describe.js";
+import { createSchemaValueGetter, describeUnavailable } from "./describe.js";
 
 /**
  * Narrow error check used to turn 404s into `undefined` item lookups.
@@ -121,8 +121,11 @@ export function createBlocksClient(
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>,
 ): BlocksResourceClient<WordPressBlockType, QueryParams> {
+  const describe = describeFn ?? describeUnavailable;
+
   return {
-    describe: describeFn ?? describeUnavailable,
+    describe,
+    getSchemaValue: createSchemaValueGetter(describe),
     item: (name, options) => resource.item(name, options),
     list: (filter = {}, options) => resource.list(filter, options),
     schema: async (

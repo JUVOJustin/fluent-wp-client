@@ -9,7 +9,7 @@ import type {
   ExtensibleFilter,
   WordPressRequestOverrides,
 } from "../types/resources.js";
-import { describeUnavailable } from "./describe.js";
+import { createSchemaValueGetter, describeUnavailable } from "./describe.js";
 
 /**
  * WordPress comments resource with full CRUD support.
@@ -42,10 +42,13 @@ export function createCommentsClient(
   WordPressWritePayload,
   WordPressWritePayload
 > {
+  const describe = describeFn ?? describeUnavailable;
+
   return {
     create: (input, options) => resource.create(input, options),
     delete: (id, options) => resource.delete(id, options),
-    describe: describeFn ?? describeUnavailable,
+    describe,
+    getSchemaValue: createSchemaValueGetter(describe),
     item: (id, options) => resource.getById(id, options),
     list: (filter = {}, options) => resource.list(filter, options),
     listAll: (filter = {}, options, listOptions) =>

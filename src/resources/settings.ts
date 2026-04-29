@@ -8,7 +8,7 @@ import type {
   SettingsResourceClient,
   WordPressRequestOverrides,
 } from "../types/resources.js";
-import { describeUnavailable } from "./describe.js";
+import { createSchemaValueGetter, describeUnavailable } from "./describe.js";
 
 /**
  * WordPress settings singleton resource.
@@ -94,9 +94,12 @@ export function createSettingsClient(
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>,
 ): SettingsResourceClient<WordPressSettings> {
+  const describe = describeFn ?? describeUnavailable;
+
   return {
-    describe: describeFn ?? describeUnavailable,
+    describe,
     get: (options) => resource.get(options),
+    getSchemaValue: createSchemaValueGetter(describe),
     update: (input, options) => resource.update(input, options),
   };
 }

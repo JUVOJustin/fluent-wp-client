@@ -61,6 +61,46 @@ describe("Discovery APIs", () => {
     });
   });
 
+  describe("resource getSchemaValue()", () => {
+    it("reads raw values from the item schema by path", async () => {
+      const titleType = await authClient
+        .content("posts")
+        .getSchemaValue("properties.title.type");
+
+      expect(titleType).toBe("object");
+    });
+
+    it("reads plugin-added ACF choice metadata by raw schema path", async () => {
+      const choices = await authClient
+        .content("posts")
+        .getSchemaValue<Array<{ label: string; value: string }>>(
+          "properties.acf.properties.acf_status.choices",
+        );
+
+      expect(choices).toEqual([
+        { label: "Draft", value: "draft" },
+        { label: "Ready for review", value: "ready" },
+        { label: "Queued for publish", value: "queued" },
+      ]);
+    });
+
+    it("supports looking up values from non-item schema variants", async () => {
+      const statusType = await authClient
+        .content("posts")
+        .getSchemaValue("properties.status.type", { schema: "create" });
+
+      expect(statusType).toBe("string");
+    });
+
+    it("returns undefined for missing schema paths", async () => {
+      const value = await authClient
+        .content("posts")
+        .getSchemaValue("properties.acf.properties.missing_field.choices");
+
+      expect(value).toBeUndefined();
+    });
+  });
+
   describe("wp.terms().describe()", () => {
     it("returns schema description for categories", async () => {
       const description = await authClient.terms("categories").describe();

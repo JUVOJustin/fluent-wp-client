@@ -12,7 +12,7 @@ import type {
   TermsResourceClient,
   WordPressRequestOverrides,
 } from "../types/resources.js";
-import { describeUnavailable } from "./describe.js";
+import { createSchemaValueGetter, describeUnavailable } from "./describe.js";
 
 /**
  * Generic term resource for custom taxonomies.
@@ -54,11 +54,14 @@ export function createTermsClient<TTerm>(
   TermWriteInput,
   TermWriteInput
 > {
+  const describe = describeFn ?? describeUnavailable;
+
   return {
     create: (input, options) =>
       resource.create(input as TermWriteInput, options) as Promise<TTerm>,
     delete: (id, options) => resource.delete(id, options),
-    describe: describeFn ?? describeUnavailable,
+    describe,
+    getSchemaValue: createSchemaValueGetter(describe),
     item: (idOrSlug, options) =>
       resource.item(idOrSlug, options) as Promise<TTerm | undefined>,
     list: (filter = {}, options) =>

@@ -12,7 +12,7 @@ import type {
   UsersResourceClient,
   WordPressRequestOverrides,
 } from "../types/resources.js";
-import { describeUnavailable } from "./describe.js";
+import { createSchemaValueGetter, describeUnavailable } from "./describe.js";
 
 /**
  * WordPress users resource with CRUD support and `/me` access.
@@ -110,10 +110,13 @@ export function createUsersClient(
     UserWriteInput
   >["item"];
 
+  const describe = describeFn ?? describeUnavailable;
+
   return {
     create: (input, options) => resource.create(input, options),
     delete: (id, options) => resource.delete(id, options),
-    describe: describeFn ?? describeUnavailable,
+    describe,
+    getSchemaValue: createSchemaValueGetter(describe),
     item,
     list: (filter = {}, options) => resource.list(filter, options),
     listAll: (filter = {}, options, listOptions) =>

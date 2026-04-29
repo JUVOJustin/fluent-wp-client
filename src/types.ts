@@ -62,4 +62,6 @@ export type {
   UsersResourceClient,
   WordPressDeleteResult,
   WordPressRequestOverrides,
+  WordPressResourceSchemaName,
+  WordPressSchemaValueOptions,
 } from "./types/resources.js";

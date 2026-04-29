@@ -10,7 +10,7 @@ import type {
   QueryParams,
   WordPressRequestOverrides,
 } from "../types/resources.js";
-import { describeUnavailable } from "./describe.js";
+import { createSchemaValueGetter, describeUnavailable } from "./describe.js";
 
 /**
  * Ensures `_embedded` and `_links` are present in the `_fields` list when
@@ -153,11 +153,14 @@ export function createContentClient<TResource extends WordPressPostLike>(
   WordPressWritePayload,
   WordPressWritePayload
 > {
+  const describe = describeFn ?? describeUnavailable;
+
   return {
     create: (input, options) =>
       resource.create(input, options) as Promise<TResource>,
     delete: (id, options) => resource.delete(id, options),
-    describe: describeFn ?? describeUnavailable,
+    describe,
+    getSchemaValue: createSchemaValueGetter(describe),
     item: (idOrSlug, options) => resource.itemQuery(idOrSlug, options),
     list: (filter = {}, options) =>
       resource.list(filter, options) as Promise<TResource[]>,

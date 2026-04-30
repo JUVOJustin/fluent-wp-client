@@ -26,6 +26,7 @@ import {
   createParseError,
   throwIfHttpError,
 } from "./errors.js";
+import { normalizeWordPressResponse } from "./normalize-response.js";
 import { applyRequestOverrides } from "./request-overrides.js";
 
 /**
@@ -383,10 +384,14 @@ export class WordPressTransport {
       throw classifyFetchError(error, diagnostics);
     }
 
-    const data = (await this.parseResponseBody(response, diagnostics)) as T;
+    const rawData = (await this.parseResponseBody(response, diagnostics)) as T;
 
     // Throw on non-2xx so callers always receive successful data
-    throwIfHttpError(response, data, diagnostics);
+    throwIfHttpError(response, rawData, diagnostics);
+
+    // Fix double-encoded HTML entities that WordPress occasionally produces
+    // in rendered fields (title.rendered, content.rendered, excerpt.rendered).
+    const data = normalizeWordPressResponse(rawData);
 
     return {
       data,

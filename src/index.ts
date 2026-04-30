@@ -87,6 +87,10 @@ export {
   WordPressTimeoutError,
 } from "./core/errors.js";
 export {
+  normalizeWordPressResponse,
+  normalizeWordPressString,
+} from "./core/normalize-response.js";
+export {
   createWordPressPaginator,
   type WordPressPaginatorOptions,
 } from "./core/pagination.js";

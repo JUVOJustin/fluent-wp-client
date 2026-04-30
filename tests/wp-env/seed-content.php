@@ -213,6 +213,34 @@ for ( $i = 1; $i <= 150; $i++ ) {
 WP_CLI::success( "Posts created/verified: $post_count" );
 
 /* ------------------------------------------------------------------ */
+/* Special character post (encoding test)                             */
+/* ------------------------------------------------------------------ */
+
+$encoding_test_post = get_page_by_path( 'encoding-test-post', OBJECT, 'post' );
+if ( ! $encoding_test_post ) {
+	$encoding_post_id = wp_insert_post([
+		'post_title'   => 'Research & Development: Testing <Tags> & "Quotes"',
+		'post_name'    => 'encoding-test-post',
+		'post_content' => "<!-- wp:paragraph -->\n<p>Content with special chars: A &amp; B, 5 &lt; 10, 10 &gt; 5, and a 'single quote'.</p>\n<!-- /wp:paragraph -->",
+		'post_excerpt' => 'Excerpt with &amp; ampersand, &lt; less-than, &gt; greater-than, &quot; quotes &apos; and apostrophe',
+		'post_status'  => 'publish',
+		'post_type'    => 'post',
+		'post_author'  => $post_author_id,
+		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( '2025-01-01 +151 hours' ) ),
+	], true );
+
+	if ( ! is_wp_error( $encoding_post_id ) ) {
+		wp_set_post_categories( $encoding_post_id, [ $category_ids['technology'] ] );
+		wp_set_post_tags( $encoding_post_id, [ $tag_ids['featured'], $tag_ids['tutorial'] ] );
+		WP_CLI::success( 'Created encoding test post' );
+	} else {
+		WP_CLI::warning( "Failed to create encoding test post: " . $encoding_post_id->get_error_message() );
+	}
+} else {
+	WP_CLI::success( 'Encoding test post already exists' );
+}
+
+/* ------------------------------------------------------------------ */
 /* Pages                                                              */
 /* ------------------------------------------------------------------ */
 

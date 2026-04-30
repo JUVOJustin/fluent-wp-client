@@ -16,8 +16,8 @@ import {
 } from "../helpers/wp-client";
 
 /**
- * Seed data: 150 posts across 5 categories (30 each).
- * Slugs: test-post-001 through test-post-150.
+ * Seed data: 151 posts across 5 categories (30 each) plus 1 encoding test post.
+ * Slugs: test-post-001 through test-post-150, plus encoding-test-post.
  * WP REST API caps per_page at 100, so `content('posts').listAll()` must paginate.
  */
 describe("Client: Posts", () => {
@@ -119,10 +119,10 @@ describe("Client: Posts", () => {
       expect(post).toBeUndefined();
     });
 
-    it("content('posts').listAll() returns all 150 seed posts", async () => {
+    it("content('posts').listAll() returns all 151 seed posts", async () => {
       const all = await postsClient(publicClient).listAll();
 
-      expect(all).toHaveLength(150);
+      expect(all).toHaveLength(151);
     });
 
     it("content('posts').listPaginated() returns correct pagination metadata", async () => {
@@ -132,7 +132,7 @@ describe("Client: Posts", () => {
       });
 
       expect(result.data).toHaveLength(100);
-      expect(result.total).toBe(150);
+      expect(result.total).toBe(151);
       expect(result.totalPages).toBe(2);
       expect(result.page).toBe(1);
       expect(result.perPage).toBe(100);
@@ -144,8 +144,8 @@ describe("Client: Posts", () => {
         perPage: 100,
       });
 
-      expect(result.data).toHaveLength(50);
-      expect(result.total).toBe(150);
+      expect(result.data).toHaveLength(51);
+      expect(result.total).toBe(151);
       expect(result.totalPages).toBe(2);
       expect(result.page).toBe(2);
     });
@@ -285,8 +285,8 @@ describe("Client: Posts", () => {
         orderby: "id",
       });
 
-      // Verify we got all 150 posts
-      expect(postsAsc).toHaveLength(150);
+      // Verify we got all 151 posts
+      expect(postsAsc).toHaveLength(151);
 
       // Verify ascending order - each ID should be greater than the previous
       for (let i = 1; i < postsAsc.length; i++) {
@@ -299,8 +299,8 @@ describe("Client: Posts", () => {
         orderby: "id",
       });
 
-      // Verify we got all 150 posts
-      expect(postsDesc).toHaveLength(150);
+      // Verify we got all 151 posts
+      expect(postsDesc).toHaveLength(151);
 
       // Verify descending order - each ID should be less than the previous
       for (let i = 1; i < postsDesc.length; i++) {

@@ -5,7 +5,7 @@ import { createPublicClient } from "../helpers/wp-client";
 /**
  * Integration coverage for the cross-resource `/wp/v2/search` endpoint.
  *
- * Seed data: 150 posts (test-post-001 through test-post-150),
+ * Seed data: 151 posts (test-post-001 through test-post-150, plus encoding-test-post),
  * 10 pages (about, contact, services, etc.), and 10 books (test-book-001 through test-book-010).
  */
 describe("Client: Search", () => {

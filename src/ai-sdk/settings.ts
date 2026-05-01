@@ -20,6 +20,7 @@ export const getSettingsTool = (
   options?: SettingsGetToolOptions,
 ) =>
   tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description: options?.description ?? "Get WordPress site settings",
     execute: withToolErrorHandling(async () => {
       if (options?.fetch) {
@@ -44,6 +45,7 @@ export const updateSettingsTool = (
   options?: MutationToolFactoryOptions<Record<string, unknown>>,
 ) =>
   tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description: options?.description ?? "Update WordPress site settings",
     execute: withToolErrorHandling(async (args) => {
       const merged = mergeToolArgs(asToolArgs(args), options?.fixedArgs);

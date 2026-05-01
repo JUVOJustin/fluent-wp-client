@@ -188,6 +188,7 @@ export const getBlocksTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ??
       "Read the Gutenberg block structure of a post, page, or custom post type item. Requires edit-level authentication.",
@@ -238,6 +239,7 @@ export const setBlocksTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ??
       "Write a Gutenberg block structure to a post, page, or custom post type item. Replaces the full content. Requires edit-level authentication.",

@@ -190,6 +190,7 @@ All generic tool factories accept the existing configuration model:
 - `needsApproval` — Require approval before executing this tool
 - `inputSchema` — Override the generated schema with custom Zod schema (supports `.default()`)
 - `fetch` — Replace the default WordPress client call with a custom implementation
+- `toolOptions` — Pass additional AI SDK tool options such as `title`, `inputExamples`, lifecycle callbacks, `outputSchema`, or `toModelOutput`
 
 Example:
 
@@ -237,6 +238,34 @@ const savePost = saveContentTool(wp, {
 ```
 
 The `fetch` callback is typed specifically to the tool it is passed to, so TypeScript knows exactly which arguments are available. For collection tools the input is `{ contentType, filter }` or `{ taxonomyType, filter }`. For single-item reads it adds `id?` and `slug?`. For save mutations it carries an optional `id` plus `input`.
+
+### AI SDK tool options
+
+Use `toolOptions` when you need AI SDK-native tool configuration that is not WordPress-specific. This keeps the WordPress factory options separate from the raw `tool()` options while preserving this package's generated execution, schema, approval, and strict-mode behavior.
+
+```typescript
+const searchResources = getContentCollectionTool(wp, {
+  contentType: 'resources',
+  fixedArgs: { perPage: 5, status: 'publish' },
+  toolOptions: {
+    title: 'Search resources',
+    inputExamples: [{ input: { search: 'accessibility checklist' } }],
+    toModelOutput: ({ output }) => ({
+      type: 'content',
+      value: [
+        {
+          type: 'text',
+          text: Array.isArray(output)
+            ? output.map((item) => String(item.title?.rendered ?? item.slug ?? item.id)).join('\n')
+            : JSON.stringify(output),
+        },
+      ],
+    }),
+  },
+});
+```
+
+`toolOptions` intentionally excludes `execute`, `inputSchema`, `description`, `needsApproval`, `strict`, and provider-defined tool mode fields. Use the top-level factory options for those controlled fields so fixed arguments, catalog-aware schemas, error handling, and WordPress routing still run consistently.
 
 ### Default values with Zod schemas
 

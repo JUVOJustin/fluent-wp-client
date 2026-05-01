@@ -7,6 +7,7 @@ import type { WordPressClientConfig } from "../types/client.js";
 import {
   buildResourceSchemas,
   generateJsonSchemas,
+  generateTypeDefinitions,
   generateZodSchemas,
 } from "./codegen.js";
 import type { DiscoveryResourceFilters } from "./discover.js";
@@ -98,15 +99,13 @@ async function collectConfig(
 // ---------------------------------------------------------------------------
 
 /**
- * Output format for the `schemas` command.
- *
- * - `zod`         — TypeScript module with JSON Schema literals, Zod schemas,
- *                   and inferred TS types. Best for TypeScript/JavaScript projects.
- * - `json-schema` — JSON file with normalized resource schemas keyed by REST
- *                   base. Portable — works for any language or tooling.
- * - `both`        — Emits both the JSON Schema file and the Zod TypeScript module.
+ * Resolved output targets for one CLI run.
  */
-type SchemasFormat = "zod" | "json-schema" | "both";
+interface SchemaOutputTargets {
+  jsonOut?: string;
+  typesOut?: string;
+  zodOut?: string;
+}
 
 /**
  * Returns the string value of a named flag from the argv array, or undefined.
@@ -130,6 +129,66 @@ function listFlagValues(args: string[], flag: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+/**
+ * Returns whether a Zod output path should receive TypeScript or JavaScript.
+ */
+function zodOutputKind(filePath: string): "js" | "ts" {
+  const extension = path.extname(filePath);
+
+  if (extension === ".ts") return "ts";
+  if (extension === ".mjs") return "js";
+
+  throw new Error("Zod output must use a .ts or .mjs file extension.");
+}
+
+/**
+ * Keeps generated artifacts opinionated while still allowing custom paths.
+ */
+function validateOutputTargets(outputs: SchemaOutputTargets): void {
+  if (outputs.zodOut) {
+    zodOutputKind(outputs.zodOut);
+  }
+
+  if (outputs.jsonOut && path.extname(outputs.jsonOut) !== ".json") {
+    throw new Error("JSON Schema output must use a .json file extension.");
+  }
+
+  if (outputs.typesOut && !outputs.typesOut.endsWith(".d.ts")) {
+    throw new Error(
+      "TypeScript declaration output must use a .d.ts file extension.",
+    );
+  }
+}
+
+/**
+ * Resolves explicit output flags into concrete files to write.
+ */
+function schemaOutputTargets(args: string[]): SchemaOutputTargets {
+  const explicitZodOut =
+    flagValue(args, "--zod-out") ?? flagValue(args, "--out");
+  const explicitJsonOut = flagValue(args, "--json-out");
+  const explicitTypesOut = flagValue(args, "--types-out");
+  const outputs: SchemaOutputTargets = {};
+
+  if (explicitZodOut) {
+    outputs.zodOut = explicitZodOut;
+  }
+
+  if (explicitJsonOut) {
+    outputs.jsonOut = explicitJsonOut;
+  }
+
+  if (explicitTypesOut) {
+    outputs.typesOut = explicitTypesOut;
+  }
+
+  if (!outputs.zodOut && !outputs.jsonOut && !outputs.typesOut) {
+    outputs.zodOut = "wp-schemas.ts";
+  }
+
+  return outputs;
 }
 
 /**
@@ -229,10 +288,10 @@ Usage:
   fluent-wp-client schemas   Generate resource schemas
 
 Options:
-  --format <format>     Output format: zod (default), json-schema, both
-  --out <file>          Output file for \`zod\` format (default: wp-schemas.ts)
-  --zod-out <file>      Output file for Zod module (default: wp-schemas.ts)
+  --out <file>          Output file for Zod module (default: wp-schemas.ts)
+  --zod-out <file>      Output file for Zod module; use .ts or .mjs
   --json-out <file>     Output file for JSON Schema (default: wp-schemas.json)
+  --types-out <file>    Optional output file for standalone TypeScript declarations
   --url <url>           WordPress site URL (skips interactive prompt)
   --username <name>     Application-password username for authenticated discovery
   --password <value>    Application password for authenticated discovery
@@ -245,9 +304,9 @@ Examples:
   npx fluent-wp-client schemas --url https://example.com
   npx fluent-wp-client schemas --url https://example.com --username admin --password "xxxx xxxx xxxx xxxx"
   npx fluent-wp-client schemas --url https://example.com --include posts,books
-  npx fluent-wp-client schemas --format json-schema --url https://example.com
-  npx fluent-wp-client schemas --format both --url https://example.com
-  npx fluent-wp-client schemas --format both --json-out schemas.json --zod-out schemas.ts
+  npx fluent-wp-client schemas --url https://example.com --zod-out wp-schemas.mjs
+  npx fluent-wp-client schemas --url https://example.com --types-out wp-types.d.ts
+  npx fluent-wp-client schemas --url https://example.com --json-out schemas.json --zod-out schemas.ts --types-out types.d.ts
 `);
     process.exit(0);
   }
@@ -302,47 +361,54 @@ Examples:
     process.exit(0);
   }
 
-  const format = (flagValue(args, "--format") ?? "zod") as SchemasFormat;
+  const outputs = schemaOutputTargets(args);
 
-  if (format !== "zod" && format !== "json-schema" && format !== "both") {
-    console.error(
-      `Unknown --format value: "${format}". Accepted values: zod, json-schema, both.`,
-    );
+  console.log(`Generating schemas for ${resourceSchemas.length} resources...`);
+
+  try {
+    validateOutputTargets(outputs);
+  } catch (err) {
+    console.error((err as Error).message);
     process.exit(1);
   }
 
-  console.log(
-    `Generating ${format} schemas for ${resourceSchemas.length} resources...`,
-  );
-
-  if (format === "zod" || format === "both") {
-    // --zod-out takes precedence; fall back to --out for backward compatibility.
-    const zodOut =
-      flagValue(args, "--zod-out") ??
-      flagValue(args, "--out") ??
-      "wp-schemas.ts";
+  if (outputs.zodOut) {
     writeFile(
-      zodOut,
+      outputs.zodOut,
       generateZodSchemas(
+        resourceSchemas,
+        discovery.siteName,
+        discovery.siteUrl,
+        { typescript: zodOutputKind(outputs.zodOut) === "ts" },
+      ),
+    );
+    console.log(`Zod schemas written to ${path.resolve(outputs.zodOut)}`);
+  }
+
+  if (outputs.typesOut) {
+    writeFile(
+      outputs.typesOut,
+      generateTypeDefinitions(
         resourceSchemas,
         discovery.siteName,
         discovery.siteUrl,
       ),
     );
-    console.log(`Zod schemas written to ${path.resolve(zodOut)}`);
+    console.log(
+      `TypeScript types written to ${path.resolve(outputs.typesOut)}`,
+    );
   }
 
-  if (format === "json-schema" || format === "both") {
-    const jsonOut = flagValue(args, "--json-out") ?? "wp-schemas.json";
+  if (outputs.jsonOut) {
     writeFile(
-      jsonOut,
+      outputs.jsonOut,
       generateJsonSchemas(
         resourceSchemas,
         discovery.siteName,
         discovery.siteUrl,
       ),
     );
-    console.log(`JSON Schema written to ${path.resolve(jsonOut)}`);
+    console.log(`JSON Schema written to ${path.resolve(outputs.jsonOut)}`);
   }
 }
 

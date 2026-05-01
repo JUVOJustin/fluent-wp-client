@@ -8,7 +8,7 @@ sidebar:
 
 ## Overview
 
-`fluent-wp-client` ships a CLI for discovering live REST schemas from a WordPress site and generating code artifacts for downstream apps, validators, and AI/tooling workflows.
+`fluent-wp-client` ships a CLI for discovering live REST schemas from a WordPress site and generating code artifacts for downstream apps, validators, type checking, and AI/tooling workflows.
 
 ## Command
 
@@ -16,7 +16,7 @@ sidebar:
 npx fluent-wp-client schemas --url https://example.com
 ```
 
-The `schemas` command generates a Zod-ready TypeScript module, JSON Schema, or both.
+The `schemas` command discovers WordPress JSON Schema first, then generates a Zod-ready TypeScript module, standalone TypeScript types, JSON Schema, or multiple artifacts in one run.
 
 ## Authentication
 
@@ -50,19 +50,39 @@ npx fluent-wp-client schemas \
 
 In this example only `books` and `genre` are generated.
 
-## Output formats
+## Output Files
 
-```bash title="Available output formats"
-npx fluent-wp-client schemas --url https://example.com --format zod
-npx fluent-wp-client schemas --url https://example.com --format json-schema
-npx fluent-wp-client schemas --url https://example.com --format both \
+```bash title="Available output files"
+npx fluent-wp-client schemas --url https://example.com
+npx fluent-wp-client schemas --url https://example.com \
+  --zod-out wp-schemas.mjs \
+  --types-out wp-types.d.ts
+npx fluent-wp-client schemas --url https://example.com \
   --zod-out wp-schemas.ts \
-  --json-out wp-schemas.json
+  --json-out wp-schemas.json \
+  --types-out wp-types.d.ts
 ```
 
-- `zod` writes a TypeScript module with JSON Schema literals, `z.fromJSONSchema(...)` validators, and inferred types.
-- `json-schema` writes one JSON document keyed by REST base.
-- `both` writes both artifacts in a single run.
+Output paths define the artifacts to generate. If you omit all output paths, the CLI writes `wp-schemas.ts`.
+
+- `--zod-out` or `--out` writes a Zod module with JSON Schema literals and validators. `.ts` output also includes inferred `z.infer<>` aliases.
+- `--json-out` writes one JSON document keyed by REST base.
+- `--types-out` writes dependency-free TypeScript declaration files with interfaces and type aliases derived from the same normalized JSON Schemas.
+
+Generated artifact extensions are intentionally strict:
+
+- Zod output must be `.ts` for TypeScript or `.mjs` for runtime JavaScript.
+- JSON Schema output must be `.json`.
+- Standalone TypeScript declarations must be `.d.ts`.
+
+Use `--types-out` when you want a dedicated types file beside runtime validators:
+
+```bash title="Generating runtime schemas and standalone types"
+npx fluent-wp-client schemas \
+  --url https://example.com \
+  --out wp-schemas.ts \
+  --types-out wp-types.d.ts
+```
 
 ## Interactive mode
 
@@ -79,9 +99,10 @@ npx fluent-wp-client schemas
 Typical flow:
 
 1. Generate schema files from the target site.
-2. Import the generated Zod validators into your app.
-3. Validate input or output locally.
-4. Call the normal `fluent-wp-client` method with the validated data.
+2. Import generated Zod validators when you need runtime validation.
+3. Import generated interfaces when you only need compile-time types.
+4. Validate input or output locally.
+5. Call the normal `fluent-wp-client` method with the validated data.
 
 ```ts title="Validate with one generated schema"
 import { postsCreateSchema } from './wp-schemas';
@@ -92,6 +113,14 @@ const validatedInput = postsCreateSchema.parse({
 });
 
 await wp.content('posts').create(validatedInput);
+```
+
+```ts title="Use one generated standalone type"
+import type { WPPost } from './wp-types';
+
+function getTitle(post: WPPost): string {
+  return post.title?.rendered ?? '';
+}
 ```
 
 Use runtime discovery from [`schema-discovery.mdx`](./schema-discovery.mdx) when you want live schemas inside the app instead of build-time generated files.

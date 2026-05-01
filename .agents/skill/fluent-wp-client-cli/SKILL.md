@@ -14,25 +14,21 @@ description: >
 # fluent-wp-client CLI
 
 The `fluent-wp-client` CLI connects to a live WordPress site, discovers its REST API
-schemas, and generates typed code artifacts — Zod validators, JSON Schema, or TypeScript
-types — for use in downstream apps, validators, and AI tooling.
+schemas, and generates requested code artifacts — Zod validators, JSON Schema, or TypeScript
+declarations — for use in downstream apps, validators, and AI tooling.
 
 ## Command
 
 ```bash
-npx fluent-wp-client schemas   # Zod, JSON Schema, or both
+npx fluent-wp-client schemas   # Zod TypeScript output by default
 npx fluent-wp-client --help
 ```
 
 ## `schemas` command
 
 Generates normalized schemas for every discovered WordPress resource (post types,
-taxonomies). Output can be:
-
-- **`zod`** (default) — TypeScript module with JSON Schema literals, `z.fromJSONSchema()`
-  validators, and inferred TS types. Best for TypeScript/JavaScript projects.
-- **`json-schema`** — JSON document keyed by REST base. Portable across any language.
-- **`both`** — Emits both artifacts in one run.
+taxonomies). Output paths define which artifacts are written. If no output path is
+provided, the CLI writes `wp-schemas.ts`.
 
 ### Basic usage
 
@@ -41,12 +37,14 @@ taxonomies). Output can be:
 npx fluent-wp-client schemas --url https://example.com
 
 # JSON Schema only
-npx fluent-wp-client schemas --url https://example.com --format json-schema
-
-# Both formats with custom filenames
-npx fluent-wp-client schemas --url https://example.com --format both \
-  --zod-out src/lib/wp-schemas.ts \
+npx fluent-wp-client schemas --url https://example.com \
   --json-out src/lib/wp-schemas.json
+
+# Multiple artifacts with custom filenames
+npx fluent-wp-client schemas --url https://example.com \
+  --zod-out src/lib/wp-schemas.ts \
+  --json-out src/lib/wp-schemas.json \
+  --types-out src/lib/wp-types.d.ts
 ```
 
 ### Generated output example
@@ -120,10 +118,10 @@ npx fluent-wp-client schemas
 | Flag | Default | Description |
 |---|---|---|
 | `--url <url>` | — (prompts) | WordPress site URL |
-| `--format <format>` | `zod` | `zod`, `json-schema`, or `both` |
-| `--out <file>` | `wp-schemas.ts` | Output file for `zod` format |
-| `--zod-out <file>` | `wp-schemas.ts` | Zod module output path |
-| `--json-out <file>` | `wp-schemas.json` | JSON Schema output path |
+| `--out <file>` | `wp-schemas.ts` | Alias for `--zod-out`; accepts `.ts` or `.mjs` |
+| `--zod-out <file>` | `wp-schemas.ts` | Zod module output path; accepts `.ts` or `.mjs` |
+| `--json-out <file>` | — | JSON Schema output path; must end in `.json` |
+| `--types-out <file>` | — | TypeScript declaration output path; must end in `.d.ts` |
 | `--username <name>` | — | Application password username |
 | `--password <value>` | — | Application password |
 | `--token <value>` | — | JWT bearer token |
@@ -141,9 +139,9 @@ npx fluent-wp-client schemas \
   --url "$WP_URL" \
   --username "$WP_USER" \
   --password "$WP_APP_PASSWORD" \
-  --format both \
   --zod-out src/lib/wp-schemas.ts \
-  --json-out src/lib/wp-schemas.json
+  --json-out src/lib/wp-schemas.json \
+  --types-out src/lib/wp-types.d.ts
 ```
 
 ## Using generated schemas with the client

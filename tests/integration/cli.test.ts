@@ -28,13 +28,14 @@ function createTempDir(): string {
 /**
  * Executes the built CLI and fails fast when generation exits unsuccessfully.
  */
-function runCliRaw(args: string[]): CliResult {
+function runCliRaw(args: string[], env?: NodeJS.ProcessEnv): CliResult {
   const result = spawnSync(
     process.execPath,
     [path.resolve("dist/cli/index.js"), ...args],
     {
       cwd: path.resolve("."),
       encoding: "utf-8",
+      env: env ? { ...process.env, ...env } : process.env,
     },
   );
 
@@ -48,8 +49,11 @@ function runCliRaw(args: string[]): CliResult {
 /**
  * Executes the built CLI and fails fast when generation exits unsuccessfully.
  */
-function runCli(args: string[]): { stdout: string; stderr: string } {
-  const result = runCliRaw(args);
+function runCli(
+  args: string[],
+  env?: NodeJS.ProcessEnv,
+): { stdout: string; stderr: string } {
+  const result = runCliRaw(args, env);
 
   if (result.status !== 0) {
     throw new Error(
@@ -157,6 +161,75 @@ describe("CLI: code generation", () => {
 
     expect(generatedSchemas).toContain("export const wpBookSchema");
     expect(generatedSchemas).not.toContain("export const wpPageSchema");
+    expect(generatedSchemas).not.toContain("export const wpPostSchema");
+  });
+
+  it("supports authenticated discovery via environment variables", () => {
+    const password = process.env.WP_APP_PASSWORD;
+
+    if (!password) {
+      throw new Error("WP_APP_PASSWORD not set — did global-setup run?");
+    }
+
+    const outputDir = createTempDir();
+    const schemasPath = path.join(outputDir, "env-auth-schemas.ts");
+
+    runCli(
+      [
+        "schemas",
+        "--url",
+        getBaseUrl(),
+        "--include",
+        "books",
+        "--out",
+        schemasPath,
+      ],
+      {
+        FLUENT_WP_PASSWORD: password,
+        FLUENT_WP_USERNAME: "admin",
+      },
+    );
+
+    const generatedSchemas = fs.readFileSync(schemasPath, "utf-8");
+
+    expect(generatedSchemas).toContain("export const wpBookSchema");
+    expect(generatedSchemas).not.toContain("export const wpPostSchema");
+  });
+
+  it("gives CLI flags precedence over environment variables", () => {
+    const password = process.env.WP_APP_PASSWORD;
+
+    if (!password) {
+      throw new Error("WP_APP_PASSWORD not set — did global-setup run?");
+    }
+
+    const outputDir = createTempDir();
+    const schemasPath = path.join(outputDir, "flag-precedence-schemas.ts");
+
+    // Provide env vars for posts but flags for books — flags should win
+    runCli(
+      [
+        "schemas",
+        "--url",
+        getBaseUrl(),
+        "--username",
+        "admin",
+        "--password",
+        password,
+        "--include",
+        "books",
+        "--out",
+        schemasPath,
+      ],
+      {
+        FLUENT_WP_PASSWORD: "wrong-password",
+        FLUENT_WP_USERNAME: "wrong-user",
+      },
+    );
+
+    const generatedSchemas = fs.readFileSync(schemasPath, "utf-8");
+
+    expect(generatedSchemas).toContain("export const wpBookSchema");
     expect(generatedSchemas).not.toContain("export const wpPostSchema");
   });
 

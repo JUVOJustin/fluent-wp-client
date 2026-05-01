@@ -37,6 +37,24 @@ Supported auth flags:
 
 Use only one auth mode at a time.
 
+### Environment variables
+
+To avoid passing secrets through CLI arguments (which can appear in shell history and process listings), use environment variables instead:
+
+```bash title="Authenticated schema generation via environment variables"
+export FLUENT_WP_USERNAME=admin
+export FLUENT_WP_PASSWORD="xxxx xxxx xxxx xxxx"
+npx fluent-wp-client schemas --url https://example.com
+```
+
+Supported environment variables:
+
+- `FLUENT_WP_USERNAME` and `FLUENT_WP_PASSWORD` for WordPress application passwords
+- `FLUENT_WP_TOKEN` for JWT bearer auth
+- `FLUENT_WP_AUTH_HEADER` for a prebuilt `Authorization` header value
+
+CLI flags take precedence over environment variables when both are provided.
+
 ## Resource filtering
 
 Use `--include` and `--exclude` to limit generation to specific resources by slug or REST base:

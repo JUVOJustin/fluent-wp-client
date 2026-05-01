@@ -231,6 +231,49 @@ function cliConfigOverrides(args: string[]): Partial<WordPressClientConfig> {
 }
 
 /**
+ * Builds CLI auth configuration from environment variables.
+ * Flags take precedence over environment variables.
+ */
+function envConfigOverrides(): Partial<WordPressClientConfig> {
+  const username = process.env.FLUENT_WP_USERNAME;
+  const password = process.env.FLUENT_WP_PASSWORD;
+  const token = process.env.FLUENT_WP_TOKEN;
+  const authHeader = process.env.FLUENT_WP_AUTH_HEADER;
+
+  const methodsUsed = [
+    username || password ? "application-password" : undefined,
+    token ? "jwt" : undefined,
+    authHeader ? "auth-header" : undefined,
+  ].filter(Boolean);
+
+  if (methodsUsed.length > 1) {
+    throw new Error(
+      "Choose only one auth mode via env vars: FLUENT_WP_USERNAME/FLUENT_WP_PASSWORD, FLUENT_WP_TOKEN, or FLUENT_WP_AUTH_HEADER.",
+    );
+  }
+
+  if ((username && !password) || (!username && password)) {
+    throw new Error(
+      "Provide both FLUENT_WP_USERNAME and FLUENT_WP_PASSWORD together.",
+    );
+  }
+
+  if (username && password) {
+    return { auth: { password, username } };
+  }
+
+  if (token) {
+    return { auth: { token } };
+  }
+
+  if (authHeader) {
+    return { authHeader };
+  }
+
+  return {};
+}
+
+/**
  * Collects resource include/exclude filters from CLI flags.
  */
 function cliDiscoveryFilters(args: string[]): DiscoveryResourceFilters {
@@ -245,22 +288,28 @@ function cliDiscoveryFilters(args: string[]): DiscoveryResourceFilters {
 
 /**
  * Applies non-interactive CLI overrides without leaving conflicting auth state behind.
+ * Applies in order: env vars, then CLI flags (flags win over env vars).
  */
 function mergeCliConfig(
   baseConfig: WordPressClientConfig,
-  overrideConfig: Partial<WordPressClientConfig>,
+  envOverrides: Partial<WordPressClientConfig>,
+  flagOverrides: Partial<WordPressClientConfig>,
 ): WordPressClientConfig {
   const nextConfig: WordPressClientConfig = { ...baseConfig };
 
-  if (overrideConfig.auth || overrideConfig.authHeader) {
+  if (envOverrides.auth || envOverrides.authHeader) {
     delete nextConfig.auth;
     delete nextConfig.authHeader;
   }
 
-  return {
-    ...nextConfig,
-    ...overrideConfig,
-  };
+  const afterEnv = { ...nextConfig, ...envOverrides };
+
+  if (flagOverrides.auth || flagOverrides.authHeader) {
+    delete afterEnv.auth;
+    delete afterEnv.authHeader;
+  }
+
+  return { ...afterEnv, ...flagOverrides };
 }
 
 /**
@@ -300,9 +349,16 @@ Options:
   --include <list>      Comma-separated resource slugs/rest bases to include
   --exclude <list>      Comma-separated resource slugs/rest bases to exclude
 
+Environment variables (alternative to auth flags):
+  FLUENT_WP_USERNAME    Application-password username
+  FLUENT_WP_PASSWORD    Application password
+  FLUENT_WP_TOKEN       JWT bearer token
+  FLUENT_WP_AUTH_HEADER Prebuilt Authorization header value
+
 Examples:
   npx fluent-wp-client schemas --url https://example.com
   npx fluent-wp-client schemas --url https://example.com --username admin --password "xxxx xxxx xxxx xxxx"
+  FLUENT_WP_USERNAME=admin FLUENT_WP_PASSWORD="xxxx xxxx xxxx xxxx" npx fluent-wp-client schemas --url https://example.com
   npx fluent-wp-client schemas --url https://example.com --include posts,books
   npx fluent-wp-client schemas --url https://example.com --zod-out wp-schemas.mjs
   npx fluent-wp-client schemas --url https://example.com --types-out wp-types.d.ts
@@ -318,9 +374,11 @@ Examples:
   }
 
   // Resolve WordPress connection config.
-  let overrideConfig: Partial<WordPressClientConfig>;
+  let envOverrides: Partial<WordPressClientConfig>;
+  let flagOverrides: Partial<WordPressClientConfig>;
   try {
-    overrideConfig = cliConfigOverrides(args);
+    envOverrides = envConfigOverrides();
+    flagOverrides = cliConfigOverrides(args);
   } catch (err) {
     console.error((err as Error).message);
     process.exit(1);
@@ -331,11 +389,19 @@ Examples:
   let config: WordPressClientConfig;
 
   if (presetUrl) {
-    config = mergeCliConfig({ baseUrl: presetUrl }, overrideConfig);
+    config = mergeCliConfig(
+      { baseUrl: presetUrl },
+      envOverrides,
+      flagOverrides,
+    );
   } else {
     const rl = readline.createInterface({ input: stdin, output: stdout });
     try {
-      config = mergeCliConfig(await collectConfig(rl), overrideConfig);
+      config = mergeCliConfig(
+        await collectConfig(rl),
+        envOverrides,
+        flagOverrides,
+      );
     } finally {
       rl.close();
     }

@@ -103,6 +103,40 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       }
     });
 
+    it("normalizes non-standard 'bool' type alias to 'boolean'", () => {
+      const schema = zodFromJsonSchema({
+        properties: {
+          active: { type: "bool" },
+        },
+        type: "object",
+      });
+
+      expect(schema).toBeDefined();
+
+      const valid = schema?.safeParse({ active: true });
+      expect(valid?.success).toBe(true);
+
+      const invalid = schema?.safeParse({ active: "yes" });
+      expect(invalid?.success).toBe(false);
+    });
+
+    it("normalizes 'bool' inside union type arrays", () => {
+      const schema = zodFromJsonSchema({
+        properties: {
+          flag: { type: ["bool", "null"] },
+        },
+        type: "object",
+      });
+
+      expect(schema).toBeDefined();
+
+      const valid = schema?.safeParse({ flag: false });
+      expect(valid?.success).toBe(true);
+
+      const nullValid = schema?.safeParse({ flag: null });
+      expect(nullValid?.success).toBe(true);
+    });
+
     it("handles custom post type schemas with instance-specific fields", () => {
       const bookDesc = catalog.content.books;
       expect(bookDesc).toBeDefined();

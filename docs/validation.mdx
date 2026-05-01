@@ -71,7 +71,6 @@ const result = await wp.ability('acme/calculate').run(input);
 ```bash title="Generate schema files"
 npx fluent-wp-client schemas \
   --url https://example.com \
-  --format both \
   --zod-out src/lib/wp-schemas.ts \
   --json-out src/lib/wp-schemas.json
 ```

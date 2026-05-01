@@ -157,10 +157,12 @@ Use the built-in CLI to discover WordPress REST schemas and generate code artifa
 
 ```bash
 npx fluent-wp-client schemas --url https://example.com
-npx fluent-wp-client schemas --url https://example.com --format both
+npx fluent-wp-client schemas --url https://example.com --types-out wp-types.d.ts
+npx fluent-wp-client schemas --url https://example.com --zod-out wp-schemas.mjs --types-out wp-types.d.ts
+npx fluent-wp-client schemas --url https://example.com --zod-out wp-schemas.ts --json-out wp-schemas.json --types-out wp-types.d.ts
 ```
 
-The `schemas` command can emit JSON Schema, Zod-ready TypeScript modules, or both.
+The `schemas` command discovers WordPress JSON Schema, then emits the artifacts requested by output paths. Omit output paths to write `wp-schemas.ts`, or pass paths such as `--zod-out wp-schemas.mjs`, `--json-out wp-schemas.json`, and `--types-out wp-types.d.ts`. Zod output is intentionally limited to `.ts` or `.mjs`; JSON Schema uses `.json`; standalone types use `.d.ts`.
 
 ## Rate limiting and request control
 

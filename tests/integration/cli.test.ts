@@ -10,6 +10,12 @@ import { getBaseUrl } from "../helpers/wp-client";
  */
 const tempDirs: string[] = [];
 
+interface CliResult {
+  status: number | null;
+  stderr: string;
+  stdout: string;
+}
+
 /**
  * Builds one isolated output path for generated CLI artifacts.
  */
@@ -22,7 +28,7 @@ function createTempDir(): string {
 /**
  * Executes the built CLI and fails fast when generation exits unsuccessfully.
  */
-function runCli(args: string[]): { stdout: string; stderr: string } {
+function runCliRaw(args: string[]): CliResult {
   const result = spawnSync(
     process.execPath,
     [path.resolve("dist/cli/index.js"), ...args],
@@ -31,6 +37,19 @@ function runCli(args: string[]): { stdout: string; stderr: string } {
       encoding: "utf-8",
     },
   );
+
+  return {
+    status: result.status,
+    stderr: result.stderr,
+    stdout: result.stdout,
+  };
+}
+
+/**
+ * Executes the built CLI and fails fast when generation exits unsuccessfully.
+ */
+function runCli(args: string[]): { stdout: string; stderr: string } {
+  const result = runCliRaw(args);
 
   if (result.status !== 0) {
     throw new Error(
@@ -74,7 +93,7 @@ describe("CLI: code generation", () => {
 
     const generatedSchemas = fs.readFileSync(schemasPath, "utf-8");
 
-    expect(schemasRun.stdout).toContain("Generating zod schemas");
+    expect(schemasRun.stdout).toContain("Generating schemas");
     expect(schemasRun.stdout).toContain("Zod schemas written to");
 
     expect(generatedSchemas).toContain(
@@ -139,5 +158,186 @@ describe("CLI: code generation", () => {
     expect(generatedSchemas).toContain("export const wpBookSchema");
     expect(generatedSchemas).not.toContain("export const wpPageSchema");
     expect(generatedSchemas).not.toContain("export const wpPostSchema");
+  });
+
+  it("generates dependency-free TypeScript interfaces", () => {
+    const outputDir = createTempDir();
+    const typesPath = path.join(outputDir, "wp-types.d.ts");
+
+    const typesRun = runCli([
+      "schemas",
+      "--url",
+      getBaseUrl(),
+      "--include",
+      "books",
+      "--types-out",
+      typesPath,
+    ]);
+
+    const generatedTypes = fs.readFileSync(typesPath, "utf-8");
+
+    expect(typesRun.stdout).toContain("TypeScript types written to");
+    expect(generatedTypes).toContain("export interface WPBook");
+    expect(generatedTypes).toContain("test_book_isbn?: string");
+    expect(generatedTypes).toContain("acf_subtitle?: string");
+    expect(generatedTypes).not.toContain("from 'zod'");
+    expect(generatedTypes).not.toContain("z.infer");
+  });
+
+  it("generates runtime JavaScript for Zod module js outputs", () => {
+    const outputDir = createTempDir();
+    const schemasPath = path.join(outputDir, "wp-schemas.mjs");
+
+    const schemasRun = runCli([
+      "schemas",
+      "--url",
+      getBaseUrl(),
+      "--include",
+      "books",
+      "--zod-out",
+      schemasPath,
+    ]);
+
+    const generatedSchemas = fs.readFileSync(schemasPath, "utf-8");
+
+    expect(schemasRun.stdout).toContain("Zod schemas written to");
+    expect(generatedSchemas).toContain("export const wpBookSchema");
+    expect(generatedSchemas).not.toContain(" as const");
+    expect(generatedSchemas).not.toContain("export type WPBook");
+    expect(generatedSchemas).not.toContain("z.infer");
+  });
+
+  it("infers requested artifacts from explicit output paths", () => {
+    const outputDir = createTempDir();
+    const schemasPath = path.join(outputDir, "wp-schemas.mjs");
+    const jsonPath = path.join(outputDir, "wp-schemas.json");
+    const typesPath = path.join(outputDir, "wp-types.d.ts");
+
+    const pathsRun = runCli([
+      "schemas",
+      "--url",
+      getBaseUrl(),
+      "--include",
+      "books",
+      "--zod-out",
+      schemasPath,
+      "--json-out",
+      jsonPath,
+      "--types-out",
+      typesPath,
+    ]);
+
+    expect(pathsRun.stdout).toContain("Zod schemas written to");
+    expect(pathsRun.stdout).toContain("JSON Schema written to");
+    expect(pathsRun.stdout).toContain("TypeScript types written to");
+    expect(fs.readFileSync(schemasPath, "utf-8")).toContain(
+      "export const wpBookSchema",
+    );
+    expect(fs.readFileSync(jsonPath, "utf-8")).toContain('"books"');
+    expect(fs.readFileSync(typesPath, "utf-8")).toContain(
+      "export interface WPBook",
+    );
+  });
+
+  it("rejects unsupported generated artifact extensions", () => {
+    const outputDir = createTempDir();
+
+    const invalidZodRun = runCliRaw([
+      "schemas",
+      "--url",
+      getBaseUrl(),
+      "--include",
+      "books",
+      "--zod-out",
+      path.join(outputDir, "wp-schemas.js"),
+    ]);
+    const invalidJsonRun = runCliRaw([
+      "schemas",
+      "--url",
+      getBaseUrl(),
+      "--include",
+      "books",
+      "--json-out",
+      path.join(outputDir, "wp-schemas.txt"),
+    ]);
+    const invalidTypesRun = runCliRaw([
+      "schemas",
+      "--url",
+      getBaseUrl(),
+      "--include",
+      "books",
+      "--types-out",
+      path.join(outputDir, "wp-types.ts"),
+    ]);
+
+    expect(invalidZodRun.status).not.toBe(0);
+    expect(invalidZodRun.stderr).toContain(
+      "Zod output must use a .ts or .mjs file extension.",
+    );
+    expect(invalidJsonRun.status).not.toBe(0);
+    expect(invalidJsonRun.stderr).toContain(
+      "JSON Schema output must use a .json file extension.",
+    );
+    expect(invalidTypesRun.status).not.toBe(0);
+    expect(invalidTypesRun.stderr).toContain(
+      "TypeScript declaration output must use a .d.ts file extension.",
+    );
+  });
+
+  it("can emit standalone types alongside Zod schemas", () => {
+    const outputDir = createTempDir();
+    const schemasPath = path.join(outputDir, "wp-schemas.ts");
+    const typesPath = path.join(outputDir, "wp-types.d.ts");
+
+    runCli([
+      "schemas",
+      "--url",
+      getBaseUrl(),
+      "--include",
+      "books",
+      "--out",
+      schemasPath,
+      "--types-out",
+      typesPath,
+    ]);
+
+    expect(fs.readFileSync(schemasPath, "utf-8")).toContain(
+      "export const wpBookSchema",
+    );
+    expect(fs.readFileSync(typesPath, "utf-8")).toContain(
+      "export interface WPBook",
+    );
+  });
+
+  it("generates every artifact from explicit output paths", () => {
+    const outputDir = createTempDir();
+    const schemasPath = path.join(outputDir, "wp-schemas.ts");
+    const jsonPath = path.join(outputDir, "wp-schemas.json");
+    const typesPath = path.join(outputDir, "wp-types.d.ts");
+
+    const allRun = runCli([
+      "schemas",
+      "--url",
+      getBaseUrl(),
+      "--include",
+      "books",
+      "--zod-out",
+      schemasPath,
+      "--json-out",
+      jsonPath,
+      "--types-out",
+      typesPath,
+    ]);
+
+    expect(allRun.stdout).toContain("Zod schemas written to");
+    expect(allRun.stdout).toContain("JSON Schema written to");
+    expect(allRun.stdout).toContain("TypeScript types written to");
+    expect(fs.readFileSync(schemasPath, "utf-8")).toContain(
+      "export const wpBookSchema",
+    );
+    expect(fs.readFileSync(jsonPath, "utf-8")).toContain('"books"');
+    expect(fs.readFileSync(typesPath, "utf-8")).toContain(
+      "export interface WPBook",
+    );
   });
 });

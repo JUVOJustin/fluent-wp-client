@@ -24,6 +24,7 @@ import type {
   WordPressResourceDescription,
 } from "../types/discovery.js";
 import { asToolArgs, withToolErrorHandling } from "./factories.js";
+import type { AiSdkToolOptions } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Public surface
@@ -63,6 +64,8 @@ export interface DescribeResourceToolOptions {
    * to the model.
    */
   include?: DescribeResourceToolInclude;
+  /** Additional AI SDK tool options such as `title` or `toModelOutput`. */
+  toolOptions?: AiSdkToolOptions;
 }
 
 /**
@@ -87,6 +90,7 @@ export function describeResourceTool(
   const inputSchema = buildInputSchema(allowedNames);
 
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       "Describe the live WordPress schema for a resource or ability. Returns the raw discovery DTO, including JSON Schemas for `item`, `collection`, `create`, and `update` (or `input` / `output` for abilities). Use this before composing calls to other WordPress tools when the available fields, required properties, or plugin-specific metadata are unknown.",
     execute: withToolErrorHandling(async (args: unknown) => {

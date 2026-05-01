@@ -41,6 +41,7 @@ export const getAbilitiesTool = (
   options?: ToolFactoryOptions<Record<string, unknown>>,
 ) =>
   tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ?? "List all registered WordPress abilities",
     execute: withToolErrorHandling(async () => {
@@ -63,6 +64,7 @@ export const getAbilityTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description: options?.description ?? "Get metadata for a WordPress ability",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(
@@ -100,6 +102,7 @@ export const executeGetAbilityTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ?? "Execute a read-only WordPress ability via GET",
     execute: withToolErrorHandling(async (args: unknown) => {
@@ -131,6 +134,7 @@ export const executeRunAbilityTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description: options?.description ?? "Execute a WordPress ability via POST",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(
@@ -161,6 +165,7 @@ export const executeDeleteAbilityTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ??
       "Execute a destructive WordPress ability via DELETE",
@@ -364,6 +369,7 @@ export function createAbilityTools(
     );
 
     tools[toolKey] = tool({
+      ...(options?.toolOptions as Record<string, unknown> | undefined),
       description,
       execute: withToolErrorHandling(
         buildExecute(client, abilityName, method),

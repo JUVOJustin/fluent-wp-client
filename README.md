@@ -149,6 +149,8 @@ const tools = {
 
 Every tool factory accepts an optional `fetch` callback that replaces the default WordPress client call with a custom implementation — useful for caches, live loaders, proxies, or custom request pipelines. Works for reads and writes alike.
 
+Use `toolOptions` to pass additional AI SDK tool settings such as `title`, `inputExamples`, lifecycle callbacks, `outputSchema`, or `toModelOutput` without replacing the generated WordPress execution and schema behavior.
+
 See `docs/ai-sdk.mdx` for the full tool catalog and configuration model.
 
 ## CLI

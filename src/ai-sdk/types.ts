@@ -1,3 +1,4 @@
+import type { Tool } from "ai";
 import type { ZodType } from "zod";
 import type { WordPressParsedBlock } from "../blocks.js";
 import type { WordPressPostLike } from "../schemas.js";
@@ -7,6 +8,25 @@ import type {
 } from "../types/discovery.js";
 import type { QueryParams } from "../types/resources.js";
 import type { ContentItemResult } from "./factories.js";
+
+type ProtectedToolOptionKey =
+  | "args"
+  | "description"
+  | "execute"
+  | "id"
+  | "inputSchema"
+  | "needsApproval"
+  | "strict"
+  | "supportsDeferredResults"
+  | "type";
+
+/**
+ * Raw AI SDK tool options forwarded to `tool()` after excluding fields this
+ * package owns so generated WordPress tools keep their execution contract.
+ */
+export type AiSdkToolOptions = Partial<
+  Omit<Tool<Record<string, unknown>, unknown>, ProtectedToolOptionKey>
+>;
 
 /**
  * Shared configuration accepted by all AI SDK tool factories.
@@ -26,6 +46,8 @@ export interface ToolFactoryOptions<TArgs extends Record<string, unknown>> {
   needsApproval?: boolean | ((input: TArgs) => boolean | Promise<boolean>);
   /** Enable provider strict-mode tool calling when supported. */
   strict?: boolean;
+  /** Additional AI SDK tool options such as `title` or `toModelOutput`. */
+  toolOptions?: AiSdkToolOptions;
 }
 
 /**
@@ -421,6 +443,9 @@ export interface CreateAbilityToolsOptions {
     abilityName: string,
     ability: WordPressAbilityDescription,
   ) => string;
+
+  /** Additional AI SDK tool options applied to each generated ability tool. */
+  toolOptions?: AiSdkToolOptions;
 }
 
 /**

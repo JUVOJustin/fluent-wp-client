@@ -374,6 +374,7 @@ export const getResourceCollectionTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ??
       "Search and filter WordPress media, comments, or users",
@@ -417,6 +418,7 @@ export const getResourceTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ??
       "Get a single WordPress media item, comment, or user",
@@ -465,6 +467,7 @@ export const saveResourceTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ?? "Create or update a WordPress comment or user",
     execute: withToolErrorHandling(async (args: unknown) => {
@@ -510,6 +513,7 @@ export const deleteResourceTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ?? "Delete a WordPress media item, comment, or user",
     execute: withToolErrorHandling(async (args: unknown) => {

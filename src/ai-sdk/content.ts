@@ -66,6 +66,7 @@ export const getContentCollectionTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description: options?.description ?? "Search and filter WordPress content",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(
@@ -107,6 +108,7 @@ export const getContentTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ??
       "Get a single WordPress content item by ID or slug",
@@ -191,6 +193,7 @@ export const saveContentTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ?? "Create or update a WordPress content item",
     execute: withToolErrorHandling(async (args: unknown) => {
@@ -239,6 +242,7 @@ export const deleteContentTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description: options?.description ?? "Delete a WordPress content item",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(

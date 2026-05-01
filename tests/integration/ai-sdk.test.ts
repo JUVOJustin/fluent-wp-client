@@ -136,6 +136,36 @@ describe("AI SDK tool integration", () => {
       expect(result.length).toBeLessThanOrEqual(2);
     });
 
+    it("getContentCollectionTool passes through safe AI SDK tool options", async () => {
+      const tool = getContentCollectionTool(publicClient, {
+        contentType: "posts",
+        fixedArgs: { perPage: 1 },
+        toolOptions: {
+          inputExamples: [{ input: { search: "test" } }],
+          title: "Search posts",
+          toModelOutput: ({ output }) => ({
+            type: "content",
+            value: [
+              {
+                text: `Found ${Array.isArray(output) ? output.length : 0} posts`,
+                type: "text",
+              },
+            ],
+          }),
+        },
+      });
+      const result = await run<unknown[]>(tool, {});
+
+      expect(tool).toHaveProperty("title", "Search posts");
+      expect(tool).toHaveProperty("inputExamples.0.input.search", "test");
+      const modelOutput = await tool.toModelOutput?.({
+        input: {},
+        output: result,
+        toolCallId: "test",
+      });
+      expect(modelOutput).toHaveProperty("value.0.text", "Found 1 posts");
+    });
+
     it("getTermCollectionTool delegates to fetch with resolved taxonomyType and normalized filter", async () => {
       const capturedInput: {
         taxonomyType: string;

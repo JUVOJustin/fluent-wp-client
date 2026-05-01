@@ -62,6 +62,7 @@ export const getTermCollectionTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description: options?.description ?? "Search and filter WordPress terms",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(
@@ -103,6 +104,7 @@ export const getTermTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description:
       options?.description ?? "Get a single WordPress term by ID or slug",
     execute: withToolErrorHandling(async (args: unknown) => {
@@ -160,6 +162,7 @@ export const saveTermTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description: options?.description ?? "Create or update a WordPress term",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(
@@ -207,6 +210,7 @@ export const deleteTermTool = (
     catalog: options?.catalog ?? client.getCachedCatalog(),
   };
   return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
     description: options?.description ?? "Delete a WordPress term",
     execute: withToolErrorHandling(async (args: unknown) => {
       const merged = mergeToolArgs(

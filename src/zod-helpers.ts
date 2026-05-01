@@ -28,6 +28,9 @@ import type {
  *   and inside union arrays such as `["string", "array", "int", "null"]`.
  *   ACF's `get_rest_schema()` on choice fields emits the non-standard `int`
  *   alias, which Zod rejects outright.
+ * - `type: "bool"` is rewritten to `type: "boolean"`, both as a scalar value
+ *   and inside union arrays. WordPress and some plugins emit the non-standard
+ *   `bool` alias, which Zod rejects outright.
  */
 export function normalizeWordPressJsonSchema(
   schema: Record<string, unknown>,
@@ -69,12 +72,18 @@ export function normalizeWordPressJsonSchema(
 export const stripDateTimeFormats = normalizeWordPressJsonSchema;
 
 /**
- * Rewrites the non-standard `int` type alias produced by ACF's REST schemas.
+ * Rewrites the non-standard `int` and `bool` type aliases produced by
+ * WordPress and plugin REST schemas.
  */
 function normalizeSchemaType(value: unknown): unknown {
   if (value === "int") return "integer";
+  if (value === "bool") return "boolean";
   if (Array.isArray(value)) {
-    return value.map((entry) => (entry === "int" ? "integer" : entry));
+    return value.map((entry) => {
+      if (entry === "int") return "integer";
+      if (entry === "bool") return "boolean";
+      return entry;
+    });
   }
   return value;
 }

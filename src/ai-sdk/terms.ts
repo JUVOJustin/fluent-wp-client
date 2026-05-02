@@ -59,7 +59,7 @@ export const getTermCollectionTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -101,7 +101,7 @@ export const getTermTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -159,7 +159,7 @@ export const saveTermTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -207,7 +207,7 @@ export const deleteTermTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),

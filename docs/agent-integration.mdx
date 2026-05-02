@@ -1,0 +1,72 @@
+---
+title: Agent integration patterns
+short_title: Agent tools
+description: Build framework-specific WordPress tools from discovery-backed selectors, JSON Schemas, fields, and query arguments.
+sidebar:
+  order: 8
+---
+
+Use the root package helpers when an agent framework needs JSON Schema and catalog metadata, but you still want to define the actual tools yourself. This keeps tool names, descriptions, defaults, fixed arguments, approvals, and mutation safety close to the framework integration.
+
+Catalog-wide one-call registration is intentionally not the recommended pattern. It is flexible, but it makes tools less descriptive and reduces the control that usually matters for production agents.
+
+## Recommended Pattern
+
+Seed the client catalog once, then compose focused tools for the workflow you are exposing:
+
+```ts title="agent-tools.ts"
+import { WordPressClient } from 'fluent-wp-client';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'editor', password: 'app-password' },
+});
+
+await wp.explore();
+
+const inputSchema = await wp.content('posts').getJsonSchema('create');
+
+agent.registerTool({
+  name: 'create_post_draft',
+  description: 'Create a WordPress post draft. Never publishes content.',
+  inputSchema,
+  execute: async (input) => {
+    return wp.content('posts').create({ ...input, status: 'draft' });
+  },
+});
+```
+
+This pattern is more verbose than a generic tool factory, but it produces better model behavior because each tool has a narrow purpose and a clear description.
+
+## Catalog Selectors
+
+Use selectors when a framework needs enum-like resource choices. The client uses its cached catalog when one exists; otherwise it runs discovery first.
+
+```ts
+const selectors = await wp.getCatalogSelectors();
+
+// selectors.contentType  -> { type: 'string', enum: ['posts', 'pages', ...] }
+// selectors.taxonomyType -> { type: 'string', enum: ['categories', 'tags', ...] }
+// selectors.resourceType -> { type: 'string', enum: ['media', 'comments', ...] }
+// selectors.abilityName  -> { type: 'string', enum: ['namespace/action', ...] }
+```
+
+Use these to build framework-native discriminated unions, select inputs, MCP tool parameters, or AI tool schemas.
+
+The catalog returned by `wp.explore()` stays a plain serializable DTO, so selectors are created from the client rather than chained from the catalog object.
+
+## Resource Metadata
+
+Fluent resource clients expose the pieces most tool adapters need:
+
+```ts
+const postCreateSchema = await wp.content('posts').getJsonSchema('create');
+const postUpdateSchema = await wp.content('posts').getJsonSchema('update');
+const postQueryParams = await wp.content('posts').getQueryParams();
+const postReadableFields = await wp.content('posts').getReadableFields();
+const postWritableFields = await wp.content('posts').getWritableFields();
+```
+
+These helpers are thin wrappers around the discovered resource description. They do not decide whether a tool should exist, whether a mutation is safe, or what the model-facing description should say. That belongs in your framework adapter.
+
+For details on catalog normalization and JSON Schema variants, see [Schema Discovery](./schema-discovery.mdx). For Vercel AI SDK-specific tool factories, see [AI SDK](./ai-sdk.mdx).

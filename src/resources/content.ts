@@ -11,6 +11,7 @@ import type {
   WordPressRequestOverrides,
 } from "../types/resources.js";
 import { createSchemaValueGetter, describeUnavailable } from "./describe.js";
+import { createSchemaToolMethods } from "./schema-tools.js";
 
 /**
  * Ensures `_embedded` and `_links` are present in the `_fields` list when
@@ -156,6 +157,7 @@ export function createContentClient<TResource extends WordPressPostLike>(
   const describe = describeFn ?? describeUnavailable;
 
   return {
+    ...createSchemaToolMethods(describe),
     create: (input, options) =>
       resource.create(input, options) as Promise<TResource>,
     delete: (id, options) => resource.delete(id, options),

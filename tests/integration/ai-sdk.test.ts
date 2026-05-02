@@ -25,7 +25,7 @@ import { z } from "zod";
 import { createAuthClient, createPublicClient } from "../helpers/wp-client";
 
 async function run<T>(
-  tool: { execute?: Function },
+  tool: { execute?: (...args: unknown[]) => unknown },
   args: Record<string, unknown>,
 ): Promise<T> {
   const result = await tool.execute?.(args, {
@@ -978,9 +978,10 @@ describe("AI SDK tool integration", () => {
       expect(result).toHaveProperty("error.kind");
     });
 
-    it("accepts an explicit catalog instead of the cached one", () => {
+    it("uses catalogs restored into the client context", () => {
       const freshClient = createPublicClient();
-      const tools = createAbilityTools(freshClient, { catalog });
+      freshClient.useCatalog(catalog);
+      const tools = createAbilityTools(freshClient);
 
       expect(Object.keys(tools).length).toBe(
         Object.keys(catalog.abilities).length,

@@ -36,6 +36,17 @@ export {
 } from "./auth.js";
 // Content item query builder for awaitable single-item access
 export { ContentItemQuery } from "./builders/content-item-query.js";
+export {
+  getAcfFields,
+  getCatalogSelectors,
+  getFieldChoices,
+  getQueryParams,
+  getReadableFields,
+  getSchemaProperty,
+  getWritableFields,
+  type WordPressCatalogResourceKind,
+  type WordPressCatalogSelectors,
+} from "./catalog-helpers.js";
 export { WordPressClient } from "./client.js";
 export type { WordPressRawContentResult } from "./content-query.js";
 // Embedded data extraction helpers

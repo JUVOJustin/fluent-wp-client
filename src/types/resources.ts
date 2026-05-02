@@ -10,7 +10,11 @@ import type {
   WordPressSettings,
 } from "../schemas.js";
 import type { WordPressMediaUploadInput } from "./client.js";
-import type { WordPressResourceDescription } from "./discovery.js";
+import type {
+  WordPressJsonSchema,
+  WordPressResourceDescription,
+  WordPressResourceSchemaSet,
+} from "./discovery.js";
 import type {
   DeleteOptions,
   UserDeleteOptions,
@@ -109,6 +113,22 @@ export interface WordPressDeleteResult {
 }
 
 /**
+ * Discovery-backed helpers shared by fluent resource clients.
+ */
+export interface WordPressResourceToolingClient {
+  getJsonSchema: (
+    schema: keyof WordPressResourceSchemaSet,
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressJsonSchema>;
+  getQueryParams: (options?: WordPressRequestOverrides) => Promise<string[]>;
+  getReadableFields: (options?: WordPressRequestOverrides) => Promise<string[]>;
+  getWritableFields: (
+    operation?: "create" | "update" | "save",
+    options?: WordPressRequestOverrides,
+  ) => Promise<string[]>;
+}
+
+/**
  * Shared post-like resource API surface for built-in and custom content.
  */
 export interface ContentResourceClient<
@@ -116,7 +136,7 @@ export interface ContentResourceClient<
   TFilter extends QueryParams & PaginationParams,
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
-> {
+> extends WordPressResourceToolingClient {
   create: (
     input: TCreate,
     options?: WordPressRequestOverrides,
@@ -171,7 +191,7 @@ export interface TermsResourceClient<
   TFilter extends QueryParams & PaginationParams,
   TCreate extends WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
-> {
+> extends WordPressResourceToolingClient {
   create: (
     input: TCreate,
     options?: WordPressRequestOverrides,
@@ -224,7 +244,7 @@ export interface MediaResourceClient<
     PaginationParams,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
-> {
+> extends WordPressResourceToolingClient {
   create: (
     input: TCreate,
     options?: WordPressRequestOverrides,
@@ -284,7 +304,7 @@ export interface CommentsResourceClient<
     PaginationParams,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
-> {
+> extends WordPressResourceToolingClient {
   create: (
     input: TCreate,
     options?: WordPressRequestOverrides,
@@ -333,7 +353,7 @@ export interface UsersResourceClient<
     PaginationParams,
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
-> {
+> extends WordPressResourceToolingClient {
   create: (
     input: TCreate,
     options?: WordPressRequestOverrides,
@@ -385,7 +405,7 @@ export interface UsersResourceClient<
  */
 export interface SettingsResourceClient<
   TResource extends WordPressSettings = WordPressSettings,
-> {
+> extends WordPressResourceToolingClient {
   describe: (
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressResourceDescription>;

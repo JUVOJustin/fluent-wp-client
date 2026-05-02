@@ -12,6 +12,7 @@
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Root package schema exports must be typed as Standard Schema (`WordPressStandardSchema`) to keep the default API validator-agnostic.
 - Native Zod schema exports belong in the dedicated `fluent-wp-client/zod` entrypoint only.
+- Framework-neutral agent integration helpers belong in the root package. Prefer exposing selectors, schemas, fields, and query arguments so each framework can register focused tools with its own descriptions, defaults, approval flow, and mutation guardrails.
 - Core request and mutation helpers should defer validation to WordPress. When local validation is needed, use `.describe()`, `.explore()`, or generated schema artifacts in application code.
 - Validate and require only the minimum data needed for a feature to work. Keep optional and custom fields extensible so projects can layer in ACF fields, meta, relations, and plugin data without fighting the package.
 - Keep native posts/pages strict, but default generic custom post type reads to a flexible post-like shape because WordPress supports can remove `title`, `content`, `excerpt`, `author`, and related fields from REST responses.
@@ -46,6 +47,7 @@ src/
   blocks-entry.ts              # Public fluent-wp-client/blocks entrypoint
   blocks-zod.ts                # Public fluent-wp-client/blocks/zod entrypoint
   ai-sdk/                      # Optional Vercel AI SDK tool factories
+  catalog-helpers.ts           # Framework-neutral schema, selector, and catalog helpers
   cli/                         # CLI discovery and code generation entrypoints
   abilities.ts                 # Ability methods and builder
   content-query.ts             # Raw content helper types and resolver

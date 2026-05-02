@@ -53,7 +53,8 @@ const draft = await posts.create({ title: 'Hello', status: 'draft' });
 - **Lean embedded payloads** — post-like DTO reads skip `_embed` by default; opt in with `embed: true` or selective `embed: ['author', 'wp:term']` and use typed extraction helpers
 - **Flexible CPT defaults** — generic content reads tolerate post types that omit `title`, `content`, `excerpt`, or `author`
 - **Portable Gutenberg block add-on** — `fluent-wp-client/blocks` adds block type discovery, generated block JSON Schemas, parse/serialize/validate helpers, and explicit `.blocks().get()` / `.blocks().set()` content workflows
-- **AI SDK tool factories** — `fluent-wp-client/ai-sdk` exposes manually composable Vercel AI SDK tools for content reads, mutations, abilities, and block workflows
+- **Framework-neutral agent helpers** — root package APIs expose JSON Schema selectors, fields, and query argument helpers for Flue, MCP, LangChain, and custom agents
+- **AI SDK tool factories** — `fluent-wp-client/ai-sdk` exposes manually composable Vercel AI SDK tools
 - **CLI schema/code generation** — `fluent-wp-client` ships a CLI for discovering resource schemas and generating TypeScript, JSON Schema, and Zod outputs
 - **Auth flexibility** — Basic auth (application passwords), JWT, cookie+nonce, prebuilt headers, and per-request signing
 - **WordPress Abilities API** — discover and execute registered abilities with the same upstream-validated model as the rest of WordPress
@@ -152,6 +153,20 @@ Every tool factory accepts an optional `fetch` callback that replaces the defaul
 Use `toolOptions` to pass additional AI SDK tool settings such as `title`, `inputExamples`, lifecycle callbacks, `outputSchema`, or `toModelOutput` without replacing the generated WordPress execution and schema behavior.
 
 See `docs/ai-sdk.mdx` for the full tool catalog and configuration model.
+
+## Framework-Neutral Agent Tools
+
+Use root package helpers when your agent framework needs JSON Schema, selectors, fields, or query arguments to register its own tools.
+
+```ts
+await wp.explore();
+
+const selectors = await wp.getCatalogSelectors();
+const inputSchema = await wp.content('posts').getJsonSchema('create');
+const queryParams = await wp.content('posts').getQueryParams();
+```
+
+Define framework-specific tool names, descriptions, defaults, fixed arguments, and mutation guardrails in your adapter. The package provides the catalog-derived building blocks.
 
 ## CLI
 

@@ -55,11 +55,6 @@ export interface DescribeResourceToolInclude {
  */
 export interface DescribeResourceToolOptions {
   /**
-   * Optional catalog override. Defaults to `client.getCachedCatalog()` when
-   * the client has one seeded via `wp.explore()` / `wp.useCatalog()`.
-   */
-  catalog?: WordPressDiscoveryCatalog;
-  /**
    * Allowlist that narrows the valid `kind` / `name` combinations exposed
    * to the model.
    */
@@ -85,7 +80,7 @@ export function describeResourceTool(
   client: WordPressClient,
   options?: DescribeResourceToolOptions,
 ): ReturnType<typeof tool> {
-  const catalog = options?.catalog ?? client.getCachedCatalog();
+  const catalog = client.getCachedCatalog();
   const allowedNames = collectAllowedNames(catalog, options?.include);
   const inputSchema = buildInputSchema(allowedNames);
 

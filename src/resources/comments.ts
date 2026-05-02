@@ -10,6 +10,7 @@ import type {
   WordPressRequestOverrides,
 } from "../types/resources.js";
 import { createSchemaValueGetter, describeUnavailable } from "./describe.js";
+import { createSchemaToolMethods } from "./schema-tools.js";
 
 /**
  * WordPress comments resource with full CRUD support.
@@ -45,6 +46,7 @@ export function createCommentsClient(
   const describe = describeFn ?? describeUnavailable;
 
   return {
+    ...createSchemaToolMethods(describe),
     create: (input, options) => resource.create(input, options),
     delete: (id, options) => resource.delete(id, options),
     describe,

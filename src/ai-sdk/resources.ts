@@ -58,12 +58,16 @@ function _createResourceTypeSchema(catalog?: WordPressDiscoveryCatalog) {
 
 function buildResourceUnion(
   discriminator: "resourceType",
-  variants: z.ZodObject<any>[],
+  variants: z.ZodObject<z.ZodRawShape>[],
 ): ZodType {
   if (variants.length === 1) return variants[0];
   return z.discriminatedUnion(
     discriminator,
-    variants as [z.ZodObject<any>, z.ZodObject<any>, ...z.ZodObject<any>[]],
+    variants as [
+      z.ZodObject<z.ZodRawShape>,
+      z.ZodObject<z.ZodRawShape>,
+      ...z.ZodObject<z.ZodRawShape>[],
+    ],
   );
 }
 
@@ -371,7 +375,7 @@ export const getResourceCollectionTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -415,7 +419,7 @@ export const getResourceTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -464,7 +468,7 @@ export const saveResourceTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -510,7 +514,7 @@ export const deleteResourceTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),

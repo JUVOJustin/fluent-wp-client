@@ -63,7 +63,7 @@ export const getContentCollectionTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -105,7 +105,7 @@ export const getContentTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -190,7 +190,7 @@ export const saveContentTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -239,7 +239,7 @@ export const deleteContentTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),

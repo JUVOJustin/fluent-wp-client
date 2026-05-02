@@ -123,7 +123,7 @@ const calcSchemas = zodSchemasFromDescription(catalog.abilities['acme/calculate'
 
 // Validate input before execution
 const input = calcSchemas.input!.parse({ amount: 100, currency: 'USD' });
-const result = await wp.ability('acme/calculate').run(input);
+const result = await wp.ability('acme/calculate').execute(input);
 
 // Optionally validate output
 const validated = calcSchemas.output!.parse(result);

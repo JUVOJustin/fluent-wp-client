@@ -345,6 +345,27 @@ export class WordPressClient {
   /**
    * Lists all registered abilities exposed to the current caller.
    */
+  async abilities(options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbilities(options);
+  }
+
+  /**
+   * Lists all ability categories exposed to the current caller.
+   */
+  async abilityCategories(options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbilityCategories(options);
+  }
+
+  /**
+   * Fetches one ability category by slug.
+   */
+  async abilityCategory(slug: string, options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbilityCategory(slug, options);
+  }
+
+  /**
+   * Lists all registered abilities exposed to the current caller.
+   */
   async getAbilities(options?: WordPressRequestOverrides) {
     return this.abilityMethods.getAbilities(options);
   }

@@ -8,9 +8,6 @@ export {
   type RunAbilityInput,
   WordPressAbilityBuilder,
   type WordPressAbilityRuntime,
-  zodDeleteAbilityInputSchema as deleteAbilityInputSchema,
-  zodGetAbilityInputSchema as getAbilityInputSchema,
-  zodRunAbilityInputSchema as runAbilityInputSchema,
 } from "./abilities.js";
 export {
   type BasicAuthCredentials,
@@ -104,9 +101,6 @@ export {
   type WordPressStandardSchema,
 } from "./core/validation.js";
 export {
-  abilityAnnotationsSchema,
-  abilityCategorySchema,
-  abilitySchema,
   authorSchema,
   baseWordPressSchema,
   categorySchema,

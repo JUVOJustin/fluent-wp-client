@@ -277,7 +277,7 @@ const book = await wp.content('books').create(validatedInput);
 - `wp.content(resource).describe()` — `item`, `collection`, `create`, `update` schemas
 - `wp.terms(resource).describe()` — same for taxonomies
 - `wp.media().describe()` / `wp.comments().describe()` / `wp.users().describe()` / `wp.settings().describe()` — first-class resource schemas
-- `wp.ability(name).describe()` — `input` and `output` schemas
+- `wp.ability(name).getJsonSchema()` / `wp.ability(name).describe()` — ability `input` and `output` schemas
 - `wp.explore()` — full catalog of all resources and abilities at once
 
 Requires an authenticated client for write schemas.

@@ -45,7 +45,7 @@ export const getAbilitiesTool = (
     description:
       options?.description ?? "List all registered WordPress abilities",
     execute: withToolErrorHandling(async () => {
-      return client.getAbilities();
+      return client.abilities();
     }),
     inputSchema: z.object({}).describe("No input required"),
     needsApproval: options?.needsApproval,
@@ -71,7 +71,7 @@ export const getAbilityTool = (
         asToolArgs(args as Record<string, unknown>),
         options?.fixedArgs,
       );
-      return client.getAbility(resolveAbilityName(merged, options));
+      return client.ability(resolveAbilityName(merged, options)).definition();
     }),
     inputSchema: (options?.inputSchema ??
       (options?.abilityName
@@ -85,6 +85,36 @@ export const getAbilityTool = (
                 .describe("Ability name in namespace/ability format"),
             })
             .describe("Ability metadata lookup"))) as never,
+    needsApproval: options?.needsApproval as never,
+    strict: options?.strict,
+  });
+};
+
+/**
+ * AI SDK tool that executes a WordPress ability using its declared mode.
+ */
+export const executeAbilityTool = (
+  client: WordPressClient,
+  options?: AbilityToolFactoryOptions<Record<string, unknown>>,
+) => {
+  const resolvedOptions = {
+    ...options,
+    catalog: client.getCachedCatalog(),
+  };
+  return tool({
+    ...(options?.toolOptions as Record<string, unknown> | undefined),
+    description: options?.description ?? "Execute a WordPress ability",
+    execute: withToolErrorHandling(async (args: unknown) => {
+      const merged = mergeToolArgs(
+        asToolArgs(args as Record<string, unknown>),
+        options?.fixedArgs,
+      );
+      return client
+        .ability(resolveAbilityName(merged, options))
+        .execute(merged.input);
+    }),
+    inputSchema: (options?.inputSchema ??
+      createAbilityRunInputSchema(resolvedOptions)) as never,
     needsApproval: options?.needsApproval as never,
     strict: options?.strict,
   });

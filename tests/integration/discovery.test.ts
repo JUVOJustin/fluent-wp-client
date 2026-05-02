@@ -327,6 +327,122 @@ describe("Discovery APIs", () => {
       ).toHaveLength(1);
     });
 
+    it("does not probe resources missing from the REST index during explore()", async () => {
+      const requestedEndpoints: string[] = [];
+      const runtime: WordPressRuntime = {
+        fetchAPI: async (endpoint) => {
+          if (endpoint === "/wp-json/") {
+            return { routes: {} } as never;
+          }
+
+          if (endpoint === "/wp-json/wp/v2/types") {
+            return {
+              mock: {
+                rest_base: "missing-posts",
+                rest_namespace: "wp/v2",
+                slug: "mock",
+              },
+            } as never;
+          }
+
+          return {} as never;
+        },
+        fetchAPIPaginated: async () => ({
+          data: [],
+          total: 0,
+          totalPages: 0,
+        }),
+        hasAuth: () => true,
+        request: async (options) => {
+          requestedEndpoints.push(options.endpoint);
+          return {
+            data: {},
+            response: new Response(null, { status: 200 }),
+          };
+        },
+      };
+
+      const catalog = await createDiscoveryMethods(runtime).explore({
+        include: ["content"],
+      });
+
+      expect(requestedEndpoints).toEqual([]);
+      expect(catalog.content["missing-posts"]).toBeUndefined();
+    });
+
+    it("deduplicates shared endpoint schema requests during explore()", async () => {
+      const requestedEndpoints: string[] = [];
+      const endpointSchema = {
+        endpoints: [
+          {
+            args: {
+              context: { type: "string" },
+            },
+            methods: ["GET"],
+          },
+          {
+            args: {
+              title: { type: "string" },
+            },
+            methods: ["POST"],
+          },
+        ],
+        schema: {
+          properties: { id: { type: "integer" }, title: { type: "object" } },
+          type: "object",
+        },
+      };
+      const runtime: WordPressRuntime = {
+        fetchAPI: async (endpoint) => {
+          if (endpoint === "/wp-json/") {
+            return {
+              routes: {
+                "/wp/v2/media": endpointSchema,
+                "/wp/v2/media/(?P<id>[\\d]+)": endpointSchema,
+              },
+            } as never;
+          }
+
+          if (endpoint === "/wp-json/wp/v2/types") {
+            return {
+              attachment: {
+                rest_base: "media",
+                rest_namespace: "wp/v2",
+                slug: "attachment",
+              },
+            } as never;
+          }
+
+          return {} as never;
+        },
+        fetchAPIPaginated: async () => ({
+          data: [],
+          total: 0,
+          totalPages: 0,
+        }),
+        hasAuth: () => true,
+        request: async (options) => {
+          requestedEndpoints.push(options.endpoint);
+          return {
+            data: endpointSchema,
+            response: new Response(null, { status: 200 }),
+          };
+        },
+      };
+
+      const catalog = await createDiscoveryMethods(runtime).explore({
+        include: ["content", "resources"],
+      });
+
+      expect(catalog.content.media).toBeDefined();
+      expect(catalog.resources.media).toBeDefined();
+      expect(
+        requestedEndpoints.filter(
+          (endpoint) => endpoint === "/wp-json/wp/v2/media",
+        ),
+      ).toHaveLength(1);
+    });
+
     it("uses common item query params when an item route schema is unavailable", async () => {
       const collectionEndpointSchema = {
         endpoints: [

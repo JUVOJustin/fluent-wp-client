@@ -102,6 +102,17 @@ await wp.settings().describe();
 await wp.ability('my-plugin/send-notification').describe();
 ```
 
+Abilities expose `input` and `output` schemas instead of resource `create`, `update`, `item`, and `collection` schemas:
+
+```ts title="Read ability JSON Schemas"
+const inputSchema = await wp.ability('my-plugin/send-notification').getJsonSchema('input');
+const outputValidator = await wp
+  .ability('my-plugin/send-notification')
+  .getStandardSchema('output');
+```
+
+`input` and `output` come from WordPress ability discovery and apply regardless of whether the ability executes through GET, POST, or DELETE. Ability helper schemas such as `definition`, `annotations`, and `category` fall back to the package's generic JSON Schema shape when no catalog schema is available.
+
 ## Runtime schema conversion with `zodFromJsonSchema`
 
 The `fluent-wp-client/zod` subpackage exports helpers that convert discovered JSON Schemas to Zod validators at runtime. This is the primary path for apps that manage multiple WordPress instances or build client configuration dynamically.
@@ -139,7 +150,7 @@ const catalog = await wp.explore();
 const calcSchemas = zodSchemasFromDescription(catalog.abilities['acme/calculate']);
 
 const input = calcSchemas.input!.parse({ amount: 100, currency: 'USD' });
-const result = await wp.ability('acme/calculate').run(input);
+const result = await wp.ability('acme/calculate').execute(input);
 ```
 
 :::tip[When to use runtime conversion]

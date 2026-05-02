@@ -58,7 +58,11 @@ function createDiscoveryCache(): DiscoveryCache {
  * Default concurrency cap for parallel discovery requests.
  * Limits simultaneous OPTIONS/schema requests to avoid overwhelming large installs.
  */
-const DISCOVERY_CONCURRENCY = 5;
+const DISCOVERY_CONCURRENCY = 10;
+
+type EndpointSchemaResolver = (
+  endpoint: string,
+) => Promise<WordPressEndpointSchema | undefined>;
 
 /**
  * Runs an array of async factories in parallel with a configurable concurrency cap.
@@ -98,8 +102,14 @@ type DiscoveryFailure = {
   message: string;
 };
 
+type DiscoverySkip = {
+  type: "skip";
+};
+
 async function collectDiscoveryResults<T>(
-  factories: Array<() => Promise<DiscoverySuccess<T> | DiscoveryFailure>>,
+  factories: Array<
+    () => Promise<DiscoverySuccess<T> | DiscoveryFailure | DiscoverySkip>
+  >,
   warningPrefix: string,
 ): Promise<{
   records: Record<string, T>;
@@ -112,6 +122,10 @@ async function collectDiscoveryResults<T>(
   for (const result of results) {
     if (result.type === "success") {
       records[result.key] = result.value;
+      continue;
+    }
+
+    if (result.type === "skip") {
       continue;
     }
 
@@ -169,7 +183,7 @@ async function fetchRestIndexRouteSchema(
 ): Promise<WordPressEndpointSchema | undefined> {
   try {
     const routes = routesPromise ?? fetchRestIndexRoutes(runtime, options);
-    return (await routes)?.[route.replace(/^\/wp-json/, "")];
+    return (await routes)?.[rootIndexRouteKey(route)];
   } catch {
     return undefined;
   }
@@ -187,6 +201,51 @@ async function fetchRestIndexRoutes(
   } catch {
     return undefined;
   }
+}
+
+function rootIndexRouteKey(route: string): string {
+  return route.replace(/^\/wp-json/, "");
+}
+
+async function hasRestIndexRoute(
+  route: string,
+  restIndexRoutes?: RestIndexRoutesPromise,
+): Promise<boolean> {
+  if (!restIndexRoutes) {
+    return true;
+  }
+
+  const routes = await restIndexRoutes;
+  return !routes || Boolean(routes[rootIndexRouteKey(route)]);
+}
+
+function createEndpointSchemaResolver(
+  runtime: WordPressRuntime,
+  options?: WordPressRequestOverrides,
+  restIndexRoutes?: RestIndexRoutesPromise,
+): EndpointSchemaResolver {
+  const requests = new Map<
+    string,
+    Promise<WordPressEndpointSchema | undefined>
+  >();
+
+  return (endpoint) => {
+    const cached = requests.get(endpoint);
+    if (cached) {
+      return cached;
+    }
+
+    const request = (async () => {
+      if (!(await hasRestIndexRoute(endpoint, restIndexRoutes))) {
+        return undefined;
+      }
+
+      return fetchEndpointSchema(runtime, endpoint, options);
+    })();
+    requests.set(endpoint, request);
+
+    return request;
+  };
 }
 
 function itemRouteFor(route: string): string {
@@ -703,6 +762,7 @@ async function discoverContentResource(
   resource: string,
   options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
+  const restIndexRoutes = fetchRestIndexRoutes(runtime, options);
   const types = await runtime.fetchAPI<WordPressTypesResponse>(
     "/wp-json/wp/v2/types",
     undefined,
@@ -725,6 +785,8 @@ async function discoverContentResource(
     resource,
     typeInfo,
     options,
+    restIndexRoutes,
+    createEndpointSchemaResolver(runtime, options),
   );
 }
 
@@ -737,13 +799,15 @@ async function discoverContentResourceFromTypeInfo(
   typeInfo: { slug: string; rest_base?: string; rest_namespace?: string },
   options?: WordPressRequestOverrides,
   restIndexRoutes?: RestIndexRoutesPromise,
+  resolveEndpointSchema: EndpointSchemaResolver = (endpoint) =>
+    fetchEndpointSchema(runtime, endpoint, options),
 ): Promise<WordPressResourceDescription> {
   const namespace = typeInfo.rest_namespace || "wp/v2";
   const restBase = typeInfo.rest_base || resource;
   const route = `/wp-json/${namespace}/${restBase}`;
 
   const [endpointSchema, itemEndpointSchema] = await Promise.all([
-    fetchEndpointSchema(runtime, route, options),
+    resolveEndpointSchema(route),
     fetchRestIndexRouteSchema(
       runtime,
       itemRouteFor(route),
@@ -779,6 +843,7 @@ async function discoverTermResource(
   resource: string,
   options?: WordPressRequestOverrides,
 ): Promise<WordPressResourceDescription> {
+  const restIndexRoutes = fetchRestIndexRoutes(runtime, options);
   const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>(
     "/wp-json/wp/v2/taxonomies",
     undefined,
@@ -801,6 +866,8 @@ async function discoverTermResource(
     resource,
     taxonomyInfo,
     options,
+    restIndexRoutes,
+    createEndpointSchemaResolver(runtime, options),
   );
 }
 
@@ -813,13 +880,15 @@ async function discoverTermResourceFromTypeInfo(
   taxonomyInfo: { slug: string; rest_base?: string; rest_namespace?: string },
   options?: WordPressRequestOverrides,
   restIndexRoutes?: RestIndexRoutesPromise,
+  resolveEndpointSchema: EndpointSchemaResolver = (endpoint) =>
+    fetchEndpointSchema(runtime, endpoint, options),
 ): Promise<WordPressResourceDescription> {
   const namespace = taxonomyInfo.rest_namespace || "wp/v2";
   const restBase = taxonomyInfo.rest_base || resource;
   const route = `/wp-json/${namespace}/${restBase}`;
 
   const [endpointSchema, itemEndpointSchema] = await Promise.all([
-    fetchEndpointSchema(runtime, route, options),
+    resolveEndpointSchema(route),
     fetchRestIndexRouteSchema(
       runtime,
       itemRouteFor(route),
@@ -856,12 +925,14 @@ async function discoverFirstClassResource(
   restBase: string,
   options?: WordPressRequestOverrides,
   restIndexRoutes?: RestIndexRoutesPromise,
+  resolveEndpointSchema: EndpointSchemaResolver = (endpoint) =>
+    fetchEndpointSchema(runtime, endpoint, options),
 ): Promise<WordPressResourceDescription> {
   const namespace = "wp/v2";
   const route = `/wp-json/${namespace}/${restBase}`;
 
   const [endpointSchema, itemEndpointSchema] = await Promise.all([
-    fetchEndpointSchema(runtime, route, options),
+    resolveEndpointSchema(route),
     fetchRestIndexRouteSchema(
       runtime,
       itemRouteFor(route),
@@ -933,6 +1004,11 @@ async function discoverAllContent(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
   restIndexRoutes?: RestIndexRoutesPromise,
+  resolveEndpointSchema: EndpointSchemaResolver = createEndpointSchemaResolver(
+    runtime,
+    options,
+    restIndexRoutes,
+  ),
 ): Promise<{
   resources: Record<string, WordPressResourceDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -946,13 +1022,20 @@ async function discoverAllContent(
       undefined,
       options,
     );
-
     // Prepare discovery factories for all content types; run with concurrency cap
     const discoveryFactories = Object.entries(types)
       .filter(([, info]) => info.rest_base)
       .map(([, info]) => async () => {
         const restBase = info.rest_base as string;
+        const namespace = info.rest_namespace || "wp/v2";
+        const route = `/wp-json/${namespace}/${restBase}`;
         try {
+          if (!(await hasRestIndexRoute(route, restIndexRoutes))) {
+            return {
+              type: "skip" as const,
+            };
+          }
+
           const description = await discoverContentResourceFromTypeInfo(
             runtime,
             restBase,
@@ -963,6 +1046,7 @@ async function discoverAllContent(
             },
             options,
             restIndexRoutes,
+            resolveEndpointSchema,
           );
           return {
             key: restBase,
@@ -1007,6 +1091,11 @@ async function discoverAllTerms(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
   restIndexRoutes?: RestIndexRoutesPromise,
+  resolveEndpointSchema: EndpointSchemaResolver = createEndpointSchemaResolver(
+    runtime,
+    options,
+    restIndexRoutes,
+  ),
 ): Promise<{
   resources: Record<string, WordPressResourceDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -1020,13 +1109,20 @@ async function discoverAllTerms(
       undefined,
       options,
     );
-
     // Prepare discovery factories for all taxonomies; run with concurrency cap
     const discoveryFactories = Object.entries(taxonomies)
       .filter(([, info]) => info.rest_base)
       .map(([, info]) => async () => {
         const restBase = info.rest_base as string;
+        const namespace = info.rest_namespace || "wp/v2";
+        const route = `/wp-json/${namespace}/${restBase}`;
         try {
+          if (!(await hasRestIndexRoute(route, restIndexRoutes))) {
+            return {
+              type: "skip" as const,
+            };
+          }
+
           const description = await discoverTermResourceFromTypeInfo(
             runtime,
             restBase,
@@ -1037,6 +1133,7 @@ async function discoverAllTerms(
             },
             options,
             restIndexRoutes,
+            resolveEndpointSchema,
           );
           return {
             key: restBase,
@@ -1079,6 +1176,11 @@ async function discoverFirstClassResources(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
   restIndexRoutes?: RestIndexRoutesPromise,
+  resolveEndpointSchema: EndpointSchemaResolver = createEndpointSchemaResolver(
+    runtime,
+    options,
+    restIndexRoutes,
+  ),
 ): Promise<{
   resources: Record<string, WordPressResourceDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -1092,7 +1194,6 @@ async function discoverFirstClassResources(
     { resource: "comments", restBase: "comments" },
     { resource: "settings", restBase: "settings" },
   ];
-
   // Execute discoveries with concurrency cap (first-class resources are few, but consistent with other sites)
   const discoveryFactories = firstClassEndpoints.map(
     ({ resource, restBase }) =>
@@ -1104,6 +1205,7 @@ async function discoverFirstClassResources(
             restBase,
             options,
             restIndexRoutes,
+            resolveEndpointSchema,
           );
           return {
             key: resource,
@@ -1314,11 +1416,14 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       return cached;
     }
 
+    const restIndexRoutes = fetchRestIndexRoutes(runtime, options);
     const description = await discoverFirstClassResource(
       runtime,
       resource,
       resource,
       options,
+      restIndexRoutes,
+      createEndpointSchemaResolver(runtime, options),
     );
     cache.resources.set(cacheKey, description);
 
@@ -1384,6 +1489,11 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
     const restIndexRoutes = needsRestIndex
       ? fetchRestIndexRoutes(runtime, requestOptions)
       : undefined;
+    const resolveEndpointSchema = createEndpointSchemaResolver(
+      runtime,
+      requestOptions,
+      restIndexRoutes,
+    );
 
     // Execute all discovery operations in parallel
     const discoveryPromises: Promise<void>[] = [];
@@ -1396,6 +1506,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
             runtime,
             requestOptions,
             restIndexRoutes,
+            resolveEndpointSchema,
           );
           catalog.content = resources;
           catalog.warnings?.push(...warnings);
@@ -1412,6 +1523,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
             runtime,
             requestOptions,
             restIndexRoutes,
+            resolveEndpointSchema,
           );
           catalog.terms = resources;
           catalog.warnings?.push(...warnings);
@@ -1428,6 +1540,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
             runtime,
             requestOptions,
             restIndexRoutes,
+            resolveEndpointSchema,
           );
           catalog.resources = resources;
           catalog.warnings?.push(...warnings);

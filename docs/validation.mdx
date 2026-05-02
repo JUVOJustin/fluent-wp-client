@@ -90,7 +90,7 @@ const catalog = await wp.explore();
 const schemas = zodSchemasFromDescription(catalog.abilities['acme/calculate']);
 
 const input = schemas.input!.parse({ amount: 100, currency: 'USD' });
-const result = await wp.ability('acme/calculate').run(input);
+const result = await wp.ability('acme/calculate').execute(input);
 ```
 
 ## Build-time validation with the CLI

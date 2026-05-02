@@ -10,37 +10,49 @@ sidebar:
 
 `fluent-wp-client` supports the WordPress Abilities API exposed at `/wp-json/wp-abilities/v1`.
 
-Use it to inspect registered abilities, list categories, execute ability `run` endpoints, and fetch the live input/output schemas exposed by WordPress.
+Use it to inspect registered abilities, list categories, execute abilities, and fetch the live input/output schemas exposed by WordPress.
 
 ## Metadata
 
 ```ts title="Ability metadata"
-const abilities = await wp.getAbilities();
-const ability = await wp.getAbility('test/get-site-title');
-const categories = await wp.getAbilityCategories();
-const category = await wp.getAbilityCategory('test');
+const abilities = await wp.abilities();
+const ability = await wp.ability('test/get-site-title').definition();
+const categories = await wp.abilityCategories();
+const category = await wp.abilityCategory('test');
 ```
 
-## Direct execution helpers
+Use `ability(name)` for schema helpers too:
 
-Choose the helper that matches the ability annotations:
-
-- `executeGetAbility()` for `readonly: true`
-- `executeRunAbility()` for regular POST abilities
-- `executeDeleteAbility()` for `destructive: true`
-
-```ts title="Direct execution helpers"
-const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
-
-const updated = await wp.executeRunAbility<{ previous: string; current: string }>(
-  'test/update-option',
-  { value: 'hello' },
-);
-
-const deleted = await wp.executeDeleteAbility<{ deleted: boolean }>('test/delete-option');
+```ts title="Ability schema helpers"
+const outputSchema = await wp.ability('test/get-site-title').getJsonSchema('output');
+const inputValidator = await wp.ability('test/process-complex').getStandardSchema('input');
 ```
 
-## Fluent execution
+## Execution
+
+Use `execute()` for every ability. The client reads the ability annotations and chooses the correct WordPress execution mode:
+
+- `readonly: true` executes with `GET /run`
+- `destructive: true` executes with `DELETE /run`
+- other abilities execute with `POST /run`
+
+```ts title="Execute abilities"
+const siteTitle = await wp
+  .ability<undefined, { title: string }>('test/get-site-title')
+  .execute();
+
+const updated = await wp
+  .ability<{ value: string }, { previous: string; current: string }>('test/update-option')
+  .execute({ value: 'hello' });
+
+const deleted = await wp
+  .ability<string, { deleted: boolean }>('test/delete-option')
+  .execute('test_ability_option');
+```
+
+TypeScript cannot infer static input/output types from a runtime catalog by itself. For compile-time types, pass generics manually or use the CLI to generate TypeScript types from a known WordPress site. For runtime validation from the live catalog, use `getStandardSchema()`.
+
+## Reusable Handles
 
 Use `client.ability(name)` when you want a reusable ability handle.
 
@@ -52,21 +64,20 @@ const processComplex = wp
   >('test/process-complex')
 ;
 
-const result = await processComplex.run({
+const result = await processComplex.execute({
   name: 'demo',
   settings: { theme: 'dark' },
 });
 ```
 
-Builder methods:
+Preferred builder methods:
 
-- `getDefinition()`
-- `get(input?)`
-- `run(input?)`
-- `delete(input?)`
-- `describe()`
+- `definition()`
+- `execute(input?)`
+- `getJsonSchema(schema)`
+- `getStandardSchema(schema)`
 
-## Custom validation with `describe()`
+## Custom Validation
 
 Ability execution does not run local validation. WordPress remains the source of truth.
 
@@ -75,45 +86,46 @@ When you want app-level validation, fetch the live schema and validate the paylo
 ```ts title="Validate one ability input with the live schema"
 import { z } from 'zod';
 
-const desc = await wp.ability('test/process-complex').describe();
-const inputSchema = z.fromJSONSchema(desc.schemas.input!);
-const outputSchema = z.fromJSONSchema(desc.schemas.output!);
+const inputJsonSchema = await wp.ability('test/process-complex').getJsonSchema('input');
+const outputJsonSchema = await wp.ability('test/process-complex').getJsonSchema('output');
+const inputSchema = z.fromJSONSchema(inputJsonSchema);
+const outputSchema = z.fromJSONSchema(outputJsonSchema);
 
 const validatedInput = inputSchema.parse({
   name: 'demo',
   settings: { theme: 'dark' },
 });
 
-const result = await wp.ability('test/process-complex').run(validatedInput);
+const result = await wp.ability('test/process-complex').execute(validatedInput);
 const validatedResult = outputSchema.parse(result);
 ```
 
-## Schemas
+## Schema Access
 
-The root package exports these ability schemas as Standard Schema validators:
+Prefer ability JSON Schemas from WordPress instead of static package-level ability validators:
 
-- `abilityAnnotationsSchema`
-- `abilitySchema`
-- `abilityCategorySchema`
-- `getAbilityInputSchema`
-- `runAbilityInputSchema`
-- `deleteAbilityInputSchema`
+```ts title="Ability JSON Schema options"
+const definitionSchema = await wp.ability('test/get-site-title').getJsonSchema('definition');
+const annotationsSchema = await wp.ability('test/get-site-title').getJsonSchema('annotations');
+const inputSchema = await wp.ability('test/process-complex').getJsonSchema('input');
+const outputSchema = await wp.ability('test/delete-option').getJsonSchema('output');
+```
+
+`input` and `output` come from the live ability description and apply regardless of whether the ability executes through GET, POST, or DELETE. `definition`, `annotations`, and `category` fall back to the built-in generic JSON Schemas when a live catalog schema is not available.
 
 :::tip[Need native Zod APIs?]
-Import from `fluent-wp-client/zod` when you need `.parse()`, `.shape`, or `.extend()`:
+Convert the discovered JSON Schema in application code when you need `.parse()`, `.shape`, or `.extend()`:
 
 ```ts
-import {
-  abilitySchema,
-  getAbilityInputSchema,
-} from 'fluent-wp-client/zod';
+import { z } from 'zod';
 
-const parsed = abilitySchema.parse(unknownAbility);
-const input = getAbilityInputSchema.parse({ name: 'test/get-site-title' });
+const inputJsonSchema = await wp.ability('test/process-complex').getJsonSchema('input');
+const inputSchema = z.fromJSONSchema(inputJsonSchema);
+const input = inputSchema.parse({ name: 'demo', settings: { theme: 'dark' } });
 ```
 :::
 
-All ability schemas use `.passthrough()` so plugin-added fields stay available.
+Fallback ability metadata schemas stay extensible so plugin-added fields stay available.
 
 ## Validation model
 

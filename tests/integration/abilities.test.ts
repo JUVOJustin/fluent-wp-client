@@ -58,13 +58,14 @@ describe("Client: Abilities", () => {
 
   afterAll(async () => {
     await authClient
-      .executeDeleteAbility("test/delete-option", optionKey)
+      .ability("test/delete-option")
+      .execute(optionKey)
       .catch(() => undefined);
   });
 
   describe("metadata", () => {
     it("lists registered ability metadata", async () => {
-      const abilities = await authClient.getAbilities();
+      const abilities = await authClient.abilities();
 
       expect(
         abilities.some((ability) => ability.name === "test/get-site-title"),
@@ -75,15 +76,63 @@ describe("Client: Abilities", () => {
     });
 
     it("fetches one registered ability definition", async () => {
-      const ability = await authClient.getAbility("test/get-site-title");
+      const ability = await authClient
+        .ability("test/get-site-title")
+        .definition();
 
       expect(ability.name).toBe("test/get-site-title");
       expect(ability.meta?.annotations?.readonly).toBe(true);
       expect(ability.meta?.annotations?.destructive).toBe(false);
     });
 
+    it("supports schema access from ability builders", async () => {
+      const schemas = await authClient
+        .ability("test/get-site-title")
+        .describe();
+      const outputSchema = await authClient
+        .ability("test/get-site-title")
+        .getJsonSchema("output");
+
+      expect(schemas.schemas.output).toBeDefined();
+      expect(outputSchema).toEqual(schemas.schemas.output);
+    });
+
+    it("uses the same live ability input schema for every execution mode", async () => {
+      const inputSchema = await authClient
+        .ability("test/process-complex")
+        .getJsonSchema("input");
+
+      expect(inputSchema.properties?.name).toMatchObject({ type: "string" });
+      expect(inputSchema.properties?.settings).toBeDefined();
+    });
+
+    it("falls back to built-in ability JSON Schemas", async () => {
+      const definitionSchema = await authClient
+        .ability("test/get-site-title")
+        .getJsonSchema("definition");
+      const inputSchema = await authClient
+        .ability("test/get-site-title")
+        .getJsonSchema("input");
+
+      expect(definitionSchema).toMatchObject({ type: "object" });
+      expect(inputSchema).toEqual({});
+    });
+
+    it("supports Standard Schema access from ability handles", async () => {
+      const standard = await authClient
+        .ability("test/process-complex")
+        .getStandardSchema("input");
+      const result = await standard["~standard"].validate({
+        name: "demo",
+        settings: { theme: "dark" },
+      });
+
+      expect(result.issues).toBeUndefined();
+      expect(result.value).toBeDefined();
+    });
+
     it("lists ability categories", async () => {
-      const categories = await authClient.getAbilityCategories();
+      const categories = await authClient.abilityCategories();
 
       expect(Array.isArray(categories)).toBe(true);
       expect(categories.some((category) => category.slug === "test")).toBe(
@@ -92,7 +141,7 @@ describe("Client: Abilities", () => {
     });
 
     it("fetches one ability category by slug", async () => {
-      const category = await authClient.getAbilityCategory("test");
+      const category = await authClient.abilityCategory("test");
 
       expect(category.slug).toBe("test");
       expect(typeof category.label).toBe("string");
@@ -319,7 +368,7 @@ describe("Client: Abilities", () => {
             };
           }
         >("test/process-complex")
-        .run({
+        .execute({
           name: "Alpha",
           settings: { font_size: 18, theme: "clean" },
           tags: ["featured", "guide"],
@@ -397,7 +446,7 @@ describe("Client: Abilities", () => {
       expect(desc.schemas.output).toBeDefined();
     });
 
-    it("run() does not validate input even when catalog has schemas", async () => {
+    it("execute() does not validate input even when catalog has schemas", async () => {
       const catalog = await authClient.explore({ include: ["abilities"] });
 
       // Confirm the catalog carries an input schema for the ability
@@ -410,16 +459,16 @@ describe("Client: Abilities", () => {
 
       // Send invalid input — should pass through to WordPress (no local validation)
       await expect(
-        seededClient.executeRunAbility("test/update-option", {
-          wrong_field: "x",
-        }),
+        seededClient
+          .ability("test/update-option")
+          .execute({ wrong_field: "x" }),
       ).rejects.toMatchObject({
         name: "WordPressHttpError",
         status: 400,
       });
     });
 
-    it("run() continues to defer invalid input to WordPress even when catalog has schemas", async () => {
+    it("execute() continues to defer invalid input to WordPress even when catalog has schemas", async () => {
       const catalog = await authClient.explore({ include: ["abilities"] });
 
       expect(
@@ -432,7 +481,7 @@ describe("Client: Abilities", () => {
       await expect(
         seededClient
           .ability("test/update-option")
-          .run({ wrong_field: "x" } as any),
+          .execute({ wrong_field: "x" } as any),
       ).rejects.toMatchObject({
         name: "WordPressHttpError",
         status: 400,

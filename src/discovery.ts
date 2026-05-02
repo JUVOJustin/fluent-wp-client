@@ -17,7 +17,6 @@ import type {
   WordPressDiscoveryOptions,
   WordPressDiscoveryWarning,
   WordPressEndpointSchema,
-  WordPressJsonSchema,
   WordPressResourceCapabilities,
   WordPressResourceDescription,
   WordPressResourceSchemaSet,
@@ -203,7 +202,11 @@ function createResourceDescription(config: {
   slug?: string;
   endpointSchema: WordPressEndpointSchema;
 }): WordPressResourceDescription {
-  const itemSchema = normalizeDiscoverySchema(config.endpointSchema.schema);
+  const itemSchema = config.endpointSchema.schema
+    ? (normalizeWordPressJsonSchema(
+        config.endpointSchema.schema as Record<string, unknown>,
+      ) as WordPressResourceSchemaSet["item"])
+    : undefined;
   const collectionSchema = itemSchema
     ? { items: itemSchema, type: "array" }
     : undefined;
@@ -228,16 +231,6 @@ function createResourceDescription(config: {
     schemas,
     slug: config.slug,
   };
-}
-
-/**
- * Normalizes durable WordPress schema quirks before storing catalog entries.
- */
-function normalizeDiscoverySchema<T extends WordPressJsonSchema | undefined>(
-  schema: T,
-): T {
-  if (!schema) return schema;
-  return normalizeWordPressJsonSchema(schema as Record<string, unknown>) as T;
 }
 
 /**
@@ -417,9 +410,9 @@ function buildCreateSchema(
     schema.required = required;
   }
 
-  return normalizeDiscoverySchema(
-    schema as WordPressResourceSchemaSet["create"],
-  );
+  return normalizeWordPressJsonSchema(
+    schema,
+  ) as WordPressResourceSchemaSet["create"];
 }
 
 /**
@@ -627,12 +620,16 @@ async function discoverAbility(
     raw: ability,
     route,
     schemas: compactOptionalProperties({
-      input: normalizeDiscoverySchema(
-        ability.input_schema as WordPressAbilityDescription["schemas"]["input"],
-      ),
-      output: normalizeDiscoverySchema(
-        ability.output_schema as WordPressAbilityDescription["schemas"]["output"],
-      ),
+      input: ability.input_schema
+        ? (normalizeWordPressJsonSchema(
+            ability.input_schema as Record<string, unknown>,
+          ) as WordPressAbilityDescription["schemas"]["input"])
+        : undefined,
+      output: ability.output_schema
+        ? (normalizeWordPressJsonSchema(
+            ability.output_schema as Record<string, unknown>,
+          ) as WordPressAbilityDescription["schemas"]["output"])
+        : undefined,
     }) as WordPressAbilitySchemaSet,
   };
 }

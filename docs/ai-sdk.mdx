@@ -132,11 +132,9 @@ const searchAnyContent = getContentCollectionTool(wp);
 
 When the client has a cached catalog, `contentType`, `taxonomyType`, `resourceType`, and ability `name` become enums in the tool schema.
 
-For non-AI SDK frameworks, use the root package helpers to read selectors, JSON Schemas, fields, and query arguments, then register framework-native tools with your own names, descriptions, defaults, fixed arguments, and mutation guardrails.
-
 ## Catalog-aware schemas
 
-Populate the client cache with `wp.explore()` or `wp.useCatalog()` when you want the tool schema to reflect the connected WordPress instance. Tool factories read the catalog from the client; they do not accept a duplicate catalog option.
+Populate the client cache with `wp.explore()` or `wp.useCatalog()` when you want the tool schema to reflect the connected WordPress instance.
 
 ```typescript
 const catalog = await wp.explore();

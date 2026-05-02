@@ -37,12 +37,9 @@ export {
 // Content item query builder for awaitable single-item access
 export { ContentItemQuery } from "./builders/content-item-query.js";
 export {
-  getAcfFields,
   getCatalogSelectors,
-  getFieldChoices,
   getQueryParams,
   getReadableFields,
-  getSchemaProperty,
   getWritableFields,
   type WordPressCatalogResourceKind,
   type WordPressCatalogSelectors,

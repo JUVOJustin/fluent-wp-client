@@ -37,7 +37,7 @@ export function createSchemaToolMethods(
       getQueryParamsDescription(await getDescription(options)),
     getReadableFields: async (options) =>
       getReadableFieldsDescription(await getDescription(options)),
-    getWritableFields: async (operation = "save", options) =>
+    getWritableFields: async (operation, options) =>
       getWritableFieldsDescription(await getDescription(options), operation),
   };
 }

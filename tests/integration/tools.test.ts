@@ -3,7 +3,6 @@ import type {
   WordPressDiscoveryCatalog,
 } from "fluent-wp-client";
 import {
-  getAcfFields,
   getCatalogSelectors,
   getQueryParams,
   getReadableFields,
@@ -42,9 +41,9 @@ describe("framework-neutral WordPress tools", () => {
 
   it("exposes schema helpers without requiring manual catalog walking", () => {
     expect(getReadableFields(catalog, "content", "posts")).toContain("title");
+    expect(getReadableFields(catalog, "content", "posts")).toContain("acf");
     expect(getWritableFields(catalog, "content", "posts")).toContain("title");
     expect(getQueryParams(catalog, "content", "posts")).toContain("per_page");
-    expect(getAcfFields(catalog, "posts")).toContain("acf_subtitle");
   });
 
   it("exposes schema helpers through fluent resource clients", async () => {

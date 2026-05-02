@@ -181,9 +181,8 @@ export type {
 
 export {
   type AbilityZodSchemas,
-  normalizeWordPressJsonSchema,
   type ResourceZodSchemas,
-  /** @deprecated Use `normalizeWordPressJsonSchema` instead. */
+  /** @deprecated Prefer `zodFromJsonSchema` for validator conversion. */
   stripDateTimeFormats,
   zodFromJsonSchema,
   zodSchemasFromDescription,

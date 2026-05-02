@@ -123,7 +123,7 @@ export interface WordPressResourceToolingClient {
   getQueryParams: (options?: WordPressRequestOverrides) => Promise<string[]>;
   getReadableFields: (options?: WordPressRequestOverrides) => Promise<string[]>;
   getWritableFields: (
-    operation?: "create" | "update" | "save",
+    operation?: "create" | "update",
     options?: WordPressRequestOverrides,
   ) => Promise<string[]>;
 }

@@ -16,12 +16,10 @@ import type {
 // Normalization
 // ---------------------------------------------------------------------------
 
-export { normalizeWordPressJsonSchema } from "./core/json-schema.js";
-
 /**
- * @deprecated Renamed to `normalizeWordPressJsonSchema` to reflect its
- * broader scope. This wrapper is preserved for backwards compatibility and
- * keeps the original date-time stripping behavior.
+ * @deprecated Prefer `zodFromJsonSchema` for validator conversion. This
+ * wrapper is preserved for backwards compatibility and keeps the original
+ * date-time stripping behavior.
  */
 export function stripDateTimeFormats(
   schema: Record<string, unknown>,

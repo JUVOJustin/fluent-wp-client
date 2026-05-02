@@ -37,7 +37,7 @@ export function getWritableFields(
   catalog: WordPressDiscoveryCatalog,
   kind: WordPressCatalogResourceKind,
   type: string,
-  operation: "create" | "update" | "save" = "save",
+  operation?: "create" | "update",
 ): string[] {
   const description = getResourceDescription(catalog, kind, type);
   return description
@@ -62,7 +62,7 @@ export function getReadableFieldsDescription(
 
 export function getWritableFieldsDescription(
   description: WordPressResourceDescription,
-  operation: "create" | "update" | "save" = "save",
+  operation?: "create" | "update",
 ): string[] {
   const capabilities = description.capabilities;
   if (!capabilities) return [];
@@ -77,53 +77,6 @@ export function getQueryParamsDescription(
   description: WordPressResourceDescription,
 ): string[] {
   return description.capabilities?.queryParams ?? [];
-}
-
-export function getSchemaProperty(
-  catalog: WordPressDiscoveryCatalog,
-  options: {
-    kind: WordPressCatalogResourceKind;
-    path: string;
-    schema: keyof WordPressResourceDescription["schemas"];
-    type: string;
-  },
-): unknown {
-  const schema = getResourceDescription(catalog, options.kind, options.type)
-    ?.schemas[options.schema];
-  if (!schema) return undefined;
-
-  return options.path.split(".").reduce<unknown>((value, segment) => {
-    if (!value || typeof value !== "object") return undefined;
-    return (value as Record<string, unknown>)[segment];
-  }, schema);
-}
-
-export function getFieldChoices(
-  catalog: WordPressDiscoveryCatalog,
-  kind: WordPressCatalogResourceKind,
-  type: string,
-  path: string,
-): unknown[] {
-  const property = getSchemaProperty(catalog, {
-    kind,
-    path: `properties.${path.split(".").join(".properties.")}`,
-    schema: "create",
-    type,
-  }) as { choices?: unknown[]; enum?: unknown[] } | undefined;
-  return property?.choices ?? property?.enum ?? [];
-}
-
-export function getAcfFields(
-  catalog: WordPressDiscoveryCatalog,
-  contentType: string,
-): string[] {
-  const acf = getSchemaProperty(catalog, {
-    kind: "content",
-    path: "properties.acf.properties",
-    schema: "item",
-    type: contentType,
-  });
-  return acf && typeof acf === "object" ? Object.keys(acf) : [];
 }
 
 export function getResourceDescription(

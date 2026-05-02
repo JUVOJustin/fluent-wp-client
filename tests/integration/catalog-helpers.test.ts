@@ -11,7 +11,7 @@ import {
 import { beforeAll, describe, expect, it } from "vitest";
 import { createAuthClient, createPublicClient } from "../helpers/wp-client";
 
-describe("framework-neutral WordPress tools", () => {
+describe("framework-neutral catalog helpers", () => {
   let publicClient: WordPressClient;
   let catalog: WordPressDiscoveryCatalog;
 
@@ -39,14 +39,14 @@ describe("framework-neutral WordPress tools", () => {
     expect(selectors.contentType.enum).toContain("posts");
   });
 
-  it("exposes schema helpers without requiring manual catalog walking", () => {
+  it("exposes catalog helpers without requiring manual catalog walking", () => {
     expect(getReadableFields(catalog, "content", "posts")).toContain("title");
     expect(getReadableFields(catalog, "content", "posts")).toContain("acf");
     expect(getWritableFields(catalog, "content", "posts")).toContain("title");
     expect(getQueryParams(catalog, "content", "posts")).toContain("per_page");
   });
 
-  it("exposes schema helpers through fluent resource clients", async () => {
+  it("exposes catalog helpers through fluent resource clients", async () => {
     await expect(
       publicClient.content("posts").getQueryParams(),
     ).resolves.toContain("per_page");

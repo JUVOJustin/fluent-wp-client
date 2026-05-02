@@ -61,7 +61,7 @@ export const getAbilityTool = (
 ) => {
   const _resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -99,7 +99,7 @@ export const executeGetAbilityTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -131,7 +131,7 @@ export const executeRunAbilityTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -162,7 +162,7 @@ export const executeDeleteAbilityTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -334,7 +334,7 @@ export function createAbilityTools(
   client: WordPressClient,
   options?: CreateAbilityToolsOptions,
 ): Record<string, ReturnType<typeof tool>> {
-  const catalog = options?.catalog ?? client.getCachedCatalog();
+  const catalog = client.getCachedCatalog();
 
   if (!catalog) {
     throw createInvalidRequestError(

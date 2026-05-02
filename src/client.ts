@@ -8,6 +8,10 @@ import type {
   JwtAuthValidationResponse,
   JwtLoginCredentials,
 } from "./auth.js";
+import {
+  getCatalogSelectors as getCatalogSelectorsFromCatalog,
+  type WordPressCatalogSelectors,
+} from "./catalog-helpers.js";
 import { filterToParams } from "./core/params.js";
 import {
   createRuntime,
@@ -461,6 +465,16 @@ export class WordPressClient {
     options?: WordPressDiscoveryOptions & WordPressRequestOverrides,
   ): Promise<WordPressDiscoveryCatalog> {
     return this.discoveryMethods.explore(options);
+  }
+
+  /**
+   * Gets selector schemas for model-facing resource choices.
+   * Uses the cached catalog when present, otherwise runs discovery first.
+   */
+  async getCatalogSelectors(): Promise<WordPressCatalogSelectors> {
+    const catalog =
+      this.discoveryMethods.getCatalogSnapshot() ?? (await this.explore());
+    return getCatalogSelectorsFromCatalog(catalog);
   }
 
   // ============= AUTHENTICATION HELPERS =============

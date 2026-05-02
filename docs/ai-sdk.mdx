@@ -159,7 +159,7 @@ This is especially useful for custom post types, ACF fields, plugin taxonomies, 
 
 ### Manual schemas without discovery
 
-If you do not want to run discovery, pass `inputSchema` directly to the tool factory.
+If you do not want to run discovery, pass `inputSchema` directly to the tool factory. AI SDK supports both Zod schemas and JSON Schema wrappers created with `jsonSchema()`.
 
 ```typescript
 import { z } from 'zod';
@@ -177,6 +177,24 @@ const writeBook = saveContentTool(wp, {
 });
 ```
 
+```typescript title="Use JSON Schema with AI SDK"
+import { jsonSchema } from 'ai';
+
+const schema = await wp.content('books').getJsonSchema('update');
+
+const writeBook = saveContentTool(wp, {
+  contentType: 'books',
+  inputSchema: jsonSchema({
+    type: 'object',
+    properties: {
+      id: { type: 'integer' },
+      input: schema,
+    },
+    required: ['input'],
+  }),
+});
+```
+
 This overrides the generated AI-facing schema without changing tool execution. Keep `id` optional in custom schemas so the save tool can still distinguish create from update.
 
 ## Configuration options
@@ -188,7 +206,7 @@ All generic tool factories accept the existing configuration model:
 - `fixedInput` — Lock nested input fields for mutation tools
 - `strict` — Enable provider strict-mode tool calling
 - `needsApproval` — Require approval before executing this tool
-- `inputSchema` — Override the generated schema with custom Zod schema (supports `.default()`)
+- `inputSchema` — Override the generated schema with a custom AI SDK schema, such as Zod or `jsonSchema()`
 - `fetch` — Replace the default WordPress client call with a custom implementation
 - `toolOptions` — Pass additional AI SDK tool options such as `title`, `inputExamples`, lifecycle callbacks, `outputSchema`, or `toModelOutput`
 

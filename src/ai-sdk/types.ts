@@ -1,11 +1,7 @@
-import type { Tool } from "ai";
-import type { ZodType } from "zod";
+import type { FlexibleSchema, Tool } from "ai";
 import type { WordPressParsedBlock } from "../blocks.js";
 import type { WordPressPostLike } from "../schemas.js";
-import type {
-  WordPressAbilityDescription,
-  WordPressDiscoveryCatalog,
-} from "../types/discovery.js";
+import type { WordPressAbilityDescription } from "../types/discovery.js";
 import type { QueryParams } from "../types/resources.js";
 import type { ContentItemResult } from "./factories.js";
 
@@ -32,7 +28,7 @@ export type AiSdkToolOptions = Partial<
  * Shared configuration accepted by all AI SDK tool factories.
  *
  * Developers use these options to tailor tool descriptions and lock arguments
- * that must not change at model runtime. For default values, use Zod schema
+ * that must not change at model runtime. For default values, use schema
  * defaults in a custom inputSchema.
  */
 export interface ToolFactoryOptions<TArgs extends Record<string, unknown>> {
@@ -40,8 +36,8 @@ export interface ToolFactoryOptions<TArgs extends Record<string, unknown>> {
   description?: string;
   /** Locked arguments that always override model-provided input. */
   fixedArgs?: Partial<TArgs>;
-  /** Override the generated tool input schema. Use Zod .default() for default values. */
-  inputSchema?: ZodType;
+  /** Override the generated AI SDK input schema. Supports Zod or `jsonSchema()`. */
+  inputSchema?: FlexibleSchema;
   /** Require approval before executing this tool. */
   needsApproval?: boolean | ((input: TArgs) => boolean | Promise<boolean>);
   /** Enable provider strict-mode tool calling when supported. */
@@ -63,27 +59,20 @@ export interface MutationToolFactoryOptions<
 }
 
 /**
- * Shared AI SDK tool options that can consume a discovery catalog.
- *
- * When a catalog is provided, factories can tighten model-facing schemas with
- * real enums and instance-specific create/update payloads.
+ * Shared AI SDK tool options for factories that can derive narrower schemas
+ * from the client's cached discovery catalog.
  */
 export interface CatalogToolFactoryOptions<
   TArgs extends Record<string, unknown>,
-> extends ToolFactoryOptions<TArgs> {
-  /** Discovery catalog returned by `wp.explore()` or restored via storage. */
-  catalog?: WordPressDiscoveryCatalog;
-}
+> extends ToolFactoryOptions<TArgs> {}
 
 /**
- * Mutation tool options with optional discovery catalog support.
+ * Mutation tool options for factories that can derive narrower schemas from
+ * the client's cached discovery catalog.
  */
 export interface CatalogMutationToolFactoryOptions<
   TArgs extends Record<string, unknown>,
-> extends MutationToolFactoryOptions<TArgs> {
-  /** Discovery catalog returned by `wp.explore()` or restored via storage. */
-  catalog?: WordPressDiscoveryCatalog;
-}
+> extends MutationToolFactoryOptions<TArgs> {}
 
 /**
  * Options for `getContentCollectionTool`.
@@ -389,14 +378,6 @@ export interface AbilityToolFactoryOptions<
  * tool per discovered WordPress ability.
  */
 export interface CreateAbilityToolsOptions {
-  /**
-   * Discovery catalog to generate tools from.
-   *
-   * Falls back to the client's cached catalog from a prior `explore()` or
-   * `useCatalog()` call. Throws when neither is available.
-   */
-  catalog?: WordPressDiscoveryCatalog;
-
   /** Skip these ability names when generating tools. */
   exclude?: string[];
 

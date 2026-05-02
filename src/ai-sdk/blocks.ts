@@ -185,7 +185,7 @@ export const getBlocksTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),
@@ -236,7 +236,7 @@ export const setBlocksTool = (
 ) => {
   const resolvedOptions = {
     ...options,
-    catalog: options?.catalog ?? client.getCachedCatalog(),
+    catalog: client.getCachedCatalog(),
   };
   return tool({
     ...(options?.toolOptions as Record<string, unknown> | undefined),

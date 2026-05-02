@@ -17,6 +17,30 @@ Two paths serve different use cases:
 | **Runtime** (`explore()` + `zodFromJsonSchema`) | Multi-site apps, dynamic clients, AI agents | Runtime only | No |
 | **CLI** (`fluent-wp-client schemas`) | Single-site apps, Astro, CI pipelines | Compile-time | Yes, on schema changes |
 
+```mermaid
+flowchart TD
+  WP[WordPress REST API\nOPTIONS + ability schemas]
+  Normalize[Catalog normalization\n- bool -> boolean\n- int -> integer\n- update schemas have no required fields]
+  Catalog[Serializable discovery catalog\ncontent, terms, resources, abilities]
+
+  WP --> Runtime[Runtime: wp.explore()]
+  WP --> CLI[Build/CI: fluent-wp-client schemas]
+  Runtime --> Normalize
+  CLI --> Normalize
+  Normalize --> Catalog
+
+  Catalog --> Cache[KV, file, database\nJSON.stringify / structuredClone]
+  Cache --> Restore[wp.useCatalog(restoredCatalog)]
+  Catalog --> Client[Client helpers\ndescribe(), getJsonSchema(), getQueryParams()]
+  Restore --> Client
+  Catalog --> Generated[Generated artifacts\nJSON Schema, Zod schemas, TypeScript types]
+
+  Client --> Use[Use in apps and agents\nforms, Valibot/Zod conversion, AI tool schemas]
+  Generated --> Use
+```
+
+Both paths produce the same normalized catalog shape. Runtime discovery stores that catalog on the client; the CLI writes artifacts from the same discovery data for checked-in or CI-generated use.
+
 ## Describe a resource
 
 Call `.describe()` on any resource client to get its JSON Schemas:
@@ -28,6 +52,13 @@ desc.schemas.item       // single item response shape
 desc.schemas.collection // collection response shape
 desc.schemas.create     // accepted fields for create
 desc.schemas.update     // accepted fields for update (no required fields)
+```
+
+Use `getJsonSchema()` when you only need one schema variant from a fluent resource client:
+
+```ts
+const createSchema = await wp.content('books').getJsonSchema('create');
+const updateSchema = await wp.content('books').getJsonSchema('update');
 ```
 
 Works the same for terms, first-class resources, and abilities:
@@ -82,6 +113,10 @@ const result = await wp.ability('acme/calculate').run(input);
 
 :::tip[When to use runtime conversion]
 Use `zodFromJsonSchema` when the WordPress instance is not known at build time — multi-tenant platforms, SaaS dashboards, AI agents that connect to user-provided sites.
+:::
+
+:::tip[WordPress date strings]
+WordPress REST responses often use local datetime strings such as `2025-01-01T12:00:00` without a timezone suffix. The client keeps these DTO values unchanged because adding `Z` would incorrectly reinterpret local site time as UTC. If a validator treats JSON Schema `format: "date-time"` strictly, relax that rule during validator conversion instead of rewriting response data.
 :::
 
 ## Explore: full catalog
@@ -163,7 +198,7 @@ Use `fluent-wp-client schemas` when your app connects to one known WordPress ins
 - Full compile-time type safety via `z.infer`
 - Must regenerate when WordPress schema changes
 
-Both approaches produce the same Zod validators from the same JSON Schema source. The CLI uses the same `normalizeWordPressJsonSchema` normalization internally.
+Both approaches start from the same WordPress REST schema source and apply the same durable normalization before the schema is used by the client, cached, or emitted as artifacts.
 
 ## Astro example
 
@@ -267,7 +302,6 @@ import type {
 import {
   zodFromJsonSchema,
   zodSchemasFromDescription,
-  normalizeWordPressJsonSchema,
   type ResourceZodSchemas,
   type AbilityZodSchemas,
 } from 'fluent-wp-client/zod';

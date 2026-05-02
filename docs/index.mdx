@@ -64,7 +64,8 @@ import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 - **Lean payloads** — no `_embed` overhead by default
 - **Flexible CPT defaults** — tolerates post types that omit `title`, `content`, or `excerpt`
 - **Gutenberg block add-on** — `fluent-wp-client/blocks` for block discovery, parsing, validation, and writes
-- **AI SDK tools** — `fluent-wp-client/ai-sdk` for manually composed Vercel AI SDK tool factories
+- **Framework-neutral agent helpers** — root package helpers for selectors, JSON Schemas, fields, and query arguments
+- **AI SDK tools** — `fluent-wp-client/ai-sdk` for manually composed Vercel AI SDK tools
 - **Auth flexibility** — Basic, JWT, cookie+nonce, prebuilt headers, per-request signing
 - **Abilities API** — discover and execute registered WordPress abilities
 - **Schema discovery** — fetch live JSON Schemas, convert to Zod with `z.fromJSONSchema()`
@@ -99,6 +100,11 @@ import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
     title="AI SDK"
     href="./ai-sdk"
     description="Compose WordPress tools for the Vercel AI SDK."
+  />
+  <LinkCard
+    title="Agent tools"
+    href="./agent-integration"
+    description="Build framework-native tools with catalog-backed selectors, schemas, fields, and query arguments."
   />
   <LinkCard
     title="Abilities"

@@ -6,6 +6,7 @@
  */
 
 import { createDiscoveryError } from "./core/errors.js";
+import { normalizeWordPressJsonSchema } from "./core/json-schema.js";
 import { applyRequestOverrides } from "./core/request-overrides.js";
 import type { WordPressRuntime } from "./core/transport.js";
 import type { WordPressAbility } from "./schemas.js";
@@ -201,7 +202,11 @@ function createResourceDescription(config: {
   slug?: string;
   endpointSchema: WordPressEndpointSchema;
 }): WordPressResourceDescription {
-  const itemSchema = config.endpointSchema.schema;
+  const itemSchema = config.endpointSchema.schema
+    ? (normalizeWordPressJsonSchema(
+        config.endpointSchema.schema as Record<string, unknown>,
+      ) as WordPressResourceSchemaSet["item"])
+    : undefined;
   const collectionSchema = itemSchema
     ? { items: itemSchema, type: "array" }
     : undefined;
@@ -405,7 +410,9 @@ function buildCreateSchema(
     schema.required = required;
   }
 
-  return schema as WordPressResourceSchemaSet["create"];
+  return normalizeWordPressJsonSchema(
+    schema,
+  ) as WordPressResourceSchemaSet["create"];
 }
 
 /**
@@ -613,10 +620,16 @@ async function discoverAbility(
     raw: ability,
     route,
     schemas: compactOptionalProperties({
-      input:
-        ability.input_schema as WordPressAbilityDescription["schemas"]["input"],
-      output:
-        ability.output_schema as WordPressAbilityDescription["schemas"]["output"],
+      input: ability.input_schema
+        ? (normalizeWordPressJsonSchema(
+            ability.input_schema as Record<string, unknown>,
+          ) as WordPressAbilityDescription["schemas"]["input"])
+        : undefined,
+      output: ability.output_schema
+        ? (normalizeWordPressJsonSchema(
+            ability.output_schema as Record<string, unknown>,
+          ) as WordPressAbilityDescription["schemas"]["output"])
+        : undefined,
     }) as WordPressAbilitySchemaSet,
   };
 }

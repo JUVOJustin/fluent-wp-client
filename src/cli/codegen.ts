@@ -1,4 +1,4 @@
-import { normalizeWordPressJsonSchema } from "../zod-helpers.js";
+import { normalizeWordPressJsonSchema } from "../core/json-schema.js";
 import type {
   DiscoveredResource,
   WPRouteSchema,

@@ -65,11 +65,118 @@ export function zodFromJsonSchema(
     const normalized = stripDateTimeFormats(schema as Record<string, unknown>, {
       normalizeTypes: options.normalizeTypes,
     });
-    return z.fromJSONSchema(
-      normalized as Parameters<typeof z.fromJSONSchema>[0],
-    );
+    const isQuerySchema = isWordPressQuerySchema(normalized);
+    const zodCompatible = isQuerySchema
+      ? stripUnsupportedZodJsonSchemaKeywords(normalized)
+      : normalized;
+    return z
+      .fromJSONSchema(zodCompatible as Parameters<typeof z.fromJSONSchema>[0])
+      .superRefine((value, ctx) => {
+        if (isQuerySchema) {
+          validateWordPressQueryConstraints(value, ctx);
+        }
+      });
   } catch {
     return undefined;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isWordPressQuerySchema(schema: Record<string, unknown>): boolean {
+  const properties = schema.properties;
+
+  return (
+    isRecord(properties) &&
+    isRecord(properties._fields) &&
+    isRecord(properties._embed)
+  );
+}
+
+function stripUnsupportedZodJsonSchemaKeywords(
+  schema: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === "if" || key === "then" || key === "else") {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      out[key] = value.map((entry) =>
+        entry && typeof entry === "object" && !Array.isArray(entry)
+          ? stripUnsupportedZodJsonSchemaKeywords(
+              entry as Record<string, unknown>,
+            )
+          : entry,
+      );
+      continue;
+    }
+
+    if (value && typeof value === "object") {
+      out[key] = stripUnsupportedZodJsonSchemaKeywords(
+        value as Record<string, unknown>,
+      );
+      continue;
+    }
+
+    out[key] = value;
+  }
+
+  return out;
+}
+
+function normalizeFields(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((field): field is string => typeof field === "string");
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((field) => field.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function validateWordPressQueryConstraints(
+  value: unknown,
+  ctx: z.RefinementCtx,
+): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+
+  const query = value as Record<string, unknown>;
+  if (query._embed !== true || query._fields === undefined) return;
+
+  const fields = normalizeFields(query._fields);
+  const hasEmbeddedSelector = fields.some(
+    (field) => field === "_embedded" || /^_embedded\.[^.]+$/.test(field),
+  );
+  const hasLinkSelector = fields.some(
+    (field) => field === "_links" || /^_links\.[^.]+$/.test(field),
+  );
+
+  if (!hasEmbeddedSelector) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "WordPress requires _fields to include _embedded when _embed is used with _fields.",
+      path: ["_fields"],
+    });
+  }
+
+  if (!hasLinkSelector) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "WordPress requires _fields to include _links when _embed is used with _fields.",
+      path: ["_fields"],
+    });
   }
 }
 
@@ -84,6 +191,7 @@ export interface ResourceZodSchemas {
   collection?: ZodType;
   create?: ZodType;
   item?: ZodType;
+  query?: ZodType;
   update?: ZodType;
 }
 
@@ -135,6 +243,9 @@ export function zodSchemasFromDescription(
       normalizeTypes: false,
     }),
     item: zodFromJsonSchema(description.schemas.item, {
+      normalizeTypes: false,
+    }),
+    query: zodFromJsonSchema(description.capabilities?.queryParams.collection, {
       normalizeTypes: false,
     }),
     update: zodFromJsonSchema(description.schemas.update, {

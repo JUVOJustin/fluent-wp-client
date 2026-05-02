@@ -89,9 +89,7 @@ import {
   // Abilities
   getAbilitiesTool,
   getAbilityTool,
-  executeGetAbilityTool,
-  executeRunAbilityTool,
-  executeDeleteAbilityTool,
+  executeAbilityTool,
   createAbilityTools,
   // Gutenberg blocks
   getBlocksTool,
@@ -386,14 +384,14 @@ Media writes are not wrapped because uploads require file transport details. Use
 Ability tools can stay dynamic or be pinned to one ability.
 
 ```typescript
-const runAbility = executeRunAbilityTool(adminWp);
+const executeAbility = executeAbilityTool(adminWp);
 
-const runCalculator = executeRunAbilityTool(adminWp, {
+const runCalculator = executeAbilityTool(adminWp, {
   abilityName: 'acme/calculate',
 });
 ```
 
-With a cached catalog, the generic execution tools can expose real ability-name enums and the discovered input schema for each ability.
+With a cached catalog, the generic execution tool can expose real ability-name enums and the discovered input schema for each ability. At execution time, the client uses the ability annotations to choose GET, POST, or DELETE.
 
 ### Generating one tool per ability
 

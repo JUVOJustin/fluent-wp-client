@@ -345,6 +345,27 @@ export class WordPressClient {
   /**
    * Lists all registered abilities exposed to the current caller.
    */
+  async abilities(options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbilities(options);
+  }
+
+  /**
+   * Lists all ability categories exposed to the current caller.
+   */
+  async abilityCategories(options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbilityCategories(options);
+  }
+
+  /**
+   * Fetches one ability category by slug.
+   */
+  async abilityCategory(slug: string, options?: WordPressRequestOverrides) {
+    return this.abilityMethods.getAbilityCategory(slug, options);
+  }
+
+  /**
+   * Lists all registered abilities exposed to the current caller.
+   */
   async getAbilities(options?: WordPressRequestOverrides) {
     return this.abilityMethods.getAbilities(options);
   }
@@ -422,7 +443,7 @@ export class WordPressClient {
    *
    * // describe() now uses the seeded cache — no network round-trip needed
    * const desc = await wp.content('pages').describe();
-   * console.log(desc.capabilities.queryParams); // ['page', 'per_page', 'lang', ...]
+   * console.log(desc.capabilities.queryParams.collection.properties); // page, per_page, lang, ...
    * ```
    *
    * Returns `this` so the call can be chained after construction.

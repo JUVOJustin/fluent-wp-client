@@ -4,8 +4,8 @@ description: >
   CLI tool for the fluent-wp-client package that discovers WordPress REST API schemas
   and generates TypeScript/Zod/JSON Schema code artifacts. Use this skill whenever
   a user wants to run the CLI, generate schemas from a WordPress site, produce TypeScript
-  types or Zod validators for WordPress resources, set up build-time schema generation,
-  or automate schema discovery in CI. Triggers: "fluent-wp-client cli",
+  declarations, JSON Schema, or Zod validators for WordPress resources, set up build-time
+  schema generation, or automate schema discovery in CI. Triggers: "fluent-wp-client cli",
   "generate WordPress schemas", "wp schemas command", "npx fluent-wp-client",
   "generate Zod from WordPress", "WordPress TypeScript types codegen", "schema generation
   from WordPress", "wp-schemas.ts", "WordPress REST codegen", "build-time WordPress types".
@@ -82,11 +82,29 @@ npx fluent-wp-client schemas --url https://example.com \
   --auth-header "Bearer eyJhbG..."
 ```
 
+Use environment variables instead of flags when you need to keep secrets out of
+shell history and process listings:
+
+```bash title="Auth via environment variables"
+export FLUENT_WP_USERNAME=admin
+export FLUENT_WP_PASSWORD="xxxx xxxx xxxx xxxx"
+npx fluent-wp-client schemas --url https://example.com
+```
+
 | Flag | Auth mode |
 |---|---|
 | `--username` + `--password` | Application password (Basic auth) |
 | `--token` | JWT bearer token |
 | `--auth-header` | Prebuilt header value |
+
+| Environment variable | Auth value |
+|---|---|
+| `FLUENT_WP_USERNAME` | Application-password username |
+| `FLUENT_WP_PASSWORD` | Application password |
+| `FLUENT_WP_TOKEN` | JWT bearer token |
+| `FLUENT_WP_AUTH_HEADER` | Prebuilt Authorization header value |
+
+CLI flags take precedence over environment variables when both are present.
 
 ## Resource filtering
 

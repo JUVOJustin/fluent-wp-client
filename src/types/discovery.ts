@@ -36,30 +36,25 @@ export interface WordPressAbilitySchemaSet {
  * Normalized capability surface for a REST resource endpoint.
  *
  * Derived from the raw OPTIONS response so callers never need to parse
- * `raw.args` or walk `schemas.item.properties` themselves.
+ * `raw.args` themselves.
  *
- * All fields are plain serializable string arrays — safe to store in any
- * KV store and load back via `wp.useCatalog()`.
+ * All fields are plain serializable values — safe to store in any KV store and
+ * load back via `wp.useCatalog()`.
  */
 export interface WordPressResourceCapabilities {
   /**
-   * Fields accepted by the create endpoint (`POST /resource`).
-   */
-  createFields: string[];
-  /**
-   * Query params accepted by the collection GET endpoint.
+   * JSON Schemas for query params accepted by GET endpoints.
    * Includes plugin-added params such as `lang` (WPML), `acf_format`, etc.
    */
-  queryParams: string[];
-  /**
-   * Fields present on item read responses (`GET /resource/:id`).
-   */
-  readFields: string[];
-  /**
-   * Fields accepted by the update endpoint (`POST /resource/:id`).
-   * Identical to `createFields` but with no required constraints.
-   */
-  updateFields: string[];
+  queryParams: WordPressResourceQueryParamSchemas;
+}
+
+/**
+ * Query param schemas for collection and single-item reads.
+ */
+export interface WordPressResourceQueryParamSchemas {
+  collection: WordPressJsonSchema;
+  item: WordPressJsonSchema;
 }
 
 /**

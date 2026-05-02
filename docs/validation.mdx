@@ -14,7 +14,7 @@ When you want local validation in your app, use one of these schema sources:
 
 | Need | Best tool |
 |---|---|
-| Validate one resource or ability at runtime | `.describe()` + `zodFromJsonSchema()` |
+| Validate one resource or ability at runtime | `.getStandardSchema()` or `.describe()` + `zodFromJsonSchema()` |
 | Validate many resources with one runtime fetch | `.explore()` + `zodSchemasFromDescription()` |
 | Check in schema files for Astro, CI, or shared app code | CLI `schemas` command |
 
@@ -36,6 +36,26 @@ const validated = createSchema!.parse({
 const created = await wp.content('posts').create(validated);
 ```
 
+## Runtime validation with `getStandardSchema`
+
+If you only need a Standard Schema validator for one operation, call `getStandardSchema()` directly on any resource client. It converts the cached JSON Schema on first access and returns a Zod-backed Standard Schema:
+
+```ts
+const standard = await wp.content('posts').getStandardSchema('create');
+const result = await standard['~standard'].validate({
+  title: { raw: 'Validated' },
+  status: 'draft',
+});
+
+if (result.issues) {
+  throw new Error('Validation failed');
+}
+
+const created = await wp.content('posts').create(result.value);
+```
+
+The returned object implements `StandardSchemaV1`, so it works with any framework or tool that accepts Standard Schemas (TanStack Form, tRPC, Hono, etc.).
+
 ## Bulk runtime validation with `zodSchemasFromDescription`
 
 Convert all operation schemas for a resource or ability at once:
@@ -46,11 +66,18 @@ import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
 const catalog = await wp.explore();
 const postSchemas = zodSchemasFromDescription(catalog.content.posts);
 
+const filter = postSchemas.query!.parse({
+  page: 1,
+  per_page: 10,
+  search: 'catalog',
+});
+
 const validated = postSchemas.create!.parse({
   title: { raw: 'From catalog' },
   status: 'draft',
 });
 
+await wp.content('posts').list(filter);
 await wp.content('posts').create(validated);
 ```
 
@@ -63,7 +90,7 @@ const catalog = await wp.explore();
 const schemas = zodSchemasFromDescription(catalog.abilities['acme/calculate']);
 
 const input = schemas.input!.parse({ amount: 100, currency: 'USD' });
-const result = await wp.ability('acme/calculate').run(input);
+const result = await wp.ability('acme/calculate').execute(input);
 ```
 
 ## Build-time validation with the CLI

@@ -54,11 +54,13 @@ const { data, response } = await wp.request({
   <TabItem label="Abilities">
 
 ```ts title="WordPress abilities"
-const siteTitle = await wp.executeGetAbility<{ title: string }>('test/get-site-title');
+const siteTitle = await wp
+  .ability<undefined, { title: string }>('test/get-site-title')
+  .execute();
 
 const result = await wp
   .ability<{ name: string }, { processed: boolean }>('test/process-complex')
-  .run({ name: 'demo' });
+  .execute({ name: 'demo' });
 ```
 
   </TabItem>
@@ -138,9 +140,8 @@ To use different auth credentials, create a separate `WordPressClient` instance.
 ### Auth and ability helpers
 
 - `loginWithJwt(credentials)` / `validateJwtToken(token?)`
-- `getAbilities()` / `getAbility(name)` / `getAbilityCategories()`
-- `executeGetAbility()` / `executeRunAbility()` / `executeDeleteAbility()`
-- `ability<TInput, TOutput>(name)` — fluent builder with `.get()`, `.run()`, `.delete()`, `.describe()`
+- `abilities()` / `abilityCategories()` / `abilityCategory(slug)`
+- `ability<TInput, TOutput>(name)` — fluent builder with `.execute()`, `.definition()`, `.describe()`, `.getJsonSchema()`
 
 ### Transport
 

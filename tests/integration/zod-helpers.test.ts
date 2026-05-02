@@ -57,6 +57,36 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(result.success).toBe(true);
     });
 
+    it("enforces id rules for discovered create and update schemas", () => {
+      const createSchema = zodFromJsonSchema(
+        catalog.content.posts.schemas.create,
+      );
+      const updateSchema = zodFromJsonSchema(
+        catalog.content.posts.schemas.update,
+      );
+
+      expect(
+        createSchema?.safeParse({
+          id: 1,
+          status: "draft",
+          title: { raw: "Should fail" },
+        }).success,
+      ).toBe(false);
+      expect(
+        updateSchema?.safeParse({
+          status: "draft",
+          title: { raw: "Missing id" },
+        }).success,
+      ).toBe(false);
+      expect(
+        updateSchema?.safeParse({
+          id: 1,
+          status: "draft",
+          title: { raw: "With id" },
+        }).success,
+      ).toBe(true);
+    });
+
     it("converts a discovered ability input schema to a Zod validator", () => {
       const abilityDesc = catalog.abilities["test/process-complex"];
       expect(abilityDesc).toBeDefined();
@@ -180,6 +210,47 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
 
       expect(result.success).toBe(true);
     });
+
+    it("does not strip conditional JSON Schema keywords from non-query schemas", () => {
+      const schema = zodFromJsonSchema({
+        if: {
+          properties: { kind: { const: "post" } },
+          required: ["kind"],
+          type: "object",
+        },
+        properties: { kind: { type: "string" }, title: { type: "string" } },
+        then: { required: ["title"] },
+        type: "object",
+      });
+
+      expect(schema).toBeUndefined();
+    });
+
+    it("strips unsupported conditional keywords only for WordPress query schemas", () => {
+      const schema = zodFromJsonSchema({
+        if: {
+          properties: { _fields: { type: "array" } },
+          required: ["_embed", "_fields"],
+          type: "object",
+        },
+        properties: {
+          _embed: { type: "boolean" },
+          _fields: { items: { type: "string" }, type: "array" },
+        },
+        then: {
+          properties: {
+            _fields: { contains: { const: "_embedded" }, type: "array" },
+          },
+          type: "object",
+        },
+        type: "object",
+      });
+
+      expect(schema).toBeDefined();
+      expect(schema?.safeParse({ _embed: true, _fields: ["id"] }).success).toBe(
+        false,
+      );
+    });
   });
 
   describe("zodSchemasFromDescription() — resources", () => {
@@ -190,12 +261,77 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
 
       expect(schemas.item).toBeDefined();
       expect(schemas.create).toBeDefined();
+      expect(schemas.query).toBeDefined();
       expect(schemas.update).toBeDefined();
 
       // Verify they are actual Zod schemas with safeParse
       expect(typeof schemas.item?.safeParse).toBe("function");
       expect(typeof schemas.create?.safeParse).toBe("function");
+      expect(typeof schemas.query?.safeParse).toBe("function");
       expect(typeof schemas.update?.safeParse).toBe("function");
+    });
+
+    it("converts query params schema for collection filters", () => {
+      const schemas = zodSchemasFromDescription(
+        catalog.content.posts,
+      ) as ResourceZodSchemas;
+
+      const valid = schemas.query?.safeParse({
+        _fields: ["id", "title.rendered", "_links.author"],
+        page: 1,
+        per_page: 10,
+        search: "seeded",
+      });
+      const validGlobalParams = schemas.query?.safeParse({
+        _embed: true,
+        _fields: ["id", "title.rendered", "_links", "_embedded"],
+      });
+      const validRelationParams = schemas.query?.safeParse({
+        _embed: true,
+        _fields: ["id", "_embedded.author", "_links.author"],
+      });
+      const embedFalseWithoutEmbedded = schemas.query?.safeParse({
+        _embed: false,
+        _fields: ["id"],
+      });
+      const invalid = schemas.query?.safeParse({
+        per_page: "10",
+      });
+      const unsupportedEmbedDepth = schemas.query?.safeParse({
+        _fields: ["_embedded.author.name"],
+      });
+      const embedWithoutLinks = schemas.query?.safeParse({
+        _embed: true,
+        _fields: ["id", "_embedded"],
+      });
+      const embedWithRequiredFields = schemas.query?.safeParse({
+        _embed: true,
+        _fields: ["id", "_embedded", "_links"],
+      });
+      const embedRelationWithDifferentLinkRelation = schemas.query?.safeParse({
+        _embed: true,
+        _fields: ["id", "_embedded.author", "_links.wp:term"],
+      });
+      const unsupportedEmbedRelationList = schemas.query?.safeParse({
+        _embed: ["author", "wp:term"],
+        _fields: ["id", "_embedded", "_links"],
+      });
+      const wordpressWireFormats = schemas.query?.safeParse({
+        _embed: "author,wp:term",
+        _fields: "id,_embedded,_links",
+      });
+
+      expect(valid?.success).toBe(true);
+      expect(validGlobalParams?.success).toBe(true);
+      expect(validRelationParams?.success).toBe(true);
+      expect(embedFalseWithoutEmbedded?.success).toBe(true);
+      expect(invalid?.success).toBe(false);
+      expect(unsupportedEmbedDepth?.success).toBe(false);
+      expect(embedWithoutLinks?.success).toBe(false);
+      expect(embedRelationWithDifferentLinkRelation?.success).toBe(true);
+      expect(unsupportedEmbedRelationList?.success).toBe(false);
+      expect(wordpressWireFormats?.success).toBe(false);
+      expect(embedWithRequiredFields?.success).toBe(true);
     });
 
     it("converts all operation schemas for a custom post type", () => {

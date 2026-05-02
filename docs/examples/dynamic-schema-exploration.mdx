@@ -14,13 +14,14 @@ Every resource description includes a `capabilities` object derived from the liv
 ```ts
 const desc = await wp.content('pages').describe();
 
-desc.capabilities.queryParams  // ['page', 'per_page', 'search', 'lang', ...]
-desc.capabilities.readFields   // ['id', 'slug', 'title', 'content', ...]
-desc.capabilities.createFields // ['title', 'content', 'status', ...]
-desc.capabilities.updateFields // same as createFields, no required constraint
+desc.capabilities.queryParams.collection // JSON Schema for page, per_page, search, lang, ...
+desc.capabilities.queryParams.item       // JSON Schema for context, _fields, _embed, ...
+desc.schemas.item              // response JSON Schema
+desc.schemas.create            // create payload JSON Schema
+desc.schemas.update            // update payload JSON Schema, no required constraint
 ```
 
-Plugin-added query params — WPML's `lang`, ACF format flags, or any custom collection filter — appear in `queryParams` automatically because they come directly from the site's OPTIONS response.
+Plugin-added query params — WPML's `lang`, ACF format flags, or any custom collection filter — appear in `queryParams.collection.properties` automatically because they come directly from the site's OPTIONS response.
 
 ## Caching the catalog
 
@@ -60,7 +61,7 @@ if (stored) {
 
 // No network round-trip — uses the seeded cache.
 const desc = await wp.content('pages').describe();
-console.log(desc.capabilities.queryParams); // includes 'lang' when WPML is active
+console.log(desc.capabilities.queryParams.collection.properties); // includes 'lang' when WPML is active
 ```
 
 `useCatalog()` returns `this` so it can be chained inline if you prefer:
@@ -122,7 +123,7 @@ const calcSchemas = zodSchemasFromDescription(catalog.abilities['acme/calculate'
 
 // Validate input before execution
 const input = calcSchemas.input!.parse({ amount: 100, currency: 'USD' });
-const result = await wp.ability('acme/calculate').run(input);
+const result = await wp.ability('acme/calculate').execute(input);
 
 // Optionally validate output
 const validated = calcSchemas.output!.parse(result);

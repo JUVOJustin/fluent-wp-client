@@ -8,6 +8,8 @@ export {
   type RunAbilityInput,
   WordPressAbilityBuilder,
   type WordPressAbilityRuntime,
+  type WordPressAbilitySchemaClient,
+  type WordPressAbilitySchemaName,
 } from "./abilities.js";
 export {
   type BasicAuthCredentials,
@@ -39,8 +41,6 @@ export { ContentItemQuery } from "./builders/content-item-query.js";
 export {
   getCatalogSelectors,
   getQueryParams,
-  getReadableFields,
-  getWritableFields,
   type WordPressCatalogResourceKind,
   type WordPressCatalogSelectors,
 } from "./catalog-helpers.js";
@@ -171,17 +171,12 @@ export type {
   WordPressTag,
 } from "./schemas.js";
 export {
-  abilityAnnotationsSchema,
-  abilityCategorySchema,
-  abilitySchema,
   authorSchema,
   baseWordPressSchema,
   categorySchema,
   commentSchema,
   contentWordPressSchema,
-  deleteAbilityInputSchema,
   embeddedMediaSchema,
-  getAbilityInputSchema,
   jwtAuthErrorResponseSchema,
   jwtAuthTokenResponseSchema,
   jwtAuthValidationResponseSchema,
@@ -190,7 +185,6 @@ export {
   postLikeWordPressSchema,
   postSchema,
   postWriteBaseSchema,
-  runAbilityInputSchema,
   searchResultSchema,
   settingsSchema,
   tagSchema,
@@ -206,6 +200,7 @@ export type {
   WordPressJsonSchema,
   WordPressResourceCapabilities,
   WordPressResourceDescription,
+  WordPressResourceQueryParamSchemas,
   WordPressResourceSchemaSet,
 } from "./types/discovery.js";
 export type {

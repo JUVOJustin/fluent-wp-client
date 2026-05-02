@@ -23,6 +23,7 @@
 // Abilities
 export {
   createAbilityTools,
+  executeAbilityTool,
   executeDeleteAbilityTool,
   executeGetAbilityTool,
   executeRunAbilityTool,

@@ -1,16 +1,28 @@
 import { z } from "zod";
 import { createInvalidRequestError } from "./core/errors.js";
 import { applyRequestOverrides } from "./core/request-overrides.js";
-import type { WordPressAbility, WordPressAbilityCategory } from "./schemas.js";
+import type { WordPressStandardSchema } from "./core/validation.js";
+import {
+  abilityAnnotationsSchema,
+  abilityCategorySchema,
+  abilitySchema,
+  type WordPressAbility,
+  type WordPressAbilityCategory,
+} from "./schemas.js";
 import type {
   WordPressRequestOptions,
   WordPressRequestResult,
 } from "./types/client.js";
-import type { WordPressAbilityDescription } from "./types/discovery.js";
+import type {
+  WordPressAbilityDescription,
+  WordPressAbilitySchemaSet,
+  WordPressJsonSchema,
+} from "./types/discovery.js";
 import type {
   SerializedQueryParams,
   WordPressRequestOverrides,
 } from "./types/resources.js";
+import { zodFromJsonSchema } from "./zod-helpers.js";
 
 const ABILITIES_BASE_ENDPOINT = "/wp-json/wp-abilities/v1";
 
@@ -37,6 +49,48 @@ export const zodDeleteAbilityInputSchema = zodGetAbilityInputSchema;
 export type GetAbilityInput = z.infer<typeof zodGetAbilityInputSchema>;
 export type RunAbilityInput = z.infer<typeof zodRunAbilityInputSchema>;
 export type DeleteAbilityInput = z.infer<typeof zodDeleteAbilityInputSchema>;
+export type WordPressAbilitySchemaName =
+  | keyof WordPressAbilitySchemaSet
+  | "annotations"
+  | "category"
+  | "definition";
+
+export interface WordPressAbilitySchemaClient {
+  getJsonSchema: (
+    schema: WordPressAbilitySchemaName,
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressJsonSchema>;
+  getStandardSchema: (
+    schema: WordPressAbilitySchemaName,
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressStandardSchema>;
+}
+
+const standardSchemaCache = new WeakMap<
+  WordPressJsonSchema,
+  WordPressStandardSchema
+>();
+
+const fallbackAbilityJsonSchemas = {
+  annotations: z.toJSONSchema(abilityAnnotationsSchema),
+  category: z.toJSONSchema(abilityCategorySchema),
+  definition: z.toJSONSchema(abilitySchema),
+} satisfies Record<string, WordPressJsonSchema>;
+
+type WordPressAbilityFallbackSchemaName =
+  keyof typeof fallbackAbilityJsonSchemas;
+
+function isFallbackAbilitySchemaName(
+  schemaName: WordPressAbilitySchemaName,
+): schemaName is WordPressAbilityFallbackSchemaName {
+  return schemaName in fallbackAbilityJsonSchemas;
+}
+
+function isAbilityDescriptionSchemaName(
+  schemaName: WordPressAbilitySchemaName,
+): schemaName is keyof WordPressAbilitySchemaSet {
+  return schemaName === "input" || schemaName === "output";
+}
 
 /**
  * Runtime hooks required for WordPress abilities support.
@@ -145,6 +199,47 @@ function createAbilityRequestBody(
   return { input };
 }
 
+function getJsonSchemaFromDescription(
+  description: WordPressAbilityDescription,
+  schemaName: WordPressAbilitySchemaName,
+): WordPressJsonSchema {
+  if (isFallbackAbilitySchemaName(schemaName)) {
+    return fallbackAbilityJsonSchemas[schemaName];
+  }
+
+  if (!isAbilityDescriptionSchemaName(schemaName)) {
+    throw createInvalidRequestError(
+      `No ${schemaName} JSON Schema is available for ability:${description.name}.`,
+    );
+  }
+
+  return description.schemas[schemaName] ?? {};
+}
+
+function getStandardSchemaFromDescription(
+  description: WordPressAbilityDescription,
+  schemaName: WordPressAbilitySchemaName,
+): WordPressStandardSchema {
+  const jsonSchema = getJsonSchemaFromDescription(description, schemaName);
+  const cached = standardSchemaCache.get(jsonSchema);
+  if (cached) {
+    return cached;
+  }
+
+  const standardSchema = zodFromJsonSchema(jsonSchema);
+  if (!standardSchema) {
+    throw createInvalidRequestError(
+      `Unable to convert ${schemaName} JSON Schema to Standard Schema for ability:${description.name}.`,
+    );
+  }
+
+  standardSchemaCache.set(
+    jsonSchema,
+    standardSchema as WordPressStandardSchema,
+  );
+  return standardSchema as WordPressStandardSchema;
+}
+
 /**
  * Executes one registered WordPress ability.
  *
@@ -168,6 +263,35 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
       undefined,
       requestOptions,
     );
+  }
+
+  /**
+   * Fetches metadata for the configured ability.
+   */
+  async definition(
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<WordPressAbility> {
+    return this.getDefinition(requestOptions);
+  }
+
+  /**
+   * Executes the configured ability using its declared execution mode.
+   */
+  async execute(
+    input?: TInput,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<TOutput> {
+    const description = await this.describe(requestOptions);
+
+    if (description.annotations?.readonly === true) {
+      return this.get(input, requestOptions);
+    }
+
+    if (description.annotations?.destructive === true) {
+      return this.delete(input, requestOptions);
+    }
+
+    return this.run(input, requestOptions);
   }
 
   /**
@@ -231,6 +355,26 @@ export class WordPressAbilityBuilder<TInput = unknown, TOutput = unknown> {
     );
 
     return data as TOutput;
+  }
+
+  async getJsonSchema(
+    schema: WordPressAbilitySchemaName,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<WordPressJsonSchema> {
+    return getJsonSchemaFromDescription(
+      await this.describe(requestOptions),
+      schema,
+    );
+  }
+
+  async getStandardSchema(
+    schema: WordPressAbilitySchemaName,
+    requestOptions?: WordPressRequestOverrides,
+  ): Promise<WordPressStandardSchema> {
+    return getStandardSchemaFromDescription(
+      await this.describe(requestOptions),
+      schema,
+    );
   }
 
   /**

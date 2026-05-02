@@ -4,11 +4,11 @@ description: >
   Typed WordPress REST API client for TypeScript. Use when implementing features that
   read or write WordPress content (posts, pages, media, terms, users, comments, settings),
   work with custom post types or taxonomies, authenticate against WordPress, parse
-  Gutenberg blocks, hydrate post relations, call WordPress Abilities endpoints, or
-  migrate from node-wpapi. Triggers: "WordPress API", "WP REST", "WordPress client",
+  Gutenberg blocks, build agent tools from REST schemas, hydrate post relations,
+  call WordPress Abilities endpoints, or migrate from node-wpapi. Triggers: "WordPress API", "WP REST", "WordPress client",
   "fluent-wp-client", "posts API", "pages API", "media upload", "custom post type",
-  "CPT", "taxonomy", "Gutenberg blocks", "WP auth", "JWT WordPress", "cookie nonce",
-  "WPAPI", "node-wpapi", "WordPress abilities".
+  "CPT", "taxonomy", "Gutenberg blocks", "WordPress agent tools", "MCP WordPress",
+  "WP auth", "JWT WordPress", "cookie nonce", "WPAPI", "node-wpapi", "WordPress abilities".
 ---
 
 # fluent-wp-client
@@ -38,7 +38,7 @@ const wp = new WordPressClient({
 
 ```ts
 const posts = await wp.content('posts').list({ perPage: 10 });
-const post  = await wp.content('posts').item('hello-world');
+const post = await wp.content('posts').item('hello-world');
 const pages = await wp.content('pages').listAll();
 ```
 
@@ -303,27 +303,37 @@ For full CPT/taxonomy patterns and namespace routing, read
 
 ## Gutenberg block parsing
 
-Parse serialized block markup into structured block trees.
+Import the optional block add-on when you need block type discovery, validation,
+or block read/write workflows. The root client stays lightweight.
 
 ```ts
-// From a single post/page query
-const blocks = await wp.content('posts').item('hello-world').getBlocks();
-const pageBlocks = await wp.content('pages').item('about').getBlocks();
+import { WordPressClient } from 'fluent-wp-client';
+import { withBlocks } from 'fluent-wp-client/blocks';
 
-// From list records
-const posts = await wp.content('posts').list({ perPage: 5 });
-const firstBlocks = await posts[0].getBlocks();
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: 'app-password' },
+});
 
-// Raw + rendered content together
-const content = await wp.content('posts').item('hello-world').getContent();
-// content.raw, content.rendered, content.protected
+const wpBlocks = withBlocks(wp);
+const blockSchemas = await wpBlocks.blocks().schemas();
+const postQuery = wpBlocks.content('posts').item('hello-world');
+const blocks = await postQuery.blocks().get({ schemas: blockSchemas, validate: true });
 
-// Parse raw content directly
-import { parseWordPressBlocks } from 'fluent-wp-client';
-const parsed = await parseWordPressBlocks(content.raw);
+await postQuery.blocks().set(blocks, blockSchemas);
 ```
 
-`getBlocks()` requires `context=edit` (authenticated with edit capabilities).
+`blocks().get()` and `blocks().set()` require `context=edit` and authenticated edit capabilities.
+
+Standalone helpers are also available when you already have raw content:
+
+```ts
+import { parseWordPressBlocks, serializeWordPressBlocks } from 'fluent-wp-client/blocks';
+
+const content = await wp.content('posts').item('hello-world').getContent();
+const parsed = await parseWordPressBlocks(content.raw);
+const serialized = serializeWordPressBlocks(parsed);
+```
 
 For custom parser configuration and CPT block parsing, read
 [references/gutenberg-content.mdx](references/gutenberg-content.mdx).
@@ -364,7 +374,7 @@ Before writing mutations against an unfamiliar resource or ability, call `.descr
 - `wp.ability(name).describe()` — `input` and `output` schemas
 - `wp.explore()` — full catalog of all resources and abilities at once
 
-See `docs/schema-discovery.mdx` for examples.
+See [references/schema-discovery.mdx](references/schema-discovery.mdx) for examples.
 
 ## WordPress Abilities API
 
@@ -539,9 +549,11 @@ try {
 }
 ```
 
-## Exported Zod schemas
+## Exported schemas
 
-Reuse or extend the built-in schemas for your own validation:
+Discovery helpers return WordPress JSON Schema for resources and abilities. Use
+those schemas directly with agent frameworks, validation tooling, or convert them
+to Zod in application code when local parsing is needed.
 
 `postSchema`, `pageSchema`, `mediaSchema`, `categorySchema`, `authorSchema`,
 `commentSchema`, `settingsSchema`, `abilitySchema`, `abilityCategorySchema`,
@@ -549,7 +561,8 @@ Reuse or extend the built-in schemas for your own validation:
 `embeddedMediaSchema`, `wordPressErrorSchema`, `postWriteBaseSchema`,
 `updatePostFieldsSchema`.
 
-All schemas use `.passthrough()` so custom fields (ACF, meta, plugin data) survive parsing.
+Native Zod schemas are available from the dedicated `fluent-wp-client/zod` entrypoint.
+Those Zod schemas use `.passthrough()` so custom fields (ACF, meta, plugin data) survive parsing.
 
 ## Exported types
 
@@ -573,8 +586,9 @@ All schemas use `.passthrough()` so custom fields (ACF, meta, plugin data) survi
 `WordPressDeleteResult`, `WordPressWritePayload`, `TermWriteInput`, `UserWriteInput`,
 `ContentResourceClient<T, TCreate, TUpdate>`, `TermsResourceClient<T, TCreate, TUpdate>`
 
-### Block types
-`WordPressParsedBlock`, `WordPressBlockParser`, `WordPressContentRecord<T>`
+### Block add-on types
+Import block types such as `WordPressParsedBlock` and `WordPressBlockParser` from
+`fluent-wp-client/blocks`.
 
 ## Reference docs
 
@@ -587,3 +601,4 @@ Consult these when deeper guidance is needed for a specific topic:
 | [references/custom-endpoints.mdx](references/custom-endpoints.mdx) | CPT/taxonomy patterns, low-level custom endpoint requests, and per-request headers |
 | [references/abilities.mdx](references/abilities.mdx) | Ability metadata, direct execution helpers, fluent builder with schemas, exported ability schemas |
 | [references/schema-discovery.mdx](references/schema-discovery.mdx) | `.describe()`, `explore()`, `z.fromJSONSchema()` integration and examples |
+| [references/agent-integration.mdx](references/agent-integration.mdx) | Framework-neutral agent selectors, JSON Schemas, fields, and query argument helpers |

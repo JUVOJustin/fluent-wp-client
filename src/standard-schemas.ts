@@ -1,14 +1,6 @@
 import type * as z from "zod";
-import {
-  zodDeleteAbilityInputSchema,
-  zodGetAbilityInputSchema,
-  zodRunAbilityInputSchema,
-} from "./abilities.js";
 import type { WordPressStandardSchema } from "./core/validation.js";
 import {
-  abilityAnnotationsSchema as zodAbilityAnnotationsSchema,
-  abilityCategorySchema as zodAbilityCategorySchema,
-  abilitySchema as zodAbilitySchema,
   authorSchema as zodAuthorSchema,
   baseWordPressSchema as zodBaseWordPressSchema,
   blockTypeSchema as zodBlockTypeSchema,
@@ -72,9 +64,6 @@ function toStandardSchemaMap<TSchemas extends Record<string, z.ZodType>>(
  * Standard Schema exports for WordPress core resource payloads.
  */
 const standardSchemas = toStandardSchemaMap({
-  abilityAnnotationsSchema: zodAbilityAnnotationsSchema,
-  abilityCategorySchema: zodAbilityCategorySchema,
-  abilitySchema: zodAbilitySchema,
   authorSchema: zodAuthorSchema,
   baseWordPressSchema: zodBaseWordPressSchema,
   blockTypeSchema: zodBlockTypeSchema,
@@ -108,9 +97,6 @@ export const {
   categorySchema,
   tagSchema,
   embeddedMediaSchema,
-  abilityAnnotationsSchema,
-  abilitySchema,
-  abilityCategorySchema,
   blockTypeSchema,
   authorSchema,
   commentSchema,
@@ -124,18 +110,3 @@ export const {
   settingsSchema,
   searchResultSchema,
 } = standardSchemas;
-
-/**
- * Standard Schema exports for ability execution input wrappers.
- */
-const abilityInputSchemas = toStandardSchemaMap({
-  deleteAbilityInputSchema: zodDeleteAbilityInputSchema,
-  getAbilityInputSchema: zodGetAbilityInputSchema,
-  runAbilityInputSchema: zodRunAbilityInputSchema,
-});
-
-export const {
-  getAbilityInputSchema,
-  runAbilityInputSchema,
-  deleteAbilityInputSchema,
-} = abilityInputSchemas;

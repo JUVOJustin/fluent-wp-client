@@ -51,15 +51,45 @@ const desc = await wp.content('books').describe();
 desc.schemas.item       // single item response shape
 desc.schemas.collection // collection response shape
 desc.schemas.create     // accepted fields for create
-desc.schemas.update     // accepted fields for update (no required fields)
+desc.schemas.update     // accepted fields for update (requires id)
 ```
 
-Use `getJsonSchema()` when you only need one schema variant from a fluent resource client:
+Use `getJsonSchema()` when you only need one resource operation schema, and `getQueryParams()` when you need query params for collection or single-item reads:
 
 ```ts
 const createSchema = await wp.content('books').getJsonSchema('create');
+const collectionQuerySchema = await wp.content('books').getQueryParams('collection');
+const itemQuerySchema = await wp.content('books').getQueryParams('item');
 const updateSchema = await wp.content('books').getJsonSchema('update');
 ```
+
+Collection query schemas include collection-only params such as `page` and `per_page`. Item query schemas include single-item params such as `context`, `password`, or endpoint-specific item args when WordPress exposes them.
+
+Both query schemas include WordPress global read params:
+
+- `_fields` supports response fields from the discovered item schema, including nested schema fields such as `title.rendered`.
+- `_fields` supports `_links`, `_embedded`, and first-level relation selectors such as `_links.author` or `_embedded.author`.
+- `_fields` does not advertise nested link/embed object selectors such as `_links.author.href` or `_embedded.author.name` because WordPress does not trim those nested objects reliably.
+- `_embed` supports `true` only in the SDK-facing schema.
+- When `_embed: true` is combined with `_fields`, include an embedded selector (`_embedded` or `_embedded.<rel>`) and a link selector (`_links` or `_links.<rel>`). Use corresponding relation selectors, such as `_embedded.author` with `_links.author`, when requesting a specific embedded relation. The query schema expresses the dependency with standard JSON Schema conditionals.
+
+Use `getStandardSchema()` to get a ready-to-use Standard Schema validator directly — no extra import required:
+
+```ts title="Get a Standard Schema validator directly"
+const standard = await wp.content('books').getStandardSchema('create');
+const result = await standard['~standard'].validate({
+  title: { raw: 'My Book' },
+  status: 'publish',
+});
+
+if (result.issues) {
+  // handle validation errors
+}
+
+const book = await wp.content('books').create(result.value);
+```
+
+`getStandardSchema()` converts the cached JSON Schema to a Zod-backed Standard Schema on first access and reuses it for the same description object. It is compatible with any tool or framework that accepts `StandardSchemaV1`.
 
 Works the same for terms, first-class resources, and abilities:
 
@@ -98,6 +128,7 @@ const bookSchemas = zodSchemasFromDescription(catalog.content.books);
 
 // bookSchemas.item     — validate a read response
 // bookSchemas.create   — validate a create payload
+// bookSchemas.query    — validate collection query params
 // bookSchemas.update   — validate an update payload
 ```
 

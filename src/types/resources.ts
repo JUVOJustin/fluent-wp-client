@@ -1,6 +1,7 @@
 import type { WordPressBlockJsonSchema } from "../blocks.js";
 import type { ContentItemQuery } from "../builders/content-item-query.js";
 import type { ListAllOptions } from "../core/pagination.js";
+import type { WordPressStandardSchema } from "../core/validation.js";
 import type {
   WordPressAuthor,
   WordPressBlockType,
@@ -13,6 +14,7 @@ import type { WordPressMediaUploadInput } from "./client.js";
 import type {
   WordPressJsonSchema,
   WordPressResourceDescription,
+  WordPressResourceQueryParamSchemas,
   WordPressResourceSchemaSet,
 } from "./discovery.js";
 import type {
@@ -120,12 +122,14 @@ export interface WordPressResourceToolingClient {
     schema: keyof WordPressResourceSchemaSet,
     options?: WordPressRequestOverrides,
   ) => Promise<WordPressJsonSchema>;
-  getQueryParams: (options?: WordPressRequestOverrides) => Promise<string[]>;
-  getReadableFields: (options?: WordPressRequestOverrides) => Promise<string[]>;
-  getWritableFields: (
-    operation?: "create" | "update",
+  getQueryParams: (
+    target?: keyof WordPressResourceQueryParamSchemas,
     options?: WordPressRequestOverrides,
-  ) => Promise<string[]>;
+  ) => Promise<WordPressJsonSchema>;
+  getStandardSchema: (
+    schema: keyof WordPressResourceSchemaSet,
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressStandardSchema>;
 }
 
 /**

@@ -24,15 +24,6 @@ function schemaForMode(
   return description.schemas.update;
 }
 
-function fallbackFieldNames(
-  description: WordPressResourceDescription,
-  mode: WordPressResourceFieldMode,
-): string[] {
-  if (mode === "read") return description.capabilities?.readFields ?? [];
-  if (mode === "create") return description.capabilities?.createFields ?? [];
-  return description.capabilities?.updateFields ?? [];
-}
-
 /**
  * Flattens nested JSON Schema object properties into dot-separated field paths.
  */
@@ -86,10 +77,6 @@ export function getDiscoveredResourceFields(
     )) {
       names.add(name);
     }
-  }
-
-  for (const name of fallbackFieldNames(description, mode)) {
-    names.add(name);
   }
 
   return Array.from(names, (name) => ({ name }));

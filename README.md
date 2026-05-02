@@ -163,7 +163,9 @@ await wp.explore();
 
 const selectors = await wp.getCatalogSelectors();
 const inputSchema = await wp.content('posts').getJsonSchema('create');
-const queryParams = await wp.content('posts').getQueryParams();
+const standardSchema = await wp.content('posts').getStandardSchema('create');
+const collectionQuerySchema = await wp.content('posts').getQueryParams('collection');
+const itemQuerySchema = await wp.content('posts').getQueryParams('item');
 ```
 
 Define framework-specific tool names, descriptions, defaults, fixed arguments, and mutation guardrails in your adapter. The package provides the catalog-derived building blocks.

@@ -1,22 +1,26 @@
-import {
-  getQueryParamsDescription,
-  getReadableFieldsDescription,
-  getWritableFieldsDescription,
-} from "../catalog-helpers.js";
+import { getQueryParamsDescription } from "../catalog-helpers.js";
 import { createInvalidRequestError } from "../core/errors.js";
+import type { WordPressStandardSchema } from "../core/validation.js";
 import type {
   WordPressJsonSchema,
   WordPressResourceDescription,
+  WordPressResourceQueryParamSchemas,
   WordPressResourceSchemaSet,
 } from "../types/discovery.js";
 import type {
   WordPressRequestOverrides,
   WordPressResourceToolingClient,
 } from "../types/resources.js";
+import { zodFromJsonSchema } from "../zod-helpers.js";
 
 type DescribeResource = (
   options?: WordPressRequestOverrides,
 ) => Promise<WordPressResourceDescription>;
+
+const standardSchemaCache = new WeakMap<
+  WordPressJsonSchema,
+  WordPressStandardSchema
+>();
 
 /**
  * Adds discovery-backed schema helpers to fluent resource clients.
@@ -33,12 +37,18 @@ export function createSchemaToolMethods(
       options?: WordPressRequestOverrides,
     ): Promise<WordPressJsonSchema> =>
       getJsonSchemaFromDescription(await getDescription(options), schemaName),
-    getQueryParams: async (options) =>
-      getQueryParamsDescription(await getDescription(options)),
-    getReadableFields: async (options) =>
-      getReadableFieldsDescription(await getDescription(options)),
-    getWritableFields: async (operation, options) =>
-      getWritableFieldsDescription(await getDescription(options), operation),
+    getQueryParams: async (
+      target: keyof WordPressResourceQueryParamSchemas = "collection",
+      options?: WordPressRequestOverrides,
+    ) => getQueryParamsDescription(await getDescription(options), target),
+    getStandardSchema: async (
+      schemaName: keyof WordPressResourceSchemaSet,
+      options?: WordPressRequestOverrides,
+    ): Promise<WordPressStandardSchema> =>
+      getStandardSchemaFromDescription(
+        await getDescription(options),
+        schemaName,
+      ),
   };
 }
 
@@ -53,4 +63,26 @@ function getJsonSchemaFromDescription(
     );
   }
   return schema;
+}
+
+function getStandardSchemaFromDescription(
+  description: WordPressResourceDescription,
+  schemaName: keyof WordPressResourceSchemaSet,
+): WordPressStandardSchema {
+  const jsonSchema = getJsonSchemaFromDescription(description, schemaName);
+  const cached = standardSchemaCache.get(jsonSchema);
+  if (cached) {
+    return cached;
+  }
+  const standardSchema = zodFromJsonSchema(jsonSchema);
+  if (!standardSchema) {
+    throw createInvalidRequestError(
+      `Unable to convert ${schemaName} JSON Schema to Standard Schema for ${description.kind}:${description.resource}.`,
+    );
+  }
+  standardSchemaCache.set(
+    jsonSchema,
+    standardSchema as WordPressStandardSchema,
+  );
+  return standardSchema as WordPressStandardSchema;
 }

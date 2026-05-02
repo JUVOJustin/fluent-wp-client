@@ -39,8 +39,6 @@ export { ContentItemQuery } from "./builders/content-item-query.js";
 export {
   getCatalogSelectors,
   getQueryParams,
-  getReadableFields,
-  getWritableFields,
   type WordPressCatalogResourceKind,
   type WordPressCatalogSelectors,
 } from "./catalog-helpers.js";
@@ -206,6 +204,7 @@ export type {
   WordPressJsonSchema,
   WordPressResourceCapabilities,
   WordPressResourceDescription,
+  WordPressResourceQueryParamSchemas,
   WordPressResourceSchemaSet,
 } from "./types/discovery.js";
 export type {

@@ -1,4 +1,9 @@
-import { WordPressClient } from "fluent-wp-client";
+import {
+  createDiscoveryMethods,
+  WordPressClient,
+  type WordPressResourceSchemaSet,
+  type WordPressRuntime,
+} from "fluent-wp-client";
 import { zodFromJsonSchema } from "fluent-wp-client/zod";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
@@ -263,61 +268,199 @@ describe("Discovery APIs", () => {
         typeof JSON.parse(JSON.stringify(catalog.content.posts.schemas)),
       ).toBe("object");
     });
+
+    it("reuses one REST index fetch across resource discovery", async () => {
+      const fetchedEndpoints: string[] = [];
+      const endpointSchema = {
+        endpoints: [
+          {
+            args: {
+              page: { type: "integer" },
+              per_page: { type: "integer" },
+            },
+            methods: ["GET"],
+          },
+        ],
+        schema: {
+          properties: { id: { type: "integer" }, title: { type: "object" } },
+          type: "object",
+        },
+      };
+      const runtime: WordPressRuntime = {
+        fetchAPI: async (endpoint) => {
+          fetchedEndpoints.push(endpoint);
+
+          if (endpoint === "/wp-json/") {
+            return { routes: {} } as never;
+          }
+
+          if (endpoint === "/wp-json/wp/v2/types") {
+            return {
+              mock: {
+                rest_base: "mock-posts",
+                rest_namespace: "wp/v2",
+                slug: "mock",
+              },
+            } as never;
+          }
+
+          return {} as never;
+        },
+        fetchAPIPaginated: async () => ({
+          data: [],
+          total: 0,
+          totalPages: 0,
+        }),
+        hasAuth: () => true,
+        request: async () => ({
+          data: endpointSchema,
+          response: new Response(null, { status: 200 }),
+        }),
+      };
+
+      await createDiscoveryMethods(runtime).explore({
+        include: ["content", "resources"],
+      });
+
+      expect(
+        fetchedEndpoints.filter((endpoint) => endpoint === "/wp-json/"),
+      ).toHaveLength(1);
+    });
+
+    it("uses common item query params when an item route schema is unavailable", async () => {
+      const collectionEndpointSchema = {
+        endpoints: [
+          {
+            args: {
+              page: { type: "integer" },
+              per_page: { type: "integer" },
+              search: { type: "string" },
+            },
+            methods: ["GET"],
+          },
+        ],
+        schema: {
+          properties: { id: { type: "integer" }, title: { type: "object" } },
+          type: "object",
+        },
+      };
+      const runtime: WordPressRuntime = {
+        fetchAPI: async (endpoint) => {
+          if (endpoint === "/wp-json/") {
+            return { routes: {} } as never;
+          }
+
+          if (endpoint === "/wp-json/wp/v2/types") {
+            return {
+              mock: {
+                rest_base: "mock-posts",
+                rest_namespace: "wp/v2",
+                slug: "mock",
+              },
+            } as never;
+          }
+
+          return {} as never;
+        },
+        fetchAPIPaginated: async () => ({
+          data: [],
+          total: 0,
+          totalPages: 0,
+        }),
+        hasAuth: () => true,
+        request: async () => ({
+          data: collectionEndpointSchema,
+          response: new Response(null, { status: 200 }),
+        }),
+      };
+
+      const description =
+        await createDiscoveryMethods(runtime).describeContent("mock-posts");
+      const itemProperties = description.capabilities.queryParams.item
+        .properties as Record<string, unknown>;
+
+      expect(itemProperties.context).toMatchObject({ type: "string" });
+      expect(itemProperties._fields).toBeDefined();
+      expect(itemProperties._embed).toBeDefined();
+      expect(itemProperties.page).toBeUndefined();
+      expect(itemProperties.per_page).toBeUndefined();
+      expect(itemProperties.search).toBeUndefined();
+    });
   });
 
   /**
    * capabilities field: normalized DX surface derived from raw OPTIONS data.
    */
   describe("capabilities on describe()", () => {
-    it("content describe() includes capabilities with string arrays", async () => {
+    it("content describe() includes capabilities with query params schema", async () => {
       const desc = await authClient.content("posts").describe();
 
       expect(desc.capabilities).toBeDefined();
-      expect(Array.isArray(desc.capabilities?.queryParams)).toBe(true);
-      expect(Array.isArray(desc.capabilities?.readFields)).toBe(true);
-      expect(Array.isArray(desc.capabilities?.createFields)).toBe(true);
-      expect(Array.isArray(desc.capabilities?.updateFields)).toBe(true);
+      expect(desc.capabilities?.queryParams.collection).toMatchObject({
+        properties: {
+          _embed: { type: "boolean" },
+          _fields: { items: expect.any(Object), type: "array" },
+          per_page: { type: "integer" },
+          search: { type: "string" },
+        },
+        type: "object",
+      });
+      expect(desc.capabilities?.queryParams.item).toMatchObject({
+        properties: {
+          _embed: { type: "boolean" },
+          _fields: { items: expect.any(Object), type: "array" },
+          context: { type: "string" },
+        },
+        type: "object",
+      });
     });
 
-    it("content capabilities.readFields includes known post fields", async () => {
+    it("item schema includes known readable post fields", async () => {
       const desc = await authClient.content("posts").describe();
 
-      const { readFields } = desc.capabilities!;
-      expect(readFields).toContain("id");
-      expect(readFields).toContain("slug");
-      expect(readFields).toContain("title");
-      expect(readFields).toContain("content");
+      const fields = Object.keys(desc.schemas.item?.properties ?? {});
+      expect(fields).toContain("id");
+      expect(fields).toContain("slug");
+      expect(fields).toContain("title");
+      expect(fields).toContain("content");
     });
 
-    it("content capabilities.createFields includes known writable fields", async () => {
+    it("create schema includes known writable fields", async () => {
       const desc = await authClient.content("posts").describe();
 
       // Create schema is built from POST args — common fields should be present
-      expect(desc.capabilities?.createFields.length).toBeGreaterThan(0);
+      expect(
+        Object.keys(desc.schemas.create?.properties ?? {}).length,
+      ).toBeGreaterThan(0);
     });
 
-    it("content capabilities.updateFields matches createFields (no required constraint)", async () => {
+    it("create forbids id while update requires id", async () => {
       const desc = await authClient.content("posts").describe();
+      const createProperties = desc.schemas.create?.properties as
+        | Record<string, unknown>
+        | undefined;
+      const updateProperties = desc.schemas.update?.properties as
+        | Record<string, unknown>
+        | undefined;
 
-      // update removes required; properties should be the same set
-      expect(desc.capabilities?.updateFields).toEqual(
-        desc.capabilities?.createFields,
-      );
+      expect(createProperties?.id).toBe(false);
+      expect(updateProperties?.id).toMatchObject({ type: "integer" });
+      expect(desc.schemas.update?.required).toEqual(["id"]);
     });
 
     it("terms describe() includes capabilities", async () => {
       const desc = await authClient.terms("categories").describe();
 
       expect(desc.capabilities).toBeDefined();
-      expect(Array.isArray(desc.capabilities?.queryParams)).toBe(true);
-      expect(Array.isArray(desc.capabilities?.readFields)).toBe(true);
+      expect(desc.capabilities?.queryParams.collection.type).toBe("object");
+      expect(desc.capabilities?.queryParams.item.type).toBe("object");
     });
 
     it("first-class resource describe() includes capabilities", async () => {
       const desc = await authClient.media().describe();
 
       expect(desc.capabilities).toBeDefined();
-      expect(Array.isArray(desc.capabilities?.readFields)).toBe(true);
+      expect(desc.capabilities?.queryParams.collection.type).toBe("object");
     });
 
     it("capabilities survive JSON round-trip", async () => {
@@ -332,7 +475,9 @@ describe("Discovery APIs", () => {
 
       const postsDesc = catalog.content.posts;
       expect(postsDesc.capabilities).toBeDefined();
-      expect(Array.isArray(postsDesc.capabilities?.readFields)).toBe(true);
+      expect(postsDesc.capabilities?.queryParams.collection.type).toBe(
+        "object",
+      );
     });
   });
 
@@ -361,8 +506,8 @@ describe("Discovery APIs", () => {
 
       expect(postsDesc.resource).toBe("posts");
       expect(postsDesc.capabilities).toBeDefined();
-      expect(postsDesc.capabilities?.readFields).toEqual(
-        catalog.content.posts.capabilities?.readFields,
+      expect(postsDesc.capabilities?.queryParams).toEqual(
+        catalog.content.posts.capabilities?.queryParams,
       );
     });
 
@@ -393,8 +538,8 @@ describe("Discovery APIs", () => {
 
       const postsDesc = await freshClient.content("posts").describe();
       expect(postsDesc.capabilities).toBeDefined();
-      expect(postsDesc.capabilities?.readFields).toEqual(
-        original.content.posts.capabilities?.readFields,
+      expect(postsDesc.capabilities?.queryParams).toEqual(
+        original.content.posts.capabilities?.queryParams,
       );
     });
 
@@ -440,17 +585,27 @@ describe("Discovery APIs", () => {
         // create schema is always present now that endpoint arg discovery is correct
         expect(description.schemas.create).toBeDefined();
 
-        const createSchema = zodFromJsonSchema(description.schemas.create!);
+        const createJsonSchema = description.schemas.create;
+        if (!createJsonSchema) {
+          throw new Error("Expected books create schema to be available.");
+        }
 
-        // Valid create request should succeed
-        const book = (await authClient.content("books").create(
-          {
-            content: "Created with schema validation",
-            status: "draft",
-            title: "Dogfooding Test Book",
-          },
-          createSchema,
-        )) as { id: number; type: string };
+        const createSchema = zodFromJsonSchema(createJsonSchema);
+        if (!createSchema) {
+          throw new Error("Expected books create schema to convert to Zod.");
+        }
+
+        // Validate payload locally before sending it to WordPress
+        const validated = createSchema.parse({
+          content: { raw: "Created with schema validation" },
+          status: "draft",
+          title: { raw: "Dogfooding Test Book" },
+        });
+
+        const book = (await authClient.content("books").create(validated)) as {
+          id: number;
+          type: string;
+        };
 
         expect(book).toBeDefined();
         expect(book.type).toBe("book");
@@ -463,6 +618,64 @@ describe("Discovery APIs", () => {
             .catch(() => undefined);
         }
       }
+    });
+  });
+
+  /**
+   * getStandardSchema() tests: Verify JSON Schema → Standard Schema conversion
+   */
+  describe("getStandardSchema()", () => {
+    it("returns a Standard Schema for a create schema", async () => {
+      const standard = await authClient
+        .content("posts")
+        .getStandardSchema("create");
+      expect(standard).toBeDefined();
+      expect(typeof standard["~standard"].validate).toBe("function");
+    });
+
+    it("validates a correct payload", async () => {
+      const standard = await authClient
+        .content("posts")
+        .getStandardSchema("create");
+      const result = await standard["~standard"].validate({
+        status: "draft",
+        title: { raw: "Valid Post" },
+      });
+      expect(result.issues).toBeUndefined();
+      expect(result.value).toBeDefined();
+    });
+
+    it("rejects an invalid payload", async () => {
+      const standard = await authClient
+        .content("posts")
+        .getStandardSchema("create");
+      const result = await standard["~standard"].validate({
+        status: 42,
+      });
+      expect(result.issues).toBeDefined();
+      expect(result.issues.length).toBeGreaterThan(0);
+    });
+
+    it("works after useCatalog() restores a cached catalog", async () => {
+      const catalog = await authClient.explore();
+      const stored = JSON.stringify(catalog);
+      const restored = JSON.parse(stored);
+
+      const freshClient = createPublicClient();
+      freshClient.useCatalog(restored);
+
+      const standard = await freshClient
+        .content("posts")
+        .getStandardSchema("item");
+      expect(typeof standard["~standard"].validate).toBe("function");
+    });
+
+    it("throws when the requested schema variant is missing", async () => {
+      await expect(
+        authClient
+          .content("posts")
+          .getStandardSchema("delete" as keyof WordPressResourceSchemaSet),
+      ).rejects.toThrow("No delete JSON Schema is available");
     });
   });
 });

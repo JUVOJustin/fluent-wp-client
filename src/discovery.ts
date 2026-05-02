@@ -17,8 +17,10 @@ import type {
   WordPressDiscoveryOptions,
   WordPressDiscoveryWarning,
   WordPressEndpointSchema,
+  WordPressJsonSchema,
   WordPressResourceCapabilities,
   WordPressResourceDescription,
+  WordPressResourceQueryParamSchemas,
   WordPressResourceSchemaSet,
   WordPressTaxonomiesResponse,
   WordPressTypesResponse,
@@ -35,6 +37,10 @@ interface DiscoveryCache {
   resources: Map<string, WordPressResourceDescription>;
   terms: Map<string, WordPressResourceDescription>;
 }
+
+type RestIndexRoutes = Record<string, WordPressEndpointSchema>;
+
+type RestIndexRoutesPromise = Promise<RestIndexRoutes | undefined>;
 
 /**
  * Creates an empty discovery cache.
@@ -133,15 +139,9 @@ function compactOptionalProperties<T extends object>(value: T): T {
   return compacted as T;
 }
 
-/**
- * Extracts query param names for the GET collection endpoint from OPTIONS data.
- *
- * WordPress OPTIONS responses include an `endpoints` array where each entry
- * lists the HTTP methods it handles and its accepted args. The GET entry's
- * args are the supported collection filter/query params.
- * Falls back to the top-level `args` when no endpoint list is present.
- */
-function extractQueryParams(endpointSchema: WordPressEndpointSchema): string[] {
+function extractQueryArgs(
+  endpointSchema: WordPressEndpointSchema,
+): Record<string, unknown> | undefined {
   const endpoints = endpointSchema.endpoints as
     | Array<{ methods?: string[]; args?: Record<string, unknown> }>
     | undefined;
@@ -151,42 +151,65 @@ function extractQueryParams(endpointSchema: WordPressEndpointSchema): string[] {
       (ep) => Array.isArray(ep.methods) && ep.methods.includes("GET"),
     );
 
-    if (getEndpoint?.args) {
-      return Object.keys(getEndpoint.args);
+    if (getEndpoint?.args && typeof getEndpoint.args === "object") {
+      return getEndpoint.args;
     }
   }
 
-  return Object.keys(endpointSchema.args ?? {});
+  return endpointSchema.args && typeof endpointSchema.args === "object"
+    ? (endpointSchema.args as Record<string, unknown>)
+    : undefined;
+}
+
+async function fetchRestIndexRouteSchema(
+  runtime: WordPressRuntime,
+  route: string,
+  options?: WordPressRequestOverrides,
+  routesPromise?: RestIndexRoutesPromise,
+): Promise<WordPressEndpointSchema | undefined> {
+  try {
+    const routes = routesPromise ?? fetchRestIndexRoutes(runtime, options);
+    return (await routes)?.[route.replace(/^\/wp-json/, "")];
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchRestIndexRoutes(
+  runtime: WordPressRuntime,
+  options?: WordPressRequestOverrides,
+): RestIndexRoutesPromise {
+  try {
+    const index = await runtime.fetchAPI<{
+      routes?: RestIndexRoutes;
+    }>("/wp-json/", undefined, options);
+    return index.routes;
+  } catch {
+    return undefined;
+  }
+}
+
+function itemRouteFor(route: string): string {
+  return `${route.replace(/^\/wp-json/, "")}/(?P<id>[\\d]+)`;
 }
 
 /**
  * Builds a normalized capability surface from the OPTIONS response and
  * the already-derived schema set.
  *
- * All fields are plain string arrays so the result is serializable.
+ * All fields are plain serializable values so the result can be cached.
  */
 function buildCapabilities(
   endpointSchema: WordPressEndpointSchema,
-  schemas: WordPressResourceSchemaSet,
+  itemEndpointSchema: WordPressEndpointSchema | undefined,
+  itemSchema: WordPressJsonSchema | undefined,
 ): WordPressResourceCapabilities {
-  const itemProperties = (schemas.item?.properties ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const createProperties = (schemas.create?.properties ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const updateProperties = (schemas.update?.properties ?? {}) as Record<
-    string,
-    unknown
-  >;
-
   return {
-    createFields: Object.keys(createProperties),
-    queryParams: extractQueryParams(endpointSchema),
-    readFields: Object.keys(itemProperties),
-    updateFields: Object.keys(updateProperties),
+    queryParams: buildQuerySchemas(
+      endpointSchema,
+      itemEndpointSchema,
+      itemSchema,
+    ),
   };
 }
 
@@ -201,6 +224,7 @@ function createResourceDescription(config: {
   restBase?: string;
   slug?: string;
   endpointSchema: WordPressEndpointSchema;
+  itemEndpointSchema?: WordPressEndpointSchema;
 }): WordPressResourceDescription {
   const itemSchema = config.endpointSchema.schema
     ? (normalizeWordPressJsonSchema(
@@ -211,7 +235,10 @@ function createResourceDescription(config: {
     ? { items: itemSchema, type: "array" }
     : undefined;
   const createSchema = buildCreateSchema(config.endpointSchema);
-  const updateSchema = buildUpdateSchema(createSchema);
+  const updateSchema = buildUpdateSchema(
+    createSchema,
+    config.itemEndpointSchema,
+  );
 
   const schemas = compactOptionalProperties({
     collection: collectionSchema,
@@ -221,7 +248,11 @@ function createResourceDescription(config: {
   }) as WordPressResourceSchemaSet;
 
   return {
-    capabilities: buildCapabilities(config.endpointSchema, schemas),
+    capabilities: buildCapabilities(
+      config.endpointSchema,
+      config.itemEndpointSchema,
+      itemSchema,
+    ),
     kind: config.kind,
     namespace: config.namespace,
     raw: config.endpointSchema,
@@ -335,6 +366,124 @@ function argsToJsonSchemaProperties(
   return properties;
 }
 
+interface SchemaPropertyNode {
+  properties?: Record<string, SchemaPropertyNode>;
+}
+
+function collectFieldSelectors(
+  properties: Record<string, SchemaPropertyNode>,
+  prefix?: string,
+): string[] {
+  const selectors: string[] = [];
+
+  for (const [name, property] of Object.entries(properties)) {
+    const fieldName = prefix ? `${prefix}.${name}` : name;
+    selectors.push(fieldName);
+
+    if (property.properties && typeof property.properties === "object") {
+      selectors.push(...collectFieldSelectors(property.properties, fieldName));
+    }
+  }
+
+  return selectors;
+}
+
+function buildFieldsParamSchema(
+  itemSchema: WordPressJsonSchema | undefined,
+): WordPressJsonSchema {
+  const selectors = getFieldSelectors(itemSchema);
+
+  const selectorSchema: WordPressJsonSchema = {
+    anyOf: [
+      { enum: Array.from(selectors), type: "string" },
+      {
+        description:
+          "First-level link relation only, for example _links.author or _links.wp:term. WordPress does not trim nested link object fields such as _links.author.href.",
+        pattern: "^_links\\.[^.]+$",
+        type: "string",
+      },
+      {
+        description:
+          "First-level embedded relation only, for example _embedded.author or _embedded.wp:term. Include _links or the matching _links.<rel> field when requesting embedded data with _fields.",
+        pattern: "^_embedded\\.[^.]+$",
+        type: "string",
+      },
+    ],
+  };
+
+  return {
+    description:
+      "Response fields to include via WordPress _fields. Use the SDK array form; it serializes to WordPress query array syntax. Normal response fields may use nested selectors such as title.rendered. Link and embedded selectors are limited to first-level relations; embedded relation selectors require _embed plus _links or the matching _links.<rel> selector.",
+    items: selectorSchema,
+    type: "array",
+  };
+}
+
+function getFieldSelectors(
+  itemSchema: WordPressJsonSchema | undefined,
+): Set<string> {
+  const properties = itemSchema?.properties;
+  const selectors = new Set<string>();
+
+  if (properties && typeof properties === "object") {
+    for (const selector of collectFieldSelectors(
+      properties as Record<string, SchemaPropertyNode>,
+    )) {
+      selectors.add(selector);
+    }
+  }
+
+  selectors.add("_links");
+  selectors.add("_embedded");
+
+  return selectors;
+}
+
+function buildEmbedParamSchema(): WordPressJsonSchema {
+  return {
+    description:
+      "Embeds all embeddable related resources. When combining _embed with _fields, include _embedded and _links, or matching first-level relation selectors such as _embedded.author and _links.author.",
+    type: "boolean",
+  };
+}
+
+function buildCommonItemEndpointSchema(): WordPressEndpointSchema {
+  return {
+    endpoints: [
+      {
+        args: {
+          context: {
+            default: "view",
+            description:
+              "Scope under which the request is made; determines fields present in response.",
+            enum: ["view", "embed", "edit"],
+            type: "string",
+          },
+        },
+        methods: ["GET"],
+      },
+    ],
+  } as WordPressEndpointSchema;
+}
+
+function addCommonReadQueryProperties(
+  properties: Record<string, unknown>,
+  itemSchema: WordPressJsonSchema | undefined,
+): Record<string, unknown> {
+  return {
+    ...properties,
+    _embed: buildEmbedParamSchema(),
+    _fields: buildFieldsParamSchema(itemSchema),
+  };
+}
+
+function omitPathParams(
+  properties: Record<string, unknown>,
+): Record<string, unknown> {
+  const { id: _id, ...queryProperties } = properties;
+  return queryProperties;
+}
+
 /**
  * Determines required fields from REST API args.
  */
@@ -386,6 +535,32 @@ function extractCreateArgs(
     : undefined;
 }
 
+function extractUpdateArgs(
+  endpointSchema: WordPressEndpointSchema | undefined,
+): Record<string, unknown> | undefined {
+  if (!endpointSchema) {
+    return undefined;
+  }
+
+  const endpoints = endpointSchema.endpoints as
+    | Array<{ methods?: string[]; args?: Record<string, unknown> }>
+    | undefined;
+
+  if (Array.isArray(endpoints)) {
+    const updateEndpoint = endpoints.find(
+      (ep) =>
+        Array.isArray(ep.methods) &&
+        ep.methods.some((m) => m === "POST" || m === "PUT" || m === "PATCH"),
+    );
+
+    if (updateEndpoint?.args && typeof updateEndpoint.args === "object") {
+      return updateEndpoint.args;
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * Builds create schema from POST args in endpoint OPTIONS response.
  */
@@ -399,6 +574,7 @@ function buildCreateSchema(
   }
 
   const properties = argsToJsonSchemaProperties(args);
+  properties.id = false;
   const required = getRequiredFields(args);
 
   const schema: Record<string, unknown> = {
@@ -416,19 +592,107 @@ function buildCreateSchema(
 }
 
 /**
+ * Builds collection query schema from GET args in endpoint OPTIONS response.
+ */
+function buildQuerySchema(
+  endpointSchema: WordPressEndpointSchema,
+  itemSchema: WordPressJsonSchema | undefined,
+  options: { omitPathParams?: boolean } = {},
+): WordPressJsonSchema {
+  const args = extractQueryArgs(endpointSchema);
+  const properties = args ? argsToJsonSchemaProperties(args) : {};
+  const queryProperties = options.omitPathParams
+    ? omitPathParams(properties)
+    : properties;
+
+  return normalizeWordPressJsonSchema({
+    allOf: [
+      {
+        if: {
+          properties: {
+            _embed: { const: true },
+            _fields: { type: "array" },
+          },
+          required: ["_embed", "_fields"],
+          type: "object",
+        },
+        then: {
+          properties: {
+            _fields: {
+              allOf: [
+                {
+                  contains: {
+                    anyOf: [
+                      { const: "_links" },
+                      { pattern: "^_links\\.[^.]+$", type: "string" },
+                    ],
+                  },
+                },
+                {
+                  contains: {
+                    anyOf: [
+                      { const: "_embedded" },
+                      { pattern: "^_embedded\\.[^.]+$", type: "string" },
+                    ],
+                  },
+                },
+              ],
+              type: "array",
+            },
+          },
+          type: "object",
+        },
+      },
+    ],
+    properties: addCommonReadQueryProperties(queryProperties, itemSchema),
+    type: "object",
+  }) as WordPressJsonSchema;
+}
+
+function buildQuerySchemas(
+  collectionEndpointSchema: WordPressEndpointSchema,
+  itemEndpointSchema: WordPressEndpointSchema | undefined,
+  itemSchema: WordPressJsonSchema | undefined,
+): WordPressResourceQueryParamSchemas {
+  return {
+    collection: buildQuerySchema(collectionEndpointSchema, itemSchema),
+    item: buildQuerySchema(
+      itemEndpointSchema ?? buildCommonItemEndpointSchema(),
+      itemSchema,
+      { omitPathParams: true },
+    ),
+  };
+}
+
+/**
  * Builds update schema from create schema (no required fields).
  */
 function buildUpdateSchema(
   createSchema: WordPressResourceSchemaSet["create"],
+  itemEndpointSchema: WordPressEndpointSchema | undefined,
 ): WordPressResourceSchemaSet["update"] {
-  if (!createSchema) {
+  const updateArgs = extractUpdateArgs(itemEndpointSchema);
+
+  if (!createSchema && !updateArgs) {
     return undefined;
   }
 
-  const update = { ...createSchema };
-  delete update.required;
+  const properties = updateArgs
+    ? argsToJsonSchemaProperties(updateArgs)
+    : { ...((createSchema?.properties ?? {}) as Record<string, unknown>) };
 
-  return update as WordPressResourceSchemaSet["update"];
+  if (!properties.id) {
+    properties.id = {
+      description: "Unique identifier for the resource.",
+      type: "integer",
+    };
+  }
+
+  return normalizeWordPressJsonSchema({
+    properties,
+    required: ["id"],
+    type: "object",
+  }) as WordPressResourceSchemaSet["update"];
 }
 
 /**
@@ -472,13 +736,21 @@ async function discoverContentResourceFromTypeInfo(
   resource: string,
   typeInfo: { slug: string; rest_base?: string; rest_namespace?: string },
   options?: WordPressRequestOverrides,
+  restIndexRoutes?: RestIndexRoutesPromise,
 ): Promise<WordPressResourceDescription> {
   const namespace = typeInfo.rest_namespace || "wp/v2";
   const restBase = typeInfo.rest_base || resource;
   const route = `/wp-json/${namespace}/${restBase}`;
 
-  // Step 2: Get OPTIONS from the collection endpoint
-  const endpointSchema = await fetchEndpointSchema(runtime, route, options);
+  const [endpointSchema, itemEndpointSchema] = await Promise.all([
+    fetchEndpointSchema(runtime, route, options),
+    fetchRestIndexRouteSchema(
+      runtime,
+      itemRouteFor(route),
+      options,
+      restIndexRoutes,
+    ),
+  ]);
 
   if (!endpointSchema) {
     throw createDiscoveryError(
@@ -489,6 +761,7 @@ async function discoverContentResourceFromTypeInfo(
 
   return createResourceDescription({
     endpointSchema,
+    itemEndpointSchema,
     kind: "content",
     namespace,
     resource,
@@ -539,13 +812,21 @@ async function discoverTermResourceFromTypeInfo(
   resource: string,
   taxonomyInfo: { slug: string; rest_base?: string; rest_namespace?: string },
   options?: WordPressRequestOverrides,
+  restIndexRoutes?: RestIndexRoutesPromise,
 ): Promise<WordPressResourceDescription> {
   const namespace = taxonomyInfo.rest_namespace || "wp/v2";
   const restBase = taxonomyInfo.rest_base || resource;
   const route = `/wp-json/${namespace}/${restBase}`;
 
-  // Step 2: Get OPTIONS from the collection endpoint
-  const endpointSchema = await fetchEndpointSchema(runtime, route, options);
+  const [endpointSchema, itemEndpointSchema] = await Promise.all([
+    fetchEndpointSchema(runtime, route, options),
+    fetchRestIndexRouteSchema(
+      runtime,
+      itemRouteFor(route),
+      options,
+      restIndexRoutes,
+    ),
+  ]);
 
   if (!endpointSchema) {
     throw createDiscoveryError(
@@ -556,6 +837,7 @@ async function discoverTermResourceFromTypeInfo(
 
   return createResourceDescription({
     endpointSchema,
+    itemEndpointSchema,
     kind: "term",
     namespace,
     resource,
@@ -573,11 +855,20 @@ async function discoverFirstClassResource(
   resource: string,
   restBase: string,
   options?: WordPressRequestOverrides,
+  restIndexRoutes?: RestIndexRoutesPromise,
 ): Promise<WordPressResourceDescription> {
   const namespace = "wp/v2";
   const route = `/wp-json/${namespace}/${restBase}`;
 
-  const endpointSchema = await fetchEndpointSchema(runtime, route, options);
+  const [endpointSchema, itemEndpointSchema] = await Promise.all([
+    fetchEndpointSchema(runtime, route, options),
+    fetchRestIndexRouteSchema(
+      runtime,
+      itemRouteFor(route),
+      options,
+      restIndexRoutes,
+    ),
+  ]);
 
   if (!endpointSchema) {
     throw createDiscoveryError(
@@ -588,6 +879,7 @@ async function discoverFirstClassResource(
 
   return createResourceDescription({
     endpointSchema,
+    itemEndpointSchema,
     kind: "resource",
     namespace,
     resource,
@@ -640,6 +932,7 @@ async function discoverAbility(
 async function discoverAllContent(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
+  restIndexRoutes?: RestIndexRoutesPromise,
 ): Promise<{
   resources: Record<string, WordPressResourceDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -669,6 +962,7 @@ async function discoverAllContent(
               slug: info.slug,
             },
             options,
+            restIndexRoutes,
           );
           return {
             key: restBase,
@@ -712,6 +1006,7 @@ async function discoverAllContent(
 async function discoverAllTerms(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
+  restIndexRoutes?: RestIndexRoutesPromise,
 ): Promise<{
   resources: Record<string, WordPressResourceDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -741,6 +1036,7 @@ async function discoverAllTerms(
               slug: info.slug,
             },
             options,
+            restIndexRoutes,
           );
           return {
             key: restBase,
@@ -782,6 +1078,7 @@ async function discoverAllTerms(
 async function discoverFirstClassResources(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
+  restIndexRoutes?: RestIndexRoutesPromise,
 ): Promise<{
   resources: Record<string, WordPressResourceDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -806,6 +1103,7 @@ async function discoverFirstClassResources(
             resource,
             restBase,
             options,
+            restIndexRoutes,
           );
           return {
             key: resource,
@@ -1079,6 +1377,13 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       terms: {},
       warnings: [],
     };
+    const needsRestIndex =
+      includeKinds.includes("content") ||
+      includeKinds.includes("terms") ||
+      includeKinds.includes("resources");
+    const restIndexRoutes = needsRestIndex
+      ? fetchRestIndexRoutes(runtime, requestOptions)
+      : undefined;
 
     // Execute all discovery operations in parallel
     const discoveryPromises: Promise<void>[] = [];
@@ -1090,6 +1395,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
           const { resources, warnings } = await discoverAllContent(
             runtime,
             requestOptions,
+            restIndexRoutes,
           );
           catalog.content = resources;
           catalog.warnings?.push(...warnings);
@@ -1105,6 +1411,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
           const { resources, warnings } = await discoverAllTerms(
             runtime,
             requestOptions,
+            restIndexRoutes,
           );
           catalog.terms = resources;
           catalog.warnings?.push(...warnings);
@@ -1120,6 +1427,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
           const { resources, warnings } = await discoverFirstClassResources(
             runtime,
             requestOptions,
+            restIndexRoutes,
           );
           catalog.resources = resources;
           catalog.warnings?.push(...warnings);

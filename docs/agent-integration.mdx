@@ -62,9 +62,8 @@ Fluent resource clients expose the pieces most tool adapters need:
 ```ts
 const postCreateSchema = await wp.content('posts').getJsonSchema('create');
 const postUpdateSchema = await wp.content('posts').getJsonSchema('update');
-const postQueryParams = await wp.content('posts').getQueryParams();
-const postReadableFields = await wp.content('posts').getReadableFields();
-const postWritableFields = await wp.content('posts').getWritableFields();
+const postCollectionQuerySchema = await wp.content('posts').getQueryParams('collection');
+const postItemQuerySchema = await wp.content('posts').getQueryParams('item');
 ```
 
 These helpers are thin wrappers around the discovered resource description. They do not decide whether a tool should exist, whether a mutation is safe, or what the model-facing description should say. That belongs in your framework adapter.

@@ -2,6 +2,7 @@ import type {
   WordPressDiscoveryCatalog,
   WordPressJsonSchema,
   WordPressResourceDescription,
+  WordPressResourceQueryParamSchemas,
 } from "./types/discovery.js";
 
 export type WordPressCatalogResourceKind = "content" | "term" | "resource";
@@ -24,59 +25,23 @@ export function getCatalogSelectors(
   };
 }
 
-export function getReadableFields(
-  catalog: WordPressDiscoveryCatalog,
-  kind: WordPressCatalogResourceKind,
-  type: string,
-): string[] {
-  const description = getResourceDescription(catalog, kind, type);
-  return description ? getReadableFieldsDescription(description) : [];
-}
-
-export function getWritableFields(
-  catalog: WordPressDiscoveryCatalog,
-  kind: WordPressCatalogResourceKind,
-  type: string,
-  operation?: "create" | "update",
-): string[] {
-  const description = getResourceDescription(catalog, kind, type);
-  return description
-    ? getWritableFieldsDescription(description, operation)
-    : [];
-}
-
 export function getQueryParams(
   catalog: WordPressDiscoveryCatalog,
   kind: WordPressCatalogResourceKind,
   type: string,
-): string[] {
+  target: keyof WordPressResourceQueryParamSchemas = "collection",
+): WordPressJsonSchema {
   const description = getResourceDescription(catalog, kind, type);
-  return description ? getQueryParamsDescription(description) : [];
-}
-
-export function getReadableFieldsDescription(
-  description: WordPressResourceDescription,
-): string[] {
-  return description.capabilities?.readFields ?? [];
-}
-
-export function getWritableFieldsDescription(
-  description: WordPressResourceDescription,
-  operation?: "create" | "update",
-): string[] {
-  const capabilities = description.capabilities;
-  if (!capabilities) return [];
-  if (operation === "create") return capabilities.createFields;
-  if (operation === "update") return capabilities.updateFields;
-  return Array.from(
-    new Set([...capabilities.createFields, ...capabilities.updateFields]),
-  );
+  return description
+    ? getQueryParamsDescription(description, target)
+    : emptyObjectSchema();
 }
 
 export function getQueryParamsDescription(
   description: WordPressResourceDescription,
-): string[] {
-  return description.capabilities?.queryParams ?? [];
+  target: keyof WordPressResourceQueryParamSchemas = "collection",
+): WordPressJsonSchema {
+  return description.capabilities?.queryParams[target] ?? emptyObjectSchema();
 }
 
 export function getResourceDescription(
@@ -93,4 +58,8 @@ function stringSelector(values: string[]): WordPressJsonSchema {
   return values.length > 0
     ? { enum: values, type: "string" }
     : { type: "string" };
+}
+
+function emptyObjectSchema(): WordPressJsonSchema {
+  return { properties: {}, type: "object" };
 }

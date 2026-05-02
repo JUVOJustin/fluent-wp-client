@@ -422,7 +422,7 @@ export class WordPressClient {
    *
    * // describe() now uses the seeded cache — no network round-trip needed
    * const desc = await wp.content('pages').describe();
-   * console.log(desc.capabilities.queryParams); // ['page', 'per_page', 'lang', ...]
+   * console.log(desc.capabilities.queryParams.collection.properties); // page, per_page, lang, ...
    * ```
    *
    * Returns `this` so the call can be chained after construction.

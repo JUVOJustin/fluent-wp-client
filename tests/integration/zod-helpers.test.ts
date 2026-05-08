@@ -137,6 +137,48 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(nullValid?.success).toBe(true);
     });
 
+    it("handles ACF repeater text subfields as string or null", () => {
+      const schema = zodFromJsonSchema({
+        properties: {
+          acf: {
+            properties: {
+              acf_repeater: {
+                items: {
+                  properties: {
+                    optional_heading: { type: ["string", "null"] },
+                    optional_label: { type: ["string", "null"] },
+                  },
+                  type: "object",
+                },
+                type: "array",
+              },
+            },
+            type: "object",
+          },
+        },
+        type: "object",
+      });
+
+      expect(schema).toBeDefined();
+
+      const valid = schema?.safeParse({
+        acf: {
+          acf_repeater: [
+            { optional_heading: "Heading", optional_label: null },
+            { optional_heading: null, optional_label: "Label" },
+          ],
+        },
+      });
+      expect(valid?.success).toBe(true);
+
+      const invalid = schema?.safeParse({
+        acf: {
+          acf_repeater: [{ optional_heading: 42, optional_label: null }],
+        },
+      });
+      expect(invalid?.success).toBe(false);
+    });
+
     it("handles custom post type schemas with instance-specific fields", () => {
       const bookDesc = catalog.content.books;
       expect(bookDesc).toBeDefined();

@@ -54,11 +54,13 @@ export function normalizeWordPressJsonSchema(
 function normalizeSchemaType(value: unknown): unknown {
   if (value === "int") return "integer";
   if (value === "bool") return "boolean";
+  if (value === "float") return "number";
   if (!Array.isArray(value)) return value;
 
   return value.map((entry) => {
     if (entry === "int") return "integer";
     if (entry === "bool") return "boolean";
+    if (entry === "float") return "number";
     return entry;
   });
 }

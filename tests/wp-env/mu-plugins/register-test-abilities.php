@@ -164,8 +164,9 @@ add_action( 'wp_abilities_api_init', function () {
 				'settings' => [
 					'type'       => 'object',
 					'properties' => [
-						'theme'     => [ 'type' => 'string' ],
-						'font_size' => [ 'type' => 'integer' ],
+						'theme'          => [ 'type' => 'string' ],
+						'font_size'      => [ 'type' => 'integer' ],
+						'priority_score' => [ 'type' => 'float' ],
 					],
 					'required'   => [ 'theme' ],
 				],
@@ -187,8 +188,9 @@ add_action( 'wp_abilities_api_init', function () {
 						'settings' => [
 							'type'       => 'object',
 							'properties' => [
-								'theme'     => [ 'type' => 'string' ],
-								'font_size' => [ 'type' => 'integer' ],
+								'theme'          => [ 'type' => 'string' ],
+								'font_size'      => [ 'type' => 'integer' ],
+								'priority_score' => [ 'type' => 'float' ],
 							],
 						],
 						'tags'     => [

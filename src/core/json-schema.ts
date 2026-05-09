@@ -20,7 +20,11 @@ export function normalizeWordPressJsonSchema(
       continue;
     }
 
-    if (key === "type" && normalizeTypes) {
+    if (
+      key === "type" &&
+      normalizeTypes &&
+      (typeof value === "string" || Array.isArray(value))
+    ) {
       out[key] = normalizeSchemaType(value);
       continue;
     }

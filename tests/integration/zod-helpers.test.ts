@@ -258,25 +258,26 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(result.success).toBe(true);
     });
 
-    it("keeps strict date-time validation when timezone metadata is present", () => {
+    it("relaxes nested custom date-time fields", () => {
       const schema = zodFromJsonSchema({
         properties: {
-          date: {
-            format: "date-time",
-            type: "string",
-            "x-wordpress-timezone": "America/New_York",
+          acf: {
+            properties: {
+              date: {
+                format: "date-time",
+                type: "string",
+              },
+            },
+            type: "object",
           },
         },
         type: "object",
       });
 
       expect(schema).toBeDefined();
-      expect(schema?.safeParse({ date: "2025-01-01T12:00:00" }).success).toBe(
-        false,
-      );
-      expect(schema?.safeParse({ date: "2025-01-01T17:00:00Z" }).success).toBe(
-        true,
-      );
+      expect(
+        schema?.safeParse({ acf: { date: "2025-01-01T12:00:00" } }).success,
+      ).toBe(true);
     });
 
     it("allows empty strings for optional ACF fields without treating them as null", () => {

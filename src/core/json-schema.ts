@@ -11,8 +11,8 @@ export function normalizeWordPressJsonSchema(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const normalizeTypes = options.normalizeTypes ?? true;
-  const dateTimeTimezone =
-    options.dateTimeTimezone ?? stringValue(schema["x-wordpress-timezone"]);
+  const dateTimeTimezone = options.dateTimeTimezone;
+  const resolvesWordPressDateTime = isCoreResponseDateTimeSchemaPath(path);
   const required = new Set(
     Array.isArray(schema.required)
       ? schema.required.filter(
@@ -22,7 +22,11 @@ export function normalizeWordPressJsonSchema(
   );
 
   for (const [key, value] of Object.entries(schema)) {
-    if (key === "format" && value === "date-time" && !dateTimeTimezone) {
+    if (
+      key === "format" &&
+      value === "date-time" &&
+      (!dateTimeTimezone || !resolvesWordPressDateTime)
+    ) {
       continue;
     }
 
@@ -81,11 +85,6 @@ export function normalizeWordPressJsonSchema(
     out[key] = value;
   }
 
-  if (schema.format === "date-time" && dateTimeTimezone) {
-    out["x-wordpress-format"] = "date-time";
-    out["x-wordpress-timezone"] = dateTimeTimezone;
-  }
-
   return out;
 }
 
@@ -93,8 +92,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value !== "" ? value : undefined;
+function isCoreResponseDateTimeSchemaPath(path: string[]): boolean {
+  const field = path[path.length - 1];
+  if (
+    field !== "date" &&
+    field !== "modified" &&
+    field !== "date_gmt" &&
+    field !== "modified_gmt"
+  ) {
+    return false;
+  }
+
+  const joinedPath = path.join(".");
+
+  return (
+    joinedPath === `properties.${field}` ||
+    joinedPath === `items.properties.${field}`
+  );
 }
 
 function allowWordPressEmptyValue(

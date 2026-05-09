@@ -63,7 +63,11 @@ function shouldResolveGmtDateTimeAtPath(path: string): boolean {
 }
 
 function isTopLevelResponseField(path: string, field: string): boolean {
-  return path === field || new RegExp(`^\\[\\d+\\]\\.${field}$`).test(path);
+  if (path === field) return true;
+  if (!path.endsWith(`].${field}`)) return false;
+
+  const index = path.slice(1, -field.length - 2);
+  return path.startsWith("[") && /^\d+$/.test(index);
 }
 
 /**
@@ -111,7 +115,7 @@ export function normalizeWordPressResponse<T>(
         value,
         options.dateTimeTimezone,
       );
-      if (resolved) return resolved.iso as T;
+      if (resolved) return resolved as T;
     }
 
     if (shouldNormalizeAtPath(path)) {

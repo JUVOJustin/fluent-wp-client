@@ -259,7 +259,7 @@ describe("Discovery APIs", () => {
       expect(catalog.resources.settings).toBeDefined();
     });
 
-    it("includes authenticated site timezone metadata on date-time schemas", async () => {
+    it("uses authenticated site timezone metadata for core date-time schemas", async () => {
       const originalSettings = await authClient.settings().get();
       const timezone = "America/New_York";
 
@@ -272,8 +272,6 @@ describe("Discovery APIs", () => {
 
         expect(catalog.site?.timezone).toBe(timezone);
         expect(dateSchema?.date?.format).toBe("date-time");
-        expect(dateSchema?.date?.["x-wordpress-format"]).toBe("date-time");
-        expect(dateSchema?.date?.["x-wordpress-timezone"]).toBe(timezone);
 
         const [post] = await authClient.content("posts").list({ perPage: 1 });
         expect(post?.date).toMatch(/T\d{2}:\d{2}:\d{2}-0[45]:00$/);
@@ -295,7 +293,6 @@ describe("Discovery APIs", () => {
 
       expect(catalog.site).toBeUndefined();
       expect(dateSchema?.date?.format).toBeUndefined();
-      expect(dateSchema?.date?.["x-wordpress-timezone"]).toBeUndefined();
     });
 
     it("supports include option to limit discovery scope", async () => {

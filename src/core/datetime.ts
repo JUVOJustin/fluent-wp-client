@@ -2,19 +2,6 @@
  * Helpers for resolving WordPress local datetime strings with site timezone metadata.
  */
 
-export interface WordPressDateTimeResolution {
-  /** ISO 8601 datetime with the resolved numeric offset appended. */
-  iso: string;
-  /** Numeric offset formatted for ISO 8601 strings. */
-  offset: string;
-  /** Numeric timezone offset at this instant, in minutes east of UTC. */
-  offsetMinutes: number;
-  /** IANA timezone used to resolve the local datetime. */
-  timezone: string;
-  /** Original WordPress local datetime value. */
-  value: string;
-}
-
 interface DateTimeParts {
   day: number;
   fractional?: string;
@@ -34,7 +21,7 @@ const WORDPRESS_LOCAL_DATETIME =
 export function resolveWordPressDateTime(
   value: string,
   timezone: string | undefined,
-): WordPressDateTimeResolution | undefined {
+): string | undefined {
   if (!timezone) return undefined;
 
   const parts = parseWordPressLocalDateTime(value);
@@ -61,15 +48,7 @@ export function resolveWordPressDateTime(
     return undefined;
   }
 
-  const offset = formatOffset(offsetMinutes);
-
-  return {
-    iso: `${formatLocalDateTime(parts)}${offset}`,
-    offset,
-    offsetMinutes,
-    timezone,
-    value,
-  };
+  return `${formatLocalDateTime(parts)}${formatOffset(offsetMinutes)}`;
 }
 
 function resolveStableOffsetMinutes(

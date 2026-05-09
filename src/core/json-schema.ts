@@ -114,7 +114,22 @@ function allowWordPressEmptyValue(
     variants.push({ const: "", type: "string" });
   }
 
-  return variants.length === 1 ? schema : { anyOf: variants };
+  if (variants.length === 1) return schema;
+
+  return copySchemaAnnotations(schema, { anyOf: variants });
+}
+
+function copySchemaAnnotations(
+  source: Record<string, unknown>,
+  target: Record<string, unknown>,
+): Record<string, unknown> {
+  for (const key of ["description", "title", "default", "required"] as const) {
+    if (source[key] !== undefined) {
+      target[key] = source[key];
+    }
+  }
+
+  return target;
 }
 
 function shouldAllowEmptyString(schema: Record<string, unknown>): boolean {

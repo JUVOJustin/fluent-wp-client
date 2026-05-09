@@ -137,6 +137,41 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(nullValid?.success).toBe(true);
     });
 
+    it("normalizes aliases under nested properties named 'type'", () => {
+      const schema = zodFromJsonSchema({
+        properties: {
+          acf_repeater: {
+            items: {
+              properties: {
+                type: {
+                  properties: {
+                    enabled: { type: "bool" },
+                    id: { type: "int" },
+                  },
+                  type: "object",
+                },
+              },
+              type: "object",
+            },
+            type: "array",
+          },
+        },
+        type: "object",
+      });
+
+      expect(schema).toBeDefined();
+
+      const valid = schema?.safeParse({
+        acf_repeater: [{ type: { enabled: true, id: 123 } }],
+      });
+      expect(valid?.success).toBe(true);
+
+      const invalid = schema?.safeParse({
+        acf_repeater: [{ type: { enabled: true, id: "123" } }],
+      });
+      expect(invalid?.success).toBe(false);
+    });
+
     it("handles ACF repeater text subfields as string or null", () => {
       const schema = zodFromJsonSchema({
         properties: {

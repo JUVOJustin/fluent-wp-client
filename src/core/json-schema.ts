@@ -11,6 +11,8 @@ export function normalizeWordPressJsonSchema(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const normalizeTypes = options.normalizeTypes ?? true;
+  const dateTimeTimezone =
+    options.dateTimeTimezone ?? stringValue(schema["x-wordpress-timezone"]);
   const required = new Set(
     Array.isArray(schema.required)
       ? schema.required.filter(
@@ -20,11 +22,7 @@ export function normalizeWordPressJsonSchema(
   );
 
   for (const [key, value] of Object.entries(schema)) {
-    if (
-      key === "format" &&
-      value === "date-time" &&
-      !options.dateTimeTimezone
-    ) {
+    if (key === "format" && value === "date-time" && !dateTimeTimezone) {
       continue;
     }
 
@@ -83,9 +81,9 @@ export function normalizeWordPressJsonSchema(
     out[key] = value;
   }
 
-  if (schema.format === "date-time" && options.dateTimeTimezone) {
+  if (schema.format === "date-time" && dateTimeTimezone) {
     out["x-wordpress-format"] = "date-time";
-    out["x-wordpress-timezone"] = options.dateTimeTimezone;
+    out["x-wordpress-timezone"] = dateTimeTimezone;
   }
 
   return out;
@@ -93,6 +91,10 @@ export function normalizeWordPressJsonSchema(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 function allowWordPressEmptyValue(
@@ -143,7 +145,8 @@ function shouldAllowEmptyString(schema: Record<string, unknown>): boolean {
 
   const types = schemaTypeList(schema.type);
   if (types.length === 0 || types.includes("array")) return false;
-  if (!types.includes("string")) return true;
+  if (types.includes("number")) return true;
+  if (!types.includes("string")) return false;
 
   return (
     schema.format !== undefined ||

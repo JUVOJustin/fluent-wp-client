@@ -48,9 +48,19 @@ export function resolveWordPressDateTime(
     parts.minute,
     parts.second,
   );
-  const firstOffset = getTimeZoneOffsetMinutes(timezone, new Date(utcGuess));
-  const resolvedInstant = new Date(utcGuess - firstOffset * 60_000);
-  const offsetMinutes = getTimeZoneOffsetMinutes(timezone, resolvedInstant);
+  const offsetMinutes = resolveStableOffsetMinutes(timezone, utcGuess);
+  if (offsetMinutes === undefined) return undefined;
+
+  const resolvedInstant = new Date(utcGuess - offsetMinutes * 60_000);
+  if (
+    !matchesLocalDateTime(
+      parts,
+      getTimeZoneDateTimeParts(timezone, resolvedInstant),
+    )
+  ) {
+    return undefined;
+  }
+
   const offset = formatOffset(offsetMinutes);
 
   return {
@@ -60,6 +70,22 @@ export function resolveWordPressDateTime(
     timezone,
     value,
   };
+}
+
+function resolveStableOffsetMinutes(
+  timezone: string,
+  utcGuess: number,
+): number | undefined {
+  let offset = getTimeZoneOffsetMinutes(timezone, new Date(utcGuess));
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const resolvedInstant = new Date(utcGuess - offset * 60_000);
+    const nextOffset = getTimeZoneOffsetMinutes(timezone, resolvedInstant);
+    if (nextOffset === offset) return offset;
+    offset = nextOffset;
+  }
+
+  return undefined;
 }
 
 function parseWordPressLocalDateTime(value: string): DateTimeParts | undefined {
@@ -89,29 +115,67 @@ function isValidTimeZone(timezone: string): boolean {
 }
 
 function getTimeZoneOffsetMinutes(timezone: string, date: Date): number {
+  const parts = getTimeZoneDateTimeParts(timezone, date);
+  const asUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+  );
+
+  return Math.round((asUtc - date.getTime()) / 60_000);
+}
+
+function getTimeZoneDateTimeParts(timezone: string, date: Date): DateTimeParts {
   const formatter = new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     hour: "2-digit",
-    hour12: false,
+    hourCycle: "h23",
     minute: "2-digit",
     month: "2-digit",
     second: "2-digit",
     timeZone: timezone,
     year: "numeric",
   });
-  const parts = Object.fromEntries(
-    formatter.formatToParts(date).map((part) => [part.type, part.value]),
-  );
-  const asUtc = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    Number(parts.hour),
-    Number(parts.minute),
-    Number(parts.second),
-  );
+  const parts: Partial<Record<keyof DateTimeParts, number>> = {};
 
-  return Math.round((asUtc - date.getTime()) / 60_000);
+  for (const part of formatter.formatToParts(date)) {
+    if (
+      part.type === "year" ||
+      part.type === "month" ||
+      part.type === "day" ||
+      part.type === "hour" ||
+      part.type === "minute" ||
+      part.type === "second"
+    ) {
+      parts[part.type] = Number(part.value);
+    }
+  }
+
+  return {
+    day: parts.day ?? 0,
+    hour: parts.hour ?? 0,
+    minute: parts.minute ?? 0,
+    month: parts.month ?? 0,
+    second: parts.second ?? 0,
+    year: parts.year ?? 0,
+  };
+}
+
+function matchesLocalDateTime(
+  source: DateTimeParts,
+  target: DateTimeParts,
+): boolean {
+  return (
+    source.year === target.year &&
+    source.month === target.month &&
+    source.day === target.day &&
+    source.hour === target.hour &&
+    source.minute === target.minute &&
+    source.second === target.second
+  );
 }
 
 function formatOffset(offsetMinutes: number): string {

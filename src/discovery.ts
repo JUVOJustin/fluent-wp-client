@@ -34,6 +34,7 @@ interface DiscoveryCache {
   catalog?: WordPressDiscoveryCatalog;
   content: Map<string, WordPressResourceDescription>;
   resources: Map<string, WordPressResourceDescription>;
+  site?: WordPressDiscoverySiteMetadata;
   terms: Map<string, WordPressResourceDescription>;
 }
 
@@ -57,11 +58,14 @@ function createDiscoveryCache(): DiscoveryCache {
  * Validates a WordPress timezone string before annotating discovered schemas.
  */
 function normalizeTimeZone(value: unknown): string | undefined {
-  if (typeof value !== "string" || value.trim() === "") return undefined;
+  if (typeof value !== "string") return undefined;
+
+  const timezone = value.trim();
+  if (timezone === "") return undefined;
 
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: value });
-    return value;
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    return timezone;
   } catch {
     return undefined;
   }
@@ -1007,6 +1011,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       abilities: Object.fromEntries(cache.abilities),
       content: Object.fromEntries(cache.content),
       resources: Object.fromEntries(cache.resources),
+      site: cache.site,
       terms: Object.fromEntries(cache.terms),
       warnings: undefined,
     };
@@ -1165,6 +1170,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       runtime,
       requestOptions,
     );
+    cache.site = site;
     if (site) {
       catalog.site = site;
     }
@@ -1303,6 +1309,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       resources: catalog.resources,
       terms: catalog.terms,
     });
+    cache.site = catalog.site;
     runtime.setDateTimeTimezone(catalog.site?.timezone);
     cache.catalog = catalog;
   }
@@ -1316,6 +1323,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
     cache.resources.clear();
     cache.terms.clear();
     cache.abilities.clear();
+    cache.site = undefined;
     runtime.setDateTimeTimezone(undefined);
   }
 

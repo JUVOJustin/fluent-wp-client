@@ -258,6 +258,27 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
       expect(result.success).toBe(true);
     });
 
+    it("keeps strict date-time validation when timezone metadata is present", () => {
+      const schema = zodFromJsonSchema({
+        properties: {
+          date: {
+            format: "date-time",
+            type: "string",
+            "x-wordpress-timezone": "America/New_York",
+          },
+        },
+        type: "object",
+      });
+
+      expect(schema).toBeDefined();
+      expect(schema?.safeParse({ date: "2025-01-01T12:00:00" }).success).toBe(
+        false,
+      );
+      expect(schema?.safeParse({ date: "2025-01-01T17:00:00Z" }).success).toBe(
+        true,
+      );
+    });
+
     it("allows empty strings for optional ACF fields without treating them as null", () => {
       const schema = zodFromJsonSchema({
         properties: {
@@ -296,6 +317,15 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
         schema?.safeParse({
           acf: {
             acf_priority_score: "not-empty",
+            required_score: 10,
+          },
+        }).success,
+      ).toBe(false);
+      expect(
+        schema?.safeParse({
+          acf: {
+            acf_featured_post: "",
+            acf_priority_score: 10,
             required_score: 10,
           },
         }).success,

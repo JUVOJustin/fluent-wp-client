@@ -320,6 +320,22 @@ describe("Discovery APIs", () => {
       expect(Object.keys(fullCatalog.abilities).length).toBeGreaterThan(0);
     });
 
+    it("preserves site metadata in catalog snapshots after partial explore()", async () => {
+      const client = createAuthClient();
+      const originalSettings = await client.settings().get();
+
+      try {
+        await client.settings().update({ timezone: "America/New_York" });
+        const partialCatalog = await client.explore({ include: ["content"] });
+        const snapshot = client.getCachedCatalog();
+
+        expect(partialCatalog.site?.timezone).toBe("America/New_York");
+        expect(snapshot?.site).toEqual(partialCatalog.site);
+      } finally {
+        await client.settings().update({ timezone: originalSettings.timezone });
+      }
+    });
+
     it("returns serializable DTOs", async () => {
       const catalog = await authClient.explore();
 

@@ -257,6 +257,96 @@ describe("Zod helpers: runtime catalog-to-Zod conversion", () => {
 
       expect(result.success).toBe(true);
     });
+
+    it("allows empty strings for optional ACF fields without treating them as null", () => {
+      const schema = zodFromJsonSchema({
+        properties: {
+          acf: {
+            properties: {
+              acf_featured_post: { type: ["integer", "null"] },
+              acf_priority_score: { type: "number" },
+              required_score: { type: "number" },
+            },
+            required: ["required_score"],
+            type: "object",
+          },
+        },
+        type: "object",
+      });
+
+      expect(schema).toBeDefined();
+      expect(
+        schema?.safeParse({
+          acf: {
+            acf_featured_post: null,
+            acf_priority_score: "",
+            required_score: 10,
+          },
+        }).success,
+      ).toBe(true);
+      expect(
+        schema?.safeParse({
+          acf: {
+            acf_priority_score: null,
+            required_score: 10,
+          },
+        }).success,
+      ).toBe(false);
+      expect(
+        schema?.safeParse({
+          acf: {
+            acf_priority_score: "not-empty",
+            required_score: 10,
+          },
+        }).success,
+      ).toBe(false);
+      expect(
+        schema?.safeParse({
+          acf: {
+            acf_priority_score: 10,
+            required_score: "",
+          },
+        }).success,
+      ).toBe(false);
+    });
+
+    it("allows schema-declared defaults for optional meta fields", () => {
+      const schema = zodFromJsonSchema({
+        properties: {
+          meta: {
+            properties: {
+              test_object_meta: {
+                additionalProperties: false,
+                default: [],
+                properties: {
+                  city: { type: "string" },
+                  lat: { type: "number" },
+                },
+                type: "object",
+              },
+            },
+            type: "object",
+          },
+        },
+        type: "object",
+      });
+
+      expect(schema).toBeDefined();
+      expect(
+        schema?.safeParse({ meta: { test_object_meta: [] } }).success,
+      ).toBe(true);
+      expect(
+        schema?.safeParse({
+          meta: { test_object_meta: { city: "Berlin", lat: 52.52 } },
+        }).success,
+      ).toBe(true);
+      expect(
+        schema?.safeParse({ meta: { test_object_meta: "" } }).success,
+      ).toBe(false);
+      expect(
+        schema?.safeParse({ meta: { test_object_meta: null } }).success,
+      ).toBe(false);
+    });
   });
 
   describe("zodSchemasFromDescription() — resources", () => {

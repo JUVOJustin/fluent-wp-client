@@ -15,6 +15,7 @@ import type {
   WordPressAbilitySchemaSet,
   WordPressDiscoveryCatalog,
   WordPressDiscoveryOptions,
+  WordPressDiscoverySiteMetadata,
   WordPressDiscoveryWarning,
   WordPressEndpointSchema,
   WordPressResourceCapabilities,
@@ -36,6 +37,10 @@ interface DiscoveryCache {
   terms: Map<string, WordPressResourceDescription>;
 }
 
+interface DiscoverySchemaOptions {
+  dateTimeTimezone?: string;
+}
+
 /**
  * Creates an empty discovery cache.
  */
@@ -46,6 +51,54 @@ function createDiscoveryCache(): DiscoveryCache {
     resources: new Map(),
     terms: new Map(),
   };
+}
+
+/**
+ * Validates a WordPress timezone string before annotating discovered schemas.
+ */
+function normalizeTimeZone(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return value;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Reads authenticated site settings opportunistically for catalog metadata.
+ */
+async function discoverSiteMetadata(
+  runtime: WordPressRuntime,
+  options?: WordPressRequestOverrides,
+): Promise<{
+  site?: WordPressDiscoverySiteMetadata;
+  warning?: WordPressDiscoveryWarning;
+}> {
+  if (!runtime.hasAuth()) return {};
+
+  try {
+    const settings = await runtime.fetchAPI<Record<string, unknown>>(
+      "/settings",
+      undefined,
+      options,
+    );
+    const timezone = normalizeTimeZone(settings.timezone);
+
+    return timezone ? { site: { timezone } } : {};
+  } catch (error) {
+    return {
+      warning: {
+        key: "site:settings",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch authenticated site settings",
+      },
+    };
+  }
 }
 
 /**
@@ -201,16 +254,21 @@ function createResourceDescription(config: {
   restBase?: string;
   slug?: string;
   endpointSchema: WordPressEndpointSchema;
+  schemaOptions?: DiscoverySchemaOptions;
 }): WordPressResourceDescription {
   const itemSchema = config.endpointSchema.schema
     ? (normalizeWordPressJsonSchema(
         config.endpointSchema.schema as Record<string, unknown>,
+        config.schemaOptions,
       ) as WordPressResourceSchemaSet["item"])
     : undefined;
   const collectionSchema = itemSchema
     ? { items: itemSchema, type: "array" }
     : undefined;
-  const createSchema = buildCreateSchema(config.endpointSchema);
+  const createSchema = buildCreateSchema(
+    config.endpointSchema,
+    config.schemaOptions,
+  );
   const updateSchema = buildUpdateSchema(createSchema);
 
   const schemas = compactOptionalProperties({
@@ -391,6 +449,7 @@ function extractCreateArgs(
  */
 function buildCreateSchema(
   endpointSchema: WordPressEndpointSchema,
+  schemaOptions?: DiscoverySchemaOptions,
 ): WordPressResourceSchemaSet["create"] {
   const args = extractCreateArgs(endpointSchema);
 
@@ -412,6 +471,7 @@ function buildCreateSchema(
 
   return normalizeWordPressJsonSchema(
     schema,
+    schemaOptions,
   ) as WordPressResourceSchemaSet["create"];
 }
 
@@ -438,6 +498,7 @@ async function discoverContentResource(
   runtime: WordPressRuntime,
   resource: string,
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<WordPressResourceDescription> {
   const types = await runtime.fetchAPI<WordPressTypesResponse>(
     "/wp-json/wp/v2/types",
@@ -461,6 +522,7 @@ async function discoverContentResource(
     resource,
     typeInfo,
     options,
+    schemaOptions,
   );
 }
 
@@ -472,6 +534,7 @@ async function discoverContentResourceFromTypeInfo(
   resource: string,
   typeInfo: { slug: string; rest_base?: string; rest_namespace?: string },
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<WordPressResourceDescription> {
   const namespace = typeInfo.rest_namespace || "wp/v2";
   const restBase = typeInfo.rest_base || resource;
@@ -494,6 +557,7 @@ async function discoverContentResourceFromTypeInfo(
     resource,
     restBase,
     route,
+    schemaOptions,
     slug: typeInfo.slug,
   });
 }
@@ -505,6 +569,7 @@ async function discoverTermResource(
   runtime: WordPressRuntime,
   resource: string,
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<WordPressResourceDescription> {
   const taxonomies = await runtime.fetchAPI<WordPressTaxonomiesResponse>(
     "/wp-json/wp/v2/taxonomies",
@@ -528,6 +593,7 @@ async function discoverTermResource(
     resource,
     taxonomyInfo,
     options,
+    schemaOptions,
   );
 }
 
@@ -539,6 +605,7 @@ async function discoverTermResourceFromTypeInfo(
   resource: string,
   taxonomyInfo: { slug: string; rest_base?: string; rest_namespace?: string },
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<WordPressResourceDescription> {
   const namespace = taxonomyInfo.rest_namespace || "wp/v2";
   const restBase = taxonomyInfo.rest_base || resource;
@@ -561,6 +628,7 @@ async function discoverTermResourceFromTypeInfo(
     resource,
     restBase,
     route,
+    schemaOptions,
     slug: taxonomyInfo.slug,
   });
 }
@@ -573,6 +641,7 @@ async function discoverFirstClassResource(
   resource: string,
   restBase: string,
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<WordPressResourceDescription> {
   const namespace = "wp/v2";
   const route = `/wp-json/${namespace}/${restBase}`;
@@ -593,6 +662,7 @@ async function discoverFirstClassResource(
     resource,
     restBase,
     route,
+    schemaOptions,
   });
 }
 
@@ -603,6 +673,7 @@ async function discoverAbility(
   runtime: WordPressRuntime,
   name: string,
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<WordPressAbilityDescription> {
   const ABILITIES_BASE_ENDPOINT = "/wp-json/wp-abilities/v1";
   const route = `${ABILITIES_BASE_ENDPOINT}/abilities/${name}`;
@@ -623,11 +694,13 @@ async function discoverAbility(
       input: ability.input_schema
         ? (normalizeWordPressJsonSchema(
             ability.input_schema as Record<string, unknown>,
+            schemaOptions,
           ) as WordPressAbilityDescription["schemas"]["input"])
         : undefined,
       output: ability.output_schema
         ? (normalizeWordPressJsonSchema(
             ability.output_schema as Record<string, unknown>,
+            schemaOptions,
           ) as WordPressAbilityDescription["schemas"]["output"])
         : undefined,
     }) as WordPressAbilitySchemaSet,
@@ -640,6 +713,7 @@ async function discoverAbility(
 async function discoverAllContent(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<{
   resources: Record<string, WordPressResourceDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -669,6 +743,7 @@ async function discoverAllContent(
               slug: info.slug,
             },
             options,
+            schemaOptions,
           );
           return {
             key: restBase,
@@ -712,6 +787,7 @@ async function discoverAllContent(
 async function discoverAllTerms(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<{
   resources: Record<string, WordPressResourceDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -741,6 +817,7 @@ async function discoverAllTerms(
               slug: info.slug,
             },
             options,
+            schemaOptions,
           );
           return {
             key: restBase,
@@ -782,6 +859,7 @@ async function discoverAllTerms(
 async function discoverFirstClassResources(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<{
   resources: Record<string, WordPressResourceDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -806,6 +884,7 @@ async function discoverFirstClassResources(
             resource,
             restBase,
             options,
+            schemaOptions,
           );
           return {
             key: resource,
@@ -841,6 +920,7 @@ async function discoverFirstClassResources(
 async function discoverAllAbilities(
   runtime: WordPressRuntime,
   options?: WordPressRequestOverrides,
+  schemaOptions?: DiscoverySchemaOptions,
 ): Promise<{
   abilities: Record<string, WordPressAbilityDescription>;
   warnings: WordPressDiscoveryWarning[];
@@ -864,6 +944,7 @@ async function discoverAllAbilities(
           runtime,
           ability.name,
           options,
+          schemaOptions,
         );
         return {
           key: ability.name,
@@ -1080,6 +1161,22 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       warnings: [],
     };
 
+    const { site, warning } = await discoverSiteMetadata(
+      runtime,
+      requestOptions,
+    );
+    if (site) {
+      catalog.site = site;
+    }
+    if (warning) {
+      catalog.warnings?.push(warning);
+    }
+    runtime.setDateTimeTimezone(site?.timezone);
+
+    const schemaOptions: DiscoverySchemaOptions | undefined = site?.timezone
+      ? { dateTimeTimezone: site.timezone }
+      : undefined;
+
     // Execute all discovery operations in parallel
     const discoveryPromises: Promise<void>[] = [];
 
@@ -1090,6 +1187,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
           const { resources, warnings } = await discoverAllContent(
             runtime,
             requestOptions,
+            schemaOptions,
           );
           catalog.content = resources;
           catalog.warnings?.push(...warnings);
@@ -1105,6 +1203,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
           const { resources, warnings } = await discoverAllTerms(
             runtime,
             requestOptions,
+            schemaOptions,
           );
           catalog.terms = resources;
           catalog.warnings?.push(...warnings);
@@ -1120,6 +1219,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
           const { resources, warnings } = await discoverFirstClassResources(
             runtime,
             requestOptions,
+            schemaOptions,
           );
           catalog.resources = resources;
           catalog.warnings?.push(...warnings);
@@ -1135,6 +1235,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
           const { abilities, warnings } = await discoverAllAbilities(
             runtime,
             requestOptions,
+            schemaOptions,
           );
           catalog.abilities = abilities;
           catalog.warnings?.push(...warnings);
@@ -1168,6 +1269,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       abilities: include.includes("abilities") ? catalog.abilities : {},
       content: include.includes("content") ? catalog.content : {},
       resources: include.includes("resources") ? catalog.resources : {},
+      site: catalog.site,
       terms: include.includes("terms") ? catalog.terms : {},
       warnings: catalog.warnings,
     };
@@ -1201,6 +1303,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
       resources: catalog.resources,
       terms: catalog.terms,
     });
+    runtime.setDateTimeTimezone(catalog.site?.timezone);
     cache.catalog = catalog;
   }
 
@@ -1213,6 +1316,7 @@ export function createDiscoveryMethods(runtime: WordPressRuntime) {
     cache.resources.clear();
     cache.terms.clear();
     cache.abilities.clear();
+    runtime.setDateTimeTimezone(undefined);
   }
 
   return {

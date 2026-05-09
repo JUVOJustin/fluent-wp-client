@@ -195,6 +195,19 @@ function enumToType(values: unknown[]): string {
   return Array.from(new Set(literals)).join(" | ") || "unknown";
 }
 
+function constToType(value: unknown): string | undefined {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (value === null) return "null";
+  if (Array.isArray(value)) {
+    const items = value.map((item) => constToType(item) ?? "unknown");
+    return `[${items.join(", ")}]`;
+  }
+  return undefined;
+}
+
 /**
  * Emits an inline TypeScript object type from JSON Schema object properties.
  */
@@ -250,6 +263,10 @@ function objectSchemaToType(schema: JsonSchemaObject, indent: string): string {
  * Converts one normalized JSON Schema node into a TypeScript type expression.
  */
 function schemaToType(schema: JsonSchemaObject, indent = ""): string {
+  if (schema.const !== undefined) {
+    return constToType(schema.const) ?? "unknown";
+  }
+
   if (Array.isArray(schema.enum)) {
     return enumToType(schema.enum);
   }
@@ -282,9 +299,12 @@ function schemaToType(schema: JsonSchemaObject, indent = ""): string {
   let output: string;
 
   if (type === "array") {
-    output = isObject(schema.items)
-      ? `Array<${schemaToType(schema.items, indent)}>`
-      : "unknown[]";
+    output =
+      schema.maxItems === 0
+        ? "[]"
+        : isObject(schema.items)
+          ? `Array<${schemaToType(schema.items, indent)}>`
+          : "unknown[]";
   } else if (type === "boolean") {
     output = "boolean";
   } else if (type === "integer" || type === "number") {

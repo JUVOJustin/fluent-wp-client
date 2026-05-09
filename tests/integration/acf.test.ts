@@ -293,6 +293,19 @@ describe("Client: ACF fields", () => {
     expect(acf.acf_external_url).toBe("https://example.com/test-post-001");
   });
 
+  it("reads empty ACF scalar fields as empty strings and empty relations as null", async () => {
+    const post = await fetchResourceBySlug("posts", "test-post-004");
+    const acf = getAcfRecord(post);
+
+    expect(acf.acf_subtitle).toBe("");
+    expect(acf.acf_summary).toBe("");
+    expect(acf.acf_priority_score).toBe("");
+    expect(acf.acf_external_url).toBe("");
+    expect(acf.acf_related_posts).toBeNull();
+    expect(acf.acf_featured_post).toBeNull();
+    expect(acf.acf_related_genres).toEqual([]);
+  });
+
   it("reads seeded scalar ACF fields on pages", async () => {
     const page = await fetchResourceBySlug("pages", "about");
     const acf = getAcfRecord(page);

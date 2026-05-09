@@ -112,7 +112,7 @@ npx fluent-wp-client schemas
 
 ## Generated artifacts
 
-`schemas` produces normalized item schemas suitable for downstream validation and codegen.
+`schemas` produces normalized item schemas suitable for downstream validation and codegen. Generated JSON Schema and Zod validators accept WordPress local datetime strings without strict `date-time` format checks. Optional scalar ACF fields also allow `""` when WordPress can return an empty value; `null` appears only when the REST schema declares it.
 
 Typical flow:
 

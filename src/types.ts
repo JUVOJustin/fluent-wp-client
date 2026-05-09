@@ -5,6 +5,7 @@
  * but this barrel ensures backward compatibility for existing consumer imports.
  */
 
+export type { WordPressDateTimeResolution } from "./core/datetime.js";
 export { compactPayload, filterToParams } from "./core/params.js";
 // Client configuration and request types
 export type {
@@ -18,6 +19,7 @@ export type {
   WordPressAbilitySchemaSet,
   WordPressDiscoveryCatalog,
   WordPressDiscoveryOptions,
+  WordPressDiscoverySiteMetadata,
   WordPressDiscoveryWarning,
   WordPressJsonSchema,
   WordPressResourceDescription,

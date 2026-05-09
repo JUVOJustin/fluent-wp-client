@@ -181,6 +181,8 @@ npx fluent-wp-client schemas --url https://example.com --zod-out wp-schemas.ts -
 
 The `schemas` command discovers WordPress JSON Schema, then emits the artifacts requested by output paths. Omit output paths to write `wp-schemas.ts`, or pass paths such as `--zod-out wp-schemas.mjs`, `--json-out wp-schemas.json`, and `--types-out wp-types.d.ts`. Zod output is intentionally limited to `.ts` or `.mjs`; JSON Schema uses `.json`; standalone types use `.d.ts`.
 
+Generated schemas relax WordPress-specific response quirks centrally: optional scalar ACF fields can validate as `""`, and registered meta fields accept WordPress' declared empty defaults. Authenticated runtime catalogs include `catalog.site.timezone`, keep strict `date-time` schemas for WordPress date fields, and normalize subsequent DTO date values to offset ISO datetime strings. Without timezone metadata, schemas and DTOs fall back to WordPress' raw local datetime strings. Use `resolveWordPressDateTime()` to combine a raw WordPress datetime with a timezone manually.
+
 ## Rate limiting and request control
 
 Use the `onRequest` callback to implement rate limiting, request logging, or other custom logic:

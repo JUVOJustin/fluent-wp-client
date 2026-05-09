@@ -59,6 +59,42 @@ describe("Discovery APIs", () => {
 
       expect(JSON.parse(JSON.stringify(description))).toEqual(description);
     });
+
+    it("normalizes date-time formats and optional empty ACF field schemas", async () => {
+      const description = await authClient.content("posts").describe();
+      const properties = description.schemas.item?.properties as
+        | Record<string, { format?: unknown; properties?: unknown }>
+        | undefined;
+      const acf = properties?.acf as
+        | { properties?: Record<string, unknown> }
+        | undefined;
+      const meta = properties?.meta as
+        | { properties?: Record<string, unknown> }
+        | undefined;
+      const priorityScore = acf?.properties?.acf_priority_score as
+        | { anyOf?: Array<Record<string, unknown>> }
+        | undefined;
+      const externalUrl = acf?.properties?.acf_external_url as
+        | { anyOf?: Array<Record<string, unknown>> }
+        | undefined;
+      const objectMeta = meta?.properties?.test_object_meta as
+        | { anyOf?: Array<Record<string, unknown>> }
+        | undefined;
+
+      expect(properties?.date?.format).toBeUndefined();
+      expect(properties?.modified?.format).toBeUndefined();
+      expect(priorityScore?.anyOf).toContainEqual({
+        const: "",
+        type: "string",
+      });
+      expect(priorityScore?.anyOf).not.toContainEqual({ type: "null" });
+      expect(externalUrl?.anyOf).toContainEqual({ const: "", type: "string" });
+      expect(objectMeta?.anyOf).toContainEqual({ maxItems: 0, type: "array" });
+      expect(objectMeta?.anyOf).not.toContainEqual({
+        const: "",
+        type: "string",
+      });
+    });
   });
 
   describe("resource getSchemaValue()", () => {
@@ -221,6 +257,45 @@ describe("Discovery APIs", () => {
       expect(catalog.resources.users).toBeDefined();
       expect(catalog.resources.comments).toBeDefined();
       expect(catalog.resources.settings).toBeDefined();
+    });
+
+    it("includes authenticated site timezone metadata on date-time schemas", async () => {
+      const originalSettings = await authClient.settings().get();
+      const timezone = "America/New_York";
+
+      try {
+        await authClient.settings().update({ timezone });
+        const catalog = await authClient.explore({ refresh: true });
+        const dateSchema = catalog.content.posts.schemas.item?.properties as
+          | Record<string, Record<string, unknown>>
+          | undefined;
+
+        expect(catalog.site?.timezone).toBe(timezone);
+        expect(dateSchema?.date?.format).toBe("date-time");
+        expect(dateSchema?.date?.["x-wordpress-format"]).toBe("date-time");
+        expect(dateSchema?.date?.["x-wordpress-timezone"]).toBe(timezone);
+
+        const [post] = await authClient.content("posts").list({ perPage: 1 });
+        expect(post?.date).toMatch(/T\d{2}:\d{2}:\d{2}-0[45]:00$/);
+        expect(post?.date_gmt).toMatch(/T\d{2}:\d{2}:\d{2}Z$/);
+      } finally {
+        await authClient.settings().update({
+          timezone: originalSettings.timezone,
+        });
+        await authClient.explore({ refresh: true });
+      }
+    });
+
+    it("omits site timezone metadata for unauthenticated catalog discovery", async () => {
+      const publicClient = createPublicClient();
+      const catalog = await publicClient.explore({ include: ["content"] });
+      const dateSchema = catalog.content.posts.schemas.item?.properties as
+        | Record<string, Record<string, unknown>>
+        | undefined;
+
+      expect(catalog.site).toBeUndefined();
+      expect(dateSchema?.date?.format).toBeUndefined();
+      expect(dateSchema?.date?.["x-wordpress-timezone"]).toBeUndefined();
     });
 
     it("supports include option to limit discovery scope", async () => {

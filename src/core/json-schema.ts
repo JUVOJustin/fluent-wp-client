@@ -4,19 +4,56 @@
 export function normalizeWordPressJsonSchema(
   schema: Record<string, unknown>,
   options: {
+    dateTimeTimezone?: string;
     normalizeTypes?: boolean;
-    stripDateTimeFormats?: boolean;
   } = {},
+  path: string[] = [],
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const normalizeTypes = options.normalizeTypes ?? true;
+  const required = new Set(
+    Array.isArray(schema.required)
+      ? schema.required.filter(
+          (item): item is string => typeof item === "string",
+        )
+      : [],
+  );
 
   for (const [key, value] of Object.entries(schema)) {
     if (
       key === "format" &&
       value === "date-time" &&
-      options.stripDateTimeFormats
+      !options.dateTimeTimezone
     ) {
+      continue;
+    }
+
+    if (key === "properties" && isRecord(value)) {
+      const parentProperty = path[path.length - 1];
+      const parentAcceptsWordPressEmptyValues =
+        path.length >= 2 &&
+        path[path.length - 2] === "properties" &&
+        (parentProperty === "acf" || parentProperty === "meta");
+      const properties: Record<string, unknown> = {};
+
+      for (const [propertyKey, propertySchema] of Object.entries(value)) {
+        const normalized = isRecord(propertySchema)
+          ? normalizeWordPressJsonSchema(propertySchema, options, [
+              ...path,
+              key,
+              propertyKey,
+            ])
+          : propertySchema;
+
+        properties[propertyKey] = parentAcceptsWordPressEmptyValues
+          ? allowWordPressEmptyValue(normalized, {
+              allowEmptyString: parentProperty === "acf",
+              required: required.has(propertyKey),
+            })
+          : normalized;
+      }
+
+      out[key] = properties;
       continue;
     }
 
@@ -29,21 +66,15 @@ export function normalizeWordPressJsonSchema(
       continue;
     }
 
-    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-      out[key] = normalizeWordPressJsonSchema(
-        value as Record<string, unknown>,
-        options,
-      );
+    if (isRecord(value)) {
+      out[key] = normalizeWordPressJsonSchema(value, options, [...path, key]);
       continue;
     }
 
     if (Array.isArray(value)) {
       out[key] = value.map((item) =>
-        typeof item === "object" && item !== null
-          ? normalizeWordPressJsonSchema(
-              item as Record<string, unknown>,
-              options,
-            )
+        isRecord(item)
+          ? normalizeWordPressJsonSchema(item, options, [...path, key])
           : item,
       );
       continue;
@@ -52,7 +83,101 @@ export function normalizeWordPressJsonSchema(
     out[key] = value;
   }
 
+  if (schema.format === "date-time" && options.dateTimeTimezone) {
+    out["x-wordpress-format"] = "date-time";
+    out["x-wordpress-timezone"] = options.dateTimeTimezone;
+  }
+
   return out;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function allowWordPressEmptyValue(
+  schema: unknown,
+  options: { allowEmptyString: boolean; required: boolean },
+): unknown {
+  if (options.required || !isRecord(schema)) return schema;
+
+  const variants = [schema];
+
+  if (
+    schema.default !== undefined &&
+    !schemaAcceptsValue(schema, schema.default)
+  ) {
+    variants.push(schemaFromDefaultValue(schema.default));
+  }
+
+  if (options.allowEmptyString && shouldAllowEmptyString(schema)) {
+    variants.push({ const: "", type: "string" });
+  }
+
+  return variants.length === 1 ? schema : { anyOf: variants };
+}
+
+function shouldAllowEmptyString(schema: Record<string, unknown>): boolean {
+  if (
+    schema.const !== undefined ||
+    Array.isArray(schema.enum) ||
+    Array.isArray(schema.choices)
+  ) {
+    return false;
+  }
+
+  const types = schemaTypeList(schema.type);
+  if (types.length === 0 || types.includes("array")) return false;
+  if (!types.includes("string")) return true;
+
+  return (
+    schema.format !== undefined ||
+    schema.pattern !== undefined ||
+    schema.minLength !== undefined
+  );
+}
+
+function schemaFromDefaultValue(value: unknown): Record<string, unknown> {
+  if (Array.isArray(value) && value.length === 0) {
+    return { maxItems: 0, type: "array" };
+  }
+
+  if (isRecord(value) && Object.keys(value).length === 0) {
+    return { maxProperties: 0, type: "object" };
+  }
+
+  return { const: value };
+}
+
+function schemaAcceptsValue(
+  schema: Record<string, unknown>,
+  value: unknown,
+): boolean {
+  if (schema.const !== undefined) return Object.is(schema.const, value);
+  if (Array.isArray(schema.enum))
+    return schema.enum.some((item) => Object.is(item, value));
+
+  const types = schemaTypeList(schema.type);
+  if (types.length === 0) return true;
+
+  const valueType =
+    value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+  if (valueType === "number") {
+    return (
+      types.includes("number") ||
+      (Number.isInteger(value) && types.includes("integer"))
+    );
+  }
+  return types.includes(valueType);
+}
+
+function schemaTypeList(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+
+  return [];
 }
 
 function normalizeSchemaType(value: unknown): unknown {

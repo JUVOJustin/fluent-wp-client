@@ -65,6 +65,7 @@ export class WordPressTransport {
   private readonly requestCredentials: RequestCredentials | undefined;
   private readonly fetcher: typeof fetch | undefined;
   private readonly onRequest: WordPressRequestCallback | undefined;
+  private dateTimeTimezone: string | undefined;
 
   constructor(config: WordPressTransportConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, "");
@@ -88,6 +89,13 @@ export class WordPressTransport {
       this.authHeaders !== undefined ||
       this.cookieHeader !== undefined
     );
+  }
+
+  /**
+   * Sets the WordPress site timezone used to normalize local datetime DTO fields.
+   */
+  setDateTimeTimezone(timezone: string | undefined): void {
+    this.dateTimeTimezone = timezone;
   }
 
   /**
@@ -391,7 +399,9 @@ export class WordPressTransport {
 
     // Fix double-encoded HTML entities that WordPress occasionally produces
     // in rendered fields (title.rendered, content.rendered, excerpt.rendered).
-    const data = normalizeWordPressResponse(rawData);
+    const data = normalizeWordPressResponse(rawData, "", {
+      dateTimeTimezone: this.dateTimeTimezone,
+    });
 
     return {
       data,
@@ -513,6 +523,7 @@ export interface WordPressRuntime {
   request: <T = unknown>(
     options: WordPressRequestOptions,
   ) => Promise<WordPressRequestResult<T>>;
+  setDateTimeTimezone: (timezone: string | undefined) => void;
 }
 
 /**
@@ -524,5 +535,6 @@ export function createRuntime(transport: WordPressTransport): WordPressRuntime {
     fetchAPIPaginated: transport.fetchAPIPaginated.bind(transport),
     hasAuth: transport.hasAuth.bind(transport),
     request: transport.request.bind(transport),
+    setDateTimeTimezone: transport.setDateTimeTimezone.bind(transport),
   };
 }

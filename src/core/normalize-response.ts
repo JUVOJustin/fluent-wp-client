@@ -41,8 +41,8 @@ const NORMALIZED_PATH_SUFFIXES = [
   ".rendered",
 ] as const;
 
-const LOCAL_DATETIME_PATH_SUFFIXES = [".date", ".modified"] as const;
-const GMT_DATETIME_PATH_SUFFIXES = [".date_gmt", ".modified_gmt"] as const;
+const LOCAL_DATETIME_FIELDS = ["date", "modified"] as const;
+const GMT_DATETIME_FIELDS = ["date_gmt", "modified_gmt"] as const;
 const WORDPRESS_LOCAL_DATETIME =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/;
 
@@ -51,15 +51,19 @@ function shouldNormalizeAtPath(path: string): boolean {
 }
 
 function shouldResolveLocalDateTimeAtPath(path: string): boolean {
-  return LOCAL_DATETIME_PATH_SUFFIXES.some(
-    (suffix) => path === suffix.slice(1) || path.endsWith(suffix),
+  return LOCAL_DATETIME_FIELDS.some((field) =>
+    isTopLevelResponseField(path, field),
   );
 }
 
 function shouldResolveGmtDateTimeAtPath(path: string): boolean {
-  return GMT_DATETIME_PATH_SUFFIXES.some(
-    (suffix) => path === suffix.slice(1) || path.endsWith(suffix),
+  return GMT_DATETIME_FIELDS.some((field) =>
+    isTopLevelResponseField(path, field),
   );
+}
+
+function isTopLevelResponseField(path: string, field: string): boolean {
+  return path === field || new RegExp(`^\\[\\d+\\]\\.${field}$`).test(path);
 }
 
 /**

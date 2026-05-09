@@ -116,21 +116,11 @@ Use `zodFromJsonSchema` when the WordPress instance is not known at build time â
 :::
 
 :::tip[WordPress date strings]
-WordPress REST responses often use local datetime strings such as `2025-01-01T12:00:00` without a timezone suffix. The client keeps these DTO values unchanged because adding `Z` would incorrectly reinterpret local site time as UTC. Discovered schemas omit strict `format: "date-time"` annotations so generated JSON Schema and Zod validators accept the datetime strings WordPress actually returns.
+WordPress REST responses often use local datetime strings such as `2025-01-01T12:00:00` without a timezone suffix. Without site timezone metadata, discovered schemas omit strict `format: "date-time"` annotations so generated JSON Schema and Zod validators accept the datetime strings WordPress actually returns.
 
-When discovery runs with authentication, `wp.explore()` also reads `/settings` and stores the validated WordPress timezone in `catalog.site.timezone`. Date-time schema properties keep strict `format: "date-time"` and are annotated with `x-wordpress-format: "date-time"` and `x-wordpress-timezone`. Subsequent DTO reads from that client resolve WordPress local date fields such as `date` and `modified` to offset ISO datetimes, while `date_gmt` and `modified_gmt` receive a `Z` suffix. If no timezone is available, DTOs and schemas fall back to WordPress' raw local datetime strings.
+When discovery runs with authentication, `wp.explore()` also reads `/settings` and stores the validated WordPress timezone in `catalog.site.timezone`. Date-time schema properties keep strict `format: "date-time"` and are annotated with `x-wordpress-format: "date-time"` and `x-wordpress-timezone`.
 
-Use `resolveWordPressDateTime()` when you need to derive the same standards-compliant offset datetime outside a catalog-aware client:
-
-```ts
-import { resolveWordPressDateTime } from 'fluent-wp-client';
-
-const catalog = await wp.explore();
-const post = await wp.content('posts').item(123);
-const resolved = resolveWordPressDateTime(post.date, catalog.site?.timezone);
-
-// resolved?.iso -> "2025-01-01T12:00:00-05:00"
-```
+After that catalog is loaded, the client handles date normalization automatically. Subsequent DTO reads from the same client resolve WordPress local date fields such as `date` and `modified` to offset ISO datetimes, while `date_gmt` and `modified_gmt` receive a `Z` suffix. If no timezone is available, DTOs and schemas fall back to WordPress' raw local datetime strings.
 :::
 
 :::tip[Optional ACF fields]

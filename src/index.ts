@@ -46,10 +46,6 @@ export {
 } from "./catalog-helpers.js";
 export { WordPressClient } from "./client.js";
 export type { WordPressRawContentResult } from "./content-query.js";
-export {
-  resolveWordPressDateTime,
-  type WordPressDateTimeResolution,
-} from "./core/datetime.js";
 // Embedded data extraction helpers
 export {
   ACF_POSTS_EMBED_KEY,

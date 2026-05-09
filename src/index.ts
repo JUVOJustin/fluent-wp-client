@@ -202,6 +202,7 @@ export type {
   WordPressAbilitySchemaSet,
   WordPressDiscoveryCatalog,
   WordPressDiscoveryOptions,
+  WordPressDiscoverySiteMetadata,
   WordPressDiscoveryWarning,
   WordPressJsonSchema,
   WordPressResourceCapabilities,

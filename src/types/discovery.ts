@@ -104,12 +104,21 @@ export interface WordPressDiscoveryWarning {
 }
 
 /**
+ * Site-level metadata discovered from authenticated WordPress settings.
+ */
+export interface WordPressDiscoverySiteMetadata {
+  /** IANA timezone configured in WordPress settings, when available. */
+  timezone?: string;
+}
+
+/**
  * Complete discovery catalog containing all discoverable resources and abilities.
  */
 export interface WordPressDiscoveryCatalog {
   abilities: Record<string, WordPressAbilityDescription>;
   content: Record<string, WordPressResourceDescription>;
   resources: Record<string, WordPressResourceDescription>;
+  site?: WordPressDiscoverySiteMetadata;
   terms: Record<string, WordPressResourceDescription>;
   warnings?: WordPressDiscoveryWarning[];
 }

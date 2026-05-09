@@ -20,7 +20,7 @@ Two paths serve different use cases:
 ```mermaid
 flowchart TD
   WP[WordPress REST API\nOPTIONS + ability schemas]
-  Normalize[Catalog normalization\n- bool -> boolean\n- int -> integer\n- update schemas have no required fields]
+  Normalize[Catalog normalization\n- bool -> boolean\n- int -> integer\n- date-time formats relaxed\n- optional ACF fields allow empty strings\n- update schemas have no required fields]
   Catalog[Serializable discovery catalog\ncontent, terms, resources, abilities]
 
   WP --> Runtime[Runtime: wp.explore()]
@@ -116,7 +116,15 @@ Use `zodFromJsonSchema` when the WordPress instance is not known at build time �
 :::
 
 :::tip[WordPress date strings]
-WordPress REST responses often use local datetime strings such as `2025-01-01T12:00:00` without a timezone suffix. The client keeps these DTO values unchanged because adding `Z` would incorrectly reinterpret local site time as UTC. If a validator treats JSON Schema `format: "date-time"` strictly, relax that rule during validator conversion instead of rewriting response data.
+WordPress REST responses often use local datetime strings such as `2025-01-01T12:00:00` without a timezone suffix. Without site timezone metadata, discovered schemas omit strict `format: "date-time"` annotations so generated JSON Schema and Zod validators accept the datetime strings WordPress actually returns.
+
+When discovery runs with authentication, `wp.explore()` also reads `/settings` and stores the validated WordPress timezone in `catalog.site.timezone`. Core response date fields (`date`, `modified`, `date_gmt`, and `modified_gmt`) keep strict `format: "date-time"`. Nested plugin or custom fields stay relaxed because the client does not rewrite them automatically.
+
+After that catalog is loaded, the client handles date normalization automatically. Subsequent DTO reads from the same client resolve WordPress local date fields such as `date` and `modified` to offset ISO datetimes, while `date_gmt` and `modified_gmt` receive a `Z` suffix. If no timezone is available, DTOs and schemas fall back to WordPress' raw local datetime strings.
+:::
+
+:::tip[Optional ACF fields]
+ACF can return an empty string for optional scalar fields that otherwise validate as constrained strings or numbers. Normalized schemas allow `""` for those optional ACF fields without converting it to `null`. Fields only include `null` when WordPress or ACF declares it in the REST schema.
 :::
 
 ## Explore: full catalog
@@ -130,6 +138,7 @@ const catalog = await wp.explore();
 // catalog.terms     — taxonomies (categories, tags, …)
 // catalog.resources — media, users, comments, settings
 // catalog.abilities — registered WordPress abilities
+// catalog.site      — site metadata, such as timezone when authenticated
 ```
 
 Limit the scope with `include`, or bust the in-memory cache with `refresh`:

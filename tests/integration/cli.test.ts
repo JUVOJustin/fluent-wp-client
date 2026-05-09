@@ -105,6 +105,8 @@ describe("CLI: code generation", () => {
     );
     expect(generatedSchemas).toContain('"test_book_isbn"');
     expect(generatedSchemas).toContain('"acf_subtitle"');
+    expect(generatedSchemas).toContain('"const": ""');
+    expect(generatedSchemas).not.toContain('"format": "date-time"');
   });
 
   it("creates missing parent directories for the output path", () => {
@@ -253,6 +255,9 @@ describe("CLI: code generation", () => {
     expect(generatedTypes).toContain("export interface WPBook");
     expect(generatedTypes).toContain("test_book_isbn?: string");
     expect(generatedTypes).toContain("acf_subtitle?: string");
+    expect(generatedTypes).toContain('acf_priority_score?: number | null | ""');
+    expect(generatedTypes).toContain("test_object_meta?:");
+    expect(generatedTypes).toContain("| []");
     expect(generatedTypes).not.toContain("from 'zod'");
     expect(generatedTypes).not.toContain("z.infer");
   });

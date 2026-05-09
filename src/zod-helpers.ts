@@ -17,9 +17,8 @@ import type {
 // ---------------------------------------------------------------------------
 
 /**
- * @deprecated Prefer `zodFromJsonSchema` for validator conversion. This
- * wrapper is preserved for backwards compatibility and keeps the original
- * date-time stripping behavior.
+ * @deprecated Prefer `zodFromJsonSchema` for validator conversion. Date-time
+ * formats are stripped by the shared WordPress JSON Schema normalizer.
  */
 export function stripDateTimeFormats(
   schema: Record<string, unknown>,
@@ -27,7 +26,6 @@ export function stripDateTimeFormats(
 ): Record<string, unknown> {
   return normalizeWordPressJsonSchema(schema, {
     normalizeTypes: options.normalizeTypes,
-    stripDateTimeFormats: true,
   });
 }
 

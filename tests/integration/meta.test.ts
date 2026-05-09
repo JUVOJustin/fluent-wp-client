@@ -108,6 +108,40 @@ async function fetchResource(
 }
 
 /**
+ * Reads one seeded resource by slug to inspect WordPress default meta values.
+ */
+async function fetchResourceBySlug(
+  resource: ResourceName,
+  slug: string,
+): Promise<Record<string, unknown>> {
+  const url = new URL(`${getBaseUrl()}/wp-json/wp/v2/${resource}`);
+  url.searchParams.set("slug", slug);
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Expected ${resource} slug '${slug}' to exist. Received ${response.status}.`,
+    );
+  }
+
+  const entries = (await response.json()) as Array<Record<string, unknown>>;
+  const [entry] = entries;
+
+  if (!entry) {
+    throw new Error(
+      `Expected ${resource} slug '${slug}' to resolve one entry.`,
+    );
+  }
+
+  return entry;
+}
+
+/**
  * Tracks created entries per resource so the suite can clean up after itself.
  */
 const createdIds: Record<ResourceName, number[]> = {
@@ -124,6 +158,18 @@ describe("Client: meta fields", () => {
 
   beforeAll(() => {
     client = createAuthClient();
+  });
+
+  it("reads empty registered meta fields as WordPress default values", async () => {
+    const post = await fetchResourceBySlug("posts", "test-post-002");
+    const meta = getMetaRecord(post);
+
+    expect(meta.test_string_meta).toBe("");
+    expect(meta.test_boolean_meta).toBe(false);
+    expect(meta.test_integer_meta).toBe(0);
+    expect(meta.test_number_meta).toBe(0);
+    expect(meta.test_array_meta).toEqual([]);
+    expect(meta.test_object_meta).toEqual([]);
   });
 
   afterAll(async () => {

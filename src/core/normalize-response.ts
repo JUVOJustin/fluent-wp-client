@@ -1,3 +1,5 @@
+import { resolveWordPressDateTime } from "./datetime.js";
+
 /**
  * Pattern matching double-encoded HTML entities.
  *
@@ -39,8 +41,33 @@ const NORMALIZED_PATH_SUFFIXES = [
   ".rendered",
 ] as const;
 
+const LOCAL_DATETIME_FIELDS = ["date", "modified"] as const;
+const GMT_DATETIME_FIELDS = ["date_gmt", "modified_gmt"] as const;
+const WORDPRESS_LOCAL_DATETIME =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/;
+
 function shouldNormalizeAtPath(path: string): boolean {
   return NORMALIZED_PATH_SUFFIXES.some((suffix) => path.endsWith(suffix));
+}
+
+function shouldResolveLocalDateTimeAtPath(path: string): boolean {
+  return LOCAL_DATETIME_FIELDS.some((field) =>
+    isTopLevelResponseField(path, field),
+  );
+}
+
+function shouldResolveGmtDateTimeAtPath(path: string): boolean {
+  return GMT_DATETIME_FIELDS.some((field) =>
+    isTopLevelResponseField(path, field),
+  );
+}
+
+function isTopLevelResponseField(path: string, field: string): boolean {
+  if (path === field) return true;
+  if (!path.endsWith(`].${field}`)) return false;
+
+  const index = path.slice(1, -field.length - 2);
+  return path.startsWith("[") && /^\d+$/.test(index);
 }
 
 /**
@@ -70,8 +97,27 @@ export function normalizeWordPressString(value: string): string {
  * The function mutates the input value (and nested objects/arrays) in place
  * to avoid unnecessary allocations for large REST payloads.
  */
-export function normalizeWordPressResponse<T>(value: T, path = ""): T {
+export function normalizeWordPressResponse<T>(
+  value: T,
+  path = "",
+  options: { dateTimeTimezone?: string } = {},
+): T {
   if (typeof value === "string") {
+    if (
+      shouldResolveGmtDateTimeAtPath(path) &&
+      WORDPRESS_LOCAL_DATETIME.test(value)
+    ) {
+      return `${value}Z` as T;
+    }
+
+    if (shouldResolveLocalDateTimeAtPath(path)) {
+      const resolved = resolveWordPressDateTime(
+        value,
+        options.dateTimeTimezone,
+      );
+      if (resolved) return resolved as T;
+    }
+
     if (shouldNormalizeAtPath(path)) {
       return normalizeWordPressString(value) as T;
     }
@@ -82,7 +128,11 @@ export function normalizeWordPressResponse<T>(value: T, path = ""): T {
   if (Array.isArray(value)) {
     for (let i = 0; i < value.length; i++) {
       const childPath = `${path}[${i}]`;
-      const normalized = normalizeWordPressResponse(value[i], childPath);
+      const normalized = normalizeWordPressResponse(
+        value[i],
+        childPath,
+        options,
+      );
 
       if (normalized !== value[i]) {
         value[i] = normalized;
@@ -102,6 +152,7 @@ export function normalizeWordPressResponse<T>(value: T, path = ""): T {
       const normalized = normalizeWordPressResponse(
         (value as Record<string, unknown>)[key],
         childPath,
+        options,
       );
 
       if (normalized !== (value as Record<string, unknown>)[key]) {

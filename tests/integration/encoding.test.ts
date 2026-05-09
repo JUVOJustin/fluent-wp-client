@@ -151,6 +151,42 @@ describe("Client: Encoding normalization", () => {
 
       expect(result).toBe("A &amp;amp; B");
     });
+
+    it("normalizes WordPress datetime fields only at root response item paths", () => {
+      const input = {
+        acf: {
+          date: "2025-01-01T12:00:00",
+          date_gmt: "2025-01-01T17:00:00",
+        },
+        date: "2025-01-01T12:00:00",
+        date_gmt: "2025-01-01T17:00:00",
+      };
+
+      const result = normalizeWordPressResponse(input, "", {
+        dateTimeTimezone: "America/New_York",
+      });
+
+      expect(result.date).toBe("2025-01-01T12:00:00-05:00");
+      expect(result.date_gmt).toBe("2025-01-01T17:00:00Z");
+      expect(result.acf.date).toBe("2025-01-01T12:00:00");
+      expect(result.acf.date_gmt).toBe("2025-01-01T17:00:00");
+    });
+
+    it("normalizes WordPress datetime fields on root collection items", () => {
+      const input = [
+        {
+          acf: { modified: "2025-01-01T12:00:00" },
+          modified: "2025-01-01T12:00:00",
+        },
+      ];
+
+      const result = normalizeWordPressResponse(input, "", {
+        dateTimeTimezone: "America/New_York",
+      });
+
+      expect(result[0].modified).toBe("2025-01-01T12:00:00-05:00");
+      expect(result[0].acf.modified).toBe("2025-01-01T12:00:00");
+    });
   });
 
   describe("seed data encoding test post", () => {

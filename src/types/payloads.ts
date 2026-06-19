@@ -45,6 +45,7 @@ export interface ApplicationPasswordCreateInput {
  * Payload for updating WordPress Application Passwords.
  */
 export interface ApplicationPasswordUpdateInput {
+  app_id?: string;
   name?: string;
   [key: string]: unknown;
 }

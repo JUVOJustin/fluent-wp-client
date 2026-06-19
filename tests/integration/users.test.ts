@@ -216,10 +216,14 @@ describe("Client: Users", () => {
     expect(fetched.uuid).toBe(created.uuid);
     expect(fetched.app_id).toBe(created.app_id);
 
+    const updatedAppId = randomUUID();
     const updated = await passwords.update(created.uuid, {
+      app_id: updatedAppId,
       name: `client-app-renamed-${unique}`,
     });
     expect(updated.uuid).toBe(created.uuid);
+    // Core accepts app_id on update requests but keeps the original app_id.
+    expect(updated.app_id).toBe(created.app_id);
     expect(updated.name).toBe(`client-app-renamed-${unique}`);
 
     const deleted = await passwords.delete(created.uuid);

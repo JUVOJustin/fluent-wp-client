@@ -370,7 +370,12 @@ describe("Discovery APIs", () => {
     it("content capabilities.readFields includes known post fields", async () => {
       const desc = await authClient.content("posts").describe();
 
-      const { readFields } = desc.capabilities!;
+      expect(desc.capabilities).toBeDefined();
+      if (!desc.capabilities) {
+        throw new Error("Expected post discovery capabilities.");
+      }
+
+      const { readFields } = desc.capabilities;
       expect(readFields).toContain("id");
       expect(readFields).toContain("slug");
       expect(readFields).toContain("title");
@@ -384,32 +389,71 @@ describe("Discovery APIs", () => {
       expect(desc.capabilities?.createFields.length).toBeGreaterThan(0);
     });
 
-    it("create schema keeps rich-text fields writable as {raw} or a bare string", async () => {
+    it("create and update schemas keep only writable rich-text fields", async () => {
       // Regression: WordPress declares `title`/`content`/`excerpt` as objects
       // whose writable value lives under a nested `raw` subproperty (and the
       // controllers also accept a plain string). Earlier discovery dropped the
       // nested `properties`, collapsing them to `{ type: "object" }`; a strict
       // consumer (e.g. an MCP tool input schema) then stripped `{ raw: ... }`
-      // to `{}`, so WordPress rejected the empty content. Both write shapes
-      // must validate against the discovered create schema.
+      // to `{}`, so WordPress rejected the empty content. Conversely, response
+      // fields such as `rendered` are read-only and must not be exposed as
+      // writable catalog fields.
       const description = await authClient.content("posts").describe();
-      const createSchema = zodFromJsonSchema(description.schemas.create!);
+      const createSchemaJson = description.schemas.create;
+      const updateSchemaJson = description.schemas.update;
+      expect(createSchemaJson).toBeDefined();
+      expect(updateSchemaJson).toBeDefined();
+
+      if (!createSchemaJson || !updateSchemaJson) {
+        throw new Error("Expected post create and update discovery schemas.");
+      }
+
+      const createSchema = zodFromJsonSchema(createSchemaJson);
+      const updateSchema = zodFromJsonSchema(updateSchemaJson);
       expect(createSchema).toBeDefined();
+      expect(updateSchema).toBeDefined();
 
       const contentProp = (
         description.schemas.create?.properties as
           | Record<string, { properties?: Record<string, unknown> }>
           | undefined
       )?.content;
+      const updateContentProp = (
+        description.schemas.update?.properties as
+          | Record<string, { properties?: Record<string, unknown> }>
+          | undefined
+      )?.content;
+
       expect(contentProp?.properties?.raw).toBeDefined();
+      expect(updateContentProp?.properties?.raw).toBeDefined();
+
+      for (const readOnlyField of ["rendered", "block_version", "protected"]) {
+        expect(contentProp?.properties).not.toHaveProperty(readOnlyField);
+        expect(updateContentProp?.properties).not.toHaveProperty(readOnlyField);
+      }
 
       expect(
-        createSchema!.safeParse({ content: { raw: "<p>From raw</p>" } })
-          .success,
+        createSchema.safeParse({ content: { raw: "<p>From raw</p>" } }).success,
       ).toBe(true);
-      expect(createSchema!.safeParse({ content: "From string" }).success).toBe(
+      expect(createSchema.safeParse({ content: "From string" }).success).toBe(
         true,
       );
+      expect(
+        updateSchema.safeParse({ content: { raw: "<p>Updated raw</p>" } })
+          .success,
+      ).toBe(true);
+      expect(
+        updateSchema.safeParse({ content: "Updated string" }).success,
+      ).toBe(true);
+
+      for (const readOnlyPayload of [
+        { content: { block_version: 1 } },
+        { content: { protected: false } },
+        { content: { rendered: "<p>Ignored rendered body</p>" } },
+      ]) {
+        expect(createSchema.safeParse(readOnlyPayload).success).toBe(false);
+        expect(updateSchema.safeParse(readOnlyPayload).success).toBe(false);
+      }
     });
 
     it("content capabilities.updateFields matches createFields (no required constraint)", async () => {
@@ -555,8 +599,11 @@ describe("Discovery APIs", () => {
 
         // create schema is always present now that endpoint arg discovery is correct
         expect(description.schemas.create).toBeDefined();
+        if (!description.schemas.create) {
+          throw new Error("Expected book create discovery schema.");
+        }
 
-        const createSchema = zodFromJsonSchema(description.schemas.create!);
+        const createSchema = zodFromJsonSchema(description.schemas.create);
 
         // Valid create request should succeed
         const book = (await authClient.content("books").create(

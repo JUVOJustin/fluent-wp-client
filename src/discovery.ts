@@ -399,6 +399,90 @@ const PASSTHROUGH_ARG_SCHEMA_KEYS = [
   "allOf",
 ] as const;
 
+function isSchemaRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isReadOnlySchemaNode(schema: Record<string, unknown>): boolean {
+  return schema.readonly === true || schema.readOnly === true;
+}
+
+/**
+ * Removes read-only schema nodes from mutation payload schemas.
+ *
+ * WordPress exposes some write args as full response-shaped objects where only
+ * a nested subset is actually writable, such as `{ raw }` on rich text fields.
+ * Plugin schemas can use the same JSON Schema annotations, so pruning is based
+ * on standard read-only flags rather than resource or field names.
+ */
+function pruneReadOnlySchemaNodes(schema: unknown): unknown | undefined {
+  if (Array.isArray(schema)) {
+    return schema
+      .map((item) => pruneReadOnlySchemaNodes(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (!isSchemaRecord(schema)) {
+    return schema;
+  }
+
+  if (isReadOnlySchemaNode(schema)) {
+    return undefined;
+  }
+
+  const out: Record<string, unknown> = {};
+  const removedProperties = new Set<string>();
+  let required: unknown;
+
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === "readonly" || key === "readOnly") {
+      continue;
+    }
+
+    if (key === "required") {
+      required = value;
+      continue;
+    }
+
+    if (key === "properties" && isSchemaRecord(value)) {
+      const properties: Record<string, unknown> = {};
+
+      for (const [propertyKey, propertySchema] of Object.entries(value)) {
+        const prunedProperty = pruneReadOnlySchemaNodes(propertySchema);
+
+        if (prunedProperty === undefined) {
+          removedProperties.add(propertyKey);
+          continue;
+        }
+
+        properties[propertyKey] = prunedProperty;
+      }
+
+      out.properties = properties;
+      continue;
+    }
+
+    const prunedValue = pruneReadOnlySchemaNodes(value);
+
+    if (prunedValue !== undefined) {
+      out[key] = prunedValue;
+    }
+  }
+
+  if (Array.isArray(required)) {
+    const writableRequired = required.filter(
+      (field): field is string =>
+        typeof field === "string" && !removedProperties.has(field),
+    );
+
+    if (writableRequired.length > 0) {
+      out.required = writableRequired;
+    }
+  }
+
+  return out;
+}
+
 /**
  * Detects the WordPress rich-text field shape: an object arg carrying a writable
  * string `raw` subproperty (`title`, `content`, `excerpt`, media `caption`, etc.).
@@ -407,14 +491,14 @@ const PASSTHROUGH_ARG_SCHEMA_KEYS = [
  */
 function hasWritableRawSubproperty(argDef: Record<string, unknown>): boolean {
   const props = argDef.properties;
-  if (!props || typeof props !== "object") {
+  if (!isSchemaRecord(props)) {
     return false;
   }
   const raw = (props as Record<string, unknown>).raw;
-  if (!raw || typeof raw !== "object") {
+  if (!isSchemaRecord(raw) || isReadOnlySchemaNode(raw)) {
     return false;
   }
-  const rawType = (raw as Record<string, unknown>).type;
+  const rawType = raw.type;
   return (
     rawType === "string" ||
     (Array.isArray(rawType) && rawType.includes("string"))
@@ -432,6 +516,10 @@ function argsToJsonSchemaProperties(
   for (const [key, arg] of Object.entries(args)) {
     if (arg && typeof arg === "object") {
       const argDef = arg as Record<string, unknown>;
+      if (isReadOnlySchemaNode(argDef)) {
+        continue;
+      }
+
       const schema: Record<string, unknown> = {};
 
       for (const schemaKey of PASSTHROUGH_ARG_SCHEMA_KEYS) {
@@ -442,9 +530,14 @@ function argsToJsonSchemaProperties(
 
       if (schema.type === "object" && hasWritableRawSubproperty(argDef)) {
         schema.type = ["object", "string"];
+        schema.additionalProperties ??= false;
       }
 
-      properties[key] = schema;
+      const prunedSchema = pruneReadOnlySchemaNodes(schema);
+
+      if (prunedSchema !== undefined) {
+        properties[key] = prunedSchema;
+      }
     }
   }
 

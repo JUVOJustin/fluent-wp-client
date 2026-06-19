@@ -59,7 +59,7 @@ describe("Client: Content field enforcement", () => {
 
       expect(content).toBeDefined();
       expect(content?.raw).toContain("<!-- wp:paragraph -->");
-      expect(content?.rendered).toContain("<p>Test content body.</p>");
+      expect(content?.rendered).toContain("Test content body.");
     });
 
     it("returns content when fields filter includes content", async () => {

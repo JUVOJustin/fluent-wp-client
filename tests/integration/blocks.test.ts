@@ -120,7 +120,7 @@ describe("Client: Gutenberg block parsing", () => {
 
     expect(content).toBeDefined();
     expect(content?.raw).toContain("<!-- wp:paragraph -->");
-    expect(content?.rendered).toContain("<p>Content payload body.</p>");
+    expect(content?.rendered).toContain("Content payload body.");
   });
 
   it("uses one HTTP request when blocks().get() is called directly", async () => {

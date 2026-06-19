@@ -260,6 +260,7 @@ export function createContentSaveInputSchema(config: {
           `Fields to set on the ${config.contentType} item. When updating, omit fields you do not want to change.`,
         ),
       })
+      .strict()
       .describe(`Create or update a WordPress ${config.contentType} item`);
   }
 

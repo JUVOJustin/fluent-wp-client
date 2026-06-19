@@ -362,6 +362,150 @@ async function fetchEndpointSchema(
 }
 
 /**
+ * JSON Schema keywords on a REST arg definition that describe the value's shape
+ * and constraints. WordPress also attaches non-schema control keys to args
+ * (`required`, `context`, `sanitize_callback`, `validate_callback`); `required`
+ * is handled by {@link getRequiredFields} and the rest are intentionally dropped.
+ *
+ * Crucially this includes `properties`/`additionalProperties`: WordPress declares
+ * rich fields such as `title`, `content`, and `excerpt` as objects whose writable
+ * value lives under a nested `raw` subproperty. Dropping `properties` collapsed
+ * them to a bare `{ type: "object" }`, which a strict (`additionalProperties: false`)
+ * consumer — e.g. an MCP tool input schema — renders as an object with no allowed
+ * keys, silently stripping `{ raw: ... }` and leaving WordPress to reject the empty
+ * value.
+ */
+const PASSTHROUGH_ARG_SCHEMA_KEYS = [
+  "type",
+  "description",
+  "default",
+  "enum",
+  "items",
+  "properties",
+  "additionalProperties",
+  "format",
+  "pattern",
+  "minimum",
+  "maximum",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+  "minLength",
+  "maxLength",
+  "minItems",
+  "maxItems",
+  "uniqueItems",
+  "oneOf",
+  "anyOf",
+  "allOf",
+] as const;
+
+function isSchemaRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isReadOnlySchemaNode(schema: Record<string, unknown>): boolean {
+  return schema.readonly === true || schema.readOnly === true;
+}
+
+/**
+ * Removes read-only schema nodes from mutation payload schemas.
+ *
+ * WordPress exposes some write args as full response-shaped objects where only
+ * a nested subset is actually writable, such as `{ raw }` on rich text fields.
+ * Plugin schemas can use the same JSON Schema annotations, so pruning is based
+ * on standard read-only flags rather than resource or field names.
+ */
+function pruneReadOnlySchemaNodes(schema: unknown): unknown | undefined {
+  if (Array.isArray(schema)) {
+    return schema
+      .map((item) => pruneReadOnlySchemaNodes(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (!isSchemaRecord(schema)) {
+    return schema;
+  }
+
+  if (isReadOnlySchemaNode(schema)) {
+    return undefined;
+  }
+
+  const out: Record<string, unknown> = {};
+  const removedProperties = new Set<string>();
+  let required: unknown;
+
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === "readonly" || key === "readOnly") {
+      continue;
+    }
+
+    if (key === "required") {
+      required = value;
+      continue;
+    }
+
+    if (key === "properties" && isSchemaRecord(value)) {
+      const properties: Record<string, unknown> = {};
+
+      for (const [propertyKey, propertySchema] of Object.entries(value)) {
+        const prunedProperty = pruneReadOnlySchemaNodes(propertySchema);
+
+        if (prunedProperty === undefined) {
+          removedProperties.add(propertyKey);
+          continue;
+        }
+
+        properties[propertyKey] = prunedProperty;
+      }
+
+      out.properties = properties;
+      continue;
+    }
+
+    const prunedValue = pruneReadOnlySchemaNodes(value);
+
+    if (prunedValue !== undefined) {
+      out[key] = prunedValue;
+    }
+  }
+
+  if (Array.isArray(required)) {
+    const writableRequired = required.filter(
+      (field): field is string =>
+        typeof field === "string" && !removedProperties.has(field),
+    );
+
+    if (writableRequired.length > 0) {
+      out.required = writableRequired;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Detects the WordPress rich-text field shape: an object arg carrying a writable
+ * string `raw` subproperty (`title`, `content`, `excerpt`, media `caption`, etc.).
+ * These controllers also accept a bare string on write, so the discovered type is
+ * widened to `["object", "string"]` to mirror that dual handling.
+ */
+function hasWritableRawSubproperty(argDef: Record<string, unknown>): boolean {
+  const props = argDef.properties;
+  if (!isSchemaRecord(props)) {
+    return false;
+  }
+  const raw = (props as Record<string, unknown>).raw;
+  if (!isSchemaRecord(raw) || isReadOnlySchemaNode(raw)) {
+    return false;
+  }
+  const rawType = raw.type;
+  return (
+    rawType === "string" ||
+    (Array.isArray(rawType) && rawType.includes("string"))
+  );
+}
+
+/**
  * Converts REST API args to JSON Schema properties.
  */
 function argsToJsonSchemaProperties(
@@ -372,25 +516,28 @@ function argsToJsonSchemaProperties(
   for (const [key, arg] of Object.entries(args)) {
     if (arg && typeof arg === "object") {
       const argDef = arg as Record<string, unknown>;
+      if (isReadOnlySchemaNode(argDef)) {
+        continue;
+      }
+
       const schema: Record<string, unknown> = {};
 
-      if (argDef.type !== undefined) {
-        schema.type = argDef.type;
-      }
-      if (argDef.description !== undefined) {
-        schema.description = argDef.description;
-      }
-      if (argDef.default !== undefined) {
-        schema.default = argDef.default;
-      }
-      if (argDef.enum !== undefined) {
-        schema.enum = argDef.enum;
-      }
-      if (argDef.items !== undefined) {
-        schema.items = argDef.items;
+      for (const schemaKey of PASSTHROUGH_ARG_SCHEMA_KEYS) {
+        if (argDef[schemaKey] !== undefined) {
+          schema[schemaKey] = argDef[schemaKey];
+        }
       }
 
-      properties[key] = schema;
+      if (schema.type === "object" && hasWritableRawSubproperty(argDef)) {
+        schema.type = ["object", "string"];
+        schema.additionalProperties ??= false;
+      }
+
+      const prunedSchema = pruneReadOnlySchemaNodes(schema);
+
+      if (prunedSchema !== undefined) {
+        properties[key] = prunedSchema;
+      }
     }
   }
 

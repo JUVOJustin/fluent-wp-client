@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createJwtAuthHeader, WordPressClient } from "fluent-wp-client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -184,6 +185,83 @@ describe("Client: Users", () => {
     });
 
     expect(deleted.deleted).toBe(true);
+  });
+
+  it("users().applicationPasswords manages passwords for a user", async () => {
+    const unique = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const managedUser = await authClient.users().create({
+      email: `client-app-password-user-${unique}@example.com`,
+      password: "securepass123!",
+      roles: ["author"],
+      username: `client-app-password-user-${unique}`,
+    });
+    createdUserIds.push(managedUser.id);
+
+    const passwords = authClient.users().applicationPasswords(managedUser.id);
+    const created = await passwords.create({
+      app_id: randomUUID(),
+      name: `client-app-${unique}`,
+    });
+
+    expect(created.uuid).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(created.name).toBe(`client-app-${unique}`);
+    expect(created.password).toBeTypeOf("string");
+
+    const listed = await passwords.list({ context: "edit" });
+    expect(listed.map((password) => password.uuid)).toContain(created.uuid);
+
+    const fetched = await passwords.get(created.uuid, { context: "edit" });
+    expect(fetched.uuid).toBe(created.uuid);
+    expect(fetched.app_id).toBe(created.app_id);
+
+    const updatedAppId = randomUUID();
+    const updated = await passwords.update(created.uuid, {
+      app_id: updatedAppId,
+      name: `client-app-renamed-${unique}`,
+    });
+    expect(updated.uuid).toBe(created.uuid);
+    // Core accepts app_id on update requests but keeps the original app_id.
+    expect(updated.app_id).toBe(created.app_id);
+    expect(updated.name).toBe(`client-app-renamed-${unique}`);
+
+    const deleted = await passwords.delete(created.uuid);
+    expect(deleted.deleted).toBe(true);
+    expect(deleted.uuid).toBe(created.uuid);
+    expect(deleted.previous?.uuid).toBe(created.uuid);
+
+    const first = await passwords.create({
+      name: `client-app-delete-all-a-${unique}`,
+    });
+    const second = await passwords.create({
+      name: `client-app-delete-all-b-${unique}`,
+    });
+
+    const deleteAll = await passwords.deleteAll();
+    expect(deleteAll.deleted).toBe(true);
+    expect(deleteAll.count).toBe(2);
+
+    const remaining = await passwords.list();
+    expect(remaining.map((password) => password.uuid)).not.toContain(
+      first.uuid,
+    );
+    expect(remaining.map((password) => password.uuid)).not.toContain(
+      second.uuid,
+    );
+    expect(remaining).toHaveLength(0);
+  });
+
+  it("users().applicationPasswords('me').introspect returns the current application password", async () => {
+    const current = await authClient
+      .users()
+      .applicationPasswords("me")
+      .introspect({ context: "edit" });
+
+    expect(current.uuid).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(current.name).toBe("vitest");
   });
 
   it("users().me throws without auth", async () => {

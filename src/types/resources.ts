@@ -2,6 +2,7 @@ import type { WordPressBlockJsonSchema } from "../blocks.js";
 import type { ContentItemQuery } from "../builders/content-item-query.js";
 import type { ListAllOptions } from "../core/pagination.js";
 import type {
+  WordPressApplicationPassword,
   WordPressAuthor,
   WordPressBlockType,
   WordPressComment,
@@ -16,6 +17,8 @@ import type {
   WordPressResourceSchemaSet,
 } from "./discovery.js";
 import type {
+  ApplicationPasswordCreateInput,
+  ApplicationPasswordUpdateInput,
   DeleteOptions,
   UserDeleteOptions,
   WordPressWritePayload,
@@ -110,6 +113,42 @@ export interface WordPressDeleteResult {
   deleted: boolean;
   id: number;
   previous?: unknown;
+}
+
+/**
+ * Accepted user selector for routes scoped to one WordPress user.
+ */
+export type WordPressUserRef = number | "me";
+
+/**
+ * Contexts supported by the WordPress Application Passwords REST controller.
+ */
+export type WordPressApplicationPasswordContext = "view" | "embed" | "edit";
+
+/**
+ * Read options for Application Password collection and item endpoints.
+ */
+export interface ApplicationPasswordRequestOptions
+  extends WordPressRequestOverrides {
+  context?: WordPressApplicationPasswordContext;
+  fields?: string[];
+}
+
+/**
+ * Delete result returned by one Application Password delete request.
+ */
+export interface WordPressApplicationPasswordDeleteResult {
+  deleted: boolean;
+  previous?: WordPressApplicationPassword;
+  uuid: string;
+}
+
+/**
+ * Delete result returned by deleting every Application Password for one user.
+ */
+export interface WordPressApplicationPasswordsDeleteAllResult {
+  count: number;
+  deleted: boolean;
 }
 
 /**
@@ -236,6 +275,38 @@ export interface TermsResourceClient<
 }
 
 /**
+ * Fluent Application Passwords sub-resource scoped to one WordPress user.
+ */
+export interface ApplicationPasswordsResourceClient {
+  create: (
+    input: ApplicationPasswordCreateInput,
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressApplicationPassword>;
+  delete: (
+    uuid: string,
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressApplicationPasswordDeleteResult>;
+  deleteAll: (
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressApplicationPasswordsDeleteAllResult>;
+  get: (
+    uuid: string,
+    options?: ApplicationPasswordRequestOptions,
+  ) => Promise<WordPressApplicationPassword>;
+  introspect: (
+    options?: ApplicationPasswordRequestOptions,
+  ) => Promise<WordPressApplicationPassword>;
+  list: (
+    options?: ApplicationPasswordRequestOptions,
+  ) => Promise<WordPressApplicationPassword[]>;
+  update: (
+    uuid: string,
+    input: ApplicationPasswordUpdateInput,
+    options?: WordPressRequestOverrides,
+  ) => Promise<WordPressApplicationPassword>;
+}
+
+/**
  * Fluent media resource API surface with schema discovery and binary uploads.
  */
 export interface MediaResourceClient<
@@ -354,6 +425,9 @@ export interface UsersResourceClient<
   TCreate extends WordPressWritePayload = WordPressWritePayload,
   TUpdate extends WordPressWritePayload = TCreate,
 > extends WordPressResourceToolingClient {
+  applicationPasswords: (
+    userRef: WordPressUserRef,
+  ) => ApplicationPasswordsResourceClient;
   create: (
     input: TCreate,
     options?: WordPressRequestOverrides,

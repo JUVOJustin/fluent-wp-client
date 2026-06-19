@@ -353,6 +353,22 @@ export const authorSchema = z
   .passthrough();
 
 /**
+ * Schema for WordPress Application Password records.
+ */
+export const applicationPasswordSchema = z
+  .object({
+    _links: z.any().optional(),
+    app_id: z.string(),
+    created: z.string().optional(),
+    last_ip: z.string().nullable().optional(),
+    last_used: z.string().nullable().optional(),
+    name: z.string(),
+    password: z.string().optional(),
+    uuid: z.string(),
+  })
+  .passthrough();
+
+/**
  * Schema for WordPress comments.
  */
 export const commentSchema = z
@@ -531,6 +547,9 @@ export type WordPressAbility = z.infer<typeof abilitySchema>;
 export type WordPressAbilityCategory = z.infer<typeof abilityCategorySchema>;
 export type WordPressBlockType = z.infer<typeof blockTypeSchema>;
 export type WordPressAuthor = z.infer<typeof authorSchema>;
+export type WordPressApplicationPassword = z.infer<
+  typeof applicationPasswordSchema
+>;
 export type WordPressComment = z.infer<typeof commentSchema>;
 export type WordPressPostWriteFields = z.infer<typeof updatePostFieldsSchema>;
 export type WordPressPostWriteBase = z.infer<typeof postWriteBaseSchema>;

@@ -38,6 +38,8 @@ export type {
 } from "./types/filters.js";
 // Payload types
 export type {
+  ApplicationPasswordCreateInput,
+  ApplicationPasswordUpdateInput,
   DeleteOptions,
   TermWriteInput,
   UserDeleteOptions,
@@ -46,6 +48,8 @@ export type {
 } from "./types/payloads.js";
 // Request overrides (used across resources)
 export type {
+  ApplicationPasswordRequestOptions,
+  ApplicationPasswordsResourceClient,
   CommentsResourceClient,
   ContentResourceClient,
   ExtensibleFilter,
@@ -61,8 +65,12 @@ export type {
   SettingsResourceClient,
   TermsResourceClient,
   UsersResourceClient,
+  WordPressApplicationPasswordContext,
+  WordPressApplicationPasswordDeleteResult,
+  WordPressApplicationPasswordsDeleteAllResult,
   WordPressDeleteResult,
   WordPressRequestOverrides,
   WordPressResourceSchemaName,
   WordPressSchemaValueOptions,
+  WordPressUserRef,
 } from "./types/resources.js";

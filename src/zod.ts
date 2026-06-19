@@ -107,6 +107,7 @@ export {
   abilityAnnotationsSchema,
   abilityCategorySchema,
   abilitySchema,
+  applicationPasswordSchema,
   authorSchema,
   baseWordPressSchema,
   categorySchema,
@@ -128,6 +129,7 @@ export {
   type WordPressAbility,
   type WordPressAbilityAnnotations,
   type WordPressAbilityCategory,
+  type WordPressApplicationPassword,
   type WordPressAuthor,
   type WordPressBase,
   type WordPressCategory,
@@ -159,6 +161,10 @@ export type {
   UsersFilter,
 } from "./types/filters.js";
 export type {
+  ApplicationPasswordCreateInput,
+  ApplicationPasswordRequestOptions,
+  ApplicationPasswordsResourceClient,
+  ApplicationPasswordUpdateInput,
   ContentResourceClient,
   DeleteOptions,
   FetchResult,
@@ -170,12 +176,16 @@ export type {
   TermWriteInput,
   UserDeleteOptions,
   UserWriteInput,
+  WordPressApplicationPasswordContext,
+  WordPressApplicationPasswordDeleteResult,
+  WordPressApplicationPasswordsDeleteAllResult,
   WordPressClientConfig,
   WordPressDeleteResult,
   WordPressMediaUploadInput,
   WordPressRequestOptions,
   WordPressRequestOverrides,
   WordPressRequestResult,
+  WordPressUserRef,
   WordPressWritePayload,
 } from "./types.js";
 

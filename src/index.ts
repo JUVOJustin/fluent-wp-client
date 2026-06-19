@@ -146,11 +146,15 @@ export {
   GenericResourceRegistry,
 } from "./resources/registry.js";
 export { SettingsResource } from "./resources/settings.js";
-export { UsersResource } from "./resources/users.js";
+export {
+  ApplicationPasswordsResource,
+  UsersResource,
+} from "./resources/users.js";
 export type {
   WordPressAbility,
   WordPressAbilityAnnotations,
   WordPressAbilityCategory,
+  WordPressApplicationPassword,
   WordPressAuthor,
   WordPressBase,
   WordPressCategory,
@@ -174,6 +178,7 @@ export {
   abilityAnnotationsSchema,
   abilityCategorySchema,
   abilitySchema,
+  applicationPasswordSchema,
   authorSchema,
   baseWordPressSchema,
   categorySchema,
@@ -222,6 +227,10 @@ export type {
   UsersFilter,
 } from "./types/filters.js";
 export type {
+  ApplicationPasswordCreateInput,
+  ApplicationPasswordRequestOptions,
+  ApplicationPasswordsResourceClient,
+  ApplicationPasswordUpdateInput,
   CommentsResourceClient,
   ContentResourceClient,
   DeleteOptions,
@@ -239,6 +248,9 @@ export type {
   UserDeleteOptions,
   UsersResourceClient,
   UserWriteInput,
+  WordPressApplicationPasswordContext,
+  WordPressApplicationPasswordDeleteResult,
+  WordPressApplicationPasswordsDeleteAllResult,
   WordPressClientConfig,
   WordPressDeleteResult,
   WordPressMediaUploadInput,
@@ -247,5 +259,6 @@ export type {
   WordPressRequestResult,
   WordPressResourceSchemaName,
   WordPressSchemaValueOptions,
+  WordPressUserRef,
   WordPressWritePayload,
 } from "./types.js";

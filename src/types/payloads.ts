@@ -33,6 +33,23 @@ export interface UserWriteInput {
 }
 
 /**
+ * Payload for creating WordPress Application Passwords.
+ */
+export interface ApplicationPasswordCreateInput {
+  app_id?: string;
+  name: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Payload for updating WordPress Application Passwords.
+ */
+export interface ApplicationPasswordUpdateInput {
+  name?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Shared delete options used by endpoints that support force-deleting.
  */
 export interface DeleteOptions {

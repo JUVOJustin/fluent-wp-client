@@ -384,6 +384,34 @@ describe("Discovery APIs", () => {
       expect(desc.capabilities?.createFields.length).toBeGreaterThan(0);
     });
 
+    it("create schema keeps rich-text fields writable as {raw} or a bare string", async () => {
+      // Regression: WordPress declares `title`/`content`/`excerpt` as objects
+      // whose writable value lives under a nested `raw` subproperty (and the
+      // controllers also accept a plain string). Earlier discovery dropped the
+      // nested `properties`, collapsing them to `{ type: "object" }`; a strict
+      // consumer (e.g. an MCP tool input schema) then stripped `{ raw: ... }`
+      // to `{}`, so WordPress rejected the empty content. Both write shapes
+      // must validate against the discovered create schema.
+      const description = await authClient.content("posts").describe();
+      const createSchema = zodFromJsonSchema(description.schemas.create!);
+      expect(createSchema).toBeDefined();
+
+      const contentProp = (
+        description.schemas.create?.properties as
+          | Record<string, { properties?: Record<string, unknown> }>
+          | undefined
+      )?.content;
+      expect(contentProp?.properties?.raw).toBeDefined();
+
+      expect(
+        createSchema!.safeParse({ content: { raw: "<p>From raw</p>" } })
+          .success,
+      ).toBe(true);
+      expect(createSchema!.safeParse({ content: "From string" }).success).toBe(
+        true,
+      );
+    });
+
     it("content capabilities.updateFields matches createFields (no required constraint)", async () => {
       const desc = await authClient.content("posts").describe();
 

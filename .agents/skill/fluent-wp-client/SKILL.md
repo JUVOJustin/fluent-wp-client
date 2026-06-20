@@ -4,11 +4,13 @@ description: >
   Typed WordPress REST API client for TypeScript. Use when implementing features that
   read or write WordPress content (posts, pages, media, terms, users, comments, settings),
   work with custom post types or taxonomies, authenticate against WordPress, parse
-  Gutenberg blocks, hydrate post relations, call WordPress Abilities endpoints, or
-  migrate from node-wpapi. Triggers: "WordPress API", "WP REST", "WordPress client",
+  Gutenberg blocks, hydrate post relations, call WordPress Abilities endpoints,
+  design AI/MCP/agent tools from WordPress schemas, or migrate from node-wpapi.
+  Triggers: "WordPress API", "WP REST", "WordPress client",
   "fluent-wp-client", "posts API", "pages API", "media upload", "custom post type",
   "CPT", "taxonomy", "Gutenberg blocks", "WP auth", "JWT WordPress", "cookie nonce",
-  "WPAPI", "node-wpapi", "WordPress abilities".
+  "WPAPI", "node-wpapi", "WordPress abilities", "WordPress AI tools", "MCP tools",
+  "agent tools", "WordPress schema tools".
 ---
 
 # fluent-wp-client
@@ -365,6 +367,14 @@ Before writing mutations against an unfamiliar resource or ability, call `.descr
 - `wp.explore()` — full catalog of all resources and abilities at once
 
 See `docs/schema-discovery.mdx` for examples.
+
+## AI and MCP tool design
+
+When designing AI, MCP, or agent tools from WordPress data, read
+`references/agent-tool-design.mdx` before proposing package-level factories or adapter
+code. Prefer using `fluent-wp-client` as the schema/discovery layer while the
+application owns concrete tool names, permission policy, approval flow, and result
+formatting.
 
 ## WordPress Abilities API
 

@@ -10,6 +10,8 @@ Use the root package helpers when an agent framework needs JSON Schema and catal
 
 Catalog-wide one-call registration is intentionally not the recommended pattern. It is flexible, but it makes tools less descriptive and reduces the control that usually matters for production agents.
 
+For practical guidance on designing a minimal tool surface for AI SDK, MCP, LangChain, or custom agents, see [AI Tool Design](./agent-tool-design.mdx).
+
 ## Recommended Pattern
 
 Seed the client catalog once, then compose focused tools for the workflow you are exposing:

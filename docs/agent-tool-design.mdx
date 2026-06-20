@@ -1,0 +1,147 @@
+---
+title: AI Tool Design
+short_title: AI Tool Design
+description: Design efficient AI, MCP, and agent tools from fluent-wp-client discovery schemas while keeping tool policy in your application.
+sidebar:
+  order: 9
+---
+
+Use `fluent-wp-client` as the WordPress schema and execution layer when you build AI SDK, MCP, LangChain, or custom agent tools. The application or MCP server should own concrete tool names, user-specific permissions, approvals, audit logging, result envelopes, and product policy.
+
+The goal is a small tool surface with strong schemas where they matter most.
+
+## Use discovery as the source
+
+Use live or cached discovery data as the source of truth for tool schemas. Runtime discovery returns a plain serializable catalog that can be cached in KV, a database, a Durable Object, or a file.
+
+```ts title="Discover and cache a catalog"
+const catalog = await adminWp.explore();
+
+catalog.content.books.schemas.create;
+catalog.content.books.schemas.update;
+catalog.terms.genre.schemas.create;
+catalog.resources.users.schemas.update;
+```
+
+Seed a user-scoped client with the cached catalog when you generate tools later:
+
+```ts title="Reuse a cached catalog"
+const wp = new WordPressClient({ baseUrl, auth: userAuth });
+wp.useCatalog(cachedCatalog);
+
+const schema = await wp.content('books').getJsonSchema('create');
+const queryParams = await wp.content('books').getQueryParams();
+const fields = await wp.content('books').getReadableFields();
+```
+
+Authenticated discovery usually exposes richer create and update schemas. If the catalog was fetched with admin credentials, treat it as a maximal schema. Runtime permission enforcement still belongs to WordPress and the user-scoped client.
+
+For details on the catalog shape and cache behavior, see [Schema Discovery](./schema-discovery.mdx).
+
+## Prefer collection read tools
+
+Default to collection or listing tools instead of separate single-item getter tools. WordPress collection and single-item responses usually share the same DTO shape, so one listing tool can cover search, filtering, pagination, and targeted reads.
+
+A `list_posts` tool can accept:
+
+- `search`
+- `slug`
+- `include` or `id`
+- `page`
+- `perPage`
+- `fields` / `_fields`
+- resource-specific filters from `getQueryParams()`
+
+If the WordPress collection endpoint does not accept `id` directly, translate the tool's `id` input to the supported targeted filter, usually `include: [id]`.
+
+Use one generic list tool per broad family when the exact output schema is not important:
+
+- one content listing tool for post-like resources
+- one term listing tool for taxonomies
+- one resource listing tool for users, comments, or media when appropriate
+
+Create entity-specific list tools only when the host benefits from a precise output schema or the task needs a narrower description. For example, use `list_books` with a `books` output schema in MCP when the client validates `structuredContent`.
+
+Add single-item getter tools only when a host framework, permission boundary, latency requirement, or product workflow specifically needs separate single-item semantics.
+
+## Make saves entity-specific
+
+Use explicit, entity-specific save tools for mutations. This is where strong schemas matter most.
+
+Recommended examples:
+
+- `save_posts`
+- `save_books`
+- `save_pages` only when pages are intentionally writable
+- `save_genre`
+- `save_categories` only when category writes are intentionally exposed
+- `save_users` only when user management is intentionally exposed
+
+One save tool should cover create and update:
+
+- no `id` means create
+- `id` means update
+- `input` contains fields from the discovered create and update schemas
+
+Derive the input schema from the cached catalog or `getJsonSchema()`. Keep the schema as strict as the target framework supports, but let WordPress remain the final validator for capabilities and plugin-specific behavior.
+
+Do not expose write tools just because discovery found a writable endpoint. Writes are a policy decision.
+
+## Keep deletes small
+
+Delete tools can be simpler than save tools, but they are still destructive policy decisions.
+
+A practical starting point:
+
+- one delete tool for post-like content, with an allowed `contentType` enum
+- one delete tool for terms, with an allowed `taxonomyType` enum
+- one delete tool for users, only when user deletion is explicitly part of the app
+
+Delete inputs are usually small:
+
+- resource selector when the tool is generic
+- `id`
+- `force` when supported
+- `reassign` for user deletion when supported
+
+Use host-native confirmation, approval, or elicitation for destructive tools. MCP annotations such as `readOnlyHint` and `destructiveHint` are useful metadata, but they are hints rather than an enforcement boundary.
+
+## Separate schema, exposure, and enforcement
+
+Keep these concerns separate:
+
+| Concern | Owner |
+|---|---|
+| Schema discovery | `fluent-wp-client` and the WordPress REST schema |
+| Tool advertisement | The application, MCP server, or agent adapter |
+| Runtime enforcement | WordPress capabilities through the current user-scoped client |
+
+For multi-user systems, execute tools with a user-scoped `WordPressClient`. Do not rely on an admin-discovered catalog as proof that a normal user can write or delete. WordPress should still return `403` for unauthorized actions.
+
+If different users should see different tools, add a project-specific tool-list policy or capability probe. Keep that policy in the application, not in the generic client layer.
+
+## Keep result formatting in the adapter
+
+Keep result formatting close to the framework adapter:
+
+- MCP usually needs `content`, optional `structuredContent`, JSON Schema `inputSchema`, and protocol-specific errors.
+- AI SDK tools may use Zod or `jsonSchema()`, `needsApproval`, `toolOptions`, and model output transforms.
+- Custom agents often need their own audit logs, truncation policy, and retry behavior.
+
+`fluent-wp-client` should provide the request methods and schemas. The concrete tool adapter should decide envelopes, truncation, approvals, and logging.
+
+## Minimal tool set
+
+For a typical content-management agent, start with:
+
+- `list_content`
+- `list_terms`
+- `save_posts`
+- `save_books` or other intentionally writable custom post types
+- `save_genre` or other intentionally writable taxonomies
+- `delete_content`
+- `delete_terms`
+
+Add `list_users`, `save_users`, or `delete_users` only when the product explicitly needs user management. Add media upload and Gutenberg block tools only when the workflow requires them; they usually need bespoke validation and transport logic.
+
+This is guidance, not a hard rule. Prefer fewer tools until a concrete workflow, schema requirement, or permission boundary justifies splitting them.

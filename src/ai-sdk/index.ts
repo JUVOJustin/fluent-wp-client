@@ -77,6 +77,7 @@ export type {
   ContentGetToolOptions,
   ContentSaveToolOptions,
   CreateAbilityToolsOptions,
+  DiscriminatorStrategy,
   GenericMutationToolFactoryOptions,
   GenericResourceToolFactoryOptions,
   MutationToolFactoryOptions,

@@ -669,6 +669,91 @@ describe("AI SDK tool integration", () => {
       });
     });
 
+    // Regression for issue #78: with 2+ content types the generated
+    // save_content schema must be a FLAT object (top-level `properties`, no
+    // top-level `oneOf`/`anyOf`), with a single permissive `input` object —
+    // otherwise LLM tool-calling stringifies the nested `input`.
+    it("saveContentTool emits a flat object schema for multi-type catalogs (#78)", () => {
+      // The wp-env catalog seeds posts, pages, and books — 2+ content types.
+      expect(Object.keys(catalog.content).length).toBeGreaterThanOrEqual(2);
+
+      const tool = saveContentTool(publicClient);
+      const json = z.toJSONSchema(tool.inputSchema, {
+        io: "input",
+      }) as {
+        type?: string;
+        oneOf?: unknown;
+        anyOf?: unknown;
+        required?: string[];
+        properties?: {
+          contentType?: { enum?: string[] };
+          input?: {
+            type?: string;
+            properties?: Record<string, Record<string, unknown>>;
+          };
+        };
+      };
+
+      // Root is a real object, not a top-level union.
+      expect(json.type).toBe("object");
+      expect(json).not.toHaveProperty("oneOf");
+      expect(json).not.toHaveProperty("anyOf");
+      expect(json.properties).toBeDefined();
+
+      // The discriminator collapsed to an enum covering every content type.
+      const contentTypeEnum = json.properties?.contentType?.enum ?? [];
+      expect(contentTypeEnum.length).toBe(Object.keys(catalog.content).length);
+
+      // `input` is a real, fillable object — not a union the model stringifies.
+      expect(json.properties?.input?.type).toBe("object");
+      const inputProps = json.properties?.input?.properties ?? {};
+      const acceptsString = (field?: Record<string, unknown>): boolean => {
+        if (!field) return false;
+        if (field.type === "string") return true;
+        const variants = (field.anyOf ?? field.oneOf) as
+          | Array<Record<string, unknown>>
+          | undefined;
+        return Boolean(variants?.some((variant) => variant.type === "string"));
+      };
+      expect(acceptsString(inputProps.title)).toBe(true);
+      expect(acceptsString(inputProps.content)).toBe(true);
+
+      // The discriminator and `input` remain required.
+      expect(json.required).toContain("contentType");
+      expect(json.required).toContain("input");
+    });
+
+    // Opt-out: `discriminator: "union"` restores the legacy top-level union.
+    it("saveContentTool can still emit the legacy union schema on request (#78)", () => {
+      expect(Object.keys(catalog.content).length).toBeGreaterThanOrEqual(2);
+
+      const tool = saveContentTool(publicClient, { discriminator: "union" });
+      const json = z.toJSONSchema(tool.inputSchema, { io: "input" }) as Record<
+        string,
+        unknown
+      >;
+
+      // Union strategy serializes to a top-level oneOf/anyOf with no root props.
+      expect(json.oneOf ?? json.anyOf).toBeDefined();
+      expect(json).not.toHaveProperty("properties");
+    });
+
+    // The single-content-type path was already a clean flat object; keep it so.
+    it("saveContentTool stays a flat object for single-type catalogs (#78)", () => {
+      const tool = saveContentTool(publicClient, { contentType: "posts" });
+      const json = z.toJSONSchema(tool.inputSchema, { io: "input" }) as {
+        type?: string;
+        oneOf?: unknown;
+        anyOf?: unknown;
+        properties?: { input?: { type?: string } };
+      };
+
+      expect(json.type).toBe("object");
+      expect(json).not.toHaveProperty("oneOf");
+      expect(json).not.toHaveProperty("anyOf");
+      expect(json.properties?.input?.type).toBe("object");
+    });
+
     it("manual inputSchema overrides generated schemas when no catalog is provided", () => {
       const tool = saveContentTool(authClient, {
         contentType: "posts",

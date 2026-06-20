@@ -14,6 +14,10 @@ import type {
 import type { QueryParams } from "../types/resources.js";
 import { zodSchemasFromDescription } from "../zod-helpers.js";
 import {
+  buildSelectorSchema,
+  type DiscriminatorStrategy,
+} from "./catalog-schemas.js";
+import {
   asToolArgs,
   normalizeFieldSelection,
   prepareCollectionArgs,
@@ -56,19 +60,19 @@ function _createResourceTypeSchema(catalog?: WordPressDiscoveryCatalog) {
   );
 }
 
+/**
+ * Collapses resource variants (`media` / `comments` / `users`) into one input
+ * schema, honoring the configured discriminator strategy. Defaults to the
+ * flat-object shape (issue #78) so the model gets a real top-level object
+ * instead of a top-level `oneOf`.
+ */
 function buildResourceUnion(
   discriminator: "resourceType",
   variants: z.ZodObject<z.ZodRawShape>[],
+  strategy?: DiscriminatorStrategy,
 ): ZodType {
   if (variants.length === 1) return variants[0];
-  return z.discriminatedUnion(
-    discriminator,
-    variants as [
-      z.ZodObject<z.ZodRawShape>,
-      z.ZodObject<z.ZodRawShape>,
-      ...z.ZodObject<z.ZodRawShape>[],
-    ],
-  );
+  return buildSelectorSchema(discriminator, variants, strategy);
 }
 
 function getResourceDescription(
@@ -143,6 +147,7 @@ function buildCatalogResourceReadSchema(
   mode: "collection" | "get",
   unionDescription: string,
   variantDescription: (resourceType: SupportedResourceType) => string,
+  strategy?: DiscriminatorStrategy,
 ): ZodType {
   if (resourceType) {
     return RESOURCE_READ_SCHEMAS[resourceType][mode]
@@ -165,7 +170,7 @@ function buildCatalogResourceReadSchema(
     }),
   );
 
-  return buildResourceUnion("resourceType", variants).describe(
+  return buildResourceUnion("resourceType", variants, strategy).describe(
     unionDescription,
   );
 }
@@ -173,6 +178,7 @@ function buildCatalogResourceReadSchema(
 function createCollectionInputSchema(options?: {
   resourceType?: SupportedResourceType;
   catalog?: WordPressDiscoveryCatalog;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   return buildCatalogResourceReadSchema(
     options?.catalog,
@@ -180,12 +186,14 @@ function createCollectionInputSchema(options?: {
     "collection",
     "Search and filter WordPress media, comments, or users",
     (resourceType) => `Search and filter WordPress ${resourceType}`,
+    options?.discriminator,
   );
 }
 
 function createGetInputSchema(options?: {
   resourceType?: SupportedResourceType;
   catalog?: WordPressDiscoveryCatalog;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   return buildCatalogResourceReadSchema(
     options?.catalog,
@@ -198,6 +206,7 @@ function createGetInputSchema(options?: {
         : resourceType === "media"
           ? "Get one WordPress media item"
           : "Get one WordPress user",
+    options?.discriminator,
   );
 }
 
@@ -235,6 +244,7 @@ function createResourceSaveVariantSchema(
 function createSaveInputSchema(options?: {
   resourceType?: SupportedResourceType;
   catalog?: WordPressDiscoveryCatalog;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   if (options?.resourceType === "media") {
     return z
@@ -258,31 +268,40 @@ function createSaveInputSchema(options?: {
     );
   }
 
-  return buildResourceUnion("resourceType", [
-    createResourceSaveVariantSchema(
-      "comments",
-      getResourceDescription(options?.catalog, "comments"),
-    ).extend({ resourceType: z.literal("comments") }),
-    createResourceSaveVariantSchema(
-      "users",
-      getResourceDescription(options?.catalog, "users"),
-    ).extend({ resourceType: z.literal("users") }),
-  ]).describe("Create or update a WordPress comment or user");
+  return buildResourceUnion(
+    "resourceType",
+    [
+      createResourceSaveVariantSchema(
+        "comments",
+        getResourceDescription(options?.catalog, "comments"),
+      ).extend({ resourceType: z.literal("comments") }),
+      createResourceSaveVariantSchema(
+        "users",
+        getResourceDescription(options?.catalog, "users"),
+      ).extend({ resourceType: z.literal("users") }),
+    ],
+    options?.discriminator,
+  ).describe("Create or update a WordPress comment or user");
 }
 
 function createDeleteInputSchema(options?: {
   resourceType?: SupportedResourceType;
   catalog?: WordPressDiscoveryCatalog;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   if (options?.resourceType === "users") return userDeleteInputSchema;
   if (options?.resourceType === "media" || options?.resourceType === "comments")
     return deleteInputSchema;
 
-  return buildResourceUnion("resourceType", [
-    deleteInputSchema.extend({ resourceType: z.literal("media") }),
-    deleteInputSchema.extend({ resourceType: z.literal("comments") }),
-    userDeleteInputSchema.extend({ resourceType: z.literal("users") }),
-  ]).describe("Delete a WordPress media item, comment, or user");
+  return buildResourceUnion(
+    "resourceType",
+    [
+      deleteInputSchema.extend({ resourceType: z.literal("media") }),
+      deleteInputSchema.extend({ resourceType: z.literal("comments") }),
+      userDeleteInputSchema.extend({ resourceType: z.literal("users") }),
+    ],
+    options?.discriminator,
+  ).describe("Delete a WordPress media item, comment, or user");
 }
 
 async function listResource(

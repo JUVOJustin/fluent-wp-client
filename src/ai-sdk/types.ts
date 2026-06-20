@@ -3,7 +3,10 @@ import type { WordPressParsedBlock } from "../blocks.js";
 import type { WordPressPostLike } from "../schemas.js";
 import type { WordPressAbilityDescription } from "../types/discovery.js";
 import type { QueryParams } from "../types/resources.js";
+import type { DiscriminatorStrategy } from "./catalog-schemas.js";
 import type { ContentItemResult } from "./factories.js";
+
+export type { DiscriminatorStrategy } from "./catalog-schemas.js";
 
 type ProtectedToolOptionKey =
   | "args"
@@ -64,7 +67,14 @@ export interface MutationToolFactoryOptions<
  */
 export interface CatalogToolFactoryOptions<
   TArgs extends Record<string, unknown>,
-> extends ToolFactoryOptions<TArgs> {}
+> extends ToolFactoryOptions<TArgs> {
+  /**
+   * Strategy for collapsing multiple catalog variants into the generated
+   * input schema. Defaults to `"flat"` (see {@link DiscriminatorStrategy}).
+   * Ignored when the tool is pinned to a single resource.
+   */
+  discriminator?: DiscriminatorStrategy;
+}
 
 /**
  * Mutation tool options for factories that can derive narrower schemas from
@@ -72,7 +82,14 @@ export interface CatalogToolFactoryOptions<
  */
 export interface CatalogMutationToolFactoryOptions<
   TArgs extends Record<string, unknown>,
-> extends MutationToolFactoryOptions<TArgs> {}
+> extends MutationToolFactoryOptions<TArgs> {
+  /**
+   * Strategy for collapsing multiple catalog variants into the generated
+   * input schema. Defaults to `"flat"` (see {@link DiscriminatorStrategy}).
+   * Ignored when the tool is pinned to a single resource.
+   */
+  discriminator?: DiscriminatorStrategy;
+}
 
 /**
  * Options for `getContentCollectionTool`.

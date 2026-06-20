@@ -81,8 +81,8 @@
     "prepare": "npm run build",
     "test": "npm run build && vitest run",
     "test:watch": "npm run build && vitest",
-    "wp:clean": "wp-env clean all",
-    "wp:start": "wp-env start --update",
+    "wp:clean": "wp-env destroy",
+    "wp:start": "wp-env start --update --runtime=playground",
     "wp:status": "wp-env status",
     "wp:stop": "wp-env stop"
   },

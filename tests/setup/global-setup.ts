@@ -1,5 +1,4 @@
-import { execSync } from "node:child_process";
-import { unlinkSync, writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,33 +7,22 @@ const ENV_FILE = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../.test-env.json",
 );
+/** `.wp-env.json` pins the Playground port so setup can address the site directly. */
+const WP_ENV_CONFIG = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../.wp-env.json",
+);
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "password";
+const DEFAULT_PORT = 8896;
 
 /**
- * Runs a WP-CLI command inside the wp-env container and returns the WP-CLI
- * output only, stripping the wp-env runner log lines (ℹ/✔ prefixed)
- */
-function wpCli(command: string): string {
-  const raw = execSync(`npx wp-env run cli -- wp ${command}`, {
-    encoding: "utf-8",
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-
-  return stripWpEnvOutput(raw);
-}
-
-/**
- * Resolves the base URL of the running wp-env development environment.
+ * Resolves the base URL of the running wp-env Playground environment.
  *
- * When `WP_BASE_URL` is set explicitly (CI pipelines, custom runners), the
- * override wins. Otherwise we ask wp-env for the active port so the test suite
- * keeps working when `"autoPort": true` promotes the port from the default 8888
- * to the next available one (8889, 8890, ...).
- *
- * Note: `wp-env status --json` reports the configured `urls.development` which
- * always reflects the default port, not the actual bound port. The true port
- * lives in `ports.development`, so we assemble the URL from that.
+ * The Playground runtime serves over a plain PHP built-in server, not a Docker
+ * container, so `wp-env status --json` does not report a usable `ports.development`
+ * value. Instead the port is pinned in `.wp-env.json` (`"port"`), which we read
+ * here. An explicit `WP_BASE_URL` always wins (CI / custom runners).
  */
 function resolveBaseUrl(): string {
   if (process.env.WP_BASE_URL) {
@@ -42,64 +30,45 @@ function resolveBaseUrl(): string {
   }
 
   try {
-    const raw = execSync("npx wp-env status --json", {
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    const parsed = JSON.parse(stripWpEnvOutput(raw)) as {
-      ports?: { development?: string | number | null };
+    const parsed = JSON.parse(readFileSync(WP_ENV_CONFIG, "utf-8")) as {
+      port?: number;
     };
-
-    const port = parsed.ports?.development;
-    if (port !== null && port !== undefined && String(port).length > 0) {
-      return `http://localhost:${port}`;
+    if (typeof parsed.port === "number") {
+      return `http://localhost:${parsed.port}`;
     }
   } catch {
-    // Fall through to the default when wp-env status is unavailable (older
-    // wp-env versions, status --json not supported, etc.).
+    // Fall through to the default when the config cannot be read.
   }
 
-  return "http://localhost:8888";
+  return `http://localhost:${DEFAULT_PORT}`;
 }
 
 /**
- * Strips wp-env status/info lines (ℹ/✔) from command output, returning
- * only the actual command stdout
+ * Fetches the admin Application Password from the local bootstrap mu-plugin
+ * (`tests/wp-env/mu-plugins/enable-app-passwords.php`). wp-cli is unavailable in
+ * the Playground runtime, so the credential is minted in PHP and read back over
+ * HTTP. A fresh password is provisioned on every call (hashes are one-way).
  */
-function stripWpEnvOutput(raw: string): string {
-  const lines = raw
-    .split("\n")
-    .filter(
-      (line) =>
-        line.trim() !== "" &&
-        !line.startsWith("ℹ") &&
-        !line.startsWith("✔") &&
-        !line.startsWith("\u2139") &&
-        !line.startsWith("\u2714"),
+async function fetchAppPassword(baseUrl: string): Promise<string> {
+  const response = await fetch(
+    `${baseUrl}/wp-json/wp-client-test/v1/app-password`,
+  );
+
+  const data: unknown = await response.json().catch(() => null);
+
+  if (
+    !response.ok ||
+    typeof data !== "object" ||
+    data === null ||
+    typeof (data as { password?: unknown }).password !== "string"
+  ) {
+    throw new Error(
+      `Failed to fetch Application Password from bootstrap route (status ${response.status}). ` +
+        "Ensure the enable-app-passwords mu-plugin is mapped and WordPress is reachable.",
     );
+  }
 
-  return lines.join("\n").trim();
-}
-
-/**
- * Generates an application password for the admin user
- */
-function createAppPassword(): string {
-  const raw = wpCli(
-    `user application-password create ${DEFAULT_ADMIN_USERNAME} vitest --porcelain`,
-  );
-  // Output format: "<password> <id>" — we need just the password (first token)
-  return raw.split(/\s+/)[0];
-}
-
-/**
- * Keeps the local admin password deterministic so JWT auth setup stays stable.
- */
-function resetAdminPassword(): void {
-  wpCli(
-    `user update ${DEFAULT_ADMIN_USERNAME} --user_pass=${DEFAULT_ADMIN_PASSWORD}`,
-  );
+  return (data as { password: string }).password;
 }
 
 /**
@@ -236,13 +205,57 @@ async function createCookieAuthSession(
 }
 
 /**
- * Waits for the WordPress REST API to respond before running tests
+ * Returns true once the environment is fully ready for the integration suite.
+ *
+ * Under the Playground runtime, plugins activated by the blueprint are NOT loaded
+ * into the very first HTTP request(s) after boot — ACF and the JWT plugin come up
+ * a request or two later, and content seeding (hooked to `acf/init`) completes only
+ * once ACF is loaded. So "core REST responds" is not a sufficient readiness signal:
+ * we must confirm the full stack the tests depend on is live before collecting
+ * credentials. Each probe below also drives the extra requests that warm the stack.
  */
-async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
+async function isEnvironmentReady(baseUrl: string): Promise<boolean> {
+  // 1. Seeding finished AND ACF values are populated: a known seeded post must
+  //    exist with its ACF subtitle set (proves ACF loaded and the seed ran).
+  const seededRes = await fetch(
+    `${baseUrl}/wp-json/wp/v2/posts?slug=test-post-001`,
+  );
+  if (!seededRes.ok) return false;
+  const seeded = (await seededRes.json()) as Array<{
+    acf?: { acf_subtitle?: string };
+  }>;
+  if (!seeded[0]?.acf?.acf_subtitle) return false;
+
+  // 2. The JWT plugin route is registered (returns a non-404 for a real login).
+  const jwtRes = await fetch(`${baseUrl}/wp-json/jwt-auth/v1/token`, {
+    body: JSON.stringify({
+      password: DEFAULT_ADMIN_PASSWORD,
+      username: DEFAULT_ADMIN_USERNAME,
+    }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (jwtRes.status === 404) return false;
+  const jwt = (await jwtRes.json()) as { token?: unknown };
+  if (typeof jwt.token !== "string") return false;
+
+  // 3. The app-password bootstrap route is live.
+  const appRes = await fetch(
+    `${baseUrl}/wp-json/wp-client-test/v1/app-password`,
+  );
+  return appRes.ok;
+}
+
+/**
+ * Waits for the full WordPress stack (core REST, ACF + seeded content, JWT plugin,
+ * bootstrap route) to come up before running tests. The Playground runtime boots a
+ * fresh PHP server and loads plugins lazily, so a generous attempt budget keeps the
+ * suite robust on cold starts.
+ */
+async function waitForApi(baseUrl: string, maxAttempts = 180): Promise<void> {
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const res = await fetch(`${baseUrl}/wp-json/wp/v2/posts`);
-      if (res.ok) return;
+      if (await isEnvironmentReady(baseUrl)) return;
     } catch {
       // not ready yet
     }
@@ -253,9 +266,13 @@ async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
 
 /**
  * Global setup: called once before all integration tests.
- * Content seeding is handled by wp-env's afterStart lifecycle script
- * (see .wp-env.json), so this only needs to wait for the API and
- * create app-password, JWT, and cookie+nonce auth credentials for integration tests.
+ *
+ * Content seeding, permalinks, ACF + JWT plugin activation, and app-password
+ * provisioning are all handled inside the wp-env Playground environment (the
+ * `.wp-env.json` `plugins` array plus the mapped mu-plugins). This only needs to
+ * resolve the base URL, wait for the API, then collect the app-password, JWT, and
+ * cookie+nonce credentials the integration tests consume — all over HTTP, with no
+ * wp-cli / Docker dependency.
  */
 export async function setup(): Promise<void> {
   const baseUrl = resolveBaseUrl();
@@ -264,11 +281,8 @@ export async function setup(): Promise<void> {
   console.log("[global-setup] Waiting for WordPress API...");
   await waitForApi(baseUrl);
 
-  console.log("[global-setup] Resetting admin password...");
-  resetAdminPassword();
-
-  console.log("[global-setup] Creating application password...");
-  const appPassword = createAppPassword();
+  console.log("[global-setup] Fetching application password...");
+  const appPassword = await fetchAppPassword(baseUrl);
 
   console.log("[global-setup] Creating JWT token...");
   const jwtToken = await createJwtToken(baseUrl);
@@ -294,19 +308,14 @@ export async function setup(): Promise<void> {
 }
 
 /**
- * Global teardown: called once after all integration tests
+ * Global teardown: called once after all integration tests.
+ *
+ * The Application Password is provisioned per run inside WordPress, so there is no
+ * wp-cli cleanup to perform here — we only remove the temp env file.
  */
 export async function teardown(): Promise<void> {
   console.log("[global-teardown] Cleaning up...");
 
-  // Remove the app password
-  try {
-    wpCli(`user application-password delete ${DEFAULT_ADMIN_USERNAME} --all`);
-  } catch {
-    // Ignore — container may already be down
-  }
-
-  // Remove temp env file
   try {
     unlinkSync(ENV_FILE);
   } catch {

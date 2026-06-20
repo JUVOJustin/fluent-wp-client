@@ -24,6 +24,35 @@ import {
 
 type ZodShape = z.ZodRawShape;
 
+/**
+ * Strategy for collapsing multiple catalog variants into one tool input schema.
+ *
+ * - `"flat"` (default): emit a single flat object whose discriminator is an
+ *   `enum`/`literal` and whose remaining properties (notably `input`) are
+ *   merged across variants into one permissive object. This is the
+ *   LLM-friendly shape — the root is a real object with `properties`, so the
+ *   model reliably fills a nested `input` object instead of serializing it to
+ *   a JSON string, and it is compatible with OpenAI strict function-calling.
+ *   The tradeoff is precision: because `input` sub-fields are unioned and made
+ *   optional, the schema no longer enforces which fields belong to which
+ *   content type. Runtime/WordPress still rejects truly invalid writes.
+ * - `"union"`: emit a `z.discriminatedUnion` (the legacy shape). Stricter —
+ *   each variant only accepts its own fields — but produces a top-level
+ *   `oneOf` JSON Schema that LLM tool-calling handles poorly for 2+ variants.
+ *
+ * See issue #78 for the production failure that motivated defaulting to flat.
+ */
+export type DiscriminatorStrategy = "flat" | "union";
+
+/** Default discriminator strategy applied when a caller does not override it. */
+export const DEFAULT_DISCRIMINATOR_STRATEGY: DiscriminatorStrategy = "flat";
+
+function resolveDiscriminatorStrategy(
+  strategy: DiscriminatorStrategy | undefined,
+): DiscriminatorStrategy {
+  return strategy ?? DEFAULT_DISCRIMINATOR_STRATEGY;
+}
+
 function getObjectSchema(
   schema: ZodType | undefined,
   fallback: ZodType,
@@ -125,6 +154,197 @@ function buildDiscriminatedUnion(
   );
 }
 
+/** Returns true when the schema accepts `undefined` (is optional). */
+function isOptionalSchema(schema: ZodType): boolean {
+  return schema.safeParse(undefined).success;
+}
+
+/** Unwraps `.optional()` / `.default()` wrappers to reach the inner schema. */
+function unwrapSchema(schema: ZodType): ZodType {
+  let current: ZodType = schema;
+  // ZodOptional/ZodDefault/ZodNullable expose their inner type via `unwrap()`.
+  while (
+    current instanceof z.ZodOptional ||
+    current instanceof z.ZodDefault ||
+    current instanceof z.ZodNullable
+  ) {
+    current = (current as unknown as { unwrap: () => ZodType }).unwrap();
+  }
+  return current;
+}
+
+/** Extracts the literal/enum values a discriminator key carries in a variant. */
+function collectDiscriminatorValues(schema: ZodType): string[] {
+  const inner = unwrapSchema(schema);
+  if (inner instanceof z.ZodLiteral) {
+    const values = (inner as { _zod: { def: { values?: unknown[] } } })._zod.def
+      .values;
+    return (values ?? []).map((value) => String(value));
+  }
+  if (inner instanceof z.ZodEnum) {
+    return Object.values(
+      (inner as { _zod: { def: { entries: Record<string, string> } } })._zod.def
+        .entries,
+    );
+  }
+  return [];
+}
+
+/**
+ * Collapses discriminated-union variants into a single flat object schema.
+ *
+ * This is the fix for issue #78: instead of a top-level `z.discriminatedUnion`
+ * (which serializes to a root `oneOf` with no top-level `properties` and trips
+ * up LLM tool-calling), we emit one object where:
+ *
+ * - the discriminator becomes an `enum` (or `z.literal` when there is a single
+ *   value) so the model still picks exactly one resource;
+ * - every nested object property (notably `input`) is merged across variants
+ *   into ONE permissive object — the union of all variants' sub-fields, all
+ *   optional, with `.catchall(z.unknown())` — so no valid field is dropped and
+ *   the model sees a real object to fill rather than a union it tends to
+ *   stringify;
+ * - scalar properties (e.g. `id`) keep the first variant's definition;
+ * - a record-typed `input` fallback (when discovery produced no object schema)
+ *   stays a permissive record;
+ * - `required` is the intersection of the variants' required keys plus the
+ *   discriminator, so `input` stays required only when every variant required
+ *   it.
+ *
+ * The tradeoff vs. the union strategy is precision: because `input` sub-fields
+ * are merged and made optional, the static schema no longer enforces which
+ * field belongs to which content type. WordPress still validates the write at
+ * runtime. Use `discriminator: "union"` to opt back into the stricter shape.
+ */
+export function buildSelectorObject(
+  discriminator: string,
+  variants: z.ZodObject<ZodShape>[],
+): ZodType {
+  if (variants.length === 0) {
+    throw createInvalidRequestError(
+      `Cannot build selector object for '${discriminator}' without variants.`,
+    );
+  }
+
+  if (variants.length === 1) {
+    return variants[0];
+  }
+
+  const shapeOf = (variant: z.ZodObject<ZodShape>): Record<string, ZodType> =>
+    variant.shape as unknown as Record<string, ZodType>;
+
+  // Collect every discriminator literal value across variants.
+  const discriminatorValues: string[] = [];
+  for (const variant of variants) {
+    const field = shapeOf(variant)[discriminator];
+    if (!field) continue;
+    for (const value of collectDiscriminatorValues(field)) {
+      if (!discriminatorValues.includes(value)) discriminatorValues.push(value);
+    }
+  }
+
+  const discriminatorDescription =
+    shapeOf(variants[0])[discriminator]?.description ??
+    `One of: ${discriminatorValues.join(", ")}`;
+
+  const mergedShape: Record<string, ZodType> = {
+    [discriminator]: createSelectorSchema(
+      discriminatorValues,
+      discriminatorDescription,
+    ),
+  };
+
+  // Track, per non-discriminator key, whether it was required in EVERY variant
+  // that declared it (intersection semantics for the final `required` list).
+  const requiredInAllVariants = new Map<string, boolean>();
+  // For object-typed properties, accumulate the union of their sub-shapes.
+  const mergedObjectShapes = new Map<string, ZodShape>();
+  const mergedObjectDescriptions = new Map<string, string | undefined>();
+  // Remember keys whose property is object-typed in at least one variant.
+  const objectKeys = new Set<string>();
+  // Remember a fallback (non-object) schema for keys that are scalar/record.
+  const scalarSchemas = new Map<string, ZodType>();
+
+  for (const variant of variants) {
+    for (const [key, field] of Object.entries(shapeOf(variant))) {
+      if (key === discriminator) continue;
+
+      const optional = isOptionalSchema(field);
+      const previous = requiredInAllVariants.get(key);
+      // Required only if required (not optional) in this and every prior variant.
+      requiredInAllVariants.set(
+        key,
+        previous === undefined ? !optional : previous && !optional,
+      );
+
+      const inner = unwrapSchema(field);
+      if (inner instanceof z.ZodObject) {
+        objectKeys.add(key);
+        const accumulated = mergedObjectShapes.get(key) ?? {};
+        Object.assign(
+          accumulated,
+          inner.shape as unknown as Record<string, ZodType>,
+        );
+        mergedObjectShapes.set(key, accumulated);
+        if (!mergedObjectDescriptions.has(key)) {
+          mergedObjectDescriptions.set(key, field.description);
+        }
+      } else if (!scalarSchemas.has(key)) {
+        // First scalar/record definition wins (e.g. `id`, or a record `input`
+        // fallback when discovery produced no object schema).
+        scalarSchemas.set(key, field);
+      }
+    }
+  }
+
+  const allKeys = new Set<string>([
+    ...objectKeys,
+    ...scalarSchemas.keys(),
+    ...requiredInAllVariants.keys(),
+  ]);
+
+  for (const key of allKeys) {
+    let property: ZodType;
+    if (objectKeys.has(key)) {
+      // Merge all variants' sub-fields into one permissive object: every
+      // sub-field optional, unknown extras allowed. This keeps the nested
+      // `input` a real, fillable object for the model.
+      const merged = z
+        .object(mergedObjectShapes.get(key) ?? {})
+        .partial()
+        .catchall(z.unknown());
+      const description = mergedObjectDescriptions.get(key);
+      property = description ? merged.describe(description) : merged;
+    } else {
+      property = scalarSchemas.get(key) as ZodType;
+    }
+
+    // Apply the intersection requiredness: optional unless required in all.
+    const required = requiredInAllVariants.get(key) ?? false;
+    mergedShape[key] =
+      required || isOptionalSchema(property) ? property : property.optional();
+  }
+
+  return z.object(mergedShape);
+}
+
+/**
+ * Routes variant collapsing through the configured discriminator strategy.
+ *
+ * `"flat"` (the default — see {@link DiscriminatorStrategy}) collapses to a
+ * single object via {@link buildSelectorObject}; `"union"` preserves the legacy
+ * {@link buildDiscriminatedUnion}.
+ */
+export function buildSelectorSchema(
+  discriminator: string,
+  variants: z.ZodObject<ZodShape>[],
+  strategy: DiscriminatorStrategy | undefined,
+): ZodType {
+  return resolveDiscriminatorStrategy(strategy) === "union"
+    ? buildDiscriminatedUnion(discriminator, variants)
+    : buildSelectorObject(discriminator, variants);
+}
+
 /**
  * Builds a catalog-aware read input schema for content, terms, or first-class
  * resources.
@@ -142,6 +362,7 @@ function buildCatalogReadSchema(config: {
   baseSchema: z.ZodObject<ZodShape>;
   description: string;
   discriminator: string;
+  discriminatorStrategy?: DiscriminatorStrategy;
   entries: Array<[string, WordPressResourceDescription]>;
   fixedDescription: WordPressResourceDescription | undefined;
   fixedValue: string | undefined;
@@ -151,6 +372,7 @@ function buildCatalogReadSchema(config: {
     baseSchema,
     description,
     discriminator,
+    discriminatorStrategy,
     entries,
     fixedDescription,
     fixedValue,
@@ -170,9 +392,11 @@ function buildCatalogReadSchema(config: {
         ...createFieldSelectionShape(variantDescription, "read"),
       }),
     );
-    return buildDiscriminatedUnion(discriminator, variants).describe(
-      description,
-    );
+    return buildSelectorSchema(
+      discriminator,
+      variants,
+      discriminatorStrategy,
+    ).describe(description);
   }
 
   return baseSchema
@@ -188,11 +412,13 @@ function buildCatalogReadSchema(config: {
 export function createContentCollectionInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   contentType?: string;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   return buildCatalogReadSchema({
     baseSchema: contentCollectionInputSchema,
     description: "Search and filter WordPress content",
     discriminator: "contentType",
+    discriminatorStrategy: config.discriminator,
     entries: getContentDescriptions(config.catalog),
     fixedDescription: findContentDescription(
       config.catalog,
@@ -207,11 +433,13 @@ export function createContentCollectionInputSchema(config: {
 export function createContentGetInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   contentType?: string;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   return buildCatalogReadSchema({
     baseSchema: contentGetInputSchema,
     description: "Get one WordPress content item by ID or slug",
     discriminator: "contentType",
+    discriminatorStrategy: config.discriminator,
     entries: getContentDescriptions(config.catalog),
     fixedDescription: findContentDescription(
       config.catalog,
@@ -237,6 +465,7 @@ const SAVE_ID_DESCRIPTION =
 export function createContentSaveInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   contentType?: string;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   const fixedDescription = findContentDescription(
     config.catalog,
@@ -285,7 +514,7 @@ export function createContentSaveInputSchema(config: {
 
   if (variants.length > 0) {
     return withOptionalDescription(
-      buildDiscriminatedUnion("contentType", variants),
+      buildSelectorSchema("contentType", variants, config.discriminator),
       "Create or update a WordPress content item",
     );
   }
@@ -327,11 +556,13 @@ export function createContentDeleteInputSchema(config: {
 export function createTermCollectionInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   taxonomyType?: string;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   return buildCatalogReadSchema({
     baseSchema: termCollectionInputSchema,
     description: "Search and filter WordPress terms",
     discriminator: "taxonomyType",
+    discriminatorStrategy: config.discriminator,
     entries: getTermDescriptions(config.catalog),
     fixedDescription: findTermDescription(config.catalog, config.taxonomyType),
     fixedValue: config.taxonomyType,
@@ -343,11 +574,13 @@ export function createTermCollectionInputSchema(config: {
 export function createTermGetInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   taxonomyType?: string;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   return buildCatalogReadSchema({
     baseSchema: simpleGetInputSchema,
     description: "Get one WordPress term by ID or slug",
     discriminator: "taxonomyType",
+    discriminatorStrategy: config.discriminator,
     entries: getTermDescriptions(config.catalog),
     fixedDescription: findTermDescription(config.catalog, config.taxonomyType),
     fixedValue: config.taxonomyType,
@@ -359,6 +592,7 @@ export function createTermGetInputSchema(config: {
 export function createTermSaveInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   taxonomyType?: string;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   const fixedDescription = findTermDescription(
     config.catalog,
@@ -406,7 +640,7 @@ export function createTermSaveInputSchema(config: {
 
   if (variants.length > 0) {
     return withOptionalDescription(
-      buildDiscriminatedUnion("taxonomyType", variants),
+      buildSelectorSchema("taxonomyType", variants, config.discriminator),
       "Create or update a WordPress term",
     );
   }
@@ -456,6 +690,7 @@ export function createTermDeleteInputSchema(config: {
 export function createAbilityGetInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   abilityName?: string;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   const fixedDescription = findAbilityDescription(
     config.catalog,
@@ -490,7 +725,7 @@ export function createAbilityGetInputSchema(config: {
 
   if (variants.length > 0) {
     return withOptionalDescription(
-      buildDiscriminatedUnion("name", variants),
+      buildSelectorSchema("name", variants, config.discriminator),
       "Execute a read-only WordPress ability",
     );
   }
@@ -501,6 +736,7 @@ export function createAbilityGetInputSchema(config: {
 export function createAbilityRunInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   abilityName?: string;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   const fixedDescription = findAbilityDescription(
     config.catalog,
@@ -535,7 +771,7 @@ export function createAbilityRunInputSchema(config: {
 
   if (variants.length > 0) {
     return withOptionalDescription(
-      buildDiscriminatedUnion("name", variants),
+      buildSelectorSchema("name", variants, config.discriminator),
       "Execute a WordPress ability via POST",
     );
   }
@@ -546,6 +782,7 @@ export function createAbilityRunInputSchema(config: {
 export function createAbilityDeleteInputSchema(config: {
   catalog?: WordPressDiscoveryCatalog;
   abilityName?: string;
+  discriminator?: DiscriminatorStrategy;
 }): ZodType {
   const fixedDescription = findAbilityDescription(
     config.catalog,
@@ -582,7 +819,7 @@ export function createAbilityDeleteInputSchema(config: {
 
   if (variants.length > 0) {
     return withOptionalDescription(
-      buildDiscriminatedUnion("name", variants),
+      buildSelectorSchema("name", variants, config.discriminator),
       "Execute a destructive WordPress ability",
     );
   }

@@ -317,7 +317,7 @@ npm run wp:stop
 
 Core transport, mutation helpers, query primitives, and base resource classes live under `src/core/`, while query builders live under `src/builders/`. Package consumers continue to import the public API from `src/index.ts`.
 
-Tests run against a real WordPress Docker container managed by [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/). See [`tests/`](./tests/) for setup details.
+Tests run against a real WordPress site managed by [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/) using its **Playground runtime** (`wp-env start --runtime=playground`) — Docker-free and SQLite-backed. Required plugins (ACF, JWT) and all test fixtures/seed content are provisioned via the `plugins` array and mapped mu-plugins in `.wp-env.json`. See [`tests/`](./tests/) for setup details.
 
 ## License
 
